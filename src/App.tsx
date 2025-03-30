@@ -13,6 +13,7 @@ import { useAuth as useAuthContext } from "@/contexts/AuthContext";
 import { useSearch as useSearchContext } from "@/contexts/SearchContext";
 import AdminCheck from "./pages/admin/AdminCheck";
 import AdminAccessFix from "./pages/AdminAccessFix";
+import AdminDirectSQL from "./pages/AdminDirectSQL";
 
 // Import DashboardLayout directly instead of lazy loading
 import DashboardLayout from "./components/layout/DashboardLayout";
@@ -182,6 +183,7 @@ function AppRoutes() {
         <Route path="supabase-test" element={<SupabaseTest />} />
         <Route path="admin-check" element={<AdminCheck />} />
         <Route path="admin-fix" element={<AdminAccessFix />} />
+        <Route path="admin-sql" element={<AdminDirectSQL />} />
       </Route>
 
       {/* Auth routes */}
