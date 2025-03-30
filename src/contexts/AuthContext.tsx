@@ -24,6 +24,7 @@ import {
   securelyStoreTokens,
   storeReturnPath,
 } from "@/lib/auth-helpers";
+import { Database } from "@/types/supabase";
 
 export type UserRole = "user" | "admin" | "team_member";
 

@@ -1,0 +1,34 @@
+import { supabase } from './lib/supabase';
+
+async function testSupabaseConnection() {
+  console.log('Testing Supabase connection...');
+  
+  try {
+    // Test the connection by fetching the current user
+    const { data: authData, error: authError } = await supabase.auth.getSession();
+    
+    if (authError) {
+      console.error('Auth error:', authError.message);
+    } else {
+      console.log('Auth connection successful!', authData?.session ? 'Session exists' : 'No active session');
+    }
+    
+    // Test DB connection by querying a public table
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('count')
+      .limit(1);
+    
+    if (error) {
+      console.error('Database error:', error.message);
+    } else {
+      console.log('Database connection successful!', data);
+    }
+    
+  } catch (error) {
+    console.error('Connection test failed:', error.message);
+  }
+}
+
+// Run the test
+testSupabaseConnection(); 

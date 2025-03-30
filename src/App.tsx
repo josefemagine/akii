@@ -11,6 +11,8 @@ import PrivateRoute from "./components/PrivateRoute";
 import AdminRoute from "./components/AdminRoute";
 import { useAuth as useAuthContext } from "@/contexts/AuthContext";
 import { useSearch as useSearchContext } from "@/contexts/SearchContext";
+import AdminCheck from "./pages/admin/AdminCheck";
+import AdminAccessFix from "./pages/AdminAccessFix";
 
 // Import DashboardLayout directly instead of lazy loading
 import DashboardLayout from "./components/layout/DashboardLayout";
@@ -41,6 +43,7 @@ const Pricing = lazy(() => import("./pages/Pricing"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const LeadMagnet = lazy(() => import("./pages/LeadMagnet"));
+const SupabaseTest = lazy(() => import("./pages/SupabaseTest"));
 
 // Lazy load product pages with better chunking
 const WebChatAgent = lazy(() => import("./pages/products/WebChatAgent"));
@@ -176,6 +179,9 @@ function AppRoutes() {
         <Route path="contact" element={<Contact />} />
         <Route path="privacy-policy" element={<PrivacyPolicy />} />
         <Route path="terms-of-service" element={<TermsOfService />} />
+        <Route path="supabase-test" element={<SupabaseTest />} />
+        <Route path="admin-check" element={<AdminCheck />} />
+        <Route path="admin-fix" element={<AdminAccessFix />} />
       </Route>
 
       {/* Auth routes */}
