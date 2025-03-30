@@ -1,0 +1,2 @@
+-- Update the database type definitions to include subscription_plans table
+-- Removed: alter publication supabase_realtime add table subscription_plans;

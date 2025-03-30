@@ -1,0 +1,22 @@
+import React from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { LoadingScreen } from './LoadingScreen';
+
+export default function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading, isAdmin } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return <LoadingScreen message="Checking admin permissions..." />;
+  }
+
+  if (!user || !isAdmin) {
+    console.log("AdminRoute - Access denied, redirecting to home");
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  console.log("AdminRoute - Access granted, rendering admin content");
+  return <>{children}</>;
+}
+
