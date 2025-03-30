@@ -17,7 +17,18 @@ import { supabase } from "@/lib/supabase";
 const SubscriptionPage = () => {
   const { user } = useAuth();
   const currentPlan = user?.subscription?.plan || "free";
-  const [plans, setPlans] = useState([]);
+  interface SubscriptionPlan {
+    id: string;
+    name: string;
+    description: string;
+    price_monthly: number;
+    price_annual: number;
+    features: string[];
+    is_popular?: boolean;
+    [key: string]: any;
+  }
+
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -25,8 +36,10 @@ const SubscriptionPage = () => {
     const fetchSubscriptionPlans = async () => {
       try {
         setLoading(true);
-        // Using the correct API endpoint path
-        const { data, error } = await supabase.from("plans").select("*");
+        // Using the correct API endpoint path with proper typing
+        const { data, error } = await supabase
+          .from("subscription_plans")
+          .select("*");
 
         if (error) throw error;
 

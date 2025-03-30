@@ -198,7 +198,7 @@ export async function fetchAnalyticsData(
 
     // Fetch subscription plans data to get subscription amounts
     const { data: plansData, error: plansError } = await supabase
-      .from("plans")
+      .from("subscription_plans")
       .select("*");
 
     if (plansError) throw plansError;

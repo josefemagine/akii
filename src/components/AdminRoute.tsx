@@ -1,9 +1,13 @@
-import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { LoadingScreen } from './LoadingScreen';
+import React from "react";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { LoadingScreen } from "./LoadingScreen";
 
-export default function AdminRoute({ children }: { children: React.ReactNode }) {
+export default function AdminRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { user, isLoading, isAdmin } = useAuth();
   const location = useLocation();
 
@@ -19,4 +23,3 @@ export default function AdminRoute({ children }: { children: React.ReactNode }) 
   console.log("AdminRoute - Access granted, rendering admin content");
   return <>{children}</>;
 }
-

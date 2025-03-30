@@ -12,10 +12,8 @@ import AdminRoute from "./components/AdminRoute";
 import { useAuth as useAuthContext } from "@/contexts/AuthContext";
 import { useSearch as useSearchContext } from "@/contexts/SearchContext";
 
-// Lazy load components
-const DashboardLayout = lazy(
-  () => import("./components/layout/DashboardLayout"),
-);
+// Import DashboardLayout directly instead of lazy loading
+import DashboardLayout from "./components/layout/DashboardLayout";
 import MainLayout from "./components/layout/MainLayout";
 
 // Lazy load pages with better chunking

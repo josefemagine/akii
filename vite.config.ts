@@ -58,6 +58,7 @@ export default defineConfig({
       "path-browserify",
       "crypto-browserify",
     ],
+    exclude: ["src/components/layout/DashboardLayout.tsx"],
   },
   build: {
     sourcemap: true,

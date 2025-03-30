@@ -1,17 +1,6 @@
 #!/bin/bash
 
-# Set the Supabase project ID
-SUPABASE_PROJECT_ID="injxxchotrvgvvzelhvj"
-
-# Check if supabase CLI is installed
-if ! command -v supabase &> /dev/null; then
-  echo "Error: supabase CLI is not installed or not in PATH"
-  echo "Installing supabase CLI globally..."
-  npm install -g supabase
-fi
-
-# Generate types
-echo "Generating Supabase types for project: $SUPABASE_PROJECT_ID"
-npx supabase gen types typescript --project-id "$SUPABASE_PROJECT_ID" > src/types/supabase.ts
-
+# Generate Supabase types with hardcoded project ID
+echo "Generating Supabase types with project ID: injxxchotrvgvvzelhvj"
+npx supabase gen types typescript --project-id injxxchotrvgvvzelhvj > src/types/supabase.ts
 echo "Types generated successfully in src/types/supabase.ts"

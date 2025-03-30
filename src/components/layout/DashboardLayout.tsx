@@ -34,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSearch } from "@/contexts/SearchContext";
 
 interface SidebarItemProps {
   icon: React.ReactNode;
@@ -268,11 +269,18 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  onSearchChange?: (value: string) => void;
+  isAdmin?: boolean;
 }
 
-const Header = ({ onMenuClick = () => {} }: HeaderProps) => {
+const Header = ({
+  onMenuClick = () => {},
+  onSearchChange,
+  isAdmin = false,
+}: HeaderProps) => {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const { user, signOut } = useAuth();
+  const { searchValue, setSearchValue } = useSearch();
   const navigate = useNavigate();
 
   const toggleTheme = () => {
@@ -285,8 +293,24 @@ const Header = ({ onMenuClick = () => {} }: HeaderProps) => {
     navigate("/");
   };
 
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchValue(value);
+    if (onSearchChange) {
+      onSearchChange(value);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-white dark:bg-gray-950 dark:border-gray-800 px-4 sm:px-6">
+      {isAdmin && (
+        <div className="flex items-center gap-2 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded-md">
+          <Shield className="h-4 w-4 text-red-600 dark:text-red-400" />
+          <span className="text-sm font-medium text-red-600 dark:text-red-400">
+            Admin Mode
+          </span>
+        </div>
+      )}
       <Button
         variant="ghost"
         size="icon"
@@ -302,6 +326,8 @@ const Header = ({ onMenuClick = () => {} }: HeaderProps) => {
             type="search"
             placeholder="Search..."
             className="w-full bg-gray-50 dark:bg-gray-800 pl-8 rounded-lg border-gray-200 dark:border-gray-700"
+            value={searchValue}
+            onChange={handleSearchInputChange}
           />
         </div>
       </div>
@@ -361,8 +387,8 @@ const Header = ({ onMenuClick = () => {} }: HeaderProps) => {
             {user?.role === "admin" && (
               <DropdownMenuItem asChild>
                 <Link to="/admin">
-                  <Users className="mr-2 h-4 w-4" />
-                  <span>Admin Panel</span>
+                  <Shield className="mr-2 h-4 w-4" />
+                  <span>Admin Dashboard</span>
                 </Link>
               </DropdownMenuItem>
             )}
@@ -381,11 +407,13 @@ const Header = ({ onMenuClick = () => {} }: HeaderProps) => {
 interface DashboardLayoutProps {
   children?: React.ReactNode;
   isAdmin?: boolean;
+  onSearchChange?: (value: string) => void;
 }
 
 const DashboardLayout = ({
   children = <div>Dashboard Content</div>,
   isAdmin = false,
+  onSearchChange,
 }: DashboardLayoutProps) => {
   console.log("DashboardLayout rendered with isAdmin:", isAdmin);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -404,7 +432,11 @@ const DashboardLayout = ({
     <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-900">
       {/* Desktop Sidebar */}
       <div className="hidden md:block">
-        <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+        {isAdmin ? (
+          <AdminSidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+        ) : (
+          <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+        )}
       </div>
 
       {/* Mobile Sidebar */}
@@ -415,13 +447,21 @@ const DashboardLayout = ({
             onClick={toggleMobileSidebar}
           ></div>
           <div className="fixed inset-y-0 left-0 w-[280px] bg-white dark:bg-gray-950">
-            <Sidebar onToggle={toggleMobileSidebar} />
+            {isAdmin ? (
+              <AdminSidebar onToggle={toggleMobileSidebar} />
+            ) : (
+              <Sidebar onToggle={toggleMobileSidebar} />
+            )}
           </div>
         </div>
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header onMenuClick={toggleMobileSidebar} />
+        <Header
+          onMenuClick={toggleMobileSidebar}
+          onSearchChange={onSearchChange}
+          isAdmin={isAdmin}
+        />
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>
