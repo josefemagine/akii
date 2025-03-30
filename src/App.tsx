@@ -84,6 +84,7 @@ const AdminBlog = lazy(() => import("./pages/admin/Blog"));
 const AdminAffiliates = lazy(() => import("./pages/admin/Affiliates"));
 const AdminCompliance = lazy(() => import("./pages/admin/Compliance"));
 const RunMigration = lazy(() => import("./pages/admin/RunMigration"));
+const AdminN8nWorkflows = lazy(() => import("./pages/admin/n8nWorkflows"));
 
 function AppRoutes() {
   const { user, isLoading } = useAuth();
@@ -264,6 +265,7 @@ function AppRoutes() {
         <Route path="affiliates" element={<AdminAffiliates />} />
         <Route path="compliance" element={<AdminCompliance />} />
         <Route path="run-migration" element={<RunMigration />} />
+        <Route path="workflows" element={<AdminN8nWorkflows />} />
       </Route>
 
       {/* Fallback route */}

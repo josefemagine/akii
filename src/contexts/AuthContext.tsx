@@ -15,7 +15,6 @@ import {
 import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
-import type { Database } from "@/types/supabase";
 import {
   clearStoredAuth,
   generateSecureState,

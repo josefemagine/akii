@@ -22,6 +22,12 @@ import {
   Globe,
   Workflow,
   ShoppingBag,
+  Shield,
+  BarChart,
+  Upload,
+  UserCircle,
+  PlusCircle,
+  Sidebar as SidebarIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -466,6 +472,122 @@ const DashboardLayout = ({
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>
       </div>
+    </div>
+  );
+};
+
+// Define AdminSidebar component
+const AdminSidebar = ({ collapsed, onToggle }: SidebarProps) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  const isActive = (path: string) => {
+    return location.pathname === path;
+  };
+
+  const adminSidebarItems = [
+    {
+      icon: <BarChart className="h-5 w-5" />,
+      label: "Dashboard",
+      path: "/admin",
+    },
+    {
+      icon: <Users className="h-5 w-5" />,
+      label: "Users",
+      path: "/admin/users",
+    },
+    {
+      icon: <Workflow className="h-5 w-5" />,
+      label: "Workflows",
+      path: "/admin/workflows",
+    },
+    {
+      icon: <FileText className="h-5 w-5" />,
+      label: "Moderation",
+      path: "/admin/moderation",
+    },
+    {
+      icon: <MessageSquare className="h-5 w-5" />,
+      label: "Email Templates",
+      path: "/admin/email-templates",
+    },
+    {
+      icon: <BarChart3 className="h-5 w-5" />,
+      label: "Lead Magnets",
+      path: "/admin/lead-magnets",
+    },
+    {
+      icon: <Globe className="h-5 w-5" />,
+      label: "Landing Pages",
+      path: "/admin/landing-pages",
+    },
+    {
+      icon: <FileText className="h-5 w-5" />,
+      label: "Blog",
+      path: "/admin/blog",
+    },
+    {
+      icon: <Users className="h-5 w-5" />,
+      label: "Affiliates",
+      path: "/admin/affiliates",
+    },
+    {
+      icon: <Circle className="h-5 w-5" />,
+      label: "Packages",
+      path: "/admin/packages",
+    },
+    {
+      icon: <FileText className="h-5 w-5" />,
+      label: "Compliance",
+      path: "/admin/compliance",
+    },
+    {
+      icon: <Settings className="h-5 w-5" />,
+      label: "Settings",
+      path: "/admin/settings",
+    },
+  ];
+
+  return (
+    <div
+      className={`${
+        collapsed ? "w-14" : "w-64"
+      } bg-background border-r flex flex-col h-screen fixed top-0 left-0 transition-width duration-300 ease-in-out z-10`}
+    >
+      <div className="flex items-center gap-2 p-3">
+        {!collapsed && (
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/logo.svg" alt="Akii" className="h-8 w-8" />
+            <span className="font-bold text-xl">Akii Admin</span>
+          </Link>
+        )}
+        {collapsed && (
+          <Link to="/" className="mx-auto">
+            <img src="/logo.svg" alt="Akii" className="h-8 w-8" />
+          </Link>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="ml-auto"
+          onClick={onToggle}
+        >
+          <ChevronDown className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <nav className="flex-1 px-2 py-4 space-y-1">
+        {adminSidebarItems.map((item) => (
+          <SidebarItem
+            key={item.path}
+            icon={item.icon}
+            label={item.label}
+            href={item.path}
+            active={isActive(item.path)}
+            onClick={() => navigate(item.path)}
+          />
+        ))}
+      </nav>
     </div>
   );
 };

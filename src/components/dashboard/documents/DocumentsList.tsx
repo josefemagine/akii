@@ -130,14 +130,14 @@ const DocumentsList = () => {
       // Get document to find file path
       const { data: documentData, error: docError } = await supabase
         .from("training_documents")
-        .select("file_path")
+        .select("storage_path")
         .eq("id", id)
         .single();
 
       if (docError) throw docError;
 
       // Delete file from storage
-      const filePath = (documentData as any)?.file_path;
+      const filePath = (documentData as any)?.storage_path;
       if (filePath) {
         const { error: storageError } = await supabase.storage
           .from("documents")
@@ -162,12 +162,12 @@ const DocumentsList = () => {
   };
 
   const handleDownload = async (document: Document) => {
-    if (!document.file_path) return;
+    if (!document.storage_path) return;
 
     try {
       const { data, error } = await supabase.storage
         .from("documents")
-        .download(document.file_path);
+        .download(document.storage_path);
 
       if (error) throw error;
 
@@ -175,7 +175,7 @@ const DocumentsList = () => {
       const url = URL.createObjectURL(data);
       const a = window.document.createElement("a");
       a.href = url;
-      a.download = document.file_path.split("/").pop() || "document";
+      a.download = document.storage_path.split("/").pop() || "document";
       window.document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
@@ -374,7 +374,7 @@ const DocumentsList = () => {
                                 <span>View Chunks</span>
                               </DropdownMenuItem>
                             )}
-                            {doc.file_path && (
+                            {doc.storage_path && (
                               <DropdownMenuItem
                                 onClick={() => handleDownload(doc)}
                               >

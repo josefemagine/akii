@@ -23,3 +23,4 @@ export default function AdminRoute({
   console.log("AdminRoute - Access granted, rendering admin content");
   return <>{children}</>;
 }
+
