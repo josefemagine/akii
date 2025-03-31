@@ -258,7 +258,7 @@ try {
         <ErrorBoundary>
           <SearchProvider>
             <AuthProvider>
-              <App />
+        <App />
             </AuthProvider>
           </SearchProvider>
         </ErrorBoundary>

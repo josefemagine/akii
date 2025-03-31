@@ -1,6 +1,7 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bot, Star, MessageSquare, Users } from "lucide-react";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
 
 interface AgentData {
   id: string;
@@ -26,7 +27,7 @@ const TopAgentsPerformance = ({
       messages: 3650,
       rating: 4.8,
       type: "Sales",
-      avatar_url: null,
+      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     },
     {
       id: "agent-2",
@@ -35,7 +36,7 @@ const TopAgentsPerformance = ({
       messages: 2980,
       rating: 4.7,
       type: "Support",
-      avatar_url: null,
+      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     },
     {
       id: "agent-3",
@@ -44,7 +45,7 @@ const TopAgentsPerformance = ({
       messages: 2450,
       rating: 4.6,
       type: "Product",
-      avatar_url: null,
+      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     },
     {
       id: "agent-4",
@@ -53,7 +54,7 @@ const TopAgentsPerformance = ({
       messages: 1980,
       rating: 4.9,
       type: "Onboarding",
-      avatar_url: null,
+      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     },
   ],
   period = "Last 30 days",
@@ -74,7 +75,9 @@ const TopAgentsPerformance = ({
             <div key={index} className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Bot className="h-5 w-5 text-primary" />
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={agent.avatar_url} alt={agent.name} />
+                  </Avatar>
                   <div>
                     <p className="text-sm font-medium">{agent.name}</p>
                     <p className="text-xs text-muted-foreground">

@@ -154,6 +154,19 @@ function checkAdminOverride(user: User | null): boolean {
   return false;
 }
 
+const getDefaultAdminSubscription = (user: User | null) => {
+  if (!user) return null;
+  return {
+    plan: 'enterprise',
+    status: 'active',
+    messages_used: 0,
+    message_limit: 1000000,
+    renews_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    addons: {},
+    payment_method: 'admin'
+  };
+};
+
 // Provider component
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -534,6 +547,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     navigate,
     toast,
   ]);
+
+  // Update state.user with subscription data for admins
+  useEffect(() => {
+    if (state.user && state.isAdmin) {
+      setState(prev => ({
+        ...prev,
+        user: {
+          ...prev.user,
+          subscription: getDefaultAdminSubscription(prev.user)
+        }
+      }));
+    }
+  }, [state.user, state.isAdmin]);
 
   // Sign-in handler
   const signIn = async (

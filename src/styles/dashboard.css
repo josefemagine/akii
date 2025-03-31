@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .dashboard {
+    /* Light mode */
+    --background: 0 24% 94%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 24% 94%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 24% 94%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 142.1 76.2% 36.3%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 0 24% 94%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 0 24% 94%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 0 24% 94%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 24% 94%;
+    --input: 0 24% 94%;
+    --ring: 142.1 76.2% 36.3%;
+    --radius: 0.5rem;
+  }
+
+  /* Bright green button styling */
+  .create-instance-btn {
+    background-color: #10b981 !important; /* Bright green */
+    color: white !important;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  
+  .create-instance-btn:hover {
+    background-color: #059669 !important; /* Darker green on hover */
+    transform: translateY(-1px);
+  }
+
+  .dashboard.dark {
+    /* Dark mode - navy blue */
+    --background: 220 30% 15.7%;
+    --foreground: 0 0% 95%;
+    --card: 220 30% 15.7%;
+    --card-foreground: 0 0% 95%;
+    --popover: 220 30% 15.7%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 142.1 70.6% 45.3%;
+    --primary-foreground: 144.9 80.4% 10%;
+    --secondary: 220 30% 15.7%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 220 30% 15.7%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 220 30% 15.7%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 85.7% 97.3%;
+    --border: 220 30% 15.7%;
+    --input: 220 30% 15.7%;
+    --ring: 142.4 71.8% 29.2%;
+  }
+}
+
+/* Dashboard-specific styles */
+.dashboard *:not(.border) {
+  border-width: 0px !important;
+}
+
+.dashboard {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Add pink borders to cards in dark mode */
+.dashboard.dark .card,
+.dashboard.dark .rounded-xl,
+.dashboard.dark .rounded-lg,
+.dashboard.dark [class*="Card"],
+.dashboard.dark div[class*="card"],
+.dashboard.dark div[class*="rounded-xl border bg-card text-card-foreground shadow"] {
+  border: 1px solid #f5ecec !important;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* Specifically target dashboard stat cards and quick access cards */
+.dashboard.dark div[class*="grid-cols"] > .card,
+.dashboard.dark div[class*="grid-cols"] > div > .card,
+.dashboard.dark div[class*="grid"] > div > [class*="rounded"],
+.dashboard.dark div[class*="mb-8"] > div[class*="gap-4"] > div {
+  border: 1px solid #f5ecec !important;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* Force all elements in light mode to have the #f5ecec background */
+.dashboard:not(.dark) {
+  --text-primary: 240 10% 3.9%;
+  --text-secondary: 240 3.8% 46.1%;
+  --text-muted: 240 5% 64.9%;
+}
+
+.dashboard:not(.dark) div:not(.create-instance-btn),
+.dashboard:not(.dark) section,
+.dashboard:not(.dark) aside,
+.dashboard:not(.dark) header,
+.dashboard:not(.dark) main,
+.dashboard:not(.dark) nav,
+.dashboard:not(.dark) footer,
+.dashboard:not(.dark) li,
+.dashboard:not(.dark) ul,
+.dashboard:not(.dark) .bg-background,
+.dashboard:not(.dark) .bg-card,
+.dashboard:not(.dark) .bg-popover,
+.dashboard:not(.dark) .bg-secondary,
+.dashboard:not(.dark) .bg-muted,
+.dashboard:not(.dark) .bg-accent,
+.dashboard:not(.dark) [class*="bg-"]:not(.create-instance-btn) {
+  background-color: #f5ecec !important;
+}
+
+/* Force all elements in dark mode to have the #192338 background */
+.dashboard.dark div:not(.create-instance-btn),
+.dashboard.dark section,
+.dashboard.dark aside,
+.dashboard.dark header,
+.dashboard.dark main,
+.dashboard.dark nav,
+.dashboard.dark footer,
+.dashboard.dark li,
+.dashboard.dark ul,
+.dashboard.dark .bg-background,
+.dashboard.dark .bg-card,
+.dashboard.dark .bg-popover,
+.dashboard.dark .bg-secondary,
+.dashboard.dark .bg-muted,
+.dashboard.dark .bg-accent,
+.dashboard.dark [class*="bg-"]:not(.create-instance-btn) {
+  background-color: #192338 !important;
+}
+
+/* Keep current dark mode text colors */
+.dashboard.dark {
+  --text-primary: 0 0% 95%;
+  --text-secondary: 240 5% 64.9%;
+  --text-muted: 240 5% 64.9%;
+}
+
+/* Set border of all buttons in the sidebar to 0px */
+.dashboard [class*="Sidebar"] button,
+.dashboard [class*="sidebar"] button,
+.dashboard aside button,
+.dashboard nav button,
+.dashboard div[class*="hidden md:block"] button,
+.dashboard div[class*="fixed inset-y-0"] button {
+  border-width: 0px !important;
+  border: none !important;
+}
+
+/* Target sidebar item links/anchors specifically */
+.dashboard a[class*="flex items-center gap-3 rounded-lg px-3 py-2"],
+.dashboard a[class*="flex items-center gap-3 rounded-lg"],
+.dashboard [class*="SidebarItem"] a,
+.dashboard aside a,
+.dashboard nav a {
+  border-width: 0px !important;
+  border: none !important;
+} 

@@ -50,49 +50,24 @@ interface Agent {
 const mockAgents: Agent[] = [
   {
     id: "agent-1",
-    name: "Sales Assistant",
-    description: "Helps customers with product inquiries and recommendations",
-    platforms: ["website", "whatsapp"],
+    name: "Customer Support AI",
+    description: "Handles customer inquiries and support tickets",
+    platforms: ["website", "mobile"],
     status: "active",
-    lastUpdated: "2023-06-15",
-    messageCount: 1243,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sales",
+    lastUpdated: "2023-07-01",
+    messageCount: 1234,
+    avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     version: "1.0",
-    industry: "Retail",
-    languages: ["English", "Spanish"],
-    trainingDocuments: [
-      "Product Catalog 2023",
-      "Sales Objection Handling Guide",
-    ],
-    responseStyle: "Friendly and helpful",
-    contextMemory: {
-      shortTerm: true,
-      longTerm: true,
-    },
-    handoffIntegration: "Intercom",
-  },
-  {
-    id: "agent-1-v2",
-    name: "Sales Assistant v2",
-    description:
-      "Helps customers with product inquiries and recommendations - improved version",
-    platforms: ["website", "whatsapp", "mobile"],
-    status: "draft",
-    lastUpdated: "2023-06-20",
-    messageCount: 0,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sales",
-    version: "2.0",
-    parentId: "agent-1",
   },
   {
     id: "agent-2",
-    name: "Support Bot",
-    description: "Handles customer support tickets and common questions",
-    platforms: ["website", "mobile", "telegram"],
+    name: "Sales Assistant",
+    description: "Helps with product recommendations and sales",
+    platforms: ["whatsapp", "telegram"],
     status: "active",
-    lastUpdated: "2023-06-10",
-    messageCount: 3567,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=support",
+    lastUpdated: "2023-06-25",
+    messageCount: 856,
+    avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     version: "1.0",
   },
   {
@@ -101,9 +76,9 @@ const mockAgents: Agent[] = [
     description: "Helps shoppers find products and complete purchases",
     platforms: ["shopify", "website"],
     status: "active",
-    lastUpdated: "2023-05-28",
-    messageCount: 892,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=ecommerce",
+    lastUpdated: "2023-06-15",
+    messageCount: 567,
+    avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     version: "1.0",
   },
   {
@@ -114,7 +89,7 @@ const mockAgents: Agent[] = [
     status: "draft",
     lastUpdated: "2023-06-18",
     messageCount: 0,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=blog",
+    avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     version: "1.0",
   },
   {
@@ -126,7 +101,7 @@ const mockAgents: Agent[] = [
     status: "draft",
     lastUpdated: "2023-06-01",
     messageCount: 0,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=ecommerce",
+    avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     version: "1.0",
     parentId: "agent-3",
     isCloned: true,
@@ -241,15 +216,11 @@ const Agents = () => {
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-4">
                   <div className="h-12 w-12 rounded-full overflow-hidden bg-primary/10">
-                    {agent.avatar ? (
-                      <img
-                        src={agent.avatar}
-                        alt={agent.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <Bot className="h-6 w-6 m-3 text-primary" />
-                    )}
+                    <img
+                      src="https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png"
+                      alt={agent.name}
+                      className="h-full w-full object-cover"
+                    />
                   </div>
                   <div>
                     <h3 className="font-medium">{agent.name}</h3>

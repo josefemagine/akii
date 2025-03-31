@@ -1,0 +1,18 @@
+/* Target all sidebar buttons and force no borders */
+.sidebar button,
+.sidebar a,
+.sidebar [role="button"] {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Target any potential pseudo-elements */
+.sidebar button::before,
+.sidebar button::after,
+.sidebar a::before,
+.sidebar a::after {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+} 

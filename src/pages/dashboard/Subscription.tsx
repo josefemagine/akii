@@ -15,11 +15,52 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 
 const SubscriptionPage = () => {
-  const { user } = useAuth();
-  // Using optional chaining with a type assertion since subscription isn't defined in User type
-  const currentPlan = user
-    ? (user as any)?.subscription?.plan || "free"
-    : "free";
+  const { user, isAdmin } = useAuth();
+  const currentPlan = user?.subscription?.plan || "free";
+
+  // If user is admin, show special message
+  if (isAdmin) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Subscription</h1>
+          <p className="text-muted-foreground">
+            As an admin user, you have full access to all platform features.
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Admin Access</CardTitle>
+            <CardDescription>
+              You have unlimited access to all platform features
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+                <span>Unlimited messages</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+                <span>All platform features enabled</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+                <span>Admin dashboard access</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-500" />
+                <span>No payment required</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   interface SubscriptionPlan {
     id: string;
     name: string;

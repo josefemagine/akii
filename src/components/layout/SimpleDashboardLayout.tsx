@@ -86,16 +86,12 @@ const SidebarItem = ({
 interface SidebarProps {
   collapsed?: boolean;
   onToggle?: () => void;
-  isAdmin?: boolean;
 }
 
-const Sidebar = ({
-  collapsed = false,
-  onToggle = () => {},
-  isAdmin = false,
-}: SidebarProps) => {
+const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAdmin } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -292,21 +288,27 @@ interface HeaderProps {
   onMenuClick?: () => void;
   onSearchChange?: (value: string) => void;
   isAdmin?: boolean;
+  theme?: "light" | "dark";
+  onThemeChange?: (theme: "light" | "dark") => void;
 }
 
 const Header = ({
   onMenuClick = () => {},
   onSearchChange,
   isAdmin = false,
+  theme = "light",
+  onThemeChange,
 }: HeaderProps) => {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
   const { user, signOut } = useAuth();
   const { searchValue, setSearchValue } = useSearch();
   const navigate = useNavigate();
 
   const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
-    // In a real implementation, you would update the document class or a theme context
+    const newTheme = theme === "light" ? "dark" : "light";
+    localStorage.setItem("dashboard-theme", newTheme);
+    if (onThemeChange) {
+      onThemeChange(newTheme);
+    }
   };
 
   const handleLogout = async () => {
@@ -392,7 +394,7 @@ const Header = ({
                 </AvatarFallback>
               </Avatar>
               <div className="hidden md:flex md:flex-col md:items-start md:leading-none">
-                <span className="font-medium">
+                <span className={`font-medium ${isAdmin ? "text-green-500" : ""}`}>
                   {user?.email?.split("@")[0] || "User"}
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -440,6 +442,14 @@ const DashboardLayout = ({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, isAdmin } = useAuth();
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    return (localStorage.getItem("dashboard-theme") as "light" | "dark") || "light";
+  });
+
+  // Save theme to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem("dashboard-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     const errorHandler = (event: ErrorEvent) => {
@@ -452,26 +462,6 @@ const DashboardLayout = ({
     return () => window.removeEventListener("error", errorHandler);
   }, []);
 
-  // Force dark mode
-  useEffect(() => {
-    document.documentElement.classList.add("dark");
-    console.log("DashboardLayout - Forcing dark mode");
-
-    // Force dark colors as inline styles if needed
-    const style = document.createElement("style");
-    style.textContent = `
-      .bg-gray-50 { background-color: #0f172a !important; }
-      .bg-gray-900 { background-color: #0f172a !important; }
-      .bg-gray-950 { background-color: #0a0f1a !important; }
-      .text-foreground { color: #ffffff !important; }
-    `;
-    document.head.appendChild(style);
-
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
@@ -481,13 +471,12 @@ const DashboardLayout = ({
   };
 
   return (
-    <div className="flex h-screen w-full bg-gray-900 text-white">
+    <div className={cn("dashboard flex h-screen w-full", theme === "dark" && "dark")}>
       {/* Desktop Sidebar */}
       <div className="hidden md:block">
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={toggleSidebar}
-          isAdmin={isAdmin}
         />
       </div>
 
@@ -499,7 +488,7 @@ const DashboardLayout = ({
             onClick={toggleMobileSidebar}
           ></div>
           <div className="fixed inset-y-0 left-0 w-[280px] bg-gray-950">
-            <Sidebar onToggle={toggleMobileSidebar} isAdmin={isAdmin} />
+            <Sidebar onToggle={toggleMobileSidebar} />
           </div>
         </div>
       )}
@@ -509,6 +498,8 @@ const DashboardLayout = ({
           onMenuClick={toggleMobileSidebar}
           onSearchChange={onSearchChange}
           isAdmin={isAdmin}
+          theme={theme}
+          onThemeChange={setTheme}
         />
         <main className="flex-1 overflow-auto p-4 md:p-6 bg-gray-900 text-white">
           <div className="mx-auto max-w-7xl">

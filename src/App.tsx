@@ -82,6 +82,10 @@ const UserStatusMigration = lazy(
   () => import("@/pages/admin/UserStatusMigration"),
 );
 
+// Add these missing imports at the top with your other lazy imports
+const HomePage = lazy(() => import("@/pages/HomePage"));
+const UsersPage = lazy(() => import("@/pages/admin/Users"));
+
 // Loading fallback
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-screen bg-background">

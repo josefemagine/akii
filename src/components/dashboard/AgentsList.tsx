@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Plus,
 } from "lucide-react";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
 
 interface Agent {
   id: string;
@@ -30,6 +31,7 @@ interface Agent {
   platform: string;
   lastUpdated: string;
   messageCount: number;
+  avatar: string;
 }
 
 interface AgentsListProps {
@@ -52,6 +54,7 @@ const AgentsList = ({
       platform: "Website",
       lastUpdated: "2023-06-15",
       messageCount: 1243,
+      avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     },
     {
       id: "2",
@@ -62,6 +65,7 @@ const AgentsList = ({
       platform: "WhatsApp",
       lastUpdated: "2023-06-10",
       messageCount: 856,
+      avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     },
     {
       id: "3",
@@ -72,6 +76,7 @@ const AgentsList = ({
       platform: "Shopify",
       lastUpdated: "2023-06-05",
       messageCount: 421,
+      avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     },
     {
       id: "4",
@@ -82,6 +87,7 @@ const AgentsList = ({
       platform: "Telegram",
       lastUpdated: "2023-06-01",
       messageCount: 0,
+      avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
     },
   ],
   onEdit = () => {},
