@@ -4,7 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 import { SearchProvider } from "@/contexts/SearchContext";
-import { AuthProvider } from "@/contexts/SimpleAuthContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { TempoDevtools } from "tempo-devtools";
 
 // Initialize Tempo Devtools
@@ -257,7 +257,9 @@ try {
       <BrowserRouter>
         <ErrorBoundary>
           <SearchProvider>
-            <App />
+            <AuthProvider>
+              <App />
+            </AuthProvider>
           </SearchProvider>
         </ErrorBoundary>
       </BrowserRouter>

@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from "react";
 import { Routes, Route, Navigate, Outlet, useRoutes } from "react-router-dom";
 import routes from "./tempo-routes";
-import { AuthProvider } from "./contexts/SimpleAuthContext";
+import { AuthProvider } from "./contexts/AuthContext";
 import LandingPage from "./pages/LandingPage";
 import { SearchProvider } from "./contexts/SearchContext";
 import { EnvWarning } from "@/components/ui/env-warning";

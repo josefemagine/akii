@@ -7,21 +7,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useAuth } from "@/contexts/SimpleAuthContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { Subscription } from "@/types/subscription";
 
 export default function SubscriptionUsageDisplay() {
   const { user } = useAuth();
-
-  // Get subscription data from user context
-  const subscription = user?.subscription ?? {
-    plan: "free",
-    status: "active",
-    message_limit: 100,
-    messages_used: 0,
-    trial_ends_at: null,
-    renews_at: null,
-    payment_method: null,
-  };
+  const subscription = user?.subscription as Subscription;
 
   // Calculate usage percentage
   const usagePercentage = Math.min(

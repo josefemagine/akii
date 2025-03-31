@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import MobileNavigation from "./MobileNavigation";
-import { useAuth } from "@/contexts/SimpleAuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import LoginModal from "@/components/auth/LoginModal";
 import JoinModal from "@/components/auth/JoinModal";
 import PasswordReset from "@/components/auth/PasswordReset";

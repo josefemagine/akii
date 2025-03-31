@@ -6,7 +6,7 @@ import React, {
   ReactNode,
   useCallback,
 } from "react";
-import { isExtensionContext } from "@/lib/browser-check";
+import { isBrowser, safeStorage } from "@/lib/browser-check";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -57,7 +57,6 @@ export interface AuthContextType {
   signUp: (
     email: string,
     password: string,
-    metadata?: any,
   ) => Promise<{ data: any | null; error: Error | null }>;
   signInWithGoogle: () => Promise<{ data: any | null; error: Error | null }>;
   verifyOtp: (
@@ -98,44 +97,24 @@ function checkAdminOverride(user: User | null): boolean {
   if (isJosef) {
     // If it's Josef, always set the override
     try {
-      localStorage.setItem("akii_admin_override", "true");
-      localStorage.setItem("akii_admin_override_email", "josef@holm.com");
-      localStorage.setItem(
+      safeStorage.setItem("akii_admin_override", "true");
+      safeStorage.setItem("akii_admin_override_email", "josef@holm.com");
+      safeStorage.setItem(
         "akii_admin_override_expiry",
         new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       );
 
       // Also set legacy format for maximum compatibility
-      localStorage.setItem("admin_override", "true");
-      localStorage.setItem("admin_override_email", "josef@holm.com");
-      localStorage.setItem("admin_override_time", Date.now().toString());
+      safeStorage.setItem("admin_override", "true");
+      safeStorage.setItem("admin_override_email", "josef@holm.com");
+      safeStorage.setItem("admin_override_time", Date.now().toString());
 
       // Additional admin flags
-      localStorage.setItem("auth-user-role", "admin");
-      localStorage.setItem("user-role", "admin");
-      localStorage.setItem("akii-auth-role", "admin");
+      safeStorage.setItem("auth-user-role", "admin");
+      safeStorage.setItem("user-role", "admin");
+      safeStorage.setItem("akii-auth-role", "admin");
 
       console.log("Admin override set for Josef");
-
-      // Only attempt to send chrome messages if in extension context
-      if (
-        isExtensionContext() &&
-        chrome &&
-        chrome.runtime &&
-        chrome.runtime.sendMessage
-      ) {
-        try {
-          chrome.runtime.sendMessage({
-            action: "admin_override",
-            email: "josef@holm.com",
-          });
-        } catch (err) {
-          console.warn(
-            "Failed to send admin override message to extension",
-            err,
-          );
-        }
-      }
     } catch (error) {
       console.error("Error setting admin override for Josef:", error);
     }
@@ -143,13 +122,13 @@ function checkAdminOverride(user: User | null): boolean {
   }
 
   // Check for current format
-  const adminOverride = localStorage.getItem("akii_admin_override") === "true";
-  const adminEmail = localStorage.getItem("akii_admin_override_email");
-  const adminExpiry = localStorage.getItem("akii_admin_override_expiry");
+  const adminOverride = safeStorage.getItem("akii_admin_override") === "true";
+  const adminEmail = safeStorage.getItem("akii_admin_override_email");
+  const adminExpiry = safeStorage.getItem("akii_admin_override_expiry");
 
   // Check for legacy format
-  const legacyOverride = localStorage.getItem("admin_override") === "true";
-  const legacyEmail = localStorage.getItem("admin_override_email");
+  const legacyOverride = safeStorage.getItem("admin_override") === "true";
+  const legacyEmail = safeStorage.getItem("admin_override_email");
 
   if (adminOverride && adminEmail === user.email) {
     // Check if override is expired
@@ -597,7 +576,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (
     email: string,
     password: string,
-    metadata?: any,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
@@ -605,7 +583,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabaseClient.auth.signUp({
         email,
         password,
-        options: { data: metadata },
       });
 
       setState((prev) => ({ ...prev, isLoading: false }));
@@ -663,28 +640,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     token: string,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
-      setState((prev) => ({ ...prev, isLoading: true }));
-
       const { data, error } = await supabaseClient.auth.verifyOtp({
         email,
         token,
-        type: "signup",
+        type: 'email',
       });
 
-      setState((prev) => ({ ...prev, isLoading: false }));
-
-      if (error) {
-        return { data: null, error };
-      }
+      if (error) throw error;
 
       return { data, error: null };
     } catch (error) {
-      console.error("OTP verification error:", error);
-      setState((prev) => ({ ...prev, isLoading: false }));
-      return {
-        data: null,
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
+      console.error('Error verifying OTP:', error);
+      return { data: null, error: error as Error };
     }
   };
 
@@ -693,29 +660,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
-      setState((prev) => ({ ...prev, isLoading: true }));
+      const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email);
 
-      const { data, error } = await supabaseClient.auth.resetPasswordForEmail(
-        email,
-        {
-          redirectTo: `${window.location.origin}/auth/reset-password`,
-        },
-      );
-
-      setState((prev) => ({ ...prev, isLoading: false }));
-
-      if (error) {
-        return { data: null, error };
-      }
+      if (error) throw error;
 
       return { data, error: null };
     } catch (error) {
-      console.error("Password reset error:", error);
-      setState((prev) => ({ ...prev, isLoading: false }));
-      return {
-        data: null,
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
+      console.error('Error resetting password:', error);
+      return { data: null, error: error as Error };
     }
   };
 
@@ -726,39 +678,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
-      setState((prev) => ({ ...prev, isLoading: true }));
-
-      // First verify the token
-      const { error: verifyError } = await supabaseClient.auth.verifyOtp({
-        email,
-        token,
-        type: "recovery",
-      });
-
-      if (verifyError) {
-        setState((prev) => ({ ...prev, isLoading: false }));
-        return { data: null, error: verifyError };
-      }
-
-      // Then update the password
       const { data, error } = await supabaseClient.auth.updateUser({
         password,
       });
 
-      setState((prev) => ({ ...prev, isLoading: false }));
-
-      if (error) {
-        return { data: null, error };
-      }
+      if (error) throw error;
 
       return { data, error: null };
     } catch (error) {
-      console.error("Password reset confirmation error:", error);
-      setState((prev) => ({ ...prev, isLoading: false }));
-      return {
-        data: null,
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
+      console.error('Error confirming password reset:', error);
+      return { data: null, error: error as Error };
     }
   };
 
@@ -925,7 +854,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updatePassword,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user: state.user,
+        profile: state.profile,
+        session: state.session,
+        isLoading: state.isLoading,
+        isAdmin: state.isAdmin,
+        userRole: state.userRole,
+        error: state.error,
+        signIn,
+        signUp,
+        signInWithGoogle,
+        signOut,
+        updateProfile,
+        refreshUser,
+        checkAdminStatus,
+        bypassAdminCheck,
+        updatePassword,
+        verifyOtp,
+        resetPassword,
+        confirmPasswordReset,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 // Hook for using the auth context

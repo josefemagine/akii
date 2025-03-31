@@ -1,6 +1,6 @@
 import React from "react";
 import { Navigate, Outlet } from "react-router-dom";
-import { useAuth } from "@/contexts/SimpleAuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import DashboardLayout from "@/components/layout/SimpleDashboardLayout";
 import { LoadingScreen } from "@/components/LoadingScreen";
 

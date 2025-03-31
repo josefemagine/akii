@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "@/components/layout/Sidebar";
 import TrialBanner from "./TrialBanner";
-import DashboardSafeWrapper from "./DashboardSafeWrapper";
+import { DashboardSafeWrapper } from "./DashboardSafeWrapper";
 
 const DashboardLayout = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);

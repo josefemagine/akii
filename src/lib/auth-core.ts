@@ -4,6 +4,7 @@ import {
   Session,
   User,
 } from "@supabase/supabase-js";
+import { isBrowser, safeStorage } from './browser-check';
 import type { Database } from "@/types/supabase";
 
 // Define core types
@@ -387,23 +388,6 @@ export function enableAdminOverride(email: string, durationHours = 24): void {
   console.log(
     `Admin override enabled for ${email} until ${expiry.toLocaleString()}`,
   );
-
-  // Only attempt to use chrome APIs if they exist
-  if (
-    typeof chrome !== "undefined" &&
-    chrome.runtime &&
-    chrome.runtime.sendMessage
-  ) {
-    try {
-      chrome.runtime.sendMessage({
-        action: "admin_override",
-        email: email,
-        expiry: expiry.toISOString(),
-      });
-    } catch (err) {
-      console.warn("Failed to send admin override message to extension", err);
-    }
-  }
 }
 
 export function hasValidAdminOverride(email: string): boolean {
@@ -555,87 +539,19 @@ export async function clearAuthState(): Promise<void> {
 }
 
 // Special function to force josef as admin
-export async function forceJosefAsAdmin(): Promise<AuthResult> {
-  const email = "josef@holm.com";
-
+export const forceJosefAsAdmin = async () => {
   try {
-    // 1. Update profile with admin client
-    const { error: updateError } = await adminClient
-      .from("profiles")
-      .update({
-        role: "admin",
-        status: "active",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("email", email);
-
-    if (updateError) {
-      console.error("Error updating profile:", updateError);
-
-      // Try fallback with RPC
-      try {
-        const { error: rpcError } = await adminClient.rpc("force_admin_role", {
-          target_email: email,
-        });
-
-        if (rpcError) throw rpcError;
-      } catch (rpcError) {
-        console.error("Error with RPC fallback:", rpcError);
-        // Continue to try other methods
-      }
+    if (isBrowser()) {
+      safeStorage.setItem("akii_admin_override", "true");
+      safeStorage.setItem("akii_admin_override_email", "josef@holm.com");
+      safeStorage.setItem(
+        "akii_admin_override_expiry",
+        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      );
     }
-
-    // 2. Set admin override for 7 days
-    enableAdminOverride(email, 24 * 7);
-
-    // 3. Create profile if it doesn't exist using direct DB operations
-    try {
-      // Try to find user with matching email in profiles
-      const { data: existingUsers } = await adminClient
-        .from("profiles")
-        .select("id")
-        .eq("email", email);
-
-      if (!existingUsers || existingUsers.length === 0) {
-        // No profile exists, try to look up auth user differently
-        const { data: authUsers } = await adminClient
-          .from("auth.users")
-          .select("id")
-          .eq("email", email)
-          .limit(1);
-
-        if (authUsers && authUsers.length > 0) {
-          // Found auth user, create profile
-          await adminClient.from("profiles").insert({
-            id: authUsers[0].id,
-            email: email,
-            role: "admin",
-            status: "active",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-        } else {
-          // Last resort - create new auth user and profile
-          console.log(
-            "No existing user found, would need to create new auth user",
-          );
-        }
-      }
-    } catch (upsertError) {
-      console.error("Error upserting profile:", upsertError);
-    }
-
-    return {
-      data: true,
-      error: null,
-      message: "Josef has been set as admin through multiple methods",
-    };
+    return { message: "Admin access granted", error: null };
   } catch (error) {
-    console.error("Force josef admin error:", error);
-    return {
-      data: null,
-      error: error as Error,
-      message: "Admin elevation attempted but encountered errors",
-    };
+    console.error("Error forcing admin role:", error);
+    return { message: null, error };
   }
-}
+};
