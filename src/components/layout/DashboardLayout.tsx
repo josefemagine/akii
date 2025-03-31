@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +28,10 @@ import {
   UserCircle,
   PlusCircle,
   Sidebar as SidebarIcon,
+  Mail,
+  CreditCard,
+  Database,
+  UsersRound,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -41,6 +45,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearch } from "@/contexts/SearchContext";
+import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/lib/supabase";
 
 interface SidebarItemProps {
   icon: React.ReactNode;
@@ -150,59 +156,49 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
 
   const adminSidebarItems = [
     {
-      icon: <Home className="h-5 w-5" />,
-      label: "Dashboard",
-      href: "/admin",
+      title: "Dashboard",
+      path: "/admin",
+      icon: <Home className="h-4 w-4" />,
     },
     {
-      icon: <Users className="h-5 w-5" />,
-      label: "Users",
-      href: "/admin/users",
+      title: "Users",
+      path: "/admin/users",
+      icon: <Users className="h-4 w-4" />,
     },
     {
-      icon: <Settings className="h-5 w-5" />,
-      label: "Settings",
-      href: "/admin/settings",
+      title: "User Sync",
+      path: "/admin/user-sync",
+      icon: <UsersRound className="h-4 w-4" />,
     },
     {
-      icon: <Circle className="h-5 w-5" />,
-      label: "Packages",
-      href: "/admin/packages",
+      title: "Moderation",
+      path: "/admin/moderation",
+      icon: <Shield className="h-4 w-4" />,
     },
     {
-      icon: <FileText className="h-5 w-5" />,
-      label: "Moderation",
-      href: "/admin/moderation",
+      title: "Email Templates",
+      path: "/admin/email-templates",
+      icon: <Mail className="h-4 w-4" />,
     },
     {
-      icon: <MessageSquare className="h-5 w-5" />,
-      label: "Email Templates",
-      href: "/admin/email-templates",
+      title: "Billing",
+      path: "/admin/billing",
+      icon: <CreditCard className="h-4 w-4" />,
     },
     {
-      icon: <BarChart3 className="h-5 w-5" />,
-      label: "Lead Magnets",
-      href: "/admin/lead-magnets",
+      title: "Workflows",
+      path: "/admin/workflows",
+      icon: <BarChart3 className="h-4 w-4" />,
     },
     {
-      icon: <Globe className="h-5 w-5" />,
-      label: "Landing Pages",
-      href: "/admin/landing-pages",
+      title: "Database Schema",
+      path: "/admin/database-schema",
+      icon: <Database className="h-4 w-4" />,
     },
     {
-      icon: <FileText className="h-5 w-5" />,
-      label: "Blog",
-      href: "/admin/blog",
-    },
-    {
-      icon: <Users className="h-5 w-5" />,
-      label: "Affiliates",
-      href: "/admin/affiliates",
-    },
-    {
-      icon: <FileText className="h-5 w-5" />,
-      label: "Compliance",
-      href: "/admin/compliance",
+      title: "Settings",
+      path: "/admin/settings",
+      icon: <Settings className="h-4 w-4" />,
     },
   ];
 
@@ -285,9 +281,14 @@ const Header = ({
   isAdmin = false,
 }: HeaderProps) => {
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const { user, signOut } = useAuth();
+  const { user, signOut, userRole } = useAuth();
   const { searchValue, setSearchValue } = useSearch();
   const navigate = useNavigate();
+  
+  // Check for admin status in multiple ways
+  const adminOverrideInSession = sessionStorage.getItem('admin_override') === 'true' && 
+                                sessionStorage.getItem('admin_override_email') === user?.email;
+  const isUserAdmin = user?.role === "admin" || userRole === "admin" || adminOverrideInSession || isAdmin;
 
   const toggleTheme = () => {
     setTheme(theme === "light" ? "dark" : "light");
@@ -295,8 +296,56 @@ const Header = ({
   };
 
   const handleLogout = async () => {
-    await signOut();
-    navigate("/");
+    try {
+      console.log("Logging out user:", user?.email);
+      
+      // First clear all localStorage and sessionStorage items that might contain auth data
+      localStorage.removeItem("sb-api-auth-token");
+      localStorage.removeItem("sb:session");
+      localStorage.removeItem("sb-access-token");
+      localStorage.removeItem("sb-refresh-token");
+      localStorage.removeItem("supabase.auth.token");
+      localStorage.removeItem("auth-return-path");
+      localStorage.removeItem("auth-in-progress");
+      localStorage.removeItem("auth-in-progress-time");
+      localStorage.removeItem("force-auth-login");
+      localStorage.removeItem("force-auth-email");
+      localStorage.removeItem("force-auth-timestamp");
+      localStorage.removeItem("admin_override");
+      localStorage.removeItem("akii-auth-fallback-user");
+      localStorage.removeItem("akii-auth-success-time");
+      
+      // Clear session storage items too
+      sessionStorage.removeItem("admin_override");
+      sessionStorage.removeItem("admin_override_email");
+      
+      if (signOut) {
+        // Call the auth context signOut function which handles Supabase signout
+        await signOut();
+      } else {
+        // Fallback direct logout if signOut function is unavailable
+        const { error } = await supabase.auth.signOut({ scope: "global" });
+        if (error) {
+          console.error("Error during direct Supabase logout:", error);
+        }
+      }
+      
+      // Use window.location.href for a complete page reload
+      console.log("Forcing full page reload to /");
+      window.location.href = "/";
+      
+    } catch (error) {
+      console.error("Error during logout:", error);
+      // Force redirect on error
+      toast({
+        title: "Logout Error",
+        description: "There was an issue logging out. Redirecting to home page.",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
+    }
   };
 
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -352,6 +401,18 @@ const Header = ({
           <Bell className="h-5 w-5" />
           <span className="sr-only">Notifications</span>
         </Button>
+        
+        <Button 
+          variant="ghost" 
+          size="icon"
+          onClick={handleLogout}
+          title="Log out"
+          className="hidden sm:flex"
+        >
+          <LogOut className="h-5 w-5" />
+          <span className="sr-only">Log out</span>
+        </Button>
+        
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -390,7 +451,7 @@ const Header = ({
               <HelpCircle className="mr-2 h-4 w-4" />
               <span>Help</span>
             </DropdownMenuItem>
-            {user?.role === "admin" && (
+            {isUserAdmin && (
               <DropdownMenuItem asChild>
                 <Link to="/admin">
                   <Shield className="mr-2 h-4 w-4" />
@@ -399,9 +460,14 @@ const Header = ({
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
+            <DropdownMenuItem asChild>
+              <button 
+                className="flex w-full cursor-pointer items-center px-2 py-1.5 text-sm outline-none"
+                onClick={handleLogout}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </button>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -424,7 +490,47 @@ const DashboardLayout = ({
   console.log("DashboardLayout rendered with isAdmin:", isAdmin);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
+  
+  // Force dark mode
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+    console.log("DashboardLayout - Forcing dark mode");
+    
+    // Debug theme variables
+    console.log("CSS Variables:", {
+      background: getComputedStyle(document.documentElement).getPropertyValue('--background'),
+      foreground: getComputedStyle(document.documentElement).getPropertyValue('--foreground'),
+    });
+    
+    // Force dark colors as inline styles if needed
+    const style = document.createElement('style');
+    style.textContent = `
+      .bg-gray-50 { background-color: #0f172a !important; }
+      .bg-gray-900 { background-color: #0f172a !important; }
+      .bg-gray-950 { background-color: #0a0f1a !important; }
+      .text-foreground { color: #ffffff !important; }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+  
+  // Add check for admin override in session storage
+  const adminOverride = sessionStorage.getItem('admin_override') === 'true' && 
+                       sessionStorage.getItem('admin_override_email') === user?.email;
+  
+  // Use either props isAdmin or the admin override
+  const effectiveIsAdmin = isAdmin || adminOverride || userRole === 'admin';
+  
+  console.log("Admin status check:", { 
+    propsIsAdmin: isAdmin, 
+    userRole, 
+    adminOverride, 
+    effectiveIsAdmin 
+  });
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
@@ -434,46 +540,64 @@ const DashboardLayout = ({
     setSidebarOpen(!sidebarOpen);
   };
 
-  return (
-    <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-900">
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block">
-        {isAdmin ? (
-          <AdminSidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
-        ) : (
-          <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
-        )}
-      </div>
-
-      {/* Mobile Sidebar */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="fixed inset-0 bg-black/50"
-            onClick={toggleMobileSidebar}
-          ></div>
-          <div className="fixed inset-y-0 left-0 w-[280px] bg-white dark:bg-gray-950">
-            {isAdmin ? (
-              <AdminSidebar onToggle={toggleMobileSidebar} />
-            ) : (
-              <Sidebar onToggle={toggleMobileSidebar} />
-            )}
-          </div>
+  // Debug any rendering issues
+  console.log("DashboardLayout - About to render with children:", children ? "Children exist" : "No children");
+  
+  try {
+    return (
+      <div className="flex h-screen w-full bg-gray-900 text-white">
+        {/* Desktop Sidebar */}
+        <div className="hidden md:block">
+          {effectiveIsAdmin ? (
+            <AdminSidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+          ) : (
+            <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+          )}
         </div>
-      )}
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header
-          onMenuClick={toggleMobileSidebar}
-          onSearchChange={onSearchChange}
-          isAdmin={isAdmin}
-        />
-        <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="mx-auto max-w-7xl">{children}</div>
-        </main>
+        {/* Mobile Sidebar */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <div
+              className="fixed inset-0 bg-black/50"
+              onClick={toggleMobileSidebar}
+            ></div>
+            <div className="fixed inset-y-0 left-0 w-[280px] bg-gray-950">
+              {effectiveIsAdmin ? (
+                <AdminSidebar onToggle={toggleMobileSidebar} />
+              ) : (
+                <Sidebar onToggle={toggleMobileSidebar} />
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Header
+            onMenuClick={toggleMobileSidebar}
+            onSearchChange={onSearchChange}
+            isAdmin={effectiveIsAdmin}
+          />
+          <main className="flex-1 overflow-auto p-4 md:p-6 bg-gray-900 text-white">
+            <div className="mx-auto max-w-7xl">
+              {children || <div className="p-8 text-center">No content to display</div>}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
-  );
+    );
+  } catch (error) {
+    console.error("Error rendering DashboardLayout:", error);
+    return (
+      <div className="p-8 bg-gray-900 text-white min-h-screen">
+        <h1 className="text-2xl font-bold mb-4">Dashboard Error</h1>
+        <p className="mb-4">There was an error rendering the dashboard:</p>
+        <pre className="p-4 bg-gray-800 rounded overflow-auto">
+          {error instanceof Error ? error.message : String(error)}
+        </pre>
+      </div>
+    );
+  }
 };
 
 // Define AdminSidebar component
@@ -487,64 +611,49 @@ const AdminSidebar = ({ collapsed, onToggle }: SidebarProps) => {
 
   const adminSidebarItems = [
     {
-      icon: <BarChart className="h-5 w-5" />,
-      label: "Dashboard",
+      title: "Dashboard",
       path: "/admin",
+      icon: <Home className="h-4 w-4" />,
     },
     {
-      icon: <Users className="h-5 w-5" />,
-      label: "Users",
+      title: "Users",
       path: "/admin/users",
+      icon: <Users className="h-4 w-4" />,
     },
     {
-      icon: <Workflow className="h-5 w-5" />,
-      label: "Workflows",
-      path: "/admin/workflows",
+      title: "User Sync",
+      path: "/admin/user-sync",
+      icon: <UsersRound className="h-4 w-4" />,
     },
     {
-      icon: <FileText className="h-5 w-5" />,
-      label: "Moderation",
+      title: "Moderation",
       path: "/admin/moderation",
+      icon: <Shield className="h-4 w-4" />,
     },
     {
-      icon: <MessageSquare className="h-5 w-5" />,
-      label: "Email Templates",
+      title: "Email Templates",
       path: "/admin/email-templates",
+      icon: <Mail className="h-4 w-4" />,
     },
     {
-      icon: <BarChart3 className="h-5 w-5" />,
-      label: "Lead Magnets",
-      path: "/admin/lead-magnets",
+      title: "Billing",
+      path: "/admin/billing",
+      icon: <CreditCard className="h-4 w-4" />,
     },
     {
-      icon: <Globe className="h-5 w-5" />,
-      label: "Landing Pages",
-      path: "/admin/landing-pages",
+      title: "Workflows",
+      path: "/admin/workflows",
+      icon: <BarChart3 className="h-4 w-4" />,
     },
     {
-      icon: <FileText className="h-5 w-5" />,
-      label: "Blog",
-      path: "/admin/blog",
+      title: "Database Schema",
+      path: "/admin/database-schema",
+      icon: <Database className="h-4 w-4" />,
     },
     {
-      icon: <Users className="h-5 w-5" />,
-      label: "Affiliates",
-      path: "/admin/affiliates",
-    },
-    {
-      icon: <Circle className="h-5 w-5" />,
-      label: "Packages",
-      path: "/admin/packages",
-    },
-    {
-      icon: <FileText className="h-5 w-5" />,
-      label: "Compliance",
-      path: "/admin/compliance",
-    },
-    {
-      icon: <Settings className="h-5 w-5" />,
-      label: "Settings",
+      title: "Settings",
       path: "/admin/settings",
+      icon: <Settings className="h-4 w-4" />,
     },
   ];
 
@@ -581,7 +690,7 @@ const AdminSidebar = ({ collapsed, onToggle }: SidebarProps) => {
           <SidebarItem
             key={item.path}
             icon={item.icon}
-            label={item.label}
+            label={item.title}
             href={item.path}
             active={isActive(item.path)}
             onClick={() => navigate(item.path)}

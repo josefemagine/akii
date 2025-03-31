@@ -27,7 +27,7 @@ console.log("Initializing Supabase client with URL:", supabaseUrl);
 console.log("Supabase key available:", !!supabaseAnonKey);
 
 // Create the Supabase client with persistence config
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+export const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
@@ -65,7 +65,20 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       },
     },
   },
+  global: {
+    headers: {
+      "x-application-name": "akii-web",
+    },
+  },
+  db: {
+    schema: "public",
+  },
+  // Add a client name to distinguish this instance
+  clientName: "akii-web-primary-client",
 });
+
+// Backward compatibility - export as supabase too
+export const supabase = supabaseClient;
 
 // Helper function to handle hash redirect
 export const handleHashRedirect = async () => {

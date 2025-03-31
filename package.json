@@ -13,7 +13,10 @@
     "version:patch": "node scripts/version.js patch",
     "version:minor": "node scripts/version.js minor",
     "version:major": "node scripts/version.js major",
-    "version:list": "git tag --list 'v*' --sort=-v:refname"
+    "version:list": "git tag --list 'v*' --sort=-v:refname",
+    "setup-admin": "node src/scripts/setup-admin.js",
+    "update-admin": "node src/scripts/update-admin.js",
+    "run-migrations": "supabase db push"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

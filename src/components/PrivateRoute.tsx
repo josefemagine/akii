@@ -12,9 +12,11 @@ export default function PrivateRoute({ children }: { children: React.ReactNode }
   }
 
   if (!user) {
+    console.log("PrivateRoute - Access denied, redirecting to login");
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
+  console.log("PrivateRoute - Access granted");
   return <>{children}</>;
 }
 

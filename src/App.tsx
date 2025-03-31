@@ -1,19 +1,24 @@
 import React, { Suspense, lazy, useEffect, useState, useCallback } from "react";
 import { Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { useAuth, AuthProvider } from "./contexts/AuthContext";
 import LandingPage from "./pages/LandingPage";
-/* Import removed to fix TS2307 error */
-import { SearchProvider, useSearch } from "./contexts/SearchContext";
+import { SearchProvider } from "./contexts/SearchContext";
 import { EnvWarning } from "@/components/ui/env-warning";
-import { supabase } from "@/lib/supabase";
 import { LoadingScreen } from "@/components/LoadingScreen";
-import PrivateRoute from "./components/PrivateRoute";
+import PrivateRoute from "./routes/PrivateRoute";
 import AdminRoute from "./components/AdminRoute";
-import { useAuth as useAuthContext } from "@/contexts/AuthContext";
+import { Toaster } from "./components/ui/toaster";
+import { supabaseClient } from "@/lib/auth-helpers";
 import { useSearch as useSearchContext } from "@/contexts/SearchContext";
 import AdminCheck from "./pages/admin/AdminCheck";
 import AdminAccessFix from "./pages/AdminAccessFix";
 import AdminDirectSQL from "./pages/AdminDirectSQL";
+import FixMyAdmin from "./pages/FixMyAdmin";
+import ForceAdmin from "./pages/ForceAdmin";
+import AdminForcedAccess from "./pages/AdminForcedAccess";
+import DatabaseSchemaPage from "@/pages/admin/DatabaseSchema";
+import UserSyncPage from "@/pages/admin/UserSync";
+import UserStatusMigration from "@/pages/admin/UserStatusMigration";
 
 // Import DashboardLayout directly instead of lazy loading
 import DashboardLayout from "./components/layout/DashboardLayout";
@@ -90,202 +95,21 @@ const AdminCompliance = lazy(() => import("./pages/admin/Compliance"));
 const RunMigration = lazy(() => import("./pages/admin/RunMigration"));
 const AdminN8nWorkflows = lazy(() => import("./pages/admin/n8nWorkflows"));
 
-function AppRoutes() {
-  const { user, isLoading } = useAuth();
-  const [searchValue, setSearchValue] = useState("");
-  const [forceShowContent, setForceShowContent] = useState(false);
-  const [contentReady, setContentReady] = useState(false);
-  const location = useLocation();
-
-  // Additional state to track auth checked status
-  const [authChecked, setAuthChecked] = useState(false);
-
-  // Force content to show after a reasonable timeout
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout>;
-
-    if (isLoading) {
-      timeoutId = setTimeout(() => {
-        console.log(
-          "[ROOT CAUSE FIX] Force timeout reached - showing content regardless of loading state",
-        );
-        setForceShowContent(true);
-      }, 5000); // 5 seconds max wait time
-    } else {
-      // When loading finishes, mark auth as checked
-      setAuthChecked(true);
-    }
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [isLoading]);
-
-  // When the component mounts, set content as ready
-  useEffect(() => {
-    console.log("AppRoutes component mounted - content is ready");
-    setContentReady(true);
-  }, []);
-
-  // Log state changes for debugging
-  useEffect(() => {
-    console.log("[ROOT CAUSE FIX] AppRoutes - Auth state:", {
-      isLoggedIn: !!user,
-      isLoading,
-      authChecked,
-      forceShowContent,
-      contentReady,
-      path: location.pathname,
-    });
-
-    // If user becomes authenticated, force re-render all components
-    if (user && location.pathname === "/") {
-      console.log(
-        "[ROOT CAUSE FIX] User authenticated on homepage, should redirect to dashboard",
-      );
-    }
-  }, [
-    user,
-    isLoading,
-    authChecked,
-    forceShowContent,
-    contentReady,
-    location.pathname,
-  ]);
-
-  // Global search handler
-  const handleSearchChange = useCallback((value: string) => {
-    console.log("Current search value:", value);
-    setSearchValue(value);
-  }, []);
-
-  // Determine whether to show content
-  const shouldShowContent =
-    contentReady && (!isLoading || forceShowContent || authChecked);
-
-  return (
-    <Routes>
-      {/* Public home routes */}
-      <Route
-        path="/"
-        element={
-          <MainLayout onSearchChange={handleSearchChange}>
-            <Outlet />
-          </MainLayout>
-        }
-      >
-        <Route index element={<LandingPage searchValue={searchValue} />} />
-        <Route path="pricing" element={<Pricing />} />
-        <Route path="blog" element={<Blog />} />
-        <Route path="contact" element={<Contact />} />
-        <Route path="privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="terms-of-service" element={<TermsOfService />} />
-        <Route path="supabase-test" element={<SupabaseTest />} />
-        <Route path="admin-check" element={<AdminCheck />} />
-        <Route path="admin-fix" element={<AdminAccessFix />} />
-        <Route path="admin-sql" element={<AdminDirectSQL />} />
-      </Route>
-
-      {/* Auth routes */}
-      <Route path="/auth">
-        <Route path="callback" element={<AuthCallback />} />
-        <Route path="reset-password" element={<ResetPassword />} />
-      </Route>
-
-      {/* Token handler route for deep links with tokens */}
-      <Route path="/token/*" element={<TokenHandler />} />
-
-      {/* Product pages */}
-      <Route path="/products/web-chat-agent" element={<WebChatAgent />} />
-      <Route path="/products/mobile-chat-agent" element={<MobileChatAgent />} />
-      <Route
-        path="/products/whatsapp-chat-agent"
-        element={<WhatsAppChatAgent />}
-      />
-      <Route
-        path="/products/telegram-chat-agent"
-        element={<TelegramChatAgent />}
-      />
-      <Route
-        path="/products/shopify-chat-agent"
-        element={<ShopifyChatAgent />}
-      />
-      <Route
-        path="/products/wordpress-chat-agent"
-        element={<WordPressChatAgent />}
-      />
-      <Route path="/products/private-ai-api" element={<PrivateAIAPI />} />
-
-      {/* Dashboard routes - protected */}
-      <Route
-        path="/dashboard"
-        element={
-          <PrivateRoute>
-            <DashboardLayout>
-              {shouldShowContent ? (
-                <Outlet />
-              ) : (
-                <LoadingScreen message="Loading dashboard..." />
-              )}
-            </DashboardLayout>
-          </PrivateRoute>
-        }
-      >
-        <Route index element={<Dashboard />} />
-        <Route path="agents" element={<Agents />} />
-        <Route path="agent-setup" element={<AgentSetup />} />
-        <Route path="agent/:id/analytics" element={<Analytics />} />
-        <Route path="agent/:id/conversations" element={<Conversations />} />
-        <Route path="documents" element={<Documents />} />
-        <Route path="integrations" element={<Integrations />} />
-        <Route path="conversations" element={<Conversations />} />
-        <Route path="analytics" element={<Analytics />} />
-        <Route path="api-keys" element={<APIKeys />} />
-        <Route path="web-chat" element={<WebChat />} />
-        <Route path="shopify-chat" element={<ShopifyChat />} />
-        <Route path="workflows" element={<N8nWorkflows />} />
-        <Route path="team" element={<Team />} />
-        <Route path="settings" element={<Settings />} />
-        <Route path="subscription" element={<Subscription />} />
-        <Route path="billing" element={<Billing />} />
-      </Route>
-
-      {/* Admin routes - protected by admin role */}
-      <Route
-        path="/admin"
-        element={
-          <AdminRoute>
-            <DashboardLayout isAdmin={true}>
-              <Outlet />
-            </DashboardLayout>
-          </AdminRoute>
-        }
-      >
-        <Route index element={<AdminDashboard />} />
-        <Route path="users" element={<AdminUsers />} />
-        <Route path="settings" element={<AdminSettings />} />
-        <Route path="packages" element={<AdminPackages />} />
-        <Route path="moderation" element={<Moderation />} />
-        <Route path="email-templates" element={<EmailTemplates />} />
-        <Route path="lead-magnets" element={<AdminLeadMagnets />} />
-        <Route path="landing-pages" element={<AdminLandingPages />} />
-        <Route path="blog" element={<AdminBlog />} />
-        <Route path="affiliates" element={<AdminAffiliates />} />
-        <Route path="compliance" element={<AdminCompliance />} />
-        <Route path="run-migration" element={<RunMigration />} />
-        <Route path="workflows" element={<AdminN8nWorkflows />} />
-      </Route>
-
-      {/* Fallback route */}
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
-  );
-}
+// Loading fallback
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center h-screen bg-background">
+    <div className="text-center space-y-4">
+      <div className="w-8 h-8 border-t-2 border-primary rounded-full animate-spin mx-auto"></div>
+      <p className="text-foreground">Loading...</p>
+        </div>
+      </div>
+    );
 
 function App() {
   const [hasAuthInProgress, setHasAuthInProgress] = useState(false);
   const location = useLocation();
   const [authInitialized, setAuthInitialized] = useState(false);
+  const { isLoading } = useAuth();
 
   // Check if authentication is in progress to prevent unnecessary redirects
   const checkAuthInProgress = () => {
@@ -419,7 +243,7 @@ function App() {
         // Add special handling for connection errors during auth
         const getSessionSafely = async () => {
           try {
-            return await supabase.auth.getSession();
+            return await supabaseClient.auth.getSession();
           } catch (sessionError) {
             console.error(
               "[EXTENDED FIX] Error fetching session, using fallback:",
@@ -522,16 +346,212 @@ function App() {
     return <LoadingScreen message="Initializing application..." />;
   }
 
+  // Show loading state during authentication
+  if (isLoading) {
+    return <LoadingFallback />;
+  }
+
+  // Define AppRoutes inside App component to ensure it has access to AuthProvider context
+  function AppRoutesInternal() {
+    const { user, isLoading } = useAuth();
+    const [searchValue, setSearchValue] = useState("");
+    const [forceShowContent, setForceShowContent] = useState(false);
+    const [contentReady, setContentReady] = useState(false);
+    const routeLocation = useLocation();
+
+    // Additional state to track auth checked status
+    const [authChecked, setAuthChecked] = useState(false);
+
+    // Force content to show after a reasonable timeout
+    useEffect(() => {
+      let timeoutId: ReturnType<typeof setTimeout>;
+
+      if (isLoading) {
+        timeoutId = setTimeout(() => {
+          console.log(
+            "[ROOT CAUSE FIX] Force timeout reached - showing content regardless of loading state",
+          );
+          setForceShowContent(true);
+        }, 5000); // 5 seconds max wait time
+      } else {
+        // When loading finishes, mark auth as checked
+        setAuthChecked(true);
+      }
+
+      return () => {
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+    }, [isLoading]);
+
+    // When the component mounts, set content as ready
+    useEffect(() => {
+      console.log("AppRoutes component mounted - content is ready");
+      setContentReady(true);
+    }, []);
+
+    // Log state changes for debugging
+    useEffect(() => {
+      console.log("[ROOT CAUSE FIX] AppRoutes - Auth state:", {
+        isLoggedIn: !!user,
+        isLoading,
+        authChecked,
+        forceShowContent,
+        contentReady,
+        path: routeLocation.pathname,
+      });
+
+      // If user becomes authenticated, force re-render all components
+      if (user && routeLocation.pathname === "/") {
+        console.log(
+          "[ROOT CAUSE FIX] User authenticated on homepage, should redirect to dashboard",
+        );
+      }
+    }, [
+      user,
+      isLoading,
+      authChecked,
+      forceShowContent,
+      contentReady,
+      routeLocation.pathname,
+    ]);
+
+    // Global search handler
+    const handleSearchChange = useCallback((value: string) => {
+      console.log("Current search value:", value);
+      setSearchValue(value);
+    }, []);
+
+    // Determine whether to show content
+    const shouldShowContent =
+      contentReady && (!isLoading || forceShowContent || authChecked);
+
+  return (
+    <Routes>
+        {/* Public home routes */}
+      <Route
+        path="/"
+          element={
+            <MainLayout onSearchChange={handleSearchChange}>
+              <Outlet />
+            </MainLayout>
+          }
+        >
+          <Route index element={<LandingPage searchValue={searchValue} />} />
+          <Route path="pricing" element={<Pricing />} />
+          <Route path="blog" element={<Blog />} />
+          <Route path="contact" element={<Contact />} />
+          <Route path="privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="terms-of-service" element={<TermsOfService />} />
+          <Route path="supabase-test" element={<SupabaseTest />} />
+          <Route path="admin-check" element={<AdminCheck />} />
+          <Route path="admin-fix" element={<AdminAccessFix />} />
+          <Route path="admin-sql" element={<AdminDirectSQL />} />
+          <Route path="fix-admin" element={<FixMyAdmin />} />
+          <Route path="force-admin" element={<ForceAdmin />} />
+          <Route path="admin-access" element={<AdminForcedAccess />} />
+        </Route>
+
+      {/* Auth routes */}
+        <Route path="/auth">
+          <Route path="callback" element={<AuthCallback />} />
+          <Route path="reset-password" element={<ResetPassword />} />
+        </Route>
+
+        {/* Token handler route for deep links with tokens */}
+        <Route path="/token/*" element={<TokenHandler />} />
+
+      {/* Product pages */}
+      <Route path="/products/web-chat-agent" element={<WebChatAgent />} />
+      <Route path="/products/mobile-chat-agent" element={<MobileChatAgent />} />
+      <Route
+        path="/products/whatsapp-chat-agent"
+        element={<WhatsAppChatAgent />}
+      />
+      <Route
+        path="/products/telegram-chat-agent"
+        element={<TelegramChatAgent />}
+      />
+      <Route
+        path="/products/shopify-chat-agent"
+        element={<ShopifyChatAgent />}
+      />
+      <Route
+        path="/products/wordpress-chat-agent"
+        element={<WordPressChatAgent />}
+      />
+        <Route path="/products/private-ai-api" element={<PrivateAIAPI />} />
+
+        {/* Dashboard routes - protected */}
+      <Route
+        path="/dashboard"
+        element={
+            <PrivateRoute>
+            <DashboardLayout>
+                {shouldShowContent ? (
+              <Outlet />
+                ) : (
+                  <LoadingScreen message="Loading dashboard..." />
+                )}
+            </DashboardLayout>
+            </PrivateRoute>
+        }
+      >
+        <Route index element={<Dashboard />} />
+        <Route path="agents" element={<Agents />} />
+        <Route path="agent-setup" element={<AgentSetup />} />
+        <Route path="agent/:id/analytics" element={<Analytics />} />
+        <Route path="agent/:id/conversations" element={<Conversations />} />
+        <Route path="documents" element={<Documents />} />
+        <Route path="integrations" element={<Integrations />} />
+        <Route path="conversations" element={<Conversations />} />
+        <Route path="analytics" element={<Analytics />} />
+          <Route path="api-keys" element={<APIKeys />} />
+          <Route path="web-chat" element={<WebChat />} />
+          <Route path="shopify-chat" element={<ShopifyChat />} />
+          <Route path="workflows" element={<N8nWorkflows />} />
+        <Route path="team" element={<Team />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="subscription" element={<Subscription />} />
+        <Route path="billing" element={<Billing />} />
+      </Route>
+
+      {/* Admin routes - protected by admin role */}
+        <Route path="/admin" element={<AdminRoute />}>
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="settings" element={<AdminSettings />} />
+        <Route path="packages" element={<AdminPackages />} />
+          <Route path="moderation" element={<Moderation />} />
+          <Route path="email-templates" element={<EmailTemplates />} />
+        <Route path="lead-magnets" element={<AdminLeadMagnets />} />
+        <Route path="landing-pages" element={<AdminLandingPages />} />
+        <Route path="blog" element={<AdminBlog />} />
+        <Route path="affiliates" element={<AdminAffiliates />} />
+        <Route path="compliance" element={<AdminCompliance />} />
+          <Route path="run-migration" element={<RunMigration />} />
+          <Route path="workflows" element={<AdminN8nWorkflows />} />
+          <Route path="database-schema" element={<DatabaseSchemaPage />} />
+          <Route path="user-sync" element={<UserSyncPage />} />
+          <Route path="user-status-migration" element={<UserStatusMigration />} />
+      </Route>
+
+      {/* Fallback route */}
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+  );
+}
+
   // Return the app content only after auth is initialized
   return (
+    <SearchProvider>
+      <Suspense fallback={<LoadingScreen />}>
+        <EnvWarning />
     <AuthProvider>
-      <SearchProvider>
-        <Suspense fallback={<LoadingScreen />}>
-          <EnvWarning />
-          <AppRoutes />
-        </Suspense>
-      </SearchProvider>
-    </AuthProvider>
+          <AppRoutesInternal />
+          <Toaster />
+        </AuthProvider>
+      </Suspense>
+    </SearchProvider>
   );
 }
 

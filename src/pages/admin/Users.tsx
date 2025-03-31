@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,6 +39,17 @@ import {
   XCircle,
   AlertCircle,
 } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { supabaseAdmin, getAllUsers, setUserRole as updateDbUserRole, setUserAsAdmin } from "@/lib/supabase-admin";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface User {
   id: string;
@@ -195,7 +206,216 @@ const getPlanBadge = (plan: User["plan"]) => {
 
 const UsersPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editedUserData, setEditedUserData] = useState({
+    name: "",
+    email: "",
+    role: "",
+    status: "",
+  });
+
+  // Fetch real users from the database
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setLoading(true);
+      try {
+        // Use our dedicated admin function to get all users
+        const { users: dbUsers, error: usersError } = await getAllUsers();
+
+        if (usersError) {
+          console.error("Error fetching users:", usersError);
+          setError(usersError.message || "Failed to fetch users");
+          setUsers(mockUsers);
+          return;
+        }
+
+        if (dbUsers && dbUsers.length > 0) {
+          // Map database users to our User interface
+          const mappedUsers: User[] = dbUsers.map(user => {
+            console.log("Processing user:", user);
+            
+            // Determine status from either status field or active field
+            let userStatus: User['status'] = 'inactive';
+            if (user.status === 'active') {
+              userStatus = 'active';
+            } else if (user.status === 'pending') {
+              userStatus = 'pending';
+            } else if (user.active === true) {
+              userStatus = 'active';
+            }
+            
+            return {
+              id: user.id || `profile-${Math.random()}`,
+              name: user.full_name || user.auth_email?.split('@')[0] || 'Unknown User',
+              email: user.auth_email || user.email || 'unknown@example.com',
+              role: user.role || 'user',
+              status: userStatus,
+              plan: user.subscription_tier || 'free',
+              createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : 'Unknown',
+              lastLogin: user.last_sign_in_at ? new Date(user.last_sign_in_at).toISOString().split('T')[0] : '-',
+              agents: user.agents_count || 0,
+              messagesUsed: user.messages_used || 0,
+              messageLimit: user.message_limit || 1000,
+            };
+          });
+
+          setUsers(mappedUsers);
+          console.log("Loaded users from database:", mappedUsers);
+        } else {
+          console.log("No users found, using mock data");
+          setUsers(mockUsers);
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching users:", err);
+        setError(err instanceof Error ? err.message : String(err));
+        setUsers(mockUsers);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  // Function to update a user's role
+  const updateUserRole = async (userId: string, email: string, newRole: User['role']) => {
+    try {
+      const { success, error } = await updateDbUserRole(email, newRole);
+
+      if (error || !success) {
+        toast({
+          title: "Error updating role",
+          description: error?.message || "Failed to update user role",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update local state
+      setUsers(users.map(user => 
+        user.id === userId ? { ...user, role: newRole } : user
+      ));
+
+      toast({
+        title: "Role updated",
+        description: `${email} is now a ${newRole}`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error updating role",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Function to open edit dialog
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditedUserData({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+    });
+  };
+
+  // Function to close dialog
+  const handleCloseDialog = () => {
+    setEditingUser(null);
+  };
+
+  // Function to save edited user
+  const handleSaveUser = async () => {
+    if (!editingUser) return;
+
+    try {
+      console.log("Saving user updates:", editedUserData);
+      
+      // Include all editable fields in the update data
+      const updateData: Record<string, any> = {
+        full_name: editedUserData.name,
+        role: editedUserData.role,
+        status: editedUserData.status,  // Now properly saving the status field
+      };
+      
+      console.log("Fields for update:", updateData);
+      
+      // Update user data in database 
+      const { data, error } = await supabaseAdmin
+        .from('profiles')
+        .update(updateData)
+        .eq('email', editingUser.email);
+
+      console.log("Database update response:", { data, error });
+
+      if (error) {
+        // Special handling for missing status column
+        if (error.message.includes("does not exist") && error.message.includes("status")) {
+          toast({
+            title: "Status field not available",
+            description: "The status column is missing from your database. Visit Admin > User Status Migration to add it.",
+            variant: "destructive",
+          });
+          
+          // Try again without the status field
+          const { data: retryData, error: retryError } = await supabaseAdmin
+            .from('profiles')
+            .update({
+              full_name: editedUserData.name,
+              role: editedUserData.role,
+            })
+            .eq('email', editingUser.email);
+            
+          if (retryError) {
+            console.error("Error updating user in retry:", retryError);
+            toast({
+              title: "Error updating user",
+              description: retryError.message,
+              variant: "destructive",
+            });
+            return;
+          }
+        } else {
+          console.error("Error updating user in database:", error);
+          toast({
+            title: "Error updating user",
+            description: error.message,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      // Update local state
+      setUsers(users.map(user => 
+        user.id === editingUser.id ? { 
+          ...user, 
+          name: editedUserData.name,
+          role: editedUserData.role as User['role'],
+          status: editedUserData.status as User['status'],
+        } : user
+      ));
+
+      toast({
+        title: "User updated",
+        description: `${editingUser.email} has been updated successfully.`,
+      });
+
+      // Close the dialog
+      handleCloseDialog();
+    } catch (err) {
+      console.error("Exception updating user:", err);
+      toast({
+        title: "Error updating user",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    }
+  };
 
   const filteredUsers = users.filter(
     (user) =>
@@ -212,9 +432,58 @@ const UsersPage = () => {
             Manage user accounts and permissions
           </p>
         </div>
+        <div className="flex gap-2">
+          <Button onClick={async () => {
+            try {
+              // Add current user as admin via direct API
+              const email = prompt("Enter your email address");
+              if (!email) return;
+              
+              toast({
+                title: "Adding admin user",
+                description: `Attempting to add ${email} as admin...`,
+              });
+              
+              const { success, data, error } = await setUserAsAdmin(email);
+              
+              if (error || !success) {
+                toast({
+                  title: "Error adding admin",
+                  description: error?.message || "Failed to set user as admin",
+                  variant: "destructive",
+                });
+                return;
+              }
+              
+              if (data && data.length > 0) {
+                toast({
+                  title: "Success!",
+                  description: `${email} is now an admin. Please refresh the page.`,
+                });
+                
+                // Refresh the page to show updated data
+                setTimeout(() => window.location.reload(), 2000);
+              } else {
+                toast({
+                  title: "User not found",
+                  description: "No user found with that email",
+                  variant: "destructive",
+                });
+              }
+            } catch (err) {
+              toast({
+                title: "Error adding admin",
+                description: err instanceof Error ? err.message : String(err),
+                variant: "destructive",
+              });
+            }
+          }} variant="secondary">
+            Add Me As Admin
+          </Button>
         <Button>
           <UserPlus className="h-4 w-4 mr-2" /> Add User
         </Button>
+        </div>
       </div>
 
       <Card>
@@ -226,7 +495,7 @@ const UsersPage = () => {
             </Button>
           </div>
           <CardDescription>
-            Showing {filteredUsers.length} users
+            {loading ? "Loading users..." : `Showing ${filteredUsers.length} users`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -261,7 +530,26 @@ const UsersPage = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredUsers.map((user) => (
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-4">
+                      Loading users...
+                    </TableCell>
+                  </TableRow>
+                ) : error ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-4 text-red-500">
+                      Error: {error}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-4">
+                      No users found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredUsers.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -316,7 +604,7 @@ const UsersPage = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditUser(user)}>
                             <Edit className="h-4 w-4 mr-2" /> Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem>
@@ -325,6 +613,18 @@ const UsersPage = () => {
                           <DropdownMenuItem>
                             <Lock className="h-4 w-4 mr-2" /> Reset Password
                           </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => updateUserRole(user.id, user.email, 'admin')}
+                              disabled={user.role === 'admin'}
+                            >
+                              Set as Admin
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => updateUserRole(user.id, user.email, 'user')}
+                              disabled={user.role === 'user'}
+                            >
+                              Set as User
+                            </DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive focus:text-destructive">
                             <Trash2 className="h-4 w-4 mr-2" /> Delete
                           </DropdownMenuItem>
@@ -332,7 +632,8 @@ const UsersPage = () => {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -353,6 +654,79 @@ const UsersPage = () => {
           </div>
         </CardFooter>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={editingUser !== null} onOpenChange={open => !open && handleCloseDialog()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user details and permissions
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input 
+                id="name" 
+                value={editedUserData.name} 
+                onChange={e => setEditedUserData({...editedUserData, name: e.target.value})} 
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input 
+                id="email" 
+                value={editedUserData.email} 
+                disabled 
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <select 
+                id="role" 
+                value={editedUserData.role} 
+                onChange={e => setEditedUserData({...editedUserData, role: e.target.value})}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+                <option value="team_member">Team Member</option>
+              </select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="status">User Status</Label>
+              <select 
+                id="status" 
+                value={editedUserData.status} 
+                onChange={e => setEditedUserData({...editedUserData, status: e.target.value})}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="banned">Banned</option>
+                <option value="pending">Pending</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Setting a user to "inactive" or "banned" will prevent them from accessing the application.
+                If the status field is missing from your database, visit Admin &gt; User Status Migration.
+              </p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseDialog}>Cancel</Button>
+            <Button onClick={() => {
+              console.log("Save Changes button clicked");
+              handleSaveUser();
+            }}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

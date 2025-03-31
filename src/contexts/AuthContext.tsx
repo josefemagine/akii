@@ -1,877 +1,469 @@
 import React, {
   createContext,
   useContext,
-  useEffect,
   useState,
+  useEffect,
+  ReactNode,
   useCallback,
 } from "react";
-import {
-  supabase,
-  getCurrentSession,
-  handleHashRedirect,
-  checkSessionPersistence,
-  isBrowser,
-} from "@/lib/supabase";
-import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  clearStoredAuth,
-  generateSecureState,
-  getReturnPath,
-  getStoredTokens,
-  refreshAccessToken,
-  securelyStoreTokens,
-  storeReturnPath,
+  supabaseClient,
+  signIn as authSignIn,
+  signOut as authSignOut,
+  getCurrentSession,
+  getCurrentUser,
+  getUserProfile,
+  ensureUserProfile,
+  updateUserProfile,
+  setUserRole,
+  setUserStatus,
+  checkUserStatus,
+  UserProfile,
+  UserRole,
+  UserStatus,
+  AuthResponse
 } from "@/lib/auth-helpers";
-import { Database } from "@/types/supabase";
+import type { User, Session } from "@supabase/supabase-js";
 
-export type UserRole = "user" | "admin" | "team_member";
-
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-type ProfileUpsert = Database["public"]["Tables"]["profiles"]["Insert"];
-type SubscriptionUpsert =
-  Database["public"]["Tables"]["subscriptions"]["Insert"];
-
-// Explicitly define the ProfileInsert type with required fields
-interface ProfileInsert {
-  id: string;
-  email: string;
-  updated_at: string;
+interface AuthState {
+  user: User | null;
+  profile: UserProfile | null;
+  session: Session | null; 
+  isLoading: boolean;
+  isAdmin: boolean;
+  userRole: string | null;
+  error: Error | null;
 }
-
-// Update the Subscription type to match the database schema
-interface Subscription {
-  id: string;
-  user_id: string;
-  plan: "free" | "pro" | "enterprise";
-  status: "active" | "inactive" | "trial" | "cancelled" | "expired";
-  message_limit: number;
-  messages_used: number;
-  trial_ends_at: string | null;
-  renews_at: string | null;
-  addons: Record<string, any>;
-  payment_method: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// Create a separate type for our extended user
-export interface ExtendedUser {
-  id: string;
-  email: string;
-  role: UserRole;
-  subscription: Subscription;
-  created_at: string;
-  updated_at: string;
-  aud: string;
-  app_metadata: Record<string, any>;
-  user_metadata: Record<string, any>;
-}
-
-// Update the User type to be our ExtendedUser
-export type User = ExtendedUser;
 
 export interface AuthContextType {
+  // State
   user: User | null;
+  profile: UserProfile | null;
   session: Session | null;
   isLoading: boolean;
-  setIsLoading: (loading: boolean) => void;
-  userRole: UserRole | null;
   isAdmin: boolean;
-  isAuthenticated: boolean;
-  signIn: (
-    email: string,
-    password: string,
-  ) => Promise<{
-    error: Error | null;
-    data: { user: User | null } | null;
-  }>;
-  signUp: (
-    email: string,
-    password: string,
-  ) => Promise<{
-    error: Error | null;
-    data: { user: User | null } | null;
-  }>;
-  signInWithGoogle: () => Promise<void>;
-  verifyOtp: (
-    email: string,
-    token: string,
-  ) => Promise<{
-    error: Error | null;
-    data: { user: User | null } | null;
-  }>;
-  resetPassword: (email: string) => Promise<{
-    error: Error | null;
-    data: any;
-  }>;
-  confirmPasswordReset: (
-    email: string,
-    token: string,
-    newPassword: string,
-  ) => Promise<{
-    error: Error | null;
-    data: any;
-  }>;
+  userRole: string | null;
+  error: Error | null;
+  
+  // Actions
+  signIn: (email: string, password: string) => Promise<{ data: any | null, error: Error | null }>;
   signOut: () => Promise<void>;
+  updateProfile: (profile: Partial<UserProfile>) => Promise<void>;
+  refreshUser: () => Promise<void>;
+  checkAdminStatus: () => boolean;
+  bypassAdminCheck: () => boolean;
 }
+
+const AdminEmailList = [
+  'josef@holm.com',
+  // Add more admin emails as needed
+];
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Export the hook directly as a named function declaration
-// for better Fast Refresh compatibility
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+// Helper to check admin override
+function checkAdminOverride(user: User | null): boolean {
+  if (!user || !user.email) return false;
+  
+  const adminOverride = localStorage.getItem('akii_admin_override') === 'true';
+  const adminEmail = localStorage.getItem('akii_admin_override_email');
+  const adminExpiry = localStorage.getItem('akii_admin_override_expiry');
+  
+  // Check for legacy format
+  const legacyOverride = localStorage.getItem('admin_override') === 'true';
+  const legacyEmail = localStorage.getItem('admin_override_email');
+  
+  // Special case for Josef
+  const isJosef = user.email === 'josef@holm.com';
+  
+  // Check if override is valid
+  if (isJosef) {
+    // If it's Josef, always set the override
+    localStorage.setItem('akii_admin_override', 'true');
+    localStorage.setItem('akii_admin_override_email', 'josef@holm.com');
+    localStorage.setItem('akii_admin_override_expiry', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString());
+    console.log('Admin override set for Josef');
+    return true;
   }
-  return context;
+  
+  if (adminOverride && adminEmail === user.email) {
+    // Check if override is expired
+    if (adminExpiry) {
+      const expiryDate = new Date(adminExpiry);
+      if (expiryDate > new Date()) {
+        console.log('Valid admin override found in localStorage');
+        return true;
+      }
+    } else {
+      // No expiry, assume it's valid
+      console.log('Admin override found without expiry');
+      return true;
+    }
+  }
+  
+  // Check legacy format
+  if (legacyOverride && legacyEmail === user.email) {
+    console.log('Legacy admin override found');
+    return true;
+  }
+  
+  return false;
 }
 
-// Update the upsertProfile function
-const upsertProfile = async (userId: string, email: string) => {
-  // First, upsert the profile
-  const { error: profileError } = await supabase.from("profiles").upsert(
-    {
-      id: userId,
-      email: email,
-      role: "user",
-      updated_at: new Date().toISOString(),
-    } as any,
-    {
-      onConflict: "id",
-    },
-  );
+// Provider component
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    profile: null,
+    session: null,
+    isLoading: true,
+    isAdmin: false,
+    userRole: null,
+    error: null,
+  });
 
-  if (profileError) {
-    console.error("Error upserting profile:", profileError);
-    return { error: profileError };
-  }
-
-  // Then, upsert the subscription
-  const { error: subscriptionError } = await supabase
-    .from("subscriptions")
-    .upsert(
-      {
-        user_id: userId,
-        plan: "free",
-        status: "active",
-        message_limit: 1000,
-        messages_used: 0,
-        trial_ends_at: null,
-        renews_at: null,
-        addons: {},
-        payment_method: null,
-        updated_at: new Date().toISOString(),
-      } as any,
-      {
-        onConflict: "user_id",
-      },
-    );
-
-  return { error: subscriptionError };
-};
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  // Hooks
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-
-  // Create default user function
-  const createDefaultUser = (sessionUser: SupabaseUser): User => {
-    const defaultSubscription: Subscription = {
-      id: sessionUser.id,
-      user_id: sessionUser.id,
-      plan: "free",
-      status: "active",
-      message_limit: 1000,
-      messages_used: 0,
-      trial_ends_at: null,
-      renews_at: null,
-      addons: {},
-      payment_method: null,
-      created_at: sessionUser.created_at,
-      updated_at: sessionUser.updated_at,
-    };
-
-    const user: User = {
-      id: sessionUser.id,
-      email: sessionUser.email || "",
-      role: "user" as UserRole,
-      subscription: defaultSubscription,
-      created_at: sessionUser.created_at,
-      updated_at: sessionUser.updated_at,
-      aud: sessionUser.aud,
-      app_metadata: sessionUser.app_metadata,
-      user_metadata: sessionUser.user_metadata,
-    };
-
-    return user;
-  };
-
-  // Initialize auth state when component mounts
+  
+  // Initialize auth state
   useEffect(() => {
-    const initializeAuthState = async () => {
-      console.log("Initializing auth state...");
-      setIsLoading(true);
-
+    let isMounted = true;
+    
+    async function initializeAuth() {
+      setState((prev) => ({ ...prev, isLoading: true }));
+      
       try {
-        // [EXTENDED FIX] Handle potential connection errors by wrapping critical auth operations
-        const getSessionWithFallback = async () => {
-          try {
-            // Try to get session normally first
-            const sessionResult = await supabase.auth.getSession();
-
-            if (sessionResult.error) {
-              throw sessionResult.error;
+        // Get current session
+        const { data: currentSession, error: sessionError } = await getCurrentSession();
+        
+        if (sessionError) throw sessionError;
+        
+        if (isMounted) {
+          setState((prev) => ({ ...prev, session: currentSession }));
+        }
+        
+        if (currentSession) {
+          // Get user
+          const { data: currentUser, error: userError } = await getCurrentUser();
+          
+          if (userError) throw userError;
+          
+          if (isMounted) {
+            setState((prev) => ({ ...prev, user: currentUser }));
+            
+            // Check for admin override
+            const hasAdminOverride = checkAdminOverride(currentUser);
+            
+            if (hasAdminOverride) {
+              console.log('Admin override active for', currentUser.email);
+              setState((prev) => ({ ...prev, isAdmin: true }));
             }
-
-            return sessionResult;
-          } catch (initialError) {
-            console.error(
-              "[EXTENDED FIX] Error in primary session check, trying fallback:",
-              initialError,
-            );
-
-            // Check localStorage for fallback authentication data
-            try {
-              const fallbackData = localStorage.getItem(
-                "akii-auth-fallback-user",
-              );
-              const recentSuccessTime = localStorage.getItem(
-                "akii-auth-success-time",
-              );
-
-              if (fallbackData) {
-                const userData = JSON.parse(fallbackData);
-                const timestamp = userData.timestamp || 0;
-                const isRecent = Date.now() - timestamp < 3600000; // Less than 1 hour old
-
-                // If we have recent auth success, use the fallback data
-                if (isRecent || recentSuccessTime) {
-                  console.log(
-                    "[EXTENDED FIX] Using fallback auth data:",
-                    userData.email,
-                  );
-
-                  // Try one more time with a different approach
-                  try {
-                    return await supabase.auth.getSession();
-                  } catch (finalError) {
-                    console.error(
-                      "[EXTENDED FIX] Final session check failed:",
-                      finalError,
-                    );
-
-                    // Return a synthetic session to prevent UI issues
-                    return {
-                      data: { session: null },
-                      error: new Error(
-                        "Using fallback auth mechanism - limited functionality",
-                      ),
-                    };
-                  }
+          }
+          
+          if (currentUser) {
+            // Get user profile
+            const { data: profile, error: profileError } = await getUserProfile(currentUser.id);
+            
+            if (profileError) {
+              // If no profile exists, create one
+              const { data: newProfile, error: createError } = await ensureUserProfile(currentUser);
+              
+              if (createError) throw createError;
+              
+              if (isMounted && newProfile) {
+                setState((prev) => ({ ...prev, profile: newProfile }));
+                
+                // Only set isAdmin from profile if no override
+                if (!checkAdminOverride(currentUser)) {
+                  setState((prev) => ({ ...prev, isAdmin: newProfile.role === 'admin' }));
                 }
               }
-
-              // If no valid fallback, re-throw the original error
-              throw initialError;
-            } catch (fallbackError) {
-              console.error(
-                "[EXTENDED FIX] Fallback auth check failed:",
-                fallbackError,
-              );
-              throw initialError; // Re-throw original error
+            } else if (isMounted && profile) {
+              setState((prev) => ({ ...prev, profile: profile }));
+              
+              // Only set isAdmin from profile if no override
+              if (!checkAdminOverride(currentUser)) {
+                setState((prev) => ({ ...prev, isAdmin: profile.role === 'admin' }));
+              }
             }
-          }
-        };
-
-        // Use our enhanced session getter
-        const {
-          data: { session: currentSession },
-          error,
-        } = await getSessionWithFallback();
-
-        if (error && !currentSession) {
-          console.error(
-            "[EXTENDED FIX] Error getting session during initialization:",
-            error,
-          );
-          throw error;
-        }
-
-        // CRITICAL FIX: Synchronously process session if it exists
-        if (currentSession) {
-          console.log("Found existing session during initialization", {
-            userId: currentSession.user.id,
-            email: currentSession.user.email,
-          });
-
-          // Set session immediately
-          setSession(currentSession);
-
-          try {
-            // Get user profile directly with a synchronous approach to avoid race conditions
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", currentSession.user.id)
-              .single();
-
-            // Create user object with profile data
-            const userWithProfile = {
-              ...createDefaultUser(currentSession.user),
-              role: profile?.role || "user",
-            };
-
-            console.log("Setting authenticated user state with profile:", {
-              id: userWithProfile.id,
-              email: userWithProfile.email,
-              role: userWithProfile.role,
+            
+            // Log auth status
+            console.log('Auth initialized:', { 
+              user: currentUser.email,
+              role: profile?.role || 'user',
+              admin: state.isAdmin || profile?.role === 'admin' || checkAdminOverride(currentUser)
             });
-
-            // Use function updaters to guarantee state update
-            setUser(() => userWithProfile);
-            setUserRole(() => userWithProfile.role as UserRole);
-
-            // Store tokens securely
-            securelyStoreTokens({
-              access_token: currentSession.access_token,
-              refresh_token: currentSession.refresh_token,
-            });
-
-            // Force redirect to dashboard if on homepage
-            if (location.pathname === "/") {
-              console.log(
-                "[AUTH_FIX] Logged in user on homepage, will redirect to dashboard",
-              );
-              setTimeout(() => {
-                navigate("/dashboard");
-              }, 200);
-            }
-          } catch (profileError) {
-            console.error(
-              "Error getting profile for authenticated user:",
-              profileError,
-            );
-
-            // Even without profile, still set the user
-            const defaultUser = createDefaultUser(currentSession.user);
-            setUser(() => defaultUser);
-            setUserRole(() => defaultUser.role as UserRole);
           }
         } else {
-          console.log("No valid session found during initialization...");
-          // Try to restore from stored refresh token
-          const storedTokens = getStoredTokens();
-          if (storedTokens.refresh_token) {
-            console.log(
-              "Found stored refresh token, attempting to restore session",
-            );
-            const refreshed = await refreshAccessToken();
-            if (refreshed) {
-              // Session restored - get a fresh session instead of calling refreshSession
-              const { data: refreshData } = await supabase.auth.getSession();
-              if (refreshData.session) {
-                setSession(refreshData.session);
-
-                // Get profile data
-                const { data: profile } = await supabase
-                  .from("profiles")
-                  .select("*")
-                  .eq("id", refreshData.session.user.id)
-                  .single();
-
-                // Create user object with profile data
-                const userWithProfile = {
-                  ...createDefaultUser(refreshData.session.user),
-                  role: profile?.role || "user",
-                };
-
-                // Update state
-                setUser(userWithProfile);
-                setUserRole(userWithProfile.role);
-              }
-            } else {
-              clearStoredAuth();
-            }
+          // No session, clear state
+          if (isMounted) {
+            setState((prev) => ({ ...prev, user: null, profile: null, isAdmin: false }));
           }
+          console.log('No active session found');
         }
       } catch (error) {
-        console.error("Error in initializeAuthState:", error);
-        // Clear state on error
-        setUser(null);
-        setSession(null);
-        setUserRole(null);
+        console.error('Error initializing auth:', error);
+        // Don't clear state here as it might be a temporary error
       } finally {
-        setIsInitialized(true);
-        setIsLoading(false);
-      }
-    };
-
-    initializeAuthState();
-
-    // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("Auth state changed:", event);
-
-        if (event === "SIGNED_IN" && session) {
-          console.log("User signed in, updating session");
-
-          // CRITICAL FIX: Immediately update session state before any async operations
-          setSession(() => session);
-
-          try {
-            // Same approach as initialization to avoid race conditions
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", session.user.id)
-              .single();
-
-            // Create user object with profile data
-            const userWithProfile = {
-              ...createDefaultUser(session.user),
-              role: profile?.role || "user",
-            };
-
-            console.log(
-              "[CRITICAL FIX] Setting authenticated user state after signin:",
-              {
-                id: userWithProfile.id,
-                email: userWithProfile.email,
-                role: userWithProfile.role,
-              },
-            );
-
-            // Use function updaters for guaranteed state updates
-            setUser(() => userWithProfile);
-            setUserRole(() => userWithProfile.role as UserRole);
-
-            // Store tokens securely
-            securelyStoreTokens({
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
-            });
-
-            // Clear loading state
-            setIsLoading(false);
-
-            // Redirect to dashboard if on homepage
-            if (location.pathname === "/") {
-              navigate("/dashboard");
-            }
-          } catch (error) {
-            console.error("[CRITICAL FIX] Error updating user profile:", error);
-            // Even on error, still set basic user info
-            const defaultUser = createDefaultUser(session.user);
-            setUser(() => defaultUser);
-            setUserRole(() => defaultUser.role);
-            setIsLoading(false);
-          }
-        } else if (event === "SIGNED_OUT") {
-          console.log("Session cleared in auth state change...");
-          setUser(null);
-          setSession(null);
-          setUserRole(null);
-          clearStoredAuth();
-        } else if (event === "TOKEN_REFRESHED" && session) {
-          console.log("Token refreshed, updating session");
-          setSession(session);
-
-          // Store tokens securely
-          securelyStoreTokens({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          });
+        if (isMounted) {
+          setState((prev) => ({ ...prev, isLoading: false }));
         }
-      },
+      }
+    }
+    
+    // Set up auth state change listener
+    const { data: authListener } = supabaseClient.auth.onAuthStateChange(
+      async (event, currentSession) => {
+        console.log(`Auth state changed: ${event}`);
+        
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (isMounted) {
+            setState((prev) => ({ ...prev, session: currentSession }));
+            
+            if (currentSession?.user) {
+              setState((prev) => ({ ...prev, user: currentSession.user }));
+              
+              // Check for admin override
+              const hasAdminOverride = checkAdminOverride(currentSession.user);
+              if (hasAdminOverride) {
+                console.log('Admin override detected on auth change');
+                setState((prev) => ({ ...prev, isAdmin: true }));
+              }
+              
+              // Get or create profile
+              const { data: profile } = await getUserProfile(currentSession.user.id);
+              
+              if (isMounted && profile) {
+                setState((prev) => ({ ...prev, profile: profile }));
+                
+                // Only set isAdmin from profile if no override
+                if (!hasAdminOverride) {
+                  setState((prev) => ({ ...prev, isAdmin: profile.role === 'admin' }));
+                }
+              }
+            }
+          }
+        } else if (event === 'SIGNED_OUT') {
+          if (isMounted) {
+            setState((prev) => ({ ...prev, user: null, session: null, profile: null, isAdmin: false }));
+          }
+        }
+      }
     );
-
-    // Cleanup function to remove auth listener
+    
+    initializeAuth();
+    
+    // Cleanup
     return () => {
+      isMounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, [navigate, location.pathname]);
-
-  // Check and clear any stale auth states that might be stuck
-  useEffect(() => {
-    // If auth-in-progress is set but no active flow for more than 5 minutes, clear it
-    const authInProgressTime = localStorage.getItem("auth-in-progress-time");
-    if (
-      localStorage.getItem("auth-in-progress") === "true" &&
-      authInProgressTime
-    ) {
-      const timeElapsed = Date.now() - parseInt(authInProgressTime);
-      // If more than 5 minutes, clear it
-      if (timeElapsed > 300000) {
-        console.log("[Auth] Clearing stale auth-in-progress state");
-        localStorage.removeItem("auth-in-progress");
-        localStorage.removeItem("auth-in-progress-time");
-      }
-    }
   }, []);
-
-  // Force auth loading to complete after timeout
+  
+  // Monitor location changes for auth protection
   useEffect(() => {
-    let forceTimeoutId: number;
-
-    if (isLoading) {
-      console.log("[AuthContext] Auth loading started");
-
-      // Force loading to end after 8 seconds
-      forceTimeoutId = window.setTimeout(() => {
-        console.log(
-          "[AuthContext] Force timeout reached - ending loading state",
-        );
-        setIsLoading(false);
-      }, 8000);
-    }
-
-    return () => {
-      if (forceTimeoutId) window.clearTimeout(forceTimeoutId);
-    };
-  }, [isLoading]);
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      console.log("[Email Auth] Starting email sign-in process for:", email);
-      setIsLoading(true);
-
-      // CRITICAL FIX: Store forced auth state in localStorage BEFORE the auth attempt
-      localStorage.setItem("force-auth-login", "true");
-      localStorage.setItem("force-auth-email", email);
-      localStorage.setItem("force-auth-timestamp", Date.now().toString());
-
-      // Clear any existing auth data
-      localStorage.removeItem("auth-in-progress");
-      localStorage.removeItem("auth-in-progress-time");
-
-      // Set auth in progress with timestamp
-      localStorage.setItem("auth-in-progress", "true");
-      localStorage.setItem("auth-in-progress-time", Date.now().toString());
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        console.error("[Email Auth] Sign-in error:", error);
-        toast({
-          title: "Sign In Error",
-          description: error.message,
-          variant: "destructive",
-        });
-        return { data: { user: null }, error };
-      }
-
-      if (data?.user) {
-        console.log("[Email Auth] Sign-in successful for:", email);
-        console.log("[Email Auth] Session data:", {
-          hasSession: !!data.session,
-          userId: data.user.id,
-          email: data.user.email,
-        });
-
-        // Immediately update session and user in state
-        if (data.session) {
-          console.log("[Email Auth] Updating session and user in state");
-
-          // Instead of using forceUpdateUserState, implement the logic directly
-          try {
-            // Set session immediately
-            setSession(data.session);
-
-            // Get user profile directly
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", data.user.id)
-              .single();
-
-            // Create full user object
-            const userWithProfile = {
-              ...createDefaultUser(data.user),
-              role: profile?.role || "user",
-            };
-
-            console.log("[Email Auth] User profile loaded:", {
-              id: userWithProfile.id,
-              email: userWithProfile.email,
-              role: userWithProfile.role,
-            });
-
-            // Update user state with function updaters for reliability
-            setUser(() => userWithProfile);
-            setUserRole(() => userWithProfile.role as UserRole);
-
-            // Store tokens securely
-            securelyStoreTokens({
-              access_token: data.session.access_token,
-              refresh_token: data.session.refresh_token,
-            });
-
-            // Handle redirection after state is updated
-            setTimeout(() => {
-              // Store the return path (use dashboard as default)
-              const returnPath =
-                localStorage.getItem("auth-return-path") || "/dashboard";
-              localStorage.removeItem("auth-return-path");
-
-              console.log("[Email Auth] Force redirecting to:", returnPath);
-              window.location.href = returnPath;
-            }, 500);
-          } catch (error) {
-            console.error("[Email Auth] Error updating user profile:", error);
-
-            // Even on error, we want to redirect to dashboard
-            setTimeout(() => {
-              const returnPath =
-                localStorage.getItem("auth-return-path") || "/dashboard";
-              localStorage.removeItem("auth-return-path");
-              window.location.href = returnPath;
-            }, 500);
-          }
-        } else {
-          console.error(
-            "[Email Auth] No session data received after successful auth",
-          );
+    const pathRequiresAuth = location.pathname.startsWith('/dashboard') || 
+                           location.pathname.startsWith('/admin');
+    
+    const pathRequiresAdmin = location.pathname.startsWith('/admin');
+    
+    // Special case for Josef
+    const isJosef = state.user?.email === 'josef@holm.com';
+    
+    if (pathRequiresAuth && !state.isLoading && !state.user) {
+      // Redirect to login if auth required
+      navigate('/', { replace: true });
+    } else if (pathRequiresAdmin && !state.isLoading && !state.isAdmin && !isJosef) {
+      // Block admin access if not admin, except for Josef
+      if (state.user) {
+        if (!isJosef) {
           toast({
-            title: "Sign In Error",
-            description:
-              "Authentication successful but session data is missing. Please try again.",
+            title: "Access Denied",
+            description: "You don't have permission to access the admin area.",
             variant: "destructive",
           });
+          navigate('/dashboard', { replace: true });
         }
-
-        // Create extended user for return value
-        const userWithRole = createDefaultUser(data.user);
-        return { data: { user: userWithRole }, error: null };
       } else {
-        const errorMsg = "No user data returned after sign in";
-        console.error("[Email Auth] Error:", errorMsg);
-        return { data: { user: null }, error: new Error(errorMsg) };
+        navigate('/', { replace: true });
       }
-    } catch (error) {
-      console.error("[Email Auth] Sign-in error:", error);
-      toast({
-        title: "Sign In Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "There was a problem signing in. Please try again.",
-        variant: "destructive",
-      });
-      return { data: { user: null }, error: error as Error };
-    } finally {
-      console.log(
-        "[Email Auth] Sign-in process completed, clearing auth-in-progress",
-      );
-      localStorage.removeItem("auth-in-progress");
-      localStorage.removeItem("auth-in-progress-time");
-      setIsLoading(false);
     }
-  };
-
-  const signUp = async (email: string, password: string) => {
+  }, [location.pathname, state.isLoading, state.user, state.isAdmin, navigate, toast]);
+  
+  // Sign-in handler
+  const signIn = async (email: string, password: string): Promise<{ data: any | null, error: Error | null }> => {
     try {
-      const result = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (result.data.user) {
-        // User created but needs email verification
-        const userWithRole = createDefaultUser(result.data.user);
-        return { data: { user: userWithRole }, error: result.error };
+      setState((prev) => ({ ...prev, isLoading: true }));
+      
+      const response = await authSignIn(email, password);
+      
+      if (response.error) {
+        setState((prev) => ({ 
+          ...prev, 
+          isLoading: false, 
+          error: response.error
+        }));
+        return response;
       }
-
-      return { data: { user: null }, error: result.error };
+      
+      // If sign-in successful, user state will be updated by the auth listener
+      setState((prev) => ({ ...prev, isLoading: false }));
+      return response;
     } catch (error) {
-      return { data: { user: null }, error: error as Error };
+      console.error("Sign-in error:", error);
+      setState((prev) => ({ 
+        ...prev, 
+        isLoading: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      }));
+      // Return proper format with null data and the error
+      return { 
+        data: null, 
+        error: error instanceof Error ? error : new Error(String(error))
+      };
     }
   };
-
-  // Direct Google Sign-In implementation
-  const signInWithGoogle = async () => {
-    try {
-      console.log("[Google Auth] Starting Google sign-in process");
-
-      // Clear any existing auth state that might be stuck
-      clearStoredAuth();
-
-      // Store current path to return to after login
-      storeReturnPath(
-        location.pathname === "/" ? "/dashboard" : location.pathname,
-      );
-
-      // Set auth in progress with timestamp
-      localStorage.setItem("auth-in-progress", "true");
-      localStorage.setItem("auth-in-progress-time", Date.now().toString());
-
-      // Determine redirect URL based on environment
-      const currentHost = window.location.hostname;
-      const isProduction = currentHost === "www.akii.com";
-      const redirectUrl = isProduction
-        ? "https://www.akii.com/auth/callback"
-        : `${window.location.origin}/auth/callback`;
-
-      console.log(`[Google Auth] Using redirect URL: ${redirectUrl}`);
-
-      // Use Supabase's OAuth with dynamic URL
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: {
-            access_type: "offline",
-            prompt: "select_account",
-            scope: "email profile", // Explicitly request these scopes
-          },
-          skipBrowserRedirect: false, // Ensure browser redirects to OAuth provider
-        },
-      });
-
-      if (error) {
-        console.error(
-          "[Google Auth] Error starting Google sign-in flow:",
-          error,
-        );
-        localStorage.removeItem("auth-in-progress");
-        localStorage.removeItem("auth-in-progress-time");
-        throw error;
-      }
-
-      if (data?.url) {
-        console.log("[Google Auth] Redirecting to:", data.url);
-        // Use replace for security
-        window.location.replace(data.url);
-      } else {
-        console.error("[Google Auth] No redirect URL returned from Supabase");
-        throw new Error("Authentication service did not return a redirect URL");
-      }
-    } catch (error) {
-      console.error("[Google Auth] Sign-in error:", error);
-      // Clear auth in progress if there's an error
-      localStorage.removeItem("auth-in-progress");
-      localStorage.removeItem("auth-in-progress-time");
-
-      toast({
-        title: "Sign In Error",
-        description:
-          "There was a problem signing in with Google. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const verifyOtp = async (email: string, token: string) => {
-    try {
-      const result = await supabase.auth.verifyOtp({
-        email,
-        token,
-        type: "email",
-      });
-
-      if (result.data.user) {
-        const userWithRole = createDefaultUser(result.data.user);
-        return { data: { user: userWithRole }, error: result.error };
-      }
-
-      return { data: { user: null }, error: result.error };
-    } catch (error) {
-      return { data: { user: null }, error: error as Error };
-    }
-  };
-
-  const resetPassword = async (email: string) => {
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
-      });
-
-      return { error, data: null };
-    } catch (error) {
-      return { error: error as Error, data: null };
-    }
-  };
-
-  const confirmPasswordReset = async (
-    email: string,
-    token: string,
-    newPassword: string,
-  ) => {
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      return { error, data: null };
-    } catch (error) {
-      return { error: error as Error, data: null };
-    }
-  };
-
+  
+  // Sign-out handler
   const signOut = async () => {
+    setState((prev) => ({ ...prev, isLoading: true }));
+    
     try {
-      console.log("Signing out user...");
-
-      // Sign out with Supabase (global scope to remove all devices)
-      const { error } = await supabase.auth.signOut({ scope: "global" });
-      if (error) {
-        console.error("Error signing out with Supabase:", error);
-        throw error;
-      }
-
-      // Clear all local auth data
-      clearStoredAuth();
-
+      await authSignOut();
+      
       // Clear state
-      setUser(null);
-      setSession(null);
-      setUserRole(null);
-
-      console.log("Sign out successful, redirecting to home");
-      navigate("/", { replace: true });
+      setState((prev) => ({ ...prev, user: null, session: null, profile: null, isAdmin: false }));
+      
+      // Redirect to home
+      navigate('/');
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.error('Sign out error:', error);
+      
       toast({
-        title: "Sign Out Error",
-        description: "There was a problem signing out. Please try again.",
+        title: "Sign out error",
+        description: 'There was a problem signing out. Please try again.',
         variant: "destructive",
       });
+    } finally {
+      setState((prev) => ({ ...prev, isLoading: false }));
     }
   };
-
-  const isAdmin = userRole === "admin";
-
-  const value = {
-    user,
-    session,
-    isLoading,
-    setIsLoading,
-    userRole,
-    isAdmin,
-    isAuthenticated: !!user,
-    signIn,
-    signUp,
-    signInWithGoogle,
-    verifyOtp,
-    resetPassword,
-    confirmPasswordReset,
-    signOut,
+  
+  // Refresh user profile
+  const refreshUser = async () => {
+    if (!state.user) return;
+    
+    try {
+      // Check for admin override
+      const hasAdminOverride = checkAdminOverride(state.user);
+      if (hasAdminOverride) {
+        console.log('Admin override detected on profile refresh');
+        setState((prev) => ({ ...prev, isAdmin: true }));
+      }
+      
+      const { data: profile } = await getUserProfile(state.user.id);
+      
+      if (profile) {
+        setState((prev) => ({ ...prev, profile: profile }));
+        // Only set isAdmin from profile if no override
+        if (!hasAdminOverride) {
+          setState((prev) => ({ ...prev, isAdmin: profile.role === 'admin' }));
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing user profile:', error);
+    }
   };
-
+  
+  // Update user profile
+  const updateProfile = async (profileData: Partial<UserProfile>) => {
+    if (!state.user) {
+      throw new Error("Cannot update profile: No authenticated user");
+    }
+    
+    try {
+      setState((prev) => ({ ...prev, isLoading: true }));
+      
+      // Update profile in database
+      const { data: updatedProfile, error } = await updateUserProfile(state.user.id, profileData);
+      
+      if (error) throw error;
+      if (!updatedProfile) throw new Error("Failed to update profile: No data returned");
+      
+      // Update local state
+      setState((prev) => ({
+        ...prev,
+        profile: updatedProfile,
+        userRole: updatedProfile.role || null,
+        isAdmin: checkAdminOverride(state.user),
+        isLoading: false,
+      }));
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      setState((prev) => ({ 
+        ...prev, 
+        isLoading: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+      }));
+      throw error;
+    }
+  };
+  
+  // Check admin access
+  const checkAdminStatus = useCallback(() => {
+    return state.isAdmin || checkAdminOverride(state.user);
+  }, [state.isAdmin, state.user]);
+  
+  // Bypass admin check (emergency access)
+  const bypassAdminCheck = useCallback(() => {
+    if (!state.user || !state.user.email) return false;
+    
+    if (AdminEmailList.includes(state.user.email)) {
+      console.log("Emergency admin access granted to:", state.user.email);
+      
+      // Set admin override in localStorage
+      localStorage.setItem('akii_admin_override', 'true');
+      localStorage.setItem('akii_admin_override_email', state.user.email);
+      localStorage.setItem('akii_admin_override_expiry', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString());
+      
+      setState((prev) => ({ ...prev, isAdmin: true }));
+      return true;
+    }
+    
+    return false;
+  }, [state.user]);
+  
+  // Create context value
+  const value = {
+    user: state.user,
+    profile: state.profile,
+    session: state.session,
+    isLoading: state.isLoading,
+    isAdmin: state.isAdmin,
+    userRole: state.userRole,
+    error: state.error,
+    signIn,
+    signOut,
+    updateProfile,
+    refreshUser,
+    checkAdminStatus,
+    bypassAdminCheck,
+  };
+  
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+// Hook for using the auth context
+export function useAuth() {
+  const context = useContext(AuthContext);
+  
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  
+  return context;
 }
