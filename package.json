@@ -96,7 +96,7 @@
     "terser": "^5.39.0",
     "typescript": "^5.8.2",
     "url": "^0.11.4",
-    "vite": "^4.5.11",
+    "vite": "^5.4.16",
     "vite-plugin-sitemap": "^0.7.1"
   },
   "overrides": {

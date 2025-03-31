@@ -33,6 +33,7 @@ export default defineConfig({
     QYamNWwHnCwf: JSON.stringify(""),
     MffHQwyZu4aK: JSON.stringify(""),
     deGyyIeX8RdD: JSON.stringify(""),
-    u: JSON.stringify(""), // Added missing identifier 'u'
+    u: JSON.stringify(""),
+    haBoTSSzzxa5: JSON.stringify(""),
   },
 });
