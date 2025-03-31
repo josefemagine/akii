@@ -11,10 +11,15 @@ const SearchContext = createContext<SearchContextType>({
 });
 
 export function SearchProvider({ children }: { children: React.ReactNode }) {
-  const [searchValue, setSearchValue] = useState("");
+  const [searchValue, setSearchValue] = useState<string>("");
+
+  const contextValue = React.useMemo(
+    () => ({ searchValue, setSearchValue }),
+    [searchValue],
+  );
 
   return (
-    <SearchContext.Provider value={{ searchValue, setSearchValue }}>
+    <SearchContext.Provider value={contextValue}>
       {children}
     </SearchContext.Provider>
   );

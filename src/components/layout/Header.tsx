@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import MobileNavigation from "./MobileNavigation";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/SimpleAuthContext";
 import LoginModal from "@/components/auth/LoginModal";
 import JoinModal from "@/components/auth/JoinModal";
 import PasswordReset from "@/components/auth/PasswordReset";
@@ -52,6 +52,12 @@ const Header = ({}: HeaderProps) => {
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   const openLoginModal = () => {
+    // Check if already logged in before opening modal
+    if (user) {
+      console.log("User already logged in, redirecting to dashboard");
+      window.location.href = "/dashboard";
+      return;
+    }
     setLoginModalOpen(true);
     closeMobileMenu();
   };
@@ -67,8 +73,12 @@ const Header = ({}: HeaderProps) => {
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    closeMobileMenu();
+    try {
+      await signOut();
+      closeMobileMenu();
+    } catch (error) {
+      console.error("Error during logout:", error);
+    }
   };
 
   return (

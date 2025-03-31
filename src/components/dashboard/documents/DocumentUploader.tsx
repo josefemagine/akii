@@ -73,12 +73,20 @@ const DocumentUploader = ({
           title,
           description,
           status: "pending",
-          file_path: "",
+          file_name: "",
           file_type: "",
           file_size: 0,
+          content: "",
+          storage_path: "",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         } as any)
         .select()
         .single();
+
+      if (!document || "error" in document) {
+        throw new Error("Failed to create document record");
+      }
 
       if (documentError) throw documentError;
 
@@ -87,7 +95,7 @@ const DocumentUploader = ({
         // Upload file to storage
         const { error: uploadError } = await supabase.storage
           .from("documents")
-          .upload(`${user.id}/${document.id}/${file.name}`, file);
+          .upload(`${user.id}/${(document as any).id}/${file.name}`, file);
 
         if (uploadError) throw uploadError;
 
@@ -95,12 +103,14 @@ const DocumentUploader = ({
         const { error: updateError } = await supabase
           .from("training_documents")
           .update({
-            file_path: `${user.id}/${document.id}/${file.name}`,
+            storage_path: `${user.id}/${(document as any).id}/${file.name}`,
+            file_name: file.name,
             file_type: file.type,
             file_size: file.size,
             status: "processing",
+            updated_at: new Date().toISOString(),
           } as any)
-          .eq("id", document.id);
+          .eq("id", (document as any).id);
 
         if (updateError) throw updateError;
 
@@ -108,8 +118,8 @@ const DocumentUploader = ({
         const { error: functionError } = await supabase.functions.invoke(
           "process-document",
           {
-            body: { documentId: document.id },
-          }
+            body: { documentId: (document as any).id },
+          },
         );
 
         if (functionError) throw functionError;

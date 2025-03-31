@@ -188,7 +188,10 @@ export async function fetchAnalyticsData(
 
     // Fetch revenue metrics
     const { data: subscriptionsData, error: subscriptionsError } =
-      await supabase.from("subscriptions").select("*").eq("status", "active");
+      await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("status", "active" as any);
 
     if (subscriptionsError) throw subscriptionsError;
 

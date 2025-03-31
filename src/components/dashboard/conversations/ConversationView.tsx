@@ -30,12 +30,13 @@ type Agent = {
   avatar_url: string | null;
 };
 
-type ConversationWithAgent = Database["public"]["Tables"]["conversations"]["Row"] & {
-  agent: Agent | null;
-  title?: string;
-  status?: string;
-  updated_at?: string;
-};
+type ConversationWithAgent =
+  Database["public"]["Tables"]["conversations"]["Row"] & {
+    agent: Agent | null;
+    title?: string;
+    status?: string;
+    updated_at?: string;
+  };
 
 interface ConversationViewProps {
   conversationId: string;
@@ -46,7 +47,8 @@ const ConversationView = ({
   conversationId,
   onBack = () => {},
 }: ConversationViewProps) => {
-  const [conversation, setConversation] = useState<ConversationWithAgent | null>(null);
+  const [conversation, setConversation] =
+    useState<ConversationWithAgent | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -62,7 +64,8 @@ const ConversationView = ({
       // Fetch conversation details
       const { data: convData, error: convError } = await supabase
         .from("conversations")
-        .select(`
+        .select(
+          `
           *,
           agent:agents(
             id,
@@ -70,29 +73,40 @@ const ConversationView = ({
             description,
             avatar_url
           )
-        `)
+        `,
+        )
         .eq("id", conversationId)
         .eq("user_id", user.id)
         .single();
 
       if (convError) throw convError;
-      
+
       const isValidAgent = (obj: any): obj is Agent => {
-        return obj && typeof obj === 'object' && 
-          'id' in obj && typeof obj.id === 'string' &&
-          'name' in obj && typeof obj.name === 'string' &&
-          'description' in obj &&
-          'avatar_url' in obj;
+        return (
+          obj &&
+          typeof obj === "object" &&
+          "id" in obj &&
+          typeof obj.id === "string" &&
+          "name" in obj &&
+          typeof obj.name === "string" &&
+          "description" in obj &&
+          "avatar_url" in obj
+        );
       };
 
       // Process the conversation data to match our type
       const processedConversation = {
         ...(convData as any),
         agent: Array.isArray((convData as any).agent)
-          ? ((convData as any).agent[0] && isValidAgent((convData as any).agent[0]) ? (convData as any).agent[0] : null)
-          : (isValidAgent((convData as any).agent) ? (convData as any).agent : null),
+          ? (convData as any).agent[0] &&
+            isValidAgent((convData as any).agent[0])
+            ? (convData as any).agent[0]
+            : null
+          : isValidAgent((convData as any).agent)
+            ? (convData as any).agent
+            : null,
       } as ConversationWithAgent;
-      
+
       setConversation(processedConversation);
 
       // Fetch messages
@@ -103,10 +117,14 @@ const ConversationView = ({
         .order("created_at", { ascending: true });
 
       if (msgError) throw msgError;
-      const processedMessages = (msgData || []).map(msg => ({
-        ...(msg as Database["public"]["Tables"]["messages"]["Row"]),
-        role: msg.sender_type as "user" | "assistant" | "system"
-      })) as Message[];
+      const processedMessages = (msgData || []).map((msg) => {
+        const typedMsg =
+          msg as unknown as Database["public"]["Tables"]["messages"]["Row"];
+        return {
+          ...typedMsg,
+          role: typedMsg.sender_type as "user" | "assistant" | "system",
+        };
+      }) as Message[];
       setMessages(processedMessages);
     } catch (error) {
       console.error("Error fetching conversation:", error);
@@ -130,10 +148,11 @@ const ConversationView = ({
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          const newMsg = payload.new as Database["public"]["Tables"]["messages"]["Row"];
+          const newMsg =
+            payload.new as Database["public"]["Tables"]["messages"]["Row"];
           const processedMessage: Message = {
             ...newMsg,
-            role: newMsg.sender_type as "user" | "assistant" | "system"
+            role: newMsg.sender_type as "user" | "assistant" | "system",
           };
           setMessages((prev) => [...prev, processedMessage]);
         },
@@ -157,14 +176,16 @@ const ConversationView = ({
     setIsSending(true);
     try {
       // Insert user message
-      const { error: messageError } = await supabase
-        .from("messages")
-        .insert({
-          conversation_id: conversationId,
-          sender_type: "user",
-          content: newMessage,
-          metadata: {},
-        } as any);
+      const { error: messageError } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_type: "user",
+        role: "user",
+        user_id: user?.id || "",
+        content: newMessage,
+        metadata: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as any);
 
       if (messageError) throw messageError;
 
@@ -178,11 +199,15 @@ const ConversationView = ({
           const aiMessageData = {
             conversation_id: conversationId,
             sender_type: "assistant",
+            role: "assistant",
+            user_id: user?.id || "",
             content: `This is a simulated response to: "${newMessage}". In a real implementation, this would be generated by the AI agent.`,
             metadata: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           } as any;
 
-          await supabase.from("messages").insert(aiMessageData);
+          await supabase.from("messages").insert(aiMessageData as any);
         } catch (error) {
           console.error("Error sending AI response:", error);
         } finally {

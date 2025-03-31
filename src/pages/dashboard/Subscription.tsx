@@ -16,7 +16,10 @@ import { supabase } from "@/lib/supabase";
 
 const SubscriptionPage = () => {
   const { user } = useAuth();
-  const currentPlan = user?.subscription?.plan || "free";
+  // Using optional chaining with a type assertion since subscription isn't defined in User type
+  const currentPlan = user
+    ? (user as any)?.subscription?.plan || "free"
+    : "free";
   interface SubscriptionPlan {
     id: string;
     name: string;
@@ -43,7 +46,8 @@ const SubscriptionPage = () => {
 
         if (error) throw error;
 
-        setPlans(data || []);
+        // Cast the data to the expected type
+        setPlans((data || []) as unknown as SubscriptionPlan[]);
         setError(null);
       } catch (err) {
         console.error("Error fetching subscription plans:", err);

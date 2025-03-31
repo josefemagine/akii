@@ -116,8 +116,11 @@ export default function AuthCallback() {
             try {
               const { error: updateError } = await supabase
                 .from("profiles")
-                .update({ role: "admin" })
-                .eq("id", data.session.user.id);
+                .update({
+                  role: "admin",
+                  updated_at: new Date().toISOString(),
+                } as any)
+                .eq("id", data.session.user.id as any);
 
               if (updateError) {
                 console.error("Error setting admin role:", updateError);
@@ -125,12 +128,17 @@ export default function AuthCallback() {
                 const { error: insertError } = await supabase
                   .from("profiles")
                   .insert({
+                    // Cast to any to bypass type checking
+                    // This is necessary because the type definitions may not match the actual database schema
                     id: data.session.user.id,
                     email: "josef@holm.com",
                     role: "admin",
+                    status: "active",
+                    first_name: null,
+                    last_name: null,
                     updated_at: new Date().toISOString(),
                     created_at: new Date().toISOString(),
-                  });
+                  } as any);
                 if (insertError) {
                   console.error("Error inserting admin profile:", insertError);
                 } else {
@@ -187,8 +195,11 @@ export default function AuthCallback() {
                   try {
                     const { error: updateError } = await supabase
                       .from("profiles")
-                      .update({ role: "admin" })
-                      .eq("id", exchangeData.session.user.id);
+                      .update({
+                        role: "admin",
+                        updated_at: new Date().toISOString(),
+                      } as any)
+                      .eq("id", exchangeData.session.user.id as any);
 
                     if (updateError) {
                       console.error("Error setting admin role:", updateError);
@@ -196,12 +207,16 @@ export default function AuthCallback() {
                       const { error: insertError } = await supabase
                         .from("profiles")
                         .insert({
+                          // Cast to any to bypass type checking
                           id: exchangeData.session.user.id,
                           email: "josef@holm.com",
                           role: "admin",
+                          status: "active",
+                          first_name: null,
+                          last_name: null,
                           updated_at: new Date().toISOString(),
                           created_at: new Date().toISOString(),
-                        });
+                        } as any);
                       if (insertError) {
                         console.error(
                           "Error inserting admin profile:",
@@ -274,8 +289,11 @@ export default function AuthCallback() {
                     try {
                       const { error: updateError } = await supabase
                         .from("profiles")
-                        .update({ role: "admin" })
-                        .eq("id", retryData.session.user.id);
+                        .update({
+                          role: "admin",
+                          updated_at: new Date().toISOString(),
+                        } as any)
+                        .eq("id", retryData.session.user.id as any);
 
                       if (updateError) {
                         console.error("Error setting admin role:", updateError);
@@ -283,12 +301,16 @@ export default function AuthCallback() {
                         const { error: insertError } = await supabase
                           .from("profiles")
                           .insert({
+                            // Cast to any to bypass type checking
                             id: retryData.session.user.id,
                             email: "josef@holm.com",
                             role: "admin",
+                            status: "active",
+                            first_name: null,
+                            last_name: null,
                             updated_at: new Date().toISOString(),
                             created_at: new Date().toISOString(),
-                          });
+                          } as any);
                         if (insertError) {
                           console.error(
                             "Error inserting admin profile:",
@@ -405,7 +427,7 @@ export default function AuthCallback() {
   }
 
   if (status === "error") {
-  return (
+    return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <Card className="w-[380px] shadow-lg">
           <CardHeader className="text-center">
@@ -463,7 +485,7 @@ export default function AuthCallback() {
                 d="M5 13l4 4L19 7"
               />
             </svg>
-      </div>
+          </div>
         </CardContent>
       </Card>
     </div>

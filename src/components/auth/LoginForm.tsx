@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/SimpleAuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,12 +33,23 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const { signIn, signInWithGoogle } = useAuth();
 
+  // For debugging
+  useEffect(() => {
+    console.log("Auth context loaded:", !!signIn, !!signInWithGoogle);
+  }, [signIn, signInWithGoogle]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
     console.log("Starting login process for:", email);
+
+    if (!email || !password) {
+      setError("Email and password are required");
+      setIsLoading(false);
+      return;
+    }
 
     try {
       // Store login attempt in localStorage to track state
@@ -149,7 +160,17 @@ export default function LoginForm() {
               required
             />
           </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isLoading}
+            onClick={(e) => {
+              if (!isLoading) {
+                console.log("Login button clicked");
+                handleSubmit(e);
+              }
+            }}
+          >
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

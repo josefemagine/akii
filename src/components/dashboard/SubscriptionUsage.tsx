@@ -94,7 +94,7 @@ export function SubscriptionUsage({ className }: SubscriptionUsageProps) {
                 {Object.entries(addons).map(([key, value]) => (
                   <div key={key} className="flex justify-between">
                     <span>{key}</span>
-                    <span>{value}</span>
+                    <span>{String(value)}</span>
                   </div>
                 ))}
               </div>

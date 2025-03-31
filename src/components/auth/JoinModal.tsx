@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/SimpleAuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -121,11 +121,12 @@ export default function JoinModal({
     try {
       await signInWithGoogle();
     } catch (error) {
-      console.error('Error signing in with Google:', error);
+      console.error("Error signing in with Google:", error);
       toast({
         title: "Sign In Error",
-        description: "There was a problem signing in with Google. Please try again.",
-        variant: "destructive"
+        description:
+          "There was a problem signing in with Google. Please try again.",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);

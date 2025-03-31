@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +32,20 @@ type ResetFormValues = z.infer<typeof resetSchema>;
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { confirmPasswordReset } = useAuth();
+  const auth = useAuth();
+  // Using the updatePassword method from AuthContext
+  const confirmPasswordReset = async (
+    email: string,
+    token: string,
+    password: string,
+  ) => {
+    try {
+      // Use the updatePassword method from auth context
+      return await auth.updatePassword(password);
+    } catch (err) {
+      return { data: null, error: err as Error };
+    }
+  };
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);

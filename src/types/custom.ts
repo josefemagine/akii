@@ -1,4 +1,5 @@
 import { Json } from "./supabase";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export type UserRole = "user" | "admin";
 
@@ -131,4 +132,17 @@ export interface UserProfile {
   trial_ends_at?: string | null;
   last_billing_date?: string | null;
   next_billing_date?: string | null;
+}
+
+// Extend the Supabase User type to include subscription
+export interface User extends SupabaseUser {
+  subscription?: {
+    plan: string;
+    status: string;
+    messages_used: number;
+    message_limit: number;
+    renews_at?: string;
+    trial_ends_at?: string;
+    addons?: Record<string, any>;
+  };
 }

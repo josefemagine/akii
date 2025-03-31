@@ -43,10 +43,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/SimpleAuthContext";
 import { useSearch } from "@/contexts/SearchContext";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/auth-simple";
 
 interface SidebarItemProps {
   icon: React.ReactNode;
@@ -86,15 +86,18 @@ const SidebarItem = ({
 interface SidebarProps {
   collapsed?: boolean;
   onToggle?: () => void;
+  isAdmin?: boolean;
 }
 
-const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
+const Sidebar = ({
+  collapsed = false,
+  onToggle = () => {},
+  isAdmin = false,
+}: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userRole } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
-  const isAdmin = userRole === "admin";
 
   const userSidebarItems = [
     {
@@ -156,53 +159,46 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
 
   const adminSidebarItems = [
     {
-      title: "Dashboard",
-      path: "/admin",
-      icon: <Home className="h-4 w-4" />,
+      icon: <Users className="h-5 w-5" />,
+      label: "Users",
+      href: "/dashboard/admin/users",
     },
     {
-      title: "Users",
-      path: "/admin/users",
-      icon: <Users className="h-4 w-4" />,
+      icon: <UsersRound className="h-5 w-5" />,
+      label: "User Sync",
+      href: "/dashboard/admin/user-sync",
     },
     {
-      title: "User Sync",
-      path: "/admin/user-sync",
-      icon: <UsersRound className="h-4 w-4" />,
+      icon: <Shield className="h-5 w-5" />,
+      label: "Moderation",
+      href: "/dashboard/admin/moderation",
     },
     {
-      title: "Moderation",
-      path: "/admin/moderation",
-      icon: <Shield className="h-4 w-4" />,
+      icon: <Mail className="h-5 w-5" />,
+      label: "Email Templates",
+      href: "/dashboard/admin/email-templates",
     },
     {
-      title: "Email Templates",
-      path: "/admin/email-templates",
-      icon: <Mail className="h-4 w-4" />,
+      icon: <CreditCard className="h-5 w-5" />,
+      label: "Billing",
+      href: "/dashboard/admin/billing",
     },
     {
-      title: "Billing",
-      path: "/admin/billing",
-      icon: <CreditCard className="h-4 w-4" />,
+      icon: <BarChart3 className="h-5 w-5" />,
+      label: "Workflows",
+      href: "/dashboard/admin/workflows",
     },
     {
-      title: "Workflows",
-      path: "/admin/workflows",
-      icon: <BarChart3 className="h-4 w-4" />,
+      icon: <Database className="h-5 w-5" />,
+      label: "Database Schema",
+      href: "/dashboard/admin/database-schema",
     },
     {
-      title: "Database Schema",
-      path: "/admin/database-schema",
-      icon: <Database className="h-4 w-4" />,
-    },
-    {
-      title: "Settings",
-      path: "/admin/settings",
-      icon: <Settings className="h-4 w-4" />,
+      icon: <Settings className="h-5 w-5" />,
+      label: "Admin Settings",
+      href: "/dashboard/admin/settings",
     },
   ];
-
-  const sidebarItems = isAdmin ? adminSidebarItems : userSidebarItems;
 
   return (
     <div
@@ -233,7 +229,8 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
       </div>
       <div className="flex-1 overflow-auto py-2">
         <nav className="grid gap-1 px-2">
-          {sidebarItems.map((item, index) => (
+          {/* User sidebar items */}
+          {userSidebarItems.map((item, index) => (
             <SidebarItem
               key={index}
               icon={item.icon}
@@ -243,6 +240,28 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
               onClick={() => navigate(item.href)}
             />
           ))}
+
+          {/* Admin section if user is admin */}
+          {isAdmin && !collapsed && (
+            <div className="mt-6 mb-2 px-3">
+              <div className="text-xs font-semibold text-gray-400 uppercase">
+                Admin
+              </div>
+            </div>
+          )}
+
+          {/* Admin sidebar items if user is admin */}
+          {isAdmin &&
+            adminSidebarItems.map((item, index) => (
+              <SidebarItem
+                key={`admin-${index}`}
+                icon={item.icon}
+                label={collapsed ? "" : item.label}
+                href={item.href}
+                active={isActive(item.href)}
+                onClick={() => navigate(item.href)}
+              />
+            ))}
         </nav>
       </div>
       <div className="mt-auto p-4 border-t dark:border-gray-800">
@@ -281,19 +300,9 @@ const Header = ({
   isAdmin = false,
 }: HeaderProps) => {
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const { user, signOut, userRole } = useAuth();
+  const { user, signOut } = useAuth();
   const { searchValue, setSearchValue } = useSearch();
   const navigate = useNavigate();
-
-  // Check for admin status in multiple ways
-  const adminOverrideInSession =
-    sessionStorage.getItem("admin_override") === "true" &&
-    sessionStorage.getItem("admin_override_email") === user?.email;
-  const isUserAdmin =
-    user?.role === "admin" ||
-    userRole === "admin" ||
-    adminOverrideInSession ||
-    isAdmin;
 
   const toggleTheme = () => {
     setTheme(theme === "light" ? "dark" : "light");
@@ -303,85 +312,14 @@ const Header = ({
   const handleLogout = async () => {
     try {
       console.log("Logging out user:", user?.email);
-
-      // Store current user email before logout
-      const currentEmail = user?.email;
-      const isJosef = currentEmail === "josef@holm.com";
-
-      // If it's josef@holm.com, preserve some data
-      if (isJosef) {
-        localStorage.setItem("akii-auth-user-email", "josef@holm.com");
-        localStorage.setItem("akii-auth-user-id", user?.id || "");
-        localStorage.setItem("akii-auth-timestamp", Date.now().toString());
-        localStorage.setItem("akii_admin_override", "true");
-        localStorage.setItem("akii_admin_override_email", "josef@holm.com");
-        localStorage.setItem(
-          "akii_admin_override_expiry",
-          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        );
-      } else {
-        // First clear all localStorage and sessionStorage items that might contain auth data
-        localStorage.removeItem("sb-api-auth-token");
-        localStorage.removeItem("sb:session");
-        localStorage.removeItem("sb-access-token");
-        localStorage.removeItem("sb-refresh-token");
-        localStorage.removeItem("supabase.auth.token");
-        localStorage.removeItem("auth-return-path");
-        localStorage.removeItem("auth-in-progress");
-        localStorage.removeItem("auth-in-progress-time");
-        localStorage.removeItem("force-auth-login");
-        localStorage.removeItem("force-auth-email");
-        localStorage.removeItem("force-auth-timestamp");
-        localStorage.removeItem("admin_override");
-        localStorage.removeItem("akii-auth-fallback-user");
-        localStorage.removeItem("akii-auth-success-time");
-        localStorage.removeItem("akii-auth-user-email");
-        localStorage.removeItem("akii-auth-user-id");
-        localStorage.removeItem("akii-auth-timestamp");
-
-        // Clear session storage items too
-        sessionStorage.removeItem("admin_override");
-        sessionStorage.removeItem("admin_override_email");
-      }
-
-      // Direct Supabase logout first
-      const { error: directError } = await supabase.auth.signOut({
-        scope: "global",
-      });
-      if (directError) {
-        console.error("Error during direct Supabase logout:", directError);
-      }
-
-      // Then try context signOut if available
-      if (signOut) {
-        try {
-          await signOut();
-        } catch (signOutError) {
-          console.error("Error in context signOut:", signOutError);
-        }
-      }
-
-      // If it's josef@holm.com, restore admin override after logout
-      if (isJosef) {
-        sessionStorage.setItem("admin_override", "true");
-        sessionStorage.setItem("admin_override_email", "josef@holm.com");
-      }
-
-      // Force reload regardless of success/failure of above methods
-      console.log("Forcing full page reload to /");
-      window.location.href = "/";
-      return; // Prevent further execution
+      await signOut();
     } catch (error) {
       console.error("Error during logout:", error);
-      // Force redirect on error
       toast({
         title: "Logout Error",
-        description:
-          "There was an issue logging out. Redirecting to home page.",
+        description: "There was an issue logging out.",
         variant: "destructive",
       });
-      // Force reload anyway
-      window.location.href = "/";
     }
   };
 
@@ -439,8 +377,6 @@ const Header = ({
           <span className="sr-only">Notifications</span>
         </Button>
 
-        {/* Removed duplicate logout button */}
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -479,14 +415,6 @@ const Header = ({
               <HelpCircle className="mr-2 h-4 w-4" />
               <span>Help</span>
             </DropdownMenuItem>
-            {isUserAdmin && (
-              <DropdownMenuItem asChild>
-                <Link to="/admin">
-                  <Shield className="mr-2 h-4 w-4" />
-                  <span>Admin Dashboard</span>
-                </Link>
-              </DropdownMenuItem>
-            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
@@ -501,17 +429,17 @@ const Header = ({
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
-  isAdmin?: boolean;
   onSearchChange?: (value: string) => void;
 }
 
 const DashboardLayout = ({
   children = <div>Dashboard Content</div>,
-  isAdmin = false,
   onSearchChange,
 }: DashboardLayoutProps) => {
-  // Add error boundary to catch rendering errors
   const [hasError, setHasError] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, isAdmin } = useAuth();
 
   useEffect(() => {
     const errorHandler = (event: ErrorEvent) => {
@@ -523,25 +451,11 @@ const DashboardLayout = ({
     window.addEventListener("error", errorHandler);
     return () => window.removeEventListener("error", errorHandler);
   }, []);
-  console.log("DashboardLayout rendered with isAdmin:", isAdmin);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, userRole } = useAuth();
 
   // Force dark mode
   useEffect(() => {
     document.documentElement.classList.add("dark");
     console.log("DashboardLayout - Forcing dark mode");
-
-    // Debug theme variables
-    console.log("CSS Variables:", {
-      background: getComputedStyle(document.documentElement).getPropertyValue(
-        "--background",
-      ),
-      foreground: getComputedStyle(document.documentElement).getPropertyValue(
-        "--foreground",
-      ),
-    });
 
     // Force dark colors as inline styles if needed
     const style = document.createElement("style");
@@ -558,21 +472,6 @@ const DashboardLayout = ({
     };
   }, []);
 
-  // Add check for admin override in session storage
-  const adminOverride =
-    sessionStorage.getItem("admin_override") === "true" &&
-    sessionStorage.getItem("admin_override_email") === user?.email;
-
-  // Use either props isAdmin or the admin override
-  const effectiveIsAdmin = isAdmin || adminOverride || userRole === "admin";
-
-  console.log("Admin status check:", {
-    propsIsAdmin: isAdmin,
-    userRole,
-    adminOverride,
-    effectiveIsAdmin,
-  });
-
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
@@ -581,22 +480,15 @@ const DashboardLayout = ({
     setSidebarOpen(!sidebarOpen);
   };
 
-  // Debug any rendering issues
-  console.log(
-    "DashboardLayout - About to render with children:",
-    children ? "Children exist" : "No children",
-  );
-
-  // Simplified rendering to avoid potential issues
   return (
     <div className="flex h-screen w-full bg-gray-900 text-white">
       {/* Desktop Sidebar */}
       <div className="hidden md:block">
-        {effectiveIsAdmin ? (
-          <AdminSidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
-        ) : (
-          <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
-        )}
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggle={toggleSidebar}
+          isAdmin={isAdmin}
+        />
       </div>
 
       {/* Mobile Sidebar */}
@@ -607,11 +499,7 @@ const DashboardLayout = ({
             onClick={toggleMobileSidebar}
           ></div>
           <div className="fixed inset-y-0 left-0 w-[280px] bg-gray-950">
-            {effectiveIsAdmin ? (
-              <AdminSidebar onToggle={toggleMobileSidebar} />
-            ) : (
-              <Sidebar onToggle={toggleMobileSidebar} />
-            )}
+            <Sidebar onToggle={toggleMobileSidebar} isAdmin={isAdmin} />
           </div>
         </div>
       )}
@@ -620,7 +508,7 @@ const DashboardLayout = ({
         <Header
           onMenuClick={toggleMobileSidebar}
           onSearchChange={onSearchChange}
-          isAdmin={effectiveIsAdmin}
+          isAdmin={isAdmin}
         />
         <main className="flex-1 overflow-auto p-4 md:p-6 bg-gray-900 text-white">
           <div className="mx-auto max-w-7xl">
@@ -640,107 +528,6 @@ const DashboardLayout = ({
           </div>
         </main>
       </div>
-    </div>
-  );
-};
-
-// Define AdminSidebar component
-const AdminSidebar = ({ collapsed, onToggle }: SidebarProps) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const isActive = (path: string) => {
-    return location.pathname === path;
-  };
-
-  const adminSidebarItems = [
-    {
-      title: "Dashboard",
-      path: "/admin",
-      icon: <Home className="h-4 w-4" />,
-    },
-    {
-      title: "Users",
-      path: "/admin/users",
-      icon: <Users className="h-4 w-4" />,
-    },
-    {
-      title: "User Sync",
-      path: "/admin/user-sync",
-      icon: <UsersRound className="h-4 w-4" />,
-    },
-    {
-      title: "Moderation",
-      path: "/admin/moderation",
-      icon: <Shield className="h-4 w-4" />,
-    },
-    {
-      title: "Email Templates",
-      path: "/admin/email-templates",
-      icon: <Mail className="h-4 w-4" />,
-    },
-    {
-      title: "Billing",
-      path: "/admin/billing",
-      icon: <CreditCard className="h-4 w-4" />,
-    },
-    {
-      title: "Workflows",
-      path: "/admin/workflows",
-      icon: <BarChart3 className="h-4 w-4" />,
-    },
-    {
-      title: "Database Schema",
-      path: "/admin/database-schema",
-      icon: <Database className="h-4 w-4" />,
-    },
-    {
-      title: "Settings",
-      path: "/admin/settings",
-      icon: <Settings className="h-4 w-4" />,
-    },
-  ];
-
-  return (
-    <div
-      className={`${
-        collapsed ? "w-14" : "w-64"
-      } bg-background border-r flex flex-col h-screen fixed top-0 left-0 transition-width duration-300 ease-in-out z-10`}
-    >
-      <div className="flex items-center gap-2 p-3">
-        {!collapsed && (
-          <Link to="/" className="flex items-center gap-2">
-            <img src="/logo.svg" alt="Akii" className="h-8 w-8" />
-            <span className="font-bold text-xl">Akii Admin</span>
-          </Link>
-        )}
-        {collapsed && (
-          <Link to="/" className="mx-auto">
-            <img src="/logo.svg" alt="Akii" className="h-8 w-8" />
-          </Link>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto"
-          onClick={onToggle}
-        >
-          <ChevronDown className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <nav className="flex-1 px-2 py-4 space-y-1">
-        {adminSidebarItems.map((item) => (
-          <SidebarItem
-            key={item.path}
-            icon={item.icon}
-            label={item.title}
-            href={item.path}
-            active={isActive(item.path)}
-            onClick={() => navigate(item.path)}
-          />
-        ))}
-      </nav>
     </div>
   );
 };

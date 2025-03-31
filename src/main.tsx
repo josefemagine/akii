@@ -4,11 +4,18 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
 import { SearchProvider } from "@/contexts/SearchContext";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider } from "@/contexts/SimpleAuthContext";
+import { TempoDevtools } from "tempo-devtools";
+
+// Initialize Tempo Devtools
+TempoDevtools.init();
 
 // Add error boundary to catch and report React rendering errors
-class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
-  constructor(props: {children: React.ReactNode}) {
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
     super(props);
     this.state = { hasError: false, error: null };
   }
@@ -24,33 +31,39 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          padding: '20px',
-          backgroundColor: '#0f172a',
-          color: '#fff',
-          minHeight: '100vh',
-          fontFamily: 'system-ui, sans-serif'
-        }}>
-          <h1 style={{ marginBottom: '20px' }}>Something went wrong</h1>
-          <p style={{ marginBottom: '10px' }}>The application failed to render properly. Here's the error:</p>
-          <pre style={{
-            padding: '15px',
-            backgroundColor: '#1e293b',
-            borderRadius: '4px',
-            overflow: 'auto',
-            marginBottom: '20px'
-          }}>
-            {this.state.error?.message || 'Unknown error'}
+        <div
+          style={{
+            padding: "20px",
+            backgroundColor: "#0f172a",
+            color: "#fff",
+            minHeight: "100vh",
+            fontFamily: "system-ui, sans-serif",
+          }}
+        >
+          <h1 style={{ marginBottom: "20px" }}>Something went wrong</h1>
+          <p style={{ marginBottom: "10px" }}>
+            The application failed to render properly. Here's the error:
+          </p>
+          <pre
+            style={{
+              padding: "15px",
+              backgroundColor: "#1e293b",
+              borderRadius: "4px",
+              overflow: "auto",
+              marginBottom: "20px",
+            }}
+          >
+            {this.state.error?.message || "Unknown error"}
           </pre>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             style={{
-              backgroundColor: '#059669',
-              color: 'white',
-              padding: '8px 16px',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
+              backgroundColor: "#059669",
+              color: "white",
+              padding: "8px 16px",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
             }}
           >
             Reload Page
@@ -64,11 +77,11 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 }
 
 // Emergency Admin Access Handler
-if (window.location.pathname === '/emergency-admin') {
+if (window.location.pathname === "/emergency-admin") {
   const root = document.getElementById("root");
   if (root) {
-    console.log('Emergency admin access activated');
-    
+    console.log("Emergency admin access activated");
+
     // Create emergency admin UI
     root.innerHTML = `
       <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; background-color: #111827; color: white;">
@@ -90,81 +103,89 @@ if (window.location.pathname === '/emergency-admin') {
         </div>
       </div>
     `;
-    
+
     // Add event listeners
-    document.getElementById('forceAdmin')?.addEventListener('click', () => {
+    document.getElementById("forceAdmin")?.addEventListener("click", () => {
       try {
         // Set admin override in multiple storage locations for redundancy
-        localStorage.setItem('akii_admin_override', 'true');
-        localStorage.setItem('akii_admin_override_email', 'josef@holm.com');
-        localStorage.setItem('akii_admin_override_expiry', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString());
-        
-        sessionStorage.setItem('admin_override', 'true');
-        sessionStorage.setItem('admin_override_email', 'josef@holm.com');
-        
+        localStorage.setItem("akii_admin_override", "true");
+        localStorage.setItem("akii_admin_override_email", "josef@holm.com");
+        localStorage.setItem(
+          "akii_admin_override_expiry",
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        );
+
+        sessionStorage.setItem("admin_override", "true");
+        sessionStorage.setItem("admin_override_email", "josef@holm.com");
+
         // Legacy formats for compatibility
-        localStorage.setItem('admin_override', 'true');
-        localStorage.setItem('admin_override_email', 'josef@holm.com');
-        
+        localStorage.setItem("admin_override", "true");
+        localStorage.setItem("admin_override_email", "josef@holm.com");
+
         // Update role in sessionStorage
-        const userString = sessionStorage.getItem('supabase.auth.token');
+        const userString = sessionStorage.getItem("supabase.auth.token");
         if (userString) {
           try {
             const userData = JSON.parse(userString);
             if (userData?.currentSession?.user) {
-              userData.currentSession.user.role = 'admin';
-              sessionStorage.setItem('supabase.auth.token', JSON.stringify(userData));
+              userData.currentSession.user.role = "admin";
+              sessionStorage.setItem(
+                "supabase.auth.token",
+                JSON.stringify(userData),
+              );
             }
           } catch (e) {
-            console.error('Failed to update session data:', e);
+            console.error("Failed to update session data:", e);
           }
         }
-        
-        const messageEl = document.getElementById('message');
+
+        const messageEl = document.getElementById("message");
         if (messageEl) {
-          messageEl.style.backgroundColor = '#059669';
-          messageEl.textContent = 'Admin access granted! Redirecting to admin page in 3 seconds...';
+          messageEl.style.backgroundColor = "#059669";
+          messageEl.textContent =
+            "Admin access granted! Redirecting to dashboard in 3 seconds...";
         }
-        
-        // Redirect to admin page
+
+        // Redirect to dashboard instead of admin page
         setTimeout(() => {
-          window.location.href = '/admin';
+          window.location.href = "/dashboard";
         }, 3000);
       } catch (error) {
-        const messageEl = document.getElementById('message');
+        const messageEl = document.getElementById("message");
         if (messageEl) {
-          messageEl.style.backgroundColor = '#dc2626';
+          messageEl.style.backgroundColor = "#dc2626";
           messageEl.textContent = `Error: ${error instanceof Error ? error.message : String(error)}`;
         }
       }
     });
-    
-    document.getElementById('clearSession')?.addEventListener('click', () => {
+
+    document.getElementById("clearSession")?.addEventListener("click", () => {
       try {
         localStorage.clear();
         sessionStorage.clear();
-        
-        const messageEl = document.getElementById('message');
+
+        const messageEl = document.getElementById("message");
         if (messageEl) {
-          messageEl.style.backgroundColor = '#059669';
-          messageEl.textContent = 'Session data cleared! Refresh the page to see changes.';
+          messageEl.style.backgroundColor = "#059669";
+          messageEl.textContent =
+            "Session data cleared! Refresh the page to see changes.";
         }
       } catch (error) {
-        const messageEl = document.getElementById('message');
+        const messageEl = document.getElementById("message");
         if (messageEl) {
-          messageEl.style.backgroundColor = '#dc2626';
+          messageEl.style.backgroundColor = "#dc2626";
           messageEl.textContent = `Error: ${error instanceof Error ? error.message : String(error)}`;
         }
       }
     });
-    
+
     // Prevent normal app initialization
-    throw new Error('Emergency admin mode active');
+    throw new Error("Emergency admin mode active");
   }
 }
 
 // Add basic diagnostic for failed renderings
-const diagnosticScript = document.createElement('script');
+const diagnosticScript = document.createElement("script");
 diagnosticScript.textContent = `
   console.log("Setting up diagnostic monitoring...");
   
@@ -203,50 +224,52 @@ diagnosticScript.textContent = `
 document.head.appendChild(diagnosticScript);
 
 // Force dark mode for consistency
-document.documentElement.classList.add('dark');
+document.documentElement.classList.add("dark");
 
 // Initialize React with robust error handling
 try {
   console.log("Initializing React application...");
-  
+
   // Set up global error handlers before initialization
-  window.addEventListener('error', (event) => {
-    console.error('Global error caught:', event.error || event.message);
+  window.addEventListener("error", (event) => {
+    console.error("Global error caught:", event.error || event.message);
     // Let the diagnostic script handle fallback UI
   });
-  
-  window.addEventListener('unhandledrejection', (event) => {
-    console.error('Unhandled promise rejection:', event.reason);
+
+  window.addEventListener("unhandledrejection", (event) => {
+    console.error("Unhandled promise rejection:", event.reason);
     // Let the diagnostic script handle fallback UI
   });
-  
+
   // Create and render React root with error boundaries
-  const rootElement = document.getElementById('root');
+  const rootElement = document.getElementById("root");
   if (!rootElement) {
-    throw new Error('Root element not found');
+    throw new Error("Root element not found");
   }
-  
+
+  // Create root and render app - using a variable to store the root
+  // This approach is more compatible with Fast Refresh
   const root = ReactDOM.createRoot(rootElement);
-  
+
   // Render with minimal dependencies first to avoid complex initialization issues
   root.render(
     <React.StrictMode>
       <BrowserRouter>
-        <SearchProvider>
-          <AuthProvider>
+        <ErrorBoundary>
+          <SearchProvider>
             <App />
-          </AuthProvider>
-        </SearchProvider>
+          </SearchProvider>
+        </ErrorBoundary>
       </BrowserRouter>
-    </React.StrictMode>
+    </React.StrictMode>,
   );
-  
+
   console.log("React application initialized successfully");
 } catch (error) {
   console.error("Critical error during React initialization:", error);
-  
+
   // Manual fallback if initialization completely fails
-  const rootElement = document.getElementById('root');
+  const rootElement = document.getElementById("root");
   if (rootElement) {
     rootElement.innerHTML = `
       <div style="padding: 20px; color: white; background: #0f172a; min-height: 100vh; font-family: system-ui;">

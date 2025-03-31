@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/SimpleAuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
 
@@ -41,7 +41,16 @@ export default function LoginModal({
 }: LoginModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signIn, signInWithGoogle } = useAuth();
+  const { user, signIn, signInWithGoogle } = useAuth();
+
+  // Auto-close if user is already logged in
+  useEffect(() => {
+    if (user && isOpen) {
+      console.log("[Login Modal] User already logged in, closing modal");
+      onClose();
+      window.location.href = "/dashboard";
+    }
+  }, [user, isOpen, onClose]);
 
   const {
     register,
@@ -56,50 +65,77 @@ export default function LoginModal({
     },
   });
 
+  // Debug function to check auth state
+  const checkAuthState = () => {
+    console.log("[Login Modal] Current auth state:", {
+      user: user ? "Logged in" : "Not logged in",
+      email: user?.email,
+      isModalOpen: isOpen,
+    });
+  };
+
+  // Call on mount and when auth state changes
+  useEffect(() => {
+    checkAuthState();
+  }, [user, isOpen]);
+
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log("[Login Modal] Starting email sign-in process for:", data.email);
-      
+      console.log(
+        "[Login Modal] Starting email sign-in process for:",
+        data.email,
+      );
+
       // Store the current path for redirection after login
-      localStorage.setItem('auth-return-path', window.location.pathname === '/' ? '/dashboard' : window.location.pathname);
-      
+      localStorage.setItem(
+        "auth-return-path",
+        window.location.pathname === "/"
+          ? "/dashboard"
+          : window.location.pathname,
+      );
+
       // EXTENDED FIX: Add more robust login tracking
-      localStorage.setItem('akii-auth-robust-email', data.email);
-      localStorage.setItem('akii-auth-robust-time', Date.now().toString());
-      localStorage.setItem('akii-auth-robust-method', 'email');
-      
+      localStorage.setItem("akii-auth-robust-email", data.email);
+      localStorage.setItem("akii-auth-robust-time", Date.now().toString());
+      localStorage.setItem("akii-auth-robust-method", "email");
+
       // Use try-catch to ensure login attempt works even if there are network issues
       try {
         // Call the signIn function from AuthContext
         const { error } = await signIn(data.email, data.password);
-        
+
         if (error) {
           console.error("[Login Modal] Sign-in error:", error.message);
           setError(error.message);
         } else {
-          console.log("[Login Modal] Sign-in successful - CRITICAL FIX: Forcing immediate redirect");
-          
+          console.log(
+            "[Login Modal] Sign-in successful - CRITICAL FIX: Forcing immediate redirect",
+          );
+
           // Close modal immediately
           reset();
           onClose();
-          
+
           // Set a success flag for handling possible connection errors
-          localStorage.setItem('akii-auth-success', 'true');
-          localStorage.setItem('akii-auth-success-time', Date.now().toString());
-          
+          localStorage.setItem("akii-auth-success", "true");
+          localStorage.setItem("akii-auth-success-time", Date.now().toString());
+
           // Get redirect path
-          const returnPath = localStorage.getItem("auth-return-path") || "/dashboard";
-          
+          const returnPath =
+            localStorage.getItem("auth-return-path") || "/dashboard";
+
           // EXTENDED FIX: Use a reliable method to redirect
           handleSuccessfulLogin(returnPath);
         }
       } catch (signInError) {
         console.error("[Login Modal] Exception during sign-in:", signInError);
         // Fall back to manual login pattern if the signIn function throws
-        setError("Error during login. Please try refreshing the page and trying again.");
+        setError(
+          "Error during login. Please try refreshing the page and trying again.",
+        );
       }
     } catch (error) {
       console.error("[Login Modal] Critical error in login process:", error);
@@ -108,26 +144,26 @@ export default function LoginModal({
       setIsLoading(false);
     }
   };
-  
+
   // EXTENDED FIX: Helper function to handle successful login
   const handleSuccessfulLogin = (returnPath: string) => {
     // Create a final success indicator
     try {
-      const successMarker = document.createElement('div');
-      successMarker.id = 'akii-auth-success-marker';
-      successMarker.style.display = 'none';
+      const successMarker = document.createElement("div");
+      successMarker.id = "akii-auth-success-marker";
+      successMarker.style.display = "none";
       document.body.appendChild(successMarker);
     } catch (e) {
       console.error("Failed to create success marker:", e);
     }
-    
+
     console.log("[EXTENDED FIX] Forcing direct navigation to:", returnPath);
-    
+
     // Use multiple techniques for resilience
     try {
       // 1. Try normal navigation first
       window.location.href = returnPath;
-      
+
       // 2. Set a backup timeout to force location.replace
       setTimeout(() => {
         if (document.location.pathname !== returnPath) {
@@ -135,13 +171,13 @@ export default function LoginModal({
           window.location.replace(returnPath);
         }
       }, 200);
-      
+
       // 3. Final fallback
       setTimeout(() => {
         if (document.location.pathname !== returnPath) {
           console.log("[EXTENDED FIX] Final fallback with form submission");
-          const form = document.createElement('form');
-          form.method = 'GET';
+          const form = document.createElement("form");
+          form.method = "GET";
           form.action = returnPath;
           document.body.appendChild(form);
           form.submit();
@@ -157,22 +193,27 @@ export default function LoginModal({
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       console.log("[Login Modal] Starting Google sign-in process");
-      
+
       // Store the current path for redirection after login
-      localStorage.setItem('auth-return-path', window.location.pathname === '/' ? '/dashboard' : window.location.pathname);
-      
+      localStorage.setItem(
+        "auth-return-path",
+        window.location.pathname === "/"
+          ? "/dashboard"
+          : window.location.pathname,
+      );
+
       await signInWithGoogle();
-      
+
       console.log("[Login Modal] Started Google authentication flow");
       // We don't reset the form here since we're redirecting to Google
-      
+
       // CRITICAL: Set a backup redirect cookie in case callback doesn't work
       document.cookie = "auth_redirect_backup=dashboard; path=/; max-age=300";
     } catch (error) {
-      console.error('[Login Modal] Error signing in with Google:', error);
+      console.error("[Login Modal] Error signing in with Google:", error);
       setError("There was a problem signing in with Google. Please try again.");
     } finally {
       setIsLoading(false);

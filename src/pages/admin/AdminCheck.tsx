@@ -1,21 +1,30 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function AdminCheck() {
   // Add a state to catch any errors during rendering
   const [renderError, setRenderError] = useState<string | null>(null);
-  
+
   // Wrap everything in a try-catch to debug rendering issues
   try {
     const { user, userRole, isAdmin } = useAuth();
-    const [email, setEmail] = useState('josef@holm.com');
-    const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+    const [email, setEmail] = useState("josef@holm.com");
+    const [message, setMessage] = useState<{
+      type: "success" | "error";
+      text: string;
+    } | null>(null);
     const [loading, setLoading] = useState(false);
     const [profileData, setProfileData] = useState<any>(null);
 
@@ -23,28 +32,28 @@ export default function AdminCheck() {
       if (!email) return;
       setLoading(true);
       setMessage(null);
-      
+
       try {
         const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('email', email)
+          .from("profiles")
+          .select("*")
+          .eq("email", email as string)
           .single();
-        
+
         if (error) {
-          setMessage({ type: 'error', text: `Error: ${error.message}` });
+          setMessage({ type: "error", text: `Error: ${error.message}` });
           return;
         }
-        
+
         setProfileData(data);
-        setMessage({ 
-          type: 'success', 
-          text: `User found: ${data.email} with role: ${data.role}` 
+        setMessage({
+          type: "success",
+          text: `User found: ${data?.email || email} with role: ${data?.role || "none"}`,
         });
       } catch (err) {
-        setMessage({ 
-          type: 'error', 
-          text: `Error: ${err instanceof Error ? err.message : String(err)}` 
+        setMessage({
+          type: "error",
+          text: `Error: ${err instanceof Error ? err.message : String(err)}`,
         });
       } finally {
         setLoading(false);
@@ -56,40 +65,43 @@ export default function AdminCheck() {
         await checkUserRole();
         if (!profileData) return;
       }
-      
+
       setLoading(true);
       setMessage(null);
-      
+
       try {
         const { error } = await supabase
-          .from('profiles')
-          .update({ role: 'admin' })
-          .eq('id', profileData.id);
-        
+          .from("profiles")
+          .update({ role: "admin", status: "active" } as any)
+          .eq("id", profileData.id);
+
         if (error) {
-          setMessage({ type: 'error', text: `Error updating role: ${error.message}` });
+          setMessage({
+            type: "error",
+            text: `Error updating role: ${error.message}`,
+          });
           return;
         }
-        
-        setMessage({ 
-          type: 'success', 
-          text: `Role updated to admin for ${email}. Please log out and log back in.` 
+
+        setMessage({
+          type: "success",
+          text: `Role updated to admin for ${email}. Please log out and log back in.`,
         });
-        
+
         // Update the profile data
         const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('email', email)
+          .from("profiles")
+          .select("*")
+          .eq("email", email as string)
           .single();
-          
+
         if (data) {
           setProfileData(data);
         }
       } catch (err) {
-        setMessage({ 
-          type: 'error', 
-          text: `Error: ${err instanceof Error ? err.message : String(err)}` 
+        setMessage({
+          type: "error",
+          text: `Error: ${err instanceof Error ? err.message : String(err)}`,
         });
       } finally {
         setLoading(false);
@@ -98,10 +110,10 @@ export default function AdminCheck() {
 
     // Log current auth status to help debug
     useEffect(() => {
-      console.log("AdminCheck mounting with auth:", { 
-        user: user?.email || 'not logged in', 
-        role: userRole || 'none',
-        isAdmin
+      console.log("AdminCheck mounting with auth:", {
+        user: user?.email || "not logged in",
+        role: userRole || "none",
+        isAdmin,
       });
     }, [user, userRole, isAdmin]);
 
@@ -117,47 +129,57 @@ export default function AdminCheck() {
               <div className="space-y-2">
                 <h3 className="text-lg font-medium">Current User Status</h3>
                 <div className="text-sm">
-                  <p><strong>Email:</strong> {user?.email || 'Not logged in'}</p>
-                  <p><strong>Role:</strong> {userRole || 'None'}</p>
-                  <p><strong>Admin Access:</strong> {isAdmin ? 'Yes' : 'No'}</p>
+                  <p>
+                    <strong>Email:</strong> {user?.email || "Not logged in"}
+                  </p>
+                  <p>
+                    <strong>Role:</strong> {userRole || "None"}
+                  </p>
+                  <p>
+                    <strong>Admin Access:</strong> {isAdmin ? "Yes" : "No"}
+                  </p>
                 </div>
               </div>
-              
+
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Check User Role</Label>
                   <div className="flex gap-2">
-                    <Input 
+                    <Input
                       id="email"
-                      value={email} 
-                      onChange={(e) => setEmail(e.target.value)} 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       placeholder="Email address"
                     />
                     <Button onClick={checkUserRole} disabled={loading}>
-                      {loading ? 'Checking...' : 'Check'}
+                      {loading ? "Checking..." : "Check"}
                     </Button>
                   </div>
                 </div>
-                
+
                 {profileData && (
                   <div className="space-y-2">
                     <h4 className="font-medium">User Profile:</h4>
                     <pre className="p-2 bg-gray-100 rounded text-xs overflow-auto">
                       {JSON.stringify(profileData, null, 2)}
                     </pre>
-                    
-                    <Button 
-                      onClick={grantAdminRole} 
-                      disabled={loading || profileData?.role === 'admin'}
+
+                    <Button
+                      onClick={grantAdminRole}
+                      disabled={loading || profileData?.role === "admin"}
                       className="mt-2"
                     >
-                      {loading ? 'Updating...' : 'Grant Admin Access'}
+                      {loading ? "Updating..." : "Grant Admin Access"}
                     </Button>
                   </div>
                 )}
-                
+
                 {message && (
-                  <Alert variant={message.type === 'error' ? 'destructive' : 'default'}>
+                  <Alert
+                    variant={
+                      message.type === "error" ? "destructive" : "default"
+                    }
+                  >
                     <AlertDescription>{message.text}</AlertDescription>
                   </Alert>
                 )}
@@ -195,4 +217,4 @@ export default function AdminCheck() {
       </div>
     );
   }
-} 
+}

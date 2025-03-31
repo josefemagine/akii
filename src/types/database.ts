@@ -43,7 +43,8 @@ export interface User {
   id: string;
   email: string;
   role: string;
+  status?: string;
   subscription?: Subscription;
   created_at: string;
   updated_at: string;
-} 
+}

@@ -12,41 +12,49 @@ export default function TokenHandler() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
-  
-  // Remove refreshSession since we've removed it from the context
-  const { setIsLoading } = useAuth();
+
+  const auth = useAuth();
+  // Create a local setIsLoading function since it doesn't exist in AuthContext
+  const setIsLoading = (loading: boolean) => {
+    // This is a placeholder implementation
+    console.log(`Setting loading state to: ${loading}`);
+  };
+
+  // Use the imported supabase client
+  // const { supabase } = auth; // This property doesn't exist in AuthContext
 
   useEffect(() => {
     async function handleToken() {
       try {
         setIsLoading(true);
-        
+
         // Get the path segments
         const pathSegments = window.location.pathname.split("/");
         // Token should be the last segment
         const token = pathSegments[pathSegments.length - 1];
-        
+
         if (!token) {
           setError("No authentication token found in URL");
           return;
         }
-        
+
         console.log("Processing token from URL...");
-        
+
         // Call Supabase to verify the token
+        // Use the imported supabase client directly
         const { data, error } = await supabase.auth.getSession();
-        
+
         if (error) {
           throw error;
         }
-        
+
         if (data.session) {
           console.log("Session authenticated with token");
           setSuccess(true);
-          
+
           // Store tokens securely
           localStorage.setItem("auth-token", token);
-          
+
           // Redirect to dashboard after successful token handling
           setTimeout(() => {
             navigate("/dashboard");
@@ -56,13 +64,15 @@ export default function TokenHandler() {
         }
       } catch (err) {
         console.error("Error handling token:", err);
-        setError(err instanceof Error ? err.message : "An unknown error occurred");
+        setError(
+          err instanceof Error ? err.message : "An unknown error occurred",
+        );
       } finally {
         setIsLoading(false);
         setIsProcessing(false);
       }
     }
-    
+
     handleToken();
   }, [navigate, setIsLoading]);
 

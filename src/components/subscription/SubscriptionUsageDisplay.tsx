@@ -7,13 +7,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/SimpleAuthContext";
 
 export default function SubscriptionUsageDisplay() {
   const { user } = useAuth();
 
   // Get subscription data from user context
-  const subscription = user?.subscription || {
+  const subscription = user?.subscription ?? {
     plan: "free",
     status: "active",
     message_limit: 100,
@@ -110,7 +110,7 @@ export default function SubscriptionUsageDisplay() {
 
           <div>
             <p className="text-muted-foreground">Payment Method</p>
-            <p>{subscription.payment_method || "None"}</p>
+            <p>{subscription.payment_method ?? "None"}</p>
           </div>
         </div>
       </CardContent>

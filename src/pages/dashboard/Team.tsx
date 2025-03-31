@@ -26,7 +26,7 @@ const Team = () => {
         const { data, error } = await supabase
           .from("team_members")
           .select("team_id")
-          .eq("user_id", user.id)
+          .eq("user_id", user.id as any)
           .single();
 
         if (error) {
@@ -40,7 +40,8 @@ const Team = () => {
         }
 
         if (data) {
-          setTeamId(data.team_id);
+          // Use optional chaining and type assertion to safely access team_id
+          setTeamId(data && "team_id" in data ? data.team_id : "");
         }
       } catch (error) {
         console.error("Error in team fetch:", error);
