@@ -76,6 +76,9 @@ const Header = ({}: HeaderProps) => {
     try {
       await signOut();
       closeMobileMenu();
+      
+      // Navigate to home page after sign out
+      window.location.href = "/";
     } catch (error) {
       console.error("Error during logout:", error);
     }

@@ -9,26 +9,37 @@ import React, {
 import { isBrowser, safeStorage } from "@/lib/browser-check";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
+import type { Session } from "@supabase/supabase-js";
+import type { User } from "@/types/custom";
+
+// Import everything from supabase-core
 import {
-  supabaseClient,
-  auth,
-  signIn as authSignIn,
-  signOut as authSignOut,
-  getCurrentSession,
+  // Client functions
+  getAuth,
+  getSupabaseClient,
+  // Auth functions
   getCurrentUser,
+  getCurrentSession,
   getUserProfile,
   ensureUserProfile,
   updateUserProfile,
   setUserRole,
   setUserStatus,
   checkUserStatus,
-  UserProfile,
-  UserRole,
-  UserStatus,
-  AuthResponse,
+  // Types
+  type UserProfile,
+  type UserRole,
+  type UserStatus,
+  type AuthResponse,
+} from "@/lib/supabase-core";
+
+import {
+  signIn as authSignIn,
+  signOut as authSignOut,
 } from "@/lib/auth-helpers";
-import type { Session } from "@supabase/supabase-js";
-import type { User } from "@/types/custom";
+
+// Update imports to use the singleton
+import supabase, { auth, supabaseAdmin, debugSupabaseInstances } from "@/lib/supabase-singleton";
 
 interface AuthState {
   user: User | null;
@@ -58,6 +69,7 @@ export interface AuthContextType {
   signUp: (
     email: string,
     password: string,
+    metadata?: any,
   ) => Promise<{ data: any | null; error: Error | null }>;
   signInWithGoogle: () => Promise<{ data: any | null; error: Error | null }>;
   verifyOtp: (
@@ -186,400 +198,246 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { toast } = useToast();
 
-  // Initialize auth state
+  // Initialize auth state and set up auth listener
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
 
     async function initializeAuth() {
-      setState((prev) => ({ ...prev, isLoading: true }));
-
-      // Debug auth initialization
-      console.log("Initializing auth state...");
-
       try {
-        // Get current session
-        const { data: currentSession, error: sessionError } =
-          await getCurrentSession();
-
+        // Try to get existing session
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
         if (sessionError) {
-          console.error("Session error during initialization:", sessionError);
-          // Try to recover from backup data
-          const backupEmail = localStorage.getItem("akii-auth-user-email");
-          const backupId = localStorage.getItem("akii-auth-user-id");
-          const backupTimestamp = localStorage.getItem("akii-auth-timestamp");
-
-          if (backupEmail && backupId && backupTimestamp) {
-            const timestamp = parseInt(backupTimestamp);
-            const isRecent = Date.now() - timestamp < 24 * 60 * 60 * 1000; // 24 hours
-
-            if (isRecent) {
-              console.log("Recovering from backup auth data for:", backupEmail);
-              // Create a synthetic user object
-              const syntheticUser = {
-                id: backupId,
-                email: backupEmail,
-                app_metadata: {},
-                user_metadata: {},
-                aud: "authenticated",
-                created_at: new Date(timestamp).toISOString(),
-              };
-
-              if (isMounted) {
-                setState((prev) => ({
-                  ...prev,
-                  user: syntheticUser as User,
-                  isAdmin:
-                    backupEmail === "josef@holm.com" ||
-                    checkAdminOverride(syntheticUser as User),
-                }));
-
-                // Try to get or create profile
-                try {
-                  const { data: profile } = await getUserProfile(backupId);
-                  if (profile && isMounted) {
-                    setState((prev) => ({ ...prev, profile }));
-                  }
-                } catch (profileError) {
-                  console.error(
-                    "Error getting profile from backup:",
-                    profileError,
-                  );
-                }
-              }
-            }
-          }
-        } else if (isMounted) {
-          setState((prev) => ({ ...prev, session: currentSession }));
+          console.error("Error getting session:", sessionError);
+          setState(prev => ({ 
+            ...prev, 
+            isLoading: false,
+            error: sessionError 
+          }));
+          return;
         }
-
-        if (currentSession) {
-          // Get user
-          const { data: currentUser, error: userError } =
-            await getCurrentUser();
-
-          if (userError) throw userError;
-
-          console.log("Current user from session:", currentUser);
-
-          if (isMounted) {
-            setState((prev) => ({ ...prev, user: currentUser }));
-
-            // Check for admin override
-            const hasAdminOverride = checkAdminOverride(currentUser);
-
-            if (hasAdminOverride) {
-              console.log("Admin override active for", currentUser.email);
-              setState((prev) => ({ ...prev, isAdmin: true }));
-            }
-
-            // Store backup data
-            try {
-              if (currentUser.email) {
-                localStorage.setItem("akii-auth-user-email", currentUser.email);
-                localStorage.setItem("akii-auth-user-id", currentUser.id);
-                localStorage.setItem(
-                  "akii-auth-timestamp",
-                  Date.now().toString(),
-                );
-              }
-            } catch (storageError) {
-              console.error("Failed to store backup auth data:", storageError);
-            }
-          }
-
-          if (currentUser) {
-            // Get user profile
-            const { data: profile, error: profileError } = await getUserProfile(
-              currentUser.id,
-            );
-
-            if (profileError) {
-              // If no profile exists, create one
-              const { data: newProfile, error: createError } =
-                await ensureUserProfile(currentUser);
-
-              if (createError) throw createError;
-
-              if (isMounted && newProfile) {
-                setState((prev) => ({ ...prev, profile: newProfile }));
-
-                // Only set isAdmin from profile if no override
-                if (!checkAdminOverride(currentUser)) {
-                  setState((prev) => ({
-                    ...prev,
-                    isAdmin: newProfile.role === "admin",
-                  }));
-                }
-              }
-            } else if (isMounted && profile) {
-              setState((prev) => ({ ...prev, profile: profile }));
-
-              // Only set isAdmin from profile if no override
-              if (!checkAdminOverride(currentUser)) {
-                setState((prev) => ({
-                  ...prev,
-                  isAdmin: profile.role === "admin",
-                }));
-              }
-            }
-
-            // Log auth status
-            console.log("Auth initialized:", {
-              user: currentUser.email,
-              role: profile?.role || "user",
-              admin:
-                state.isAdmin ||
-                profile?.role === "admin" ||
-                checkAdminOverride(currentUser),
-            });
-          }
-        } else {
-          // No session, try backup data before clearing state
-          const backupEmail = localStorage.getItem("akii-auth-user-email");
-          const backupId = localStorage.getItem("akii-auth-user-id");
-          const backupTimestamp = localStorage.getItem("akii-auth-timestamp");
-
-          if (backupEmail && backupId && backupTimestamp) {
-            const timestamp = parseInt(backupTimestamp);
-            const isRecent = Date.now() - timestamp < 24 * 60 * 60 * 1000; // 24 hours
-
-            if (isRecent) {
-              console.log(
-                "No active session but found backup data for:",
-                backupEmail,
-              );
-              // Create a synthetic user object
-              const syntheticUser = {
-                id: backupId,
-                email: backupEmail,
-                app_metadata: {},
-                user_metadata: {},
-                aud: "authenticated",
-                created_at: new Date(timestamp).toISOString(),
-              };
-
-              if (isMounted) {
-                setState((prev) => ({
-                  ...prev,
-                  user: syntheticUser as User,
-                  isAdmin:
-                    backupEmail === "josef@holm.com" ||
-                    checkAdminOverride(syntheticUser as User),
-                }));
-
-                // Try to get or create profile
-                try {
-                  const { data: profile } = await getUserProfile(backupId);
-                  if (profile && isMounted) {
-                    setState((prev) => ({ ...prev, profile }));
-                  }
-                } catch (profileError) {
-                  console.error(
-                    "Error getting profile from backup:",
-                    profileError,
-                  );
-                }
-
-                return; // Skip clearing state
-              }
-            }
-          }
-
-          // If we get here, no valid backup was found
-          if (isMounted) {
-            setState((prev) => ({
-              ...prev,
-              user: null,
-              profile: null,
-              isAdmin: false,
+        
+        // If no session, set user to null and return early
+        if (!sessionData?.session) {
+          setState(prev => ({
+            ...prev,
+            user: null,
+            profile: null,
+            session: null,
+            isLoading: false,
+            isAdmin: false,
+            userRole: null,
+          }));
+          return;
+        }
+        
+        // We have a session, try to get user
+        const { data: userData, error: userError } = await auth.getUser();
+        
+        if (userError || !userData) {
+          console.error("Error getting user:", userError);
+          setState(prev => ({ 
+            ...prev, 
+            isLoading: false,
+            error: userError || new Error("User data is empty")
+          }));
+          return;
+        }
+        
+        // Use type checking for userData
+        if (!userData || !userData.user) {
+          console.error("User data is undefined or empty");
+          setState(prev => ({
+            ...prev,
+            isLoading: false,
+            error: new Error("User data is undefined")
+          }));
+          return;
+        }
+        
+        const userObj = userData.user;
+        if (!userObj || !userObj.id) {
+          console.error("User ID is undefined or empty");
+          setState(prev => ({
+            ...prev,
+            isLoading: false,
+            error: new Error("User ID is undefined")
+          }));
+          return;
+        }
+        
+        // Get profile with valid user ID
+        try {
+          const { data: profileData, error: profileError } = await getUserProfile(userObj.id);
+          
+          if (profileError) {
+            console.error("Error getting profile:", profileError);
+            setState(prev => ({ 
+              ...prev, 
+              isLoading: false,
+              error: profileError 
             }));
+            return;
           }
-          console.log("No active session found");
+          
+          // Update state with profile
+          setState(prev => ({
+            ...prev,
+            profile: profileData,
+            isLoading: false,
+            isAdmin: profileData?.role === "admin" || checkAdminOverride(userObj),
+            userRole: profileData?.role || null,
+          }));
+        } catch (profileError) {
+          console.error("Exception getting profile:", profileError);
+          setState(prev => ({ 
+            ...prev, 
+            isLoading: false,
+            error: profileError instanceof Error ? profileError : new Error(String(profileError))
+          }));
         }
       } catch (error) {
-        console.error("Error initializing auth:", error);
-        // Try to recover from backup data
-        const backupEmail = localStorage.getItem("akii-auth-user-email");
-        const backupId = localStorage.getItem("akii-auth-user-id");
-
-        if (backupEmail && backupId && backupEmail === "josef@holm.com") {
-          console.log(
-            "Critical error but recovering for admin user:",
-            backupEmail,
-          );
-          // Force admin override
-          localStorage.setItem("akii_admin_override", "true");
-          localStorage.setItem("akii_admin_override_email", "josef@holm.com");
-          localStorage.setItem(
-            "akii_admin_override_expiry",
-            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          );
-          sessionStorage.setItem("admin_override", "true");
-          sessionStorage.setItem("admin_override_email", "josef@holm.com");
-        }
-      } finally {
-        if (isMounted) {
-          setState((prev) => ({ ...prev, isLoading: false }));
-        }
+        console.error("Initialization error:", error);
+        setState(prev => ({ 
+          ...prev, 
+          isLoading: false,
+          error: error instanceof Error ? error : new Error(String(error))
+        }));
       }
     }
 
-    // Set up auth state change listener
-    const { data: authListener } = auth.onAuthStateChange(
-      async (event, currentSession) => {
-        console.log(
-          `Auth state changed: ${event}`,
-          currentSession?.user?.email,
-        );
+    // Set up auth state listener
+    const authClient = auth;
+    const {
+      data: { subscription },
+    } = authClient.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      
+      console.log("Auth state changed:", event, session);
+      
+      if (event === 'SIGNED_OUT') {
+        setState(prev => ({
+          ...prev,
+          user: null,
+          profile: null,
+          session: null,
+          isLoading: false,
+          isAdmin: false,
+          userRole: null,
+        }));
+        return;
+      }
 
-        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-          if (isMounted) {
-            setState((prev) => ({ ...prev, session: currentSession }));
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        try {
+          const user = await getCurrentUser();
+          if (!mounted) return;
 
-            if (currentSession?.user) {
-              console.log(
-                "Auth state change - user data:",
-                currentSession.user,
-              );
-              setState((prev) => ({ ...prev, user: currentSession.user }));
+          if (user) {
+            const profile = await getUserProfile(user.data.id);
+            if (!mounted) return;
 
-              // Check for admin override
-              const hasAdminOverride = checkAdminOverride(currentSession.user);
-              if (hasAdminOverride) {
-                console.log("Admin override detected on auth change");
-                setState((prev) => ({ ...prev, isAdmin: true }));
-              }
-
-              // Store backup data
-              try {
-                if (currentSession.user.email) {
-                  localStorage.setItem(
-                    "akii-auth-user-email",
-                    currentSession.user.email,
-                  );
-                  localStorage.setItem(
-                    "akii-auth-user-id",
-                    currentSession.user.id,
-                  );
-                  localStorage.setItem(
-                    "akii-auth-timestamp",
-                    Date.now().toString(),
-                  );
-                }
-              } catch (storageError) {
-                console.error(
-                  "Failed to store backup auth data:",
-                  storageError,
-                );
-              }
-
-              // Get or create profile
-              const { data: profile } = await getUserProfile(
-                currentSession.user.id,
-              );
-
-              if (isMounted && profile) {
-                setState((prev) => ({ ...prev, profile: profile }));
-
-                // Only set isAdmin from profile if no override
-                if (!hasAdminOverride) {
-                  setState((prev) => ({
-                    ...prev,
-                    isAdmin: profile.role === "admin",
-                  }));
-                }
-              }
-            }
-          }
-        } else if (event === "SIGNED_OUT") {
-          if (isMounted) {
-            setState((prev) => ({
+            setState(prev => ({
               ...prev,
-              user: null,
-              session: null,
-              profile: null,
-              isAdmin: false,
+              user: user.data,
+              profile: profile.data,
+              session,
+              isLoading: false,
+              isAdmin: profile.data?.role === "admin" || checkAdminOverride(user.data),
+              userRole: profile.data?.role || null,
             }));
-
-            // Clear backup data
-            localStorage.removeItem("akii-auth-user-email");
-            localStorage.removeItem("akii-auth-user-id");
-            localStorage.removeItem("akii-auth-timestamp");
           }
+        } catch (error) {
+          console.error("Error updating auth state:", error);
         }
-      },
-    );
+      }
+    });
 
+    // Initialize auth state
     initializeAuth();
 
-    // Cleanup
+    // Cleanup function
     return () => {
-      isMounted = false;
-      authListener.subscription.unsubscribe();
+      mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
   // Monitor location changes for auth protection
   useEffect(() => {
-    const pathRequiresAuth =
-      location.pathname.startsWith("/dashboard") ||
-      location.pathname.startsWith("/admin");
+    let mounted = true;
 
-    const pathRequiresAdmin = location.pathname.startsWith("/admin");
+    const checkAuthAndRedirect = async () => {
+      const pathRequiresAuth =
+        location.pathname.startsWith("/dashboard") ||
+        location.pathname.startsWith("/admin");
 
-    // Special case for Josef
-    const isJosef = state.user?.email === "josef@holm.com";
+      const pathRequiresAdmin = location.pathname.startsWith("/admin");
 
-    if (pathRequiresAuth && !state.isLoading && !state.user) {
-      // Redirect to login if auth required
-      navigate("/", { replace: true });
-    } else if (
-      pathRequiresAdmin &&
-      !state.isLoading &&
-      !state.isAdmin &&
-      !isJosef
-    ) {
-      // Block admin access if not admin, except for Josef
-      if (state.user) {
-        if (!isJosef) {
-          toast({
-            title: "Access Denied",
-            description: "You don't have permission to access the admin area.",
-            variant: "destructive",
-          });
-          navigate("/dashboard", { replace: true });
-        }
-      } else {
+      // Special case for Josef
+      const isJosef = state.user?.email === "josef@holm.com";
+
+      if (!mounted) return;
+
+      if (pathRequiresAuth && !state.isLoading && !state.user) {
+        // Redirect to login if auth required
         navigate("/", { replace: true });
+      } else if (
+        pathRequiresAdmin &&
+        !state.isLoading &&
+        !state.isAdmin &&
+        !isJosef
+      ) {
+        // Block admin access if not admin, except for Josef
+        if (state.user) {
+          if (!isJosef && mounted) {
+            toast({
+              title: "Access Denied",
+              description: "You don't have permission to access the admin area.",
+              variant: "destructive",
+            });
+            navigate("/dashboard", { replace: true });
+          }
+        } else {
+          navigate("/", { replace: true });
+        }
       }
-    }
-  }, [
-    location.pathname,
-    state.isLoading,
-    state.user,
-    state.isAdmin,
-    navigate,
-    toast,
-  ]);
+    };
+
+    checkAuthAndRedirect();
+
+    return () => {
+      mounted = false;
+    };
+  }, [location.pathname, state.isLoading, state.user, state.isAdmin, navigate, toast]);
 
   // Update state.user with subscription data for admins
   useEffect(() => {
-    if (state.user && state.isAdmin) {
-      // Use a local variable to track if we've already updated the subscription
-      const hasSubscription = state.user.subscription !== undefined;
+    let mounted = true;
 
-      if (!hasSubscription) {
-        setState((prev) => ({
-          ...prev,
-          user: {
-            ...prev.user,
-            subscription: getDefaultAdminSubscription(prev.user),
-          },
-        }));
+    const updateSubscription = async () => {
+      if (state.user && state.isAdmin) {
+        // Use a local variable to track if we've already updated the subscription
+        const hasSubscription = state.user.subscription !== undefined;
+
+        if (!hasSubscription && mounted) {
+          setState((prev) => ({
+            ...prev,
+            user: {
+              ...prev.user,
+              subscription: getDefaultAdminSubscription(prev.user),
+            },
+          }));
+        }
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.user, state.isAdmin]); // Include dependencies to ensure proper updates
+    };
+
+    updateSubscription();
+
+    return () => {
+      mounted = false;
+    };
+  }, [state.user, state.isAdmin]);
 
   // Sign-in handler
   const signIn = async (
@@ -625,13 +483,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (
     email: string,
     password: string,
+    metadata?: any,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
 
-      const { data, error } = await auth.signUp({
+      const { data, error } = await getAuth().signUp({
         email,
         password,
+        options: { data: metadata },
       });
 
       setState((prev) => ({ ...prev, isLoading: false }));
@@ -659,7 +519,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
 
-      const { data, error } = await auth.signInWithOAuth({
+      const { data, error } = await getAuth().signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -689,7 +549,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     token: string,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
-      const { data, error } = await auth.verifyOtp({
+      const { data, error } = await getAuth().verifyOtp({
         email,
         token,
         type: "email",
@@ -709,7 +569,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
-      const { data, error } = await auth.resetPasswordForEmail(email);
+      const { data, error } = await getAuth().resetPasswordForEmail(email);
 
       if (error) throw error;
 
@@ -727,7 +587,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
-      const { data, error } = await auth.updateUser({
+      const { data, error } = await getAuth().updateUser({
         password,
       });
 
@@ -745,27 +605,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      await authSignOut();
+      console.log("AuthContext: Starting sign out process");
+      
+      // First attempt to clear all tokens and local storage
+      try {
+        // Clear Supabase tokens
+        localStorage.removeItem("sb-access-token");
+        localStorage.removeItem("sb-refresh-token");
+        localStorage.removeItem("supabase.auth.token");
+        localStorage.removeItem("supabase_auth_token");
+        
+        // Clear auth state flags
+        localStorage.removeItem("auth-in-progress");
+        localStorage.removeItem("auth-user-role");
+        localStorage.removeItem("user-role");
+        localStorage.removeItem("akii-auth-role");
+        
+        // Clear admin overrides
+        localStorage.removeItem("admin_override");
+        localStorage.removeItem("admin_override_email");
+        localStorage.removeItem("admin_override_time");
+        localStorage.removeItem("akii_admin_override");
+        localStorage.removeItem("akii_admin_override_email");
+        localStorage.removeItem("akii_admin_override_expiry");
+        
+        console.log("AuthContext: Cleared localStorage tokens and state");
+      } catch (storageError) {
+        console.error("AuthContext: Error clearing localStorage:", storageError);
+        // Continue with sign out even if localStorage clearing fails
+      }
 
-      // Clear state
+      // Now call Supabase signOut
+      const { error } = await auth.signOut();
+      
+      if (error) {
+        console.error("AuthContext: Error from Supabase auth.signOut():", error);
+        // Continue with sign out flow even if Supabase call fails
+      } else {
+        console.log("AuthContext: Supabase auth.signOut() successful");
+      }
+
+      // Always clear state regardless of API errors
+      console.log("AuthContext: Clearing user state");
       setState((prev) => ({
         ...prev,
         user: null,
         session: null,
         profile: null,
         isAdmin: false,
+        isLoading: false,
       }));
 
-      // Redirect to home
-      navigate("/");
+      // Redirect to home page after sign out
+      console.log("AuthContext: Redirecting to home page");
+      navigate('/');
+      
+      console.log("AuthContext: Sign out complete");
     } catch (error) {
-      console.error("Sign out error:", error);
-
-      toast({
-        title: "Sign out error",
-        description: "There was a problem signing out. Please try again.",
-        variant: "destructive",
-      });
+      console.error("AuthContext: Unexpected error during sign out:", error);
+      
+      // Still clear state even if there was an error
+      setState((prev) => ({
+        ...prev,
+        user: null,
+        session: null,
+        profile: null,
+        isAdmin: false,
+        isLoading: false,
+      }));
+      
+      // Redirect to home page even if there was an error
+      navigate('/');
     } finally {
       setState((prev) => ({ ...prev, isLoading: false }));
     }
@@ -884,7 +794,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updatePassword = async (password: string) => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
-      const { data, error } = await auth.updateUser({
+      const { data, error } = await getAuth().updateUser({
         password: password,
       });
       setState((prev) => ({ ...prev, isLoading: false }));
@@ -933,6 +843,11 @@ export const useAuth = () => {
   const context = useContext(AuthContext);
 
   if (context === undefined) {
+    // Add additional debug info to help diagnose the issue
+    console.error(
+      "useAuth hook was called outside of the AuthProvider component. " +
+      "Check that all components using useAuth are wrapped in AuthProvider."
+    );
     throw new Error("useAuth must be used within an AuthProvider");
   }
 

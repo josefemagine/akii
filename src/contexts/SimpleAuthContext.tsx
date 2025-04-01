@@ -8,7 +8,7 @@ import React, {
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  supabaseClient,
+  supabase,
   signIn as authSignIn,
   signOut as authSignOut,
   getCurrentSession,
@@ -179,7 +179,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     // Set up auth state change listener
-    const { data: authListener } = supabaseClient.auth.onAuthStateChange(
+    const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
         console.log(`Auth state changed: ${event}`);
 
@@ -313,12 +313,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     metadata?: any,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
-      setState((prev) => ({ ...prev, isLoading: true }));
-
-      const { data, error } = await supabaseClient.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: metadata },
+        options: {
+          data: metadata,
+        },
       });
 
       setState((prev) => ({ ...prev, isLoading: false }));
@@ -346,7 +346,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
 
-      const { data, error } = await supabaseClient.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -425,7 +425,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const updatePassword = async (password: string) => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
-      const { data, error } = await supabaseClient.auth.updateUser({
+      const { data, error } = await supabase.auth.updateUser({
         password: password,
       });
       setState((prev) => ({ ...prev, isLoading: false }));

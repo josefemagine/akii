@@ -2,41 +2,42 @@
  * Auth helper functions for handling Supabase authentication
  */
 
-import {
-  SupabaseClient,
-  User,
-  Session,
-  PostgrestError,
-} from "@supabase/supabase-js";
-import { Database } from "@/types/supabase";
+import type { Session, User, PostgrestError } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
+import { 
+  getAuth, 
+  getSupabaseClient, 
+  getAdminClient, 
+  supabase, 
+  auth 
+} from "./supabase-singleton";
 
-// Types
+// Export our own types
 export type UserRole = "user" | "admin" | "team_member";
-export type UserStatus = "active" | "inactive" | "banned";
+export type UserStatus = "active" | "inactive" | "banned" | "pending";
 
 export interface UserProfile {
   id: string;
   email: string;
-  first_name?: string | null;
-  last_name?: string | null;
   role: UserRole;
   status: UserStatus;
-  company?: string | null;
-  avatar_url?: string | null;
-  created_at: string;
-  updated_at: string;
+  first_name?: string;
+  last_name?: string;
+  company?: string;
+  full_name?: string;
+  avatar_url?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
+// Types
 export interface AuthResponse<T = any> {
   data: T | null;
   error: Error | PostgrestError | null;
 }
 
-// Import Supabase clients from the centralized core module
-import { supabaseClient, supabaseAdmin as adminClient, supabase, auth } from "./supabase-core";
-
-// Re-export the clients for use in other modules
-export { supabaseClient, adminClient, supabase, auth };
+// Use this approach - don't re-export, just import what you need:
+// No exports of these clients
 
 // Authentication functions
 export async function signIn(
@@ -50,7 +51,7 @@ export async function signIn(
     console.log("Signing in user:", email);
 
     // Sign in with Supabase
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
+    const { data, error } = await auth.signInWithPassword({
       email,
       password,
     });
@@ -97,7 +98,7 @@ export async function signOut(): Promise<AuthResponse> {
     await clearStoredAuth();
 
     // Sign out from Supabase
-    const { error } = await supabaseClient.auth.signOut();
+    const { error } = await auth.signOut();
     if (error) throw error;
 
     return { data: true, error: null };
@@ -109,7 +110,7 @@ export async function signOut(): Promise<AuthResponse> {
 
 export async function getCurrentSession(): Promise<AuthResponse<Session>> {
   try {
-    const { data, error } = await supabaseClient.auth.getSession();
+    const { data, error } = await auth.getSession();
     if (error) throw error;
 
     return { data: data.session, error: null };
@@ -121,7 +122,7 @@ export async function getCurrentSession(): Promise<AuthResponse<Session>> {
 
 export async function getCurrentUser(): Promise<AuthResponse<User>> {
   try {
-    const { data, error } = await supabaseClient.auth.getUser();
+    const { data, error } = await auth.getUser();
     if (error) throw error;
 
     return { data: data.user, error: null };
@@ -133,10 +134,19 @@ export async function getCurrentUser(): Promise<AuthResponse<User>> {
 
 // User profile functions
 export async function getUserProfile(
-  userId: string,
+  userId?: string,
 ): Promise<AuthResponse<UserProfile>> {
   try {
-    const { data, error } = await supabaseClient
+    // Guard against undefined userId
+    if (!userId) {
+      console.warn("getUserProfile called with undefined userId");
+      return { 
+        data: null, 
+        error: new Error("User ID is required to fetch profile") 
+      };
+    }
+
+    const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
@@ -169,7 +179,7 @@ export async function getUserProfileByEmail(
   email: string,
 ): Promise<AuthResponse<UserProfile>> {
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("email", email)
@@ -219,7 +229,7 @@ export async function ensureUserProfile(
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from("profiles")
       .upsert(newProfile)
       .select()
@@ -259,7 +269,7 @@ export async function updateUserProfile(
 
     console.log("Updating user profile with:", safeUpdates);
 
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from("profiles")
       .update(safeUpdates)
       .eq("id", userId)
@@ -297,7 +307,7 @@ export async function setUserRole(
 ): Promise<AuthResponse<UserProfile>> {
   try {
     // Use admin client to bypass RLS
-    const { data, error } = await adminClient
+    const { data, error } = await getAdminClient()
       .from("profiles")
       .update({
         role,
@@ -331,7 +341,7 @@ export async function setUserStatus(
 ): Promise<AuthResponse<UserProfile>> {
   try {
     // Use admin client to bypass RLS
-    const { data, error } = await adminClient
+    const { data, error } = await getAdminClient()
       .from("profiles")
       .update({
         status,
@@ -364,7 +374,7 @@ export async function checkUserExists(
   email: string,
 ): Promise<AuthResponse<boolean>> {
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from("profiles")
       .select("id")
       .eq("email", email)
@@ -381,24 +391,17 @@ export async function checkUserExists(
   }
 }
 
-export async function checkUserStatus(
-  email: string,
-): Promise<AuthResponse<UserStatus>> {
-  try {
-    const { data, error } = await supabaseClient
-      .from("profiles")
-      .select("status")
-      .eq("email", email)
-      .single();
+export async function getUserStatus(userId: string) {
+  const client = getSupabaseClient();
+  // Implementation using client...
+}
 
-    if (error) throw error;
-    if (!data) throw new Error("User not found");
-
-    return { data: data.status as UserStatus, error: null };
-  } catch (error) {
-    console.error("Check user status error:", error);
-    return { data: null, error: error as Error };
+export async function checkAdminStatus(userId: string) {
+  const adminClient = getAdminClient();
+  if (!adminClient) {
+    throw new Error("Admin client not available");
   }
+  // Implementation using adminClient...
 }
 
 // Auth state helpers
@@ -466,7 +469,7 @@ export async function syncUserProfiles(): Promise<
   try {
     // Get all auth users using admin client
     const { data: authUsers, error: authError } =
-      await adminClient.auth.admin.listUsers();
+      await getAdminClient().auth.admin.listUsers();
 
     if (authError) throw authError;
     if (!authUsers?.users)
@@ -480,7 +483,7 @@ export async function syncUserProfiles(): Promise<
       if (!user.id || !user.email) continue;
 
       // Check if profile exists
-      const { data: existingProfile } = await adminClient
+      const { data: existingProfile } = await getAdminClient()
         .from("profiles")
         .select("id")
         .eq("id", user.id)
@@ -488,7 +491,7 @@ export async function syncUserProfiles(): Promise<
 
       if (!existingProfile) {
         // Create new profile
-        const { error: insertError } = await adminClient
+        const { error: insertError } = await getAdminClient()
           .from("profiles")
           .insert({
             id: user.id,
@@ -502,7 +505,7 @@ export async function syncUserProfiles(): Promise<
         if (!insertError) created++;
       } else {
         // Update email if needed
-        const { error: updateError } = await adminClient
+        const { error: updateError } = await getAdminClient()
           .from("profiles")
           .update({
             email: user.email,
@@ -546,7 +549,7 @@ export async function verifySupabaseConnection(): Promise<{
   try {
     // Test basic connection
     const { data: sessionData, error: sessionError } =
-      await supabaseClient.auth.getSession();
+      await supabase.auth.getSession();
 
     if (sessionError) {
       return {
@@ -560,7 +563,7 @@ export async function verifySupabaseConnection(): Promise<{
 
     // Check if profile table exists by attempting a count
     try {
-      const { count, error: countError } = await supabaseClient
+      const { count, error: countError } = await supabase
         .from("profiles")
         .select("*", { count: "exact", head: true });
 
@@ -575,7 +578,7 @@ export async function verifySupabaseConnection(): Promise<{
       details.profile = true;
 
       // Test service role connection
-      const { error: adminError } = await adminClient
+      const { error: adminError } = await getAdminClient()
         .from("profiles")
         .select("id")
         .limit(1);
@@ -610,3 +613,20 @@ export async function verifySupabaseConnection(): Promise<{
     };
   }
 }
+
+// Use unique function names that don't conflict with other exports
+export async function checkProfileStatus(userId: string) {
+  const client = getSupabaseClient();
+  // Implementation
+}
+
+export async function verifyAdminAccess(userId: string) {
+  const adminClient = getAdminClient();
+  if (!adminClient) {
+    throw new Error("Admin client not available");
+  }
+  // Implementation
+}
+
+// Re-export auth and auth-related functions
+export { getAuth } from "./supabase-singleton";

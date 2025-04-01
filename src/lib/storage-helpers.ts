@@ -1,4 +1,4 @@
-import { supabaseClient } from "./supabase-core";
+import supabase from "./supabase";
 import { v4 as uuidv4 } from "uuid";
 import { updateUserProfile } from "./auth-helpers";
 
@@ -15,6 +15,12 @@ export async function uploadProfilePicture(
   file: File,
 ): Promise<UploadResponse> {
   try {
+    // Debugging: Check if supabase client is available
+    if (!supabase) {
+      console.error("Supabase client not available!");
+      throw new Error("Database connection not available");
+    }
+    
     if (!file) {
       throw new Error("No file provided");
     }
@@ -29,52 +35,71 @@ export async function uploadProfilePicture(
       throw new Error("Image size must be less than 2MB");
     }
 
+    console.log("Starting avatar upload for user:", userId);
+    console.log("File details:", file.name, file.type, file.size);
+    
     // Create a unique file name
     const fileExt = file.name.split(".").pop();
-    const fileName = `${userId}-${uuidv4()}.${fileExt}`;
-    const filePath = `profiles/${fileName}`;
+    const fileName = `${userId}-${Date.now()}.${fileExt}`;
 
-    // Upload the file to Supabase storage
-    const { data, error } = await supabaseClient.storage
-      .from("avatars")
-      .upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: true,
-      });
+    // Only use the avatars bucket with a simple path structure
+    const bucketName = "avatars";
+    const filePath = fileName;
 
-    if (error) throw error;
+    console.log(`Uploading avatar to bucket: ${bucketName}, path: ${filePath}`);
 
-    // Get the public URL
-    const { data: publicUrlData } = supabaseClient.storage
-      .from("avatars")
-      .getPublicUrl(filePath);
-
-    const avatarUrl = publicUrlData.publicUrl;
-
-    // Update the user profile with the avatar URL
-    const { data: updatedProfile, error: updateError } =
-      await updateUserProfile(userId, { avatar_url: avatarUrl });
-
-    if (updateError) {
-      console.error("Error updating profile with avatar URL:", updateError);
-      throw updateError;
-    }
-
-    // Store avatar URL in localStorage for immediate access
     try {
-      localStorage.setItem("akii-avatar-url", avatarUrl);
-      console.log("Avatar URL stored in localStorage:", avatarUrl);
-    } catch (storageError) {
-      console.error(
-        "Failed to store avatar URL in localStorage:",
-        storageError,
-      );
+      // First check if the bucket exists
+      const { data: buckets } = await supabase.storage.listBuckets();
+      
+      if (!buckets || !buckets.some(b => b.name === bucketName)) {
+        console.error(`Bucket ${bucketName} does not exist!`);
+        throw new Error(`Storage bucket "${bucketName}" not found. Please contact support.`);
+      }
+      
+      const { data, error } = await supabase.storage
+        .from(bucketName)
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+          contentType: file.type
+        });
+        
+      if (error) {
+        console.error(`Upload failed:`, error);
+        throw error;
+      }
+      
+      // Get the public URL
+      const { data: publicUrlData } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(filePath);
+
+      const avatarUrl = publicUrlData.publicUrl;
+      console.log("Got public URL:", avatarUrl);
+
+      // Update the user profile with the avatar URL
+      const { data: updatedProfile, error: updateError } =
+        await updateUserProfile(userId, { avatar_url: avatarUrl });
+
+      if (updateError) {
+        console.error("Error updating profile with avatar URL:", updateError);
+        throw updateError;
+      }
+
+      // Store avatar URL in localStorage for immediate access (backup only)
+      try {
+        localStorage.setItem("akii-avatar-url", avatarUrl);
+        console.log("Avatar URL stored in localStorage as backup:", avatarUrl);
+      } catch (storageError) {
+        console.error("Failed to store avatar URL in localStorage:", storageError);
+      }
+
+      return { url: avatarUrl, error: null };
+    } catch (error) {
+      console.error("Error uploading profile picture:", error);
+      return { url: null, error: error as Error };
     }
-
-    console.log("Profile updated with new avatar URL:", avatarUrl);
-    console.log("Updated profile:", updatedProfile);
-
-    return { url: avatarUrl, error: null };
   } catch (error) {
     console.error("Error uploading profile picture:", error);
     return { url: null, error: error as Error };
@@ -89,19 +114,32 @@ export async function deleteProfilePicture(
   avatarUrl: string,
 ): Promise<{ success: boolean; error: Error | null }> {
   try {
-    // Extract the file path from the URL
+    // Extract the file path from the URL - just get the filename
     const urlParts = avatarUrl.split("/");
-    const filePath = `profiles/${urlParts[urlParts.length - 1]}`;
+    const fileName = urlParts[urlParts.length - 1];
+    
+    console.log(`Deleting avatar file: ${fileName} from bucket: avatars`);
 
-    // Delete the file from storage
-    const { error } = await supabaseClient.storage
+    // Delete the file from the avatars bucket
+    const { error } = await supabase.storage
       .from("avatars")
-      .remove([filePath]);
+      .remove([fileName]);
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error deleting avatar file:", error);
+      throw error;
+    }
 
     // Update the user profile to remove the avatar URL
-    await updateUserProfile(userId, { avatar_url: null });
+    const { error: profileError } = await updateUserProfile(userId, { avatar_url: null });
+    
+    if (profileError) {
+      console.error("Error updating profile after avatar deletion:", profileError);
+      throw profileError;
+    }
+    
+    // Also clear from localStorage
+    localStorage.removeItem("akii-avatar-url");
 
     return { success: true, error: null };
   } catch (error) {

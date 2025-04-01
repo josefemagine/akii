@@ -40,7 +40,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
-import { supabaseAdmin, getAllUsers, setUserRole as updateDbUserRole, setUserAsAdmin } from "@/lib/supabase-admin";
+import { getAllUsers, setUserRole as updateDbUserRole, setUserAsAdmin, debugAdminStatus } from "@/lib/supabase-admin";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +50,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { getAdminClient } from "@/lib/supabase-singleton";
 
 interface User {
   id: string;
@@ -222,6 +223,15 @@ const UsersPage = () => {
     const fetchUsers = async () => {
       setLoading(true);
       try {
+        console.log("Fetching users with client from supabase-admin...");
+        
+        // Log available environment variables for debugging
+        console.log("Environment variables available:", {
+          url: import.meta.env.VITE_SUPABASE_URL ? "YES" : "NO",
+          anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ? "YES" : "NO",
+          serviceKey: import.meta.env.VITE_SUPABASE_SERVICE_KEY ? "YES" : "NO",
+        });
+        
         // Use our dedicated admin function to get all users
         const { users: dbUsers, error: usersError } = await getAllUsers();
 
@@ -335,22 +345,25 @@ const UsersPage = () => {
     try {
       console.log("Saving user updates:", editedUserData);
       
-      // Include all editable fields in the update data
-      const updateData: Record<string, any> = {
-        full_name: editedUserData.name,
-        role: editedUserData.role,
-        status: editedUserData.status,  // Now properly saving the status field
-      };
+      const adminClient = getAdminClient();
+      if (!adminClient) {
+        toast({
+          title: "Admin client not available",
+          description: "Check your environment variables",
+          variant: "destructive",
+        });
+        return;
+      }
       
-      console.log("Fields for update:", updateData);
-      
-      // Update user data in database 
-      const { data, error } = await supabaseAdmin
+      // Update user data in database
+      const { data, error } = await adminClient
         .from('profiles')
-        .update(updateData)
+        .update({
+          full_name: editedUserData.name,
+          role: editedUserData.role,
+          status: editedUserData.status,
+        })
         .eq('email', editingUser.email);
-
-      console.log("Database update response:", { data, error });
 
       if (error) {
         // Special handling for missing status column
@@ -362,7 +375,7 @@ const UsersPage = () => {
           });
           
           // Try again without the status field
-          const { data: retryData, error: retryError } = await supabaseAdmin
+          const { data: retryData, error: retryError } = await adminClient
             .from('profiles')
             .update({
               full_name: editedUserData.name,

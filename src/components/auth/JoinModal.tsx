@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,9 +18,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
+import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from './AuthStateManager';
+import supabase from "@/lib/supabase";
 
 const joinSchema = z
   .object({
+    firstName: z.string().min(1, "First name is required"),
+    lastName: z.string().min(1, "Last name is required"),
+    company: z.string().optional(),
     email: z.string().email("Please enter a valid email address"),
     password: z
       .string()
@@ -52,9 +57,8 @@ export default function JoinModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verificationStep, setVerificationStep] = useState(false);
-  const [verificationCode, setVerificationCode] = useState("");
   const [email, setEmail] = useState("");
-  const { signUp, signInWithGoogle, verifyOtp } = useAuth();
+  const { signUp, signInWithGoogle, user } = useAuth();
 
   const {
     register,
@@ -64,6 +68,9 @@ export default function JoinModal({
   } = useForm<JoinFormValues>({
     resolver: zodResolver(joinSchema),
     defaultValues: {
+      firstName: "",
+      lastName: "",
+      company: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -75,42 +82,44 @@ export default function JoinModal({
     setError(null);
 
     try {
-      const { error } = await signUp(data.email, data.password);
+      console.log("Attempting to create account with email:", data.email);
+      
+      // Add user metadata for first name, last name and company
+      const metadata = {
+        first_name: data.firstName,
+        last_name: data.lastName,
+        company: data.company || null,
+      };
+      
+      const { error } = await signUp(data.email, data.password, metadata);
       if (error) {
-        setError(error.message);
+        console.error("Signup error:", error.message);
+        
+        if (error.message.includes("rate limit") || error.message.includes("exceeded")) {
+          setError("Account creation rate limit reached. Please try again later or use a different email address.");
+        } else if (error.message.includes("timeout") || error.message.includes("network") || error.message.includes("establish connection")) {
+          setError("Connection error. The server is currently unreachable. Please check your internet connection and try again later.");
+        } else {
+          setError(error.message);
+        }
       } else {
         setEmail(data.email);
         setVerificationStep(true);
       }
     } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
       console.error("Sign up error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!verificationCode) {
-      setError("Please enter the verification code");
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const { error } = await verifyOtp(email, verificationCode);
-      if (error) {
-        setError(error.message);
+      // Handle specific error cases
+      if (err instanceof Error) {
+        if (err.message.includes("timeout") || err.message.includes("504") || err.message.includes("Gateway Timeout")) {
+          setError("Server timeout. The authentication service is not responding. Please try again later.");
+        } else if (err.message.includes("network") || err.message.includes("establish connection")) {
+          setError("Network error. Please check your internet connection and try again.");
+        } else {
+          setError(`Error: ${err.message}`);
+        }
       } else {
-        reset();
-        setVerificationStep(false);
-        onClose();
+        setError("An unexpected error occurred. Please try again.");
       }
-    } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
-      console.error("OTP verification error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -140,6 +149,114 @@ export default function JoinModal({
     onOpenLogin();
   };
 
+  // Force close the modal on route change or on component mount if already authenticated
+  useEffect(() => {
+    // Direct DOM-based solution that will forcibly close the modal
+    const forceCloseModal = () => {
+      console.log('[JoinModal] Force closing modal...');
+      
+      // First try using the onClose prop
+      onClose();
+      
+      // As a fallback, find and click any close button in the modal
+      setTimeout(() => {
+        try {
+          // Try clicking the close button
+          const closeButton = document.querySelector('[data-dialog-close="true"]');
+          if (closeButton) {
+            console.log('[JoinModal] Found close button, clicking it');
+            (closeButton as HTMLElement).click();
+          }
+          
+          // Try clicking the overlay as another fallback
+          const overlay = document.querySelector('[data-radix-dialog-overlay]');
+          if (overlay) {
+            console.log('[JoinModal] Found overlay, clicking it');
+            (overlay as HTMLElement).click();
+          }
+        } catch (e) {
+          console.error('[JoinModal] Error in force close:', e);
+        }
+      }, 100);
+    };
+
+    // Check for auth tokens directly from localStorage as a backup method
+    const checkTokensDirectly = () => {
+      const hasToken = localStorage.getItem('supabase.auth.token') !== null;
+      return hasToken;
+    };
+    
+    // Force close if already authenticated
+    if (user || checkTokensDirectly()) {
+      console.log('[JoinModal] User or token detected, force closing modal');
+      forceCloseModal();
+    }
+    
+    // Directly listen for storage events to detect auth changes
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && (e.key.includes('supabase.auth.token') || e.key.includes('supabase.auth.refreshToken'))) {
+        console.log('[JoinModal] Auth storage changed, likely authenticated');
+        forceCloseModal();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [onClose, user]);
+  
+  // Modify the periodic auth check to stop after detecting authentication
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let checkCount = 0;
+    const MAX_CHECKS = 10; // Limit the number of checks to prevent infinite loops
+    
+    const checkAndCleanup = async () => {
+      checkCount++;
+      const { data } = await supabase.auth.getSession();
+      const sessionExists = !!data?.session;
+      
+      console.log(`[JoinModal] Auth check #${checkCount}:`, { 
+        session: sessionExists, 
+        user: !!user,
+        isOpen 
+      });
+      
+      // Stop checking if authenticated or exceeded max checks
+      if (sessionExists || user || checkCount >= MAX_CHECKS) {
+        if (sessionExists || user) {
+          console.log('[JoinModal] Detected authentication, closing modal');
+          onClose();
+        }
+        if (interval) {
+          console.log('[JoinModal] Stopping auth check interval');
+          clearInterval(interval);
+          interval = null;
+        }
+      }
+    };
+    
+    // Only start the interval if the modal is open
+    if (isOpen) {
+      // Check immediately
+      checkAndCleanup();
+      
+      // Then check periodically
+      interval = setInterval(() => {
+        checkAndCleanup();
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isOpen, user, onClose]);
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
@@ -162,32 +279,61 @@ export default function JoinModal({
               </Alert>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="verificationCode">Verification Code</Label>
-              <Input
-                id="verificationCode"
-                type="text"
-                placeholder="Enter 6-digit code"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
-                disabled={isLoading}
-              />
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <svg 
+                  width="50" 
+                  height="50" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="text-primary"
+                >
+                  <path 
+                    d="M22 12C22 17.5 17.5 22 12 22C6.5 22 2 17.5 2 12C2 6.5 6.5 2 12 2C17.5 2 22 6.5 22 12Z" 
+                    stroke="currentColor" 
+                    strokeWidth="1.5" 
+                  />
+                  <path 
+                    d="M12 8V13" 
+                    stroke="currentColor" 
+                    strokeWidth="1.5" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  />
+                  <path 
+                    d="M12 16H12.01" 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+              
+              <h3 className="text-lg font-medium">Check your email</h3>
+              
+              <p className="text-sm text-muted-foreground">
+                We've sent a verification link to <span className="font-medium">{email}</span>.
+                Please check your inbox and click the link to verify your account.
+              </p>
+              
+              <div className="text-sm text-muted-foreground">
+                <p>After verification, you'll be automatically logged in.</p>
+                <p className="mt-2">Can't find the email? Check your spam folder.</p>
+              </div>
             </div>
 
             <Button
               type="button"
+              variant="outline"
               className="w-full"
-              onClick={handleVerifyOtp}
-              disabled={isLoading}
+              onClick={() => {
+                reset();
+                setVerificationStep(false);
+              }}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Verifying...
-                </>
-              ) : (
-                "Verify Email"
-              )}
+              Back to Sign Up
             </Button>
           </div>
         ) : (
@@ -199,11 +345,59 @@ export default function JoinModal({
                 </Alert>
               )}
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input
+                    id="firstName"
+                    type="text"
+                    autoComplete="given-name"
+                    placeholder="John"
+                    {...register("firstName")}
+                    disabled={isLoading}
+                  />
+                  {errors.firstName && (
+                    <p className="text-sm text-red-500">{errors.firstName.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    type="text"
+                    autoComplete="family-name"
+                    placeholder="Doe"
+                    {...register("lastName")}
+                    disabled={isLoading}
+                  />
+                  {errors.lastName && (
+                    <p className="text-sm text-red-500">{errors.lastName.message}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="company">Company</Label>
+                <Input
+                  id="company"
+                  type="text"
+                  autoComplete="organization"
+                  placeholder="Your Company (Optional)"
+                  {...register("company")}
+                  disabled={isLoading}
+                />
+                {errors.company && (
+                  <p className="text-sm text-red-500">{errors.company.message}</p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="username"
                   placeholder="name@example.com"
                   {...register("email")}
                   disabled={isLoading}
@@ -218,6 +412,7 @@ export default function JoinModal({
                 <Input
                   id="password"
                   type="password"
+                  autoComplete="new-password"
                   {...register("password")}
                   disabled={isLoading}
                 />
@@ -233,6 +428,7 @@ export default function JoinModal({
                 <Input
                   id="confirmPassword"
                   type="password"
+                  autoComplete="new-password"
                   {...register("confirmPassword")}
                   disabled={isLoading}
                 />

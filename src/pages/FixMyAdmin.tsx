@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { supabaseAdmin as adminClient, supabaseClient } from "@/lib/auth-core";
+import { supabaseAdmin as adminClient, supabase } from "@/lib/supabase";
 
 export default function FixMyAdmin() {
   const [loading, setLoading] = useState(false);
@@ -45,7 +45,7 @@ export default function FixMyAdmin() {
     setMessage("Checking database role...");
     try {
       // Get email from current session
-      const { data: { session } } = await supabaseClient.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       
       if (!session || !session.user || !session.user.email) {
         setMessage("No active session found. Please sign in first.");
@@ -93,7 +93,7 @@ export default function FixMyAdmin() {
     setMessage("Refreshing role...");
     try {
       // Get current user ID
-      const { data: { session } } = await supabaseClient.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       
       if (!session || !session.user) {
         setMessage("No active session found. Please sign in first.");
@@ -102,7 +102,7 @@ export default function FixMyAdmin() {
       }
       
       // Force refresh the session
-      await supabaseClient.auth.refreshSession();
+      await supabase.auth.refreshSession();
       
       setMessage("Session refreshed. Please check if your role has been updated.");
       setStatus("success");
@@ -127,7 +127,7 @@ export default function FixMyAdmin() {
     setMessage("Setting admin override...");
     try {
       // Get email from current session
-      const { data: { session } } = await supabaseClient.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       
       if (!session || !session.user || !session.user.email) {
         setMessage("No active session found. Please sign in first.");

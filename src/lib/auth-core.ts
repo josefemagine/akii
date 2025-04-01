@@ -1,14 +1,21 @@
 /**
- * Centralized authentication client configuration
- * This file creates and exports a single instance of the Supabase auth client
- * to prevent duplicate GoTrueClient instances across the application
+ * AUTHENTICATION CORE MODULE
+ * 
+ * Central module for all authentication-related functionality.
+ * This module provides core auth functions that are used throughout the app.
  */
 
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/supabase";
-import { isBrowser } from "./browser-check";
+import type { PostgrestError } from "@supabase/supabase-js";
+import { supabase, supabaseAdmin, auth, getAuth } from "./supabase-client";
 
-// Define core types
+// Re-export Supabase instances and auth
+export { supabase, supabaseAdmin, auth, getAuth };
+
+// Re-export types from supabase
+import type { Session, User } from "@supabase/supabase-js";
+export type { Session, User };
+
+// Core type definitions
 export type UserRole = "user" | "admin" | "team_member";
 export type UserStatus = "active" | "inactive" | "banned" | "pending";
 
@@ -17,129 +24,25 @@ export interface UserProfile {
   email: string;
   role: UserRole;
   status: UserStatus;
+  first_name?: string;
+  last_name?: string;
+  company?: string;
   full_name?: string;
   avatar_url?: string;
   created_at?: string;
   updated_at?: string;
 }
 
-// Environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabaseServiceKey =
-  import.meta.env.VITE_SUPABASE_SERVICE_KEY ||
-  import.meta.env.SUPABASE_SERVICE_KEY;
-
-// Validate environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    "Missing Supabase environment variables. Check your .env file.",
-  );
+export interface AuthResponse<T = any> {
+  data: T | null;
+  error: Error | PostgrestError | null;
 }
 
-// Create a single instance of the Supabase client for public usage
-export const supabaseClient = createClient<Database>(
-  supabaseUrl,
-  supabaseAnonKey,
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-    },
-    global: {
-      headers: {
-        "x-application-name": "akii-web-auth-core",
-      },
-    },
-  },
-);
-
-// Create a single instance of the Supabase client with admin privileges
-// Only use this for server-side operations that require elevated permissions
-export const supabaseAdmin = supabaseServiceKey
-  ? createClient<Database>(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-      global: {
-        headers: {
-          "x-application-name": "akii-web-admin-core",
-        },
-      },
-    })
-  : null;
-
-// Export the auth client for direct access when needed
-export const supabase = supabaseClient;
-
-// Export the auth instance for direct access when needed
-export const auth = supabaseClient.auth;
-
-// Clear all auth state including Supabase stored session
-export function clearAuthState() {
+// Session management functions
+export async function getCurrentSession(): Promise<AuthResponse<Session>> {
   try {
-    // Clear auth-related items from localStorage
-    localStorage.removeItem("akii_admin_override");
-    localStorage.removeItem("akii_admin_override_email");
-    localStorage.removeItem("akii_admin_override_expiry");
-    localStorage.removeItem("akii-auth-user-email");
-    localStorage.removeItem("akii-auth-user-id");
-    localStorage.removeItem("akii-auth-timestamp");
-    return true;
-  } catch (error) {
-    console.error("Error clearing auth state:", error);
-    return false;
-  }
-}
-
-// Re-export all the existing functions from the original file
-export async function signIn(email: string, password: string) {
-  try {
-    // Clear any previous auth state
-    await clearAuthState();
-
-    // Sign in with Supabase
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { data, error } = await auth.getSession();
     if (error) throw error;
-    if (!data.user) throw new Error("No user returned after sign in");
-
-    // Ensure profile exists and sync user data
-    await syncUserProfile(data.user);
-
-    return { data: data.user, error: null };
-  } catch (error) {
-    console.error("Sign in error:", error);
-    return { data: null, error: error as Error };
-  }
-}
-
-export async function signOut() {
-  try {
-    // Clear all local storage related to auth
-    await clearAuthState();
-
-    // Sign out from Supabase
-    const { error } = await supabaseClient.auth.signOut();
-    if (error) throw error;
-
-    return { data: true, error: null };
-  } catch (error) {
-    console.error("Sign out error:", error);
-    return { data: null, error: error as Error };
-  }
-}
-
-export async function getCurrentSession() {
-  try {
-    const { data, error } = await supabaseClient.auth.getSession();
-    if (error) throw error;
-
     return { data: data.session, error: null };
   } catch (error) {
     console.error("Get session error:", error);
@@ -147,11 +50,10 @@ export async function getCurrentSession() {
   }
 }
 
-export async function getCurrentUser() {
+export async function getCurrentUser(): Promise<AuthResponse<User>> {
   try {
-    const { data, error } = await supabaseClient.auth.getUser();
+    const { data, error } = await auth.getUser();
     if (error) throw error;
-
     return { data: data.user, error: null };
   } catch (error) {
     console.error("Get user error:", error);
@@ -159,132 +61,96 @@ export async function getCurrentUser() {
   }
 }
 
-// User profile management
-export async function getUserProfile(userId: string) {
+// User profile functions
+export async function getUserProfile(
+  userId?: string
+): Promise<AuthResponse<UserProfile>> {
   try {
-    // Get from database
-    const { data, error } = await supabaseClient
+    // Guard against undefined userId
+    if (!userId) {
+      return { 
+        data: null, 
+        error: new Error("User ID is required to fetch profile") 
+      };
+    }
+
+    const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .single();
 
-    if (error) throw error;
-    if (!data) throw new Error("Profile not found");
+    if (error) {
+      // No data found is not a critical error
+      if (error.code === "PGRST116") {
+        return { data: null, error: null };
+      }
+      throw error;
+    }
 
-    const profile: UserProfile = {
-      id: data.id,
-      email: data.email,
-      role: (data.role as UserRole) || "user",
-      status: (data.status as UserStatus) || "active",
-      full_name: data.full_name,
-      avatar_url: data.avatar_url,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-    };
-
-    return { data: profile, error: null };
+    return { data: data as UserProfile, error: null };
   } catch (error) {
     console.error("Get user profile error:", error);
     return { data: null, error: error as Error };
   }
 }
 
-export async function syncUserProfile(user: any) {
+export async function ensureUserProfile(
+  user: User
+): Promise<AuthResponse<UserProfile>> {
   try {
-    if (!user || !user.id || !user.email) {
-      throw new Error("Invalid user data for sync");
-    }
-
-    if (!supabaseAdmin) {
-      throw new Error("Admin client not available for profile sync");
+    if (!user?.id || !user?.email) {
+      throw new Error("Invalid user data");
     }
 
     // Check if profile exists
-    const { data: existingProfile, error: checkError } = await supabaseAdmin
+    const { data: existingProfile } = await getUserProfile(user.id);
+    
+    if (existingProfile) {
+      return { data: existingProfile, error: null };
+    }
+
+    // Create profile if it doesn't exist
+    const { data, error } = await supabase
       .from("profiles")
-      .select("*")
-      .eq("id", user.id)
+      .insert({
+        id: user.id,
+        email: user.email,
+        first_name: user.user_metadata?.first_name,
+        last_name: user.user_metadata?.last_name,
+        company: user.user_metadata?.company,
+        role: "user",
+        status: "active",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
       .single();
 
-    if (checkError && checkError.code !== "PGRST116") {
-      // Real error, not just "no rows returned"
-      throw checkError;
-    }
-
-    if (!existingProfile) {
-      // Create profile if it doesn't exist
-      const { data: newProfile, error: insertError } = await supabaseAdmin
-        .from("profiles")
-        .insert({
-          id: user.id,
-          email: user.email,
-          role: "user",
-          status: "active",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      if (newProfile) {
-        const profile: UserProfile = {
-          id: newProfile.id,
-          email: newProfile.email,
-          role: (newProfile.role as UserRole) || "user",
-          status: (newProfile.status as UserStatus) || "active",
-          created_at: newProfile.created_at,
-          updated_at: newProfile.updated_at,
-        };
-
-        return { data: profile, error: null };
-      }
-    }
-
-    // Return the existing profile
-    const profile: UserProfile = {
-      id: existingProfile?.id,
-      email: existingProfile?.email,
-      role: (existingProfile?.role as UserRole) || "user",
-      status: (existingProfile?.status as UserStatus) || "active",
-      full_name: existingProfile?.full_name,
-      avatar_url: existingProfile?.avatar_url,
-      created_at: existingProfile?.created_at,
-      updated_at: existingProfile?.updated_at,
-    };
-
-    return { data: profile, error: null };
+    if (error) throw error;
+    return { data: data as UserProfile, error: null };
   } catch (error) {
-    console.error("Sync user profile error:", error);
+    console.error("Ensure user profile error:", error);
     return { data: null, error: error as Error };
   }
 }
 
-export async function updateUserProfile(userId: string, updates: Partial<UserProfile>) {
+export async function updateUserProfile(
+  userId: string, 
+  updates: Partial<UserProfile>
+): Promise<AuthResponse<UserProfile>> {
   try {
-    // Validate updates
-    const allowedFields = [
-      "full_name",
-      "avatar_url",
-      "status",
-      "updated_at",
-    ];
+    // Prevent updating protected fields
+    const safeUpdates = { ...updates };
+    delete safeUpdates.id;
+    delete safeUpdates.email;
+    delete safeUpdates.role; // Use setUserRole for this
+    delete safeUpdates.status; // Use setUserStatus for this
 
-    // Remove any fields that shouldn't be updated by regular users
-    const safeUpdates: Record<string, any> = {};
-    for (const key of allowedFields) {
-      if (key in updates) {
-        safeUpdates[key] = (updates as any)[key];
-      }
-    }
-
-    // Always update the timestamp
+    // Add timestamp
     safeUpdates.updated_at = new Date().toISOString();
 
-    // Update profile
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from("profiles")
       .update(safeUpdates)
       .eq("id", userId)
@@ -292,8 +158,6 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
       .single();
 
     if (error) throw error;
-    if (!data) throw new Error("Profile not found after update");
-
     return { data: data as UserProfile, error: null };
   } catch (error) {
     console.error("Update user profile error:", error);
@@ -301,14 +165,17 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   }
 }
 
-export async function setUserRole(userId: string, role: UserRole) {
+export async function setUserRole(
+  userId: string,
+  role: UserRole
+): Promise<AuthResponse<UserProfile>> {
   try {
-    if (!supabaseAdmin) {
-      throw new Error("Admin client not available");
+    const adminClient = supabaseAdmin;
+    if (!adminClient) {
+      throw new Error("Admin client not available - cannot set user role");
     }
 
-    // Only admins should be able to change roles
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await adminClient
       .from("profiles")
       .update({
         role,
@@ -319,23 +186,24 @@ export async function setUserRole(userId: string, role: UserRole) {
       .single();
 
     if (error) throw error;
-    if (!data) throw new Error("Profile not found");
-
-    return { data: data.role as UserRole, error: null };
+    return { data: data as UserProfile, error: null };
   } catch (error) {
     console.error("Set user role error:", error);
     return { data: null, error: error as Error };
   }
 }
 
-export async function setUserStatus(userId: string, status: UserStatus) {
+export async function setUserStatus(
+  userId: string,
+  status: UserStatus
+): Promise<AuthResponse<UserProfile>> {
   try {
-    if (!supabaseAdmin) {
-      throw new Error("Admin client not available");
+    const adminClient = supabaseAdmin;
+    if (!adminClient) {
+      throw new Error("Admin client not available - cannot set user status");
     }
 
-    // Only admins should be able to change status
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await adminClient
       .from("profiles")
       .update({
         status,
@@ -346,59 +214,194 @@ export async function setUserStatus(userId: string, status: UserStatus) {
       .single();
 
     if (error) throw error;
-    if (!data) throw new Error("Profile not found");
-
-    return { data: data.status as UserStatus, error: null };
+    return { data: data as UserProfile, error: null };
   } catch (error) {
     console.error("Set user status error:", error);
     return { data: null, error: error as Error };
   }
 }
 
-export async function checkUserStatus(userId: string) {
+// Authentication functions
+export async function signIn(
+  email: string,
+  password: string
+): Promise<AuthResponse<User>> {
   try {
-    const { data, error } = await supabaseClient
-      .from("profiles")
-      .select("status")
-      .eq("id", userId)
-      .single();
+    // Clear stored auth data
+    clearStoredAuth();
+    
+    // Sign in
+    const { data, error } = await auth.signInWithPassword({
+      email,
+      password,
+    });
 
     if (error) throw error;
-    if (!data) throw new Error("No profile found");
+    if (!data.user) throw new Error("No user returned after sign in");
 
-    return { data: data.status as UserStatus, error: null };
+    // Store backup auth data
+    try {
+      localStorage.setItem("akii-auth-user-email", email);
+      localStorage.setItem("akii-auth-user-id", data.user.id);
+      localStorage.setItem("akii-auth-timestamp", Date.now().toString());
+    } catch (storageError) {
+      console.error("Failed to store backup auth data:", storageError);
+    }
+
+    // Ensure profile exists
+    await ensureUserProfile(data.user);
+
+    return { data: data.user, error: null };
   } catch (error) {
-    console.error("Check user status error:", error);
+    console.error("Sign in error:", error);
     return { data: null, error: error as Error };
   }
 }
 
-// Admin override functions
-export function enableAdminOverride(email: string): boolean {
+export async function signUp(
+  email: string,
+  password: string,
+  metadata?: Record<string, any>
+): Promise<AuthResponse<User>> {
   try {
-    localStorage.setItem("akii_admin_override", "true");
-    localStorage.setItem("akii_admin_override_email", email);
-    localStorage.setItem(
-      "akii_admin_override_expiry",
-      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    );
-    return true;
+    const { data, error } = await auth.signUp({
+      email,
+      password,
+      options: {
+        data: metadata,
+      },
+    });
+
+    if (error) throw error;
+    if (!data?.user) throw new Error("No user returned from sign up");
+    
+    // Create or ensure user profile with metadata
+    // Note: In some auth flows, profile creation might need to happen after email confirmation
+    // but we'll attempt it now to capture metadata
+    if (data.user.id && data.user.email) {
+      console.log("Creating initial profile with metadata:", metadata);
+      
+      try {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .insert({
+            id: data.user.id,
+            email: data.user.email,
+            first_name: metadata?.first_name || data.user.user_metadata?.first_name,
+            last_name: metadata?.last_name || data.user.user_metadata?.last_name,
+            company: metadata?.company || data.user.user_metadata?.company,
+            role: "user",
+            status: "active",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          
+        if (profileError) {
+          console.error("Profile creation during signup failed:", profileError);
+        } else {
+          console.log("Profile created successfully during signup");
+        }
+      } catch (profileError) {
+        console.error("Exception creating profile during signup:", profileError);
+        // We don't throw here as signup was successful even if profile creation failed
+      }
+    }
+
+    return { data: data.user, error: null };
   } catch (error) {
-    console.error("Error enabling admin override:", error);
-    return false;
+    console.error("Sign up error:", error);
+    return { data: null, error: error as Error };
   }
 }
 
+export async function signOut(): Promise<AuthResponse<boolean>> {
+  try {
+    // Clear stored auth data
+    clearStoredAuth();
+    
+    // Sign out
+    const { error } = await auth.signOut();
+    if (error) throw error;
+    
+    return { data: true, error: null };
+  } catch (error) {
+    console.error("Sign out error:", error);
+    return { data: false, error: error as Error };
+  }
+}
+
+export async function signInWithOAuth(
+  provider: 'google' | 'github'
+): Promise<AuthResponse<any>> {
+  try {
+    const { data, error } = await auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    console.error(`Sign in with ${provider} error:`, error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function resetPassword(
+  email: string
+): Promise<AuthResponse<boolean>> {
+  try {
+    const { error } = await auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) throw error;
+    return { data: true, error: null };
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return { data: false, error: error as Error };
+  }
+}
+
+export async function updatePassword(
+  password: string
+): Promise<AuthResponse<User>> {
+  try {
+    const { data, error } = await auth.updateUser({
+      password,
+    });
+
+    if (error) throw error;
+    return { data: data.user, error: null };
+  } catch (error) {
+    console.error("Update password error:", error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// Helper functions
 export function hasValidAdminOverride(email: string): boolean {
   try {
-    const override = localStorage.getItem("akii_admin_override") === "true";
-    const storedEmail = localStorage.getItem("akii_admin_override_email");
-    const expiryStr = localStorage.getItem("akii_admin_override_expiry");
-    
-    if (override && storedEmail === email && expiryStr) {
-      const expiry = new Date(expiryStr);
-      return expiry > new Date();
+    // Check for Josef (special case)
+    if (email === "josef@holm.com") {
+      return true;
     }
+
+    // Check for valid override
+    const override = localStorage.getItem("akii_admin_override");
+    const overrideEmail = localStorage.getItem("akii_admin_override_email");
+    const overrideExpiry = localStorage.getItem("akii_admin_override_expiry");
+
+    if (override === "true" && overrideEmail === email && overrideExpiry) {
+      // Check if override is expired
+      const expiryDate = new Date(overrideExpiry);
+      if (expiryDate > new Date()) {
+        return true;
+      }
+    }
+
     return false;
   } catch (error) {
     console.error("Error checking admin override:", error);
@@ -406,40 +409,115 @@ export function hasValidAdminOverride(email: string): boolean {
   }
 }
 
-export function setUserRoleByEmail(email: string, role: UserRole) {
+export function clearStoredAuth(): void {
   try {
-    if (!supabaseAdmin) {
-      throw new Error("Admin client not available");
+    // Don't clear auth data for Josef (special case)
+    const isJosef = localStorage.getItem("akii-auth-user-email") === "josef@holm.com";
+
+    if (!isJosef) {
+      // Clear Supabase tokens
+      localStorage.removeItem("sb-access-token");
+      localStorage.removeItem("sb-refresh-token");
+
+      // Clear any auth state flags
+      localStorage.removeItem("auth-in-progress");
+      localStorage.removeItem("auth-in-progress-time");
+
+      // Clear admin overrides
+      localStorage.removeItem("akii_admin_override");
+      localStorage.removeItem("akii_admin_override_email");
+      localStorage.removeItem("akii_admin_override_expiry");
+
+      // Clear backup auth data
+      localStorage.removeItem("akii-auth-user-email");
+      localStorage.removeItem("akii-auth-user-id");
+      localStorage.removeItem("akii-auth-timestamp");
     }
-    
-    return supabaseAdmin
-      .from("profiles")
-      .update({ role })
-      .eq("email", email);
   } catch (error) {
-    console.error("Error setting user role by email:", error);
-    throw error;
+    console.error("Error clearing auth state:", error);
   }
 }
 
-export async function forceJosefAsAdmin(): Promise<{ message: string, error: Error | null }> {
+// Admin functions
+export async function getAllUsers(): Promise<AuthResponse<UserProfile[]>> {
   try {
-    const email = "josef@holm.com";
-    localStorage.setItem("akii_admin_override", "true");
-    localStorage.setItem("akii_admin_override_email", email);
-    localStorage.setItem(
-      "akii_admin_override_expiry",
-      new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-    );
-    return { 
-      message: "Josef admin access granted successfully", 
-      error: null 
+    const adminClient = supabaseAdmin;
+    if (!adminClient) {
+      throw new Error("Admin client not available - cannot fetch all users");
+    }
+
+    const { data, error } = await adminClient
+      .from("profiles")
+      .select("*");
+
+    if (error) throw error;
+    return { data: data as UserProfile[], error: null };
+  } catch (error) {
+    console.error("Get all users error:", error);
+    return { data: [], error: error as Error };
+  }
+}
+
+// Debugging functions
+export async function verifySupabaseConnection(): Promise<{
+  success: boolean;
+  message: string;
+  details: Record<string, boolean>;
+}> {
+  const details = {
+    connection: false,
+    publicClient: false,
+    adminClient: false,
+    auth: false,
+    profilesTable: false,
+  };
+
+  try {
+    // Test public client connection
+    const { data: sessionData, error: sessionError } = await getCurrentSession();
+    details.connection = !sessionError;
+    details.auth = !!getAuth();
+
+    // Check if we can access the profiles table
+    try {
+      const { error: countError } = await supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true });
+      
+      details.publicClient = !countError;
+      details.profilesTable = !countError;
+    } catch (e) {
+      details.profilesTable = false;
+    }
+
+    // Test admin client connection
+    try {
+      if (supabaseAdmin) {
+        const { error: adminError } = await supabaseAdmin
+          .from("profiles")
+          .select("id")
+          .limit(1);
+        
+        details.adminClient = !adminError;
+      }
+    } catch (e) {
+      details.adminClient = false;
+    }
+
+    const success = details.connection && details.publicClient;
+    
+    return {
+      success,
+      message: success 
+        ? "Supabase connection verified successfully" 
+        : "Issues detected with Supabase connection",
+      details,
     };
   } catch (error) {
-    console.error("Error forcing Josef as admin:", error);
-    return { 
-      message: "Failed to grant admin access", 
-      error: error instanceof Error ? error : new Error(String(error)) 
+    return {
+      success: false,
+      message: `Failed to verify connection: ${error instanceof Error ? error.message : String(error)}`,
+      details,
     };
   }
 }

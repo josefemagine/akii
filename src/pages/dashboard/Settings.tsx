@@ -1,933 +1,551 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useSearch } from "@/contexts/SearchContext";
-import { toast } from "@/components/ui/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { FileInput } from "@/components/ui/file-input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  User,
-  Lock,
-  Bell,
-  Globe,
-  CreditCard,
-  Users,
-  Upload,
-  CheckCircle,
-  Loader2,
-  X,
-  Search,
-} from "lucide-react";
-import {
-  uploadProfilePicture,
-  deleteProfilePicture,
-} from "@/lib/storage-helpers";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
+import AvatarManager from "@/components/avatar/AvatarManager";
+import { supabase } from "@/lib/supabase-singleton";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Loader2, LogIn, RefreshCw } from "lucide-react";
+
+// Define Profile types
+interface UserProfile {
+  id: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  company?: string;
+  role?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+  avatar_url?: string;
+  needsRefresh?: boolean;
+}
+
+interface AuthDebugState {
+  hasAuthUser: boolean;
+  authUserId?: string;
+  authUserEmail?: string;
+  hasSession: boolean;
+  sessionUserId?: string;
+  sessionUserEmail?: string;
+  sessionError?: string;
+  storedEmail?: string;
+  storedUserId?: string;
+  timestamp: string;
+}
 
 const Settings = () => {
-  const state = useAuth();
-  const { searchValue, setSearchValue } = useSearch();
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [filteredTabs, setFilteredTabs] = useState<string[]>([]);
+  // State
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [authState, setAuthState] = useState<AuthDebugState | null>(null);
+  
+  // Navigation
+  const navigate = useNavigate();
+  
+  // Get auth from context
+  const { user: authUser } = useAuth();
 
-  // Log user data for debugging
-  React.useEffect(() => {
-    console.log("Settings page user data:", {
-      user: state.user,
-      profile: state.profile,
-      email: state.user?.email,
-      id: state.user?.id,
-    });
-  }, [state.user, state.profile]);
-
-  // Set preview URL when a file is selected
+  // Check auth state first
   useEffect(() => {
-    if (selectedFile) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result as string);
-      };
-      reader.readAsDataURL(selectedFile);
-    } else {
-      setPreviewUrl(null);
+    async function checkAuthState() {
+      try {
+        console.log("Settings: Checking auth state...");
+        setIsLoading(true);
+        
+        // Try to get session directly from Supabase
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        // Get stored email/ID from localStorage as fallback
+        const storedEmail = localStorage.getItem("akii-auth-user-email");
+        const storedUserId = localStorage.getItem("akii-auth-user-id");
+        
+        // Collect auth state for debugging
+        const authStateInfo: AuthDebugState = {
+          hasAuthUser: !!authUser,
+          authUserId: authUser?.id,
+          authUserEmail: authUser?.email,
+          hasSession: !!sessionData?.session,
+          sessionUserId: sessionData?.session?.user?.id,
+          sessionUserEmail: sessionData?.session?.user?.email,
+          sessionError: sessionError?.message,
+          storedEmail,
+          storedUserId,
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log("Settings: Auth state info:", authStateInfo);
+        setAuthState(authStateInfo);
+        
+        // Check if we have any valid user ID
+        const userId = authUser?.id || sessionData?.session?.user?.id || storedUserId;
+        
+        if (!userId) {
+          console.error("Settings: No authenticated user ID found");
+          setError("You are not logged in. Please sign in to access settings.");
+          setIsLoading(false);
+          return;
+        }
+        
+        // We have a user ID, try to load the profile
+        await loadUserProfile(userId);
+      } catch (error) {
+        console.error("Settings: Error checking auth state:", error);
+        setError("Error checking authentication. Please try signing in again.");
+        setIsLoading(false);
+      }
     }
-  }, [selectedFile]);
+    
+    checkAuthState();
+  }, [authUser]);
 
-  // Filter tabs based on search value
-  useEffect(() => {
-    const allTabs = [
-      "profile",
-      "security",
-      "notifications",
-      "billing",
-      "subscription",
-      "team",
-      "api",
-    ];
-    if (!searchValue) {
-      setFilteredTabs(allTabs);
+  // Load user profile
+  async function loadUserProfile(userId: string) {
+    try {
+      console.log("Settings: Loading profile for user ID:", userId);
+      
+      // Add timeout protection
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Profile fetch timed out after 10 seconds")), 10000)
+      );
+      
+      // Race the profile fetch against a timeout
+      const profilePromise = supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+      // Use Promise.race to implement a timeout
+      const { data: profileData, error: profileError } = await Promise.race([
+        profilePromise,
+        timeoutPromise.then(() => ({ data: null, error: new Error("Timeout") }))
+      ]) as any;
+        
+      if (profileError) {
+        // Log more details about the error
+        console.error("Settings: Profile load error details:", {
+          error: profileError,
+          errorCode: profileError.code,
+          errorMessage: profileError.message,
+          errorDetails: profileError.details,
+          userId
+        });
+        
+        // Handle the "not found" case
+        if (profileError.code === 'PGRST116') {
+          // Special case for Josef to auto-create profile with hardcoded ID
+          if (authState?.authUserEmail === "josef@holm.com" || authState?.storedEmail === "josef@holm.com") {
+            return await createJosefProfile();
+          }
+          
+          console.log("Settings: Profile not found, will need to create one");
+          setError("Your profile hasn't been set up yet. Please complete the form below to create it.");
+          
+          // Start with a blank profile
+          setProfile({
+            id: userId,
+            email: authState?.authUserEmail || authState?.sessionUserEmail || authState?.storedEmail || "",
+          });
+          setIsLoading(false);
+          return;
+        }
+        
+        // Other database errors
+        throw new Error(`Database error: ${profileError.message}`);
+      }
+      
+      // Profile found
+      console.log("Settings: Profile loaded successfully");
+      setProfile(profileData);
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Settings: Error loading user profile:", error);
+      
+      // Show more specific error messages to the user
+      if (error instanceof Error) {
+        if (error.message.includes("timeout") || error.message.includes("Timeout")) {
+          setError("Profile loading timed out. The database might be unresponsive. Please try refreshing the page.");
+        } else if (error.message.includes("network")) {
+          setError("Network error while loading your profile. Please check your internet connection.");
+        } else {
+          setError(`Error loading your profile: ${error.message}. Please try refreshing the page.`);
+        }
+      } else {
+        setError("Error loading your profile. Please try again later.");
+      }
+      
+      // Even with an error, stop the loading state
+      setIsLoading(false);
+      
+      // Add a manual refresh button by setting profile to a special state
+      setProfile({ 
+        id: userId || 'unknown',
+        email: authState?.authUserEmail || authState?.sessionUserEmail || authState?.storedEmail || 'unknown',
+        needsRefresh: true 
+      });
+    }
+  }
+  
+  // Create profile for Josef with hardcoded ID
+  async function createJosefProfile() {
+    try {
+      console.log("Settings: Creating profile for Josef");
+      const josefId = "b574f273-e0e1-4cb8-8c98-f5a7569234c8";
+      
+      const { data: newProfile, error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          id: josefId,
+          email: "josef@holm.com",
+          first_name: "Josef",
+          last_name: "Holm",
+          role: "admin",
+          status: "active",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+        
+      if (createError) {
+        throw new Error(`Failed to create profile: ${createError.message}`);
+      }
+      
+      console.log("Settings: Josef's profile created successfully");
+      setProfile(newProfile);
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Settings: Error creating Josef's profile:", error);
+      setError(`Error creating profile: ${error instanceof Error ? error.message : String(error)}`);
+      setIsLoading(false);
+    }
+  }
+
+  // Handle profile update/creation
+  const handleProfileUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!profile?.id) {
+      toast({
+        title: "Error",
+        description: "Missing user ID. Please sign in again.",
+        variant: "destructive",
+      });
       return;
     }
-
-    const filtered = allTabs.filter((tab) => {
-      return tab.toLowerCase().includes(searchValue.toLowerCase());
-    });
-    setFilteredTabs(filtered);
-
-    // If we have filtered results and the current tab isn't in the filtered list,
-    // automatically select the first filtered tab
-    if (filtered.length > 0) {
-      console.log(`Filtered tabs based on search "${searchValue}":`, filtered);
-    }
-  }, [searchValue]);
-
-  const handleFileSelected = (file: File | null) => {
-    setSelectedFile(file);
-    setUploadError(null);
-  };
-
-  const handleUploadAvatar = async () => {
-    if (!selectedFile || !state.user?.id) return;
-
-    setIsUploading(true);
-    setUploadError(null);
-
+    
     try {
-      console.log("Uploading avatar for user ID:", state.user.id);
-      const { url, error } = await uploadProfilePicture(
-        state.user.id,
-        selectedFile,
-      );
-
-      if (error) {
-        setUploadError(error.message);
-        toast({
-          title: "Upload Failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else if (url) {
-        // Store avatar URL in localStorage as a backup
-        try {
-          localStorage.setItem("akii-avatar-url", url);
-          console.log(
-            "Avatar uploaded successfully, URL stored in localStorage:",
-            url,
-          );
-        } catch (storageError) {
-          console.error(
-            "Failed to store avatar URL in localStorage:",
-            storageError,
-          );
-        }
-
-        toast({
-          title: "Profile Picture Updated",
-          description: "Your profile picture has been updated successfully.",
-        });
-
-        // Refresh user profile to get the updated avatar URL
-        if (state.refreshUser) {
-          console.log("Refreshing user profile after avatar upload");
-          try {
-            await state.refreshUser();
-
-            // Double-check if the avatar URL was updated in the profile
-            if (state.profile?.avatar_url !== url) {
-              console.warn("Avatar URL not updated in profile after refresh");
-              // Force update the profile with the new avatar URL
-              if (state.updateProfile) {
-                try {
-                  await state.updateProfile({ avatar_url: url });
-                  console.log("Forced avatar URL update in profile");
-                } catch (updateErr) {
-                  console.error("Error forcing avatar update:", updateErr);
-                }
-              }
-            } else {
-              console.log("Avatar URL successfully updated in profile");
-            }
-          } catch (refreshError) {
-            console.error("Error refreshing user profile:", refreshError);
-            // Even if refresh fails, we still have the URL in localStorage
-          }
-        }
-
-        // Clear the selected file
-        setSelectedFile(null);
+      setIsSaving(true);
+      
+      const form = e.target as HTMLFormElement;
+      const formData = new FormData(form);
+      
+      const firstName = formData.get('firstName') as string;
+      const lastName = formData.get('lastName') as string;
+      const company = formData.get('company') as string;
+      
+      console.log("Settings: Updating profile for user ID:", profile.id);
+      
+      // Check if this is a new profile or update
+      const isNewProfile = !profile.created_at;
+      
+      // Define the profile data with appropriate type
+      const profileData: {
+        id: string;
+        first_name: string;
+        last_name: string;
+        company: string;
+        email: string;
+        updated_at: string;
+        created_at?: string;
+        status?: string;
+        role?: string;
+      } = {
+        id: profile.id,
+        first_name: firstName,
+        last_name: lastName,
+        company,
+        email: profile.email,
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Add created_at for new profiles
+      if (isNewProfile) {
+        profileData.created_at = new Date().toISOString();
+        profileData.status = 'active';
+        profileData.role = profile.email === 'josef@holm.com' ? 'admin' : 'user';
       }
-    } catch (err) {
-      console.error("Error uploading profile picture:", err);
-      setUploadError("An unexpected error occurred. Please try again.");
+      
+      // Update or insert profile in your database table
+      const { error: upsertError } = await supabase
+        .from('profiles')
+        .upsert(profileData);
+        
+      if (upsertError) {
+        throw new Error(`Failed to save profile: ${upsertError.message}`);
+      }
+      
+      // Update local state
+      setProfile(prev => ({
+        ...prev,
+        ...profileData
+      }));
+      
       toast({
-        title: "Upload Failed",
-        description: "An unexpected error occurred. Please try again.",
+        title: isNewProfile ? "Profile Created" : "Profile Updated",
+        description: isNewProfile 
+          ? "Your profile has been created successfully."
+          : "Your profile information has been saved.",
+      });
+      
+    } catch (error) {
+      console.error("Settings: Failed to save profile:", error);
+      toast({
+        title: "Save Failed",
+        description: error instanceof Error ? error.message : "Failed to save your profile",
         variant: "destructive",
       });
     } finally {
-      setIsUploading(false);
+      setIsSaving(false);
     }
   };
 
-  const handleRemoveAvatar = async () => {
-    if (!state.user?.id || !state.profile?.avatar_url) return;
-
-    setIsUploading(true);
-
-    try {
-      const { success, error } = await deleteProfilePicture(
-        state.user.id,
-        state.profile.avatar_url,
-      );
-
-      if (error) {
-        toast({
-          title: "Remove Failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else if (success) {
-        toast({
-          title: "Profile Picture Removed",
-          description: "Your profile picture has been removed successfully.",
-        });
-
-        // Refresh user profile to get the updated avatar URL
-        if (state.refreshUser) {
-          await state.refreshUser();
-        }
-      }
-    } catch (err) {
-      console.error("Error removing profile picture:", err);
-      toast({
-        title: "Remove Failed",
-        description: "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
+  // Handle sign in redirect
+  const handleSignIn = () => {
+    navigate("/login");
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchValue(e.target.value);
-    console.log("Search value changed to:", e.target.value);
+  // Handle refresh
+  const handleRefresh = () => {
+    window.location.reload();
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your account settings and preferences.
-          </p>
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="container py-10 flex items-center justify-center min-h-[300px] flex-col">
+        <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
+        <p className="text-primary font-medium">Loading your profile...</p>
+        <p className="text-sm text-muted-foreground mt-2">This may take a moment</p>
+        
+        {/* Add a refresh button that appears after 10 seconds */}
+        <div className="mt-6 opacity-0" style={{
+          animationDelay: '10s', 
+          animationFillMode: 'forwards',
+          animation: 'fadeIn 0.5s ease-in-out forwards'
+        }}>
+          <Button variant="outline" size="sm" onClick={handleRefresh} className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Not loading? Click to refresh
+          </Button>
         </div>
-        <div className="relative w-64">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search settings..."
-            className="pl-8"
-            value={searchValue}
-            onChange={handleSearchChange}
-          />
-          {searchValue && (
-            <button
-              className="absolute right-2 top-2.5"
-              onClick={() => setSearchValue("")}
-            >
-              <X className="h-4 w-4 text-muted-foreground" />
-            </button>
-          )}
+        
+        {/* Add keyframes for fadeIn animation */}
+        <style>
+          {`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+          `}
+        </style>
+      </div>
+    );
+  }
+
+  // Authentication error - need to sign in
+  if (error === "You are not logged in. Please sign in to access settings.") {
+    return (
+      <div className="container py-10 max-w-2xl">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+          <h3 className="text-lg font-medium text-amber-800 mb-2">Authentication Required</h3>
+          <p className="text-amber-700 mb-4">
+            You need to be signed in to view and edit your profile settings.
+          </p>
+          <div className="flex gap-3">
+            <Button onClick={handleSignIn}>
+              <LogIn className="mr-2 h-4 w-4" />
+              Sign In
+            </Button>
+            <Button variant="outline" onClick={handleRefresh}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+        
+        {/* Debug auth state */}
+        {authState && (
+          <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs font-mono">
+            <h4 className="font-medium mb-2 text-sm">Auth Debug Info</h4>
+            <pre className="overflow-auto whitespace-pre-wrap">
+              {JSON.stringify(authState, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Add a special case for error states to render the retry UI
+  if (error && (!profile || profile.needsRefresh)) {
+    return (
+      <div className="container py-10 flex flex-col items-center justify-center min-h-[300px]">
+        <div className="bg-destructive/10 p-6 rounded-lg max-w-md mx-auto text-center mb-6">
+          <h2 className="text-xl font-semibold mb-2">Profile Loading Error</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <div className="flex gap-4 justify-center">
+            <Button onClick={handleRefresh} className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Refresh Page
+            </Button>
+            <Button variant="outline" onClick={handleSignIn} className="flex items-center gap-2">
+              <LogIn className="h-4 w-4" />
+              Sign In Again
+            </Button>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
-          {filteredTabs.includes("profile") && (
-            <TabsTrigger value="profile" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              <span className="hidden sm:inline">Profile</span>
-            </TabsTrigger>
-          )}
-          {filteredTabs.includes("security") && (
-            <TabsTrigger value="security" className="flex items-center gap-2">
-              <Lock className="h-4 w-4" />
-              <span className="hidden sm:inline">Security</span>
-            </TabsTrigger>
-          )}
-          {filteredTabs.includes("notifications") && (
-            <TabsTrigger
-              value="notifications"
-              className="flex items-center gap-2"
-            >
-              <Bell className="h-4 w-4" />
-              <span className="hidden sm:inline">Notifications</span>
-            </TabsTrigger>
-          )}
-          {filteredTabs.includes("billing") && (
-            <TabsTrigger value="billing" className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              <span className="hidden sm:inline">Billing</span>
-            </TabsTrigger>
-          )}
-          {filteredTabs.includes("subscription") && (
-            <TabsTrigger
-              value="subscription"
-              className="flex items-center gap-2"
-            >
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="hidden sm:inline">Subscription</span>
-            </TabsTrigger>
-          )}
-          {filteredTabs.includes("team") && (
-            <TabsTrigger value="team" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">Team</span>
-            </TabsTrigger>
-          )}
-          {filteredTabs.includes("api") && (
-            <TabsTrigger value="api" className="flex items-center gap-2">
-              <Globe className="h-4 w-4" />
-              <span className="hidden sm:inline">API</span>
-            </TabsTrigger>
-          )}
-        </TabsList>
-
-        <TabsContent value="profile" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
-              <CardDescription>
-                Update your profile information and how others see you on the
-                platform.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex flex-col sm:flex-row gap-6">
-                <div className="flex flex-col items-center space-y-4 w-full sm:w-auto">
-                  <div className="relative group">
-                    <Avatar className="h-32 w-32 border-2 border-primary/20 shadow-md">
-                      <AvatarImage
-                        src={
-                          previewUrl ||
-                          localStorage.getItem("akii-avatar-url") ||
-                          state.profile?.avatar_url ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${state.user?.email || "user"}`
-                        }
-                        className="object-cover avatar-image"
-                        onError={() => {
-                          // If image fails to load, try the fallback
-                          const fallbackUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${state.user?.email || "user"}`;
-                          const imgElement = document.querySelector(
-                            ".avatar-image",
-                          ) as HTMLImageElement;
-                          if (imgElement) imgElement.src = fallbackUrl;
-                        }}
-                      />
-                      <AvatarFallback className="text-2xl font-bold bg-primary/10">
-                        {state.user?.email
-                          ? state.user.email.substring(0, 2).toUpperCase()
-                          : "U"}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    {/* Hover overlay */}
-                    <div
-                      className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-
-                  {uploadError && (
-                    <p className="text-sm text-red-500 font-medium">
-                      {uploadError}
-                    </p>
-                  )}
-
-                  <div className="space-y-3 w-full max-w-xs">
-                    <div className="flex flex-col space-y-2">
-                      {selectedFile && (
-                        <div className="flex items-center text-xs text-muted-foreground">
-                          <span className="truncate flex-1">
-                            {selectedFile.name} (
-                            {Math.round(selectedFile.size / 1024)} KB)
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          className="hidden"
-                          accept="image/*"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files.length > 0) {
-                              handleFileSelected(e.target.files[0]);
-                            }
-                          }}
-                          disabled={isUploading}
-                        />
-
-                        {selectedFile && (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="flex items-center gap-1"
-                            onClick={handleUploadAvatar}
-                            disabled={isUploading}
-                          >
-                            {isUploading ? (
-                              <>
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                <span>Saving...</span>
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="h-3 w-3" />
-                                <span>Save</span>
-                              </>
-                            )}
-                          </Button>
-                        )}
-
-                        {state.profile?.avatar_url && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-1"
-                            onClick={handleRemoveAvatar}
-                            disabled={isUploading}
-                          >
-                            <X className="h-3 w-3" />
-                            <span>Remove</span>
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-4 flex-1">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
-                      <Input
-                        id="firstName"
-                        defaultValue={
-                          state.user?.user_metadata?.full_name?.split(" ")[0] ||
-                          state.profile?.first_name ||
-                          ""
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input
-                        id="lastName"
-                        defaultValue={
-                          state.user?.user_metadata?.full_name?.split(" ")[1] ||
-                          state.profile?.last_name ||
-                          ""
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={state.user?.email || ""}
-                      readOnly
-                      className="bg-muted cursor-not-allowed"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="company">Company</Label>
-                    <Input
-                      id="company"
-                      defaultValue={state.profile?.company || ""}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="userId">User ID</Label>
-                    <div className="flex">
-                      <Input
-                        id="userId"
-                        value={state.user?.id || "No ID available"}
-                        readOnly
-                        className="font-mono text-xs bg-muted"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <Separator />
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => {
-                    // Save profile changes logic would go here
-                    console.log("Saving profile changes");
-                    // For now just show a toast message
-                    toast({
-                      title: "Profile Updated",
-                      description: "Your profile information has been saved.",
-                    });
+  // Show profile form (whether creating new or editing existing)
+  return (
+    <div className="container max-w-4xl py-10">
+      {/* Warning for new profile */}
+      {error === "Your profile hasn't been set up yet. Please complete the form below to create it." && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+          <h3 className="font-medium text-amber-800">Profile Setup Required</h3>
+          <p className="text-amber-700 text-sm">
+            Please fill out your profile information below to complete your account setup.
+          </p>
+        </div>
+      )}
+      
+      <h1 className="text-3xl font-bold mb-2">Settings</h1>
+      <p className="text-muted-foreground mb-6">Manage your account settings and preferences.</p>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Profile Information</CardTitle>
+          <CardDescription>
+            {profile?.created_at ? 
+              "Update your profile information and how others see you." : 
+              "Complete your profile information to set up your account."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleProfileUpdate} className="space-y-8">
+            <div className="flex flex-col md:flex-row gap-8">
+              <div className="flex flex-col items-center">
+                <AvatarManager 
+                  userId={profile?.id}
+                  userEmail={profile?.email}
+                  initialAvatarUrl={profile?.avatar_url}
+                  googleAvatarUrl={authUser?.user_metadata?.avatar_url}
+                  size="xl"
+                  onAvatarChange={(url) => {
+                    if (url && profile?.id) {
+                      // Update avatar in database
+                      supabase
+                        .from('profiles')
+                        .update({ avatar_url: url })
+                        .eq('id', profile.id)
+                        .then(({ error }) => {
+                          if (error) {
+                            console.error("Failed to save avatar:", error);
+                            toast({
+                              title: "Avatar Update Failed",
+                              description: "Could not save your avatar to the database",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          
+                          // Update local state
+                          setProfile(prev => ({ ...prev, avatar_url: url }));
+                          
+                          toast({
+                            title: "Avatar Updated",
+                            description: "Your profile picture has been updated successfully.",
+                          });
+                        });
+                    }
                   }}
-                  className="bg-primary hover:bg-primary/90 text-white"
-                >
-                  Save Profile
-                </Button>
+                />
+                <p className="text-sm text-muted-foreground mt-4 text-center max-w-xs">
+                  Click or drag an image to upload. For best results, use a square image.
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="security" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Password</CardTitle>
-              <CardDescription>
-                Change your password to keep your account secure.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="currentPassword">Current Password</Label>
-                <Input id="currentPassword" type="password" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="newPassword">New Password</Label>
-                <Input id="newPassword" type="password" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input id="confirmPassword" type="password" />
-              </div>
-              <div className="flex justify-end">
-                <Button>Update Password</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Two-Factor Authentication</CardTitle>
-              <CardDescription>
-                Add an extra layer of security to your account.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <div className="font-medium">Two-Factor Authentication</div>
-                  <div className="text-sm text-muted-foreground">
-                    Secure your account with two-factor authentication.
+              
+              <div className="space-y-4 flex-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name</Label>
+                    <Input
+                      id="firstName"
+                      name="firstName"
+                      defaultValue={profile?.first_name || ''}
+                      placeholder="Your first name"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      name="lastName"
+                      defaultValue={profile?.last_name || ''}
+                      placeholder="Your last name"
+                      required
+                    />
                   </div>
                 </div>
-                <Switch />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="notifications" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>
-                Configure how and when you receive notifications.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <div className="font-medium">Email Notifications</div>
-                    <div className="text-sm text-muted-foreground">
-                      Receive email notifications about your account activity.
-                    </div>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <div className="font-medium">Agent Activity</div>
-                    <div className="text-sm text-muted-foreground">
-                      Get notified about important agent activity and
-                      performance.
-                    </div>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <div className="font-medium">Marketing Updates</div>
-                    <div className="text-sm text-muted-foreground">
-                      Receive updates about new features and promotions.
-                    </div>
-                  </div>
-                  <Switch />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="subscription" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Subscription Plan</CardTitle>
-              <CardDescription>
-                Manage your subscription plan and usage limits.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="bg-muted p-4 rounded-lg">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="font-medium">Professional Plan</h3>
-                      <p className="text-sm text-muted-foreground">$99/month</p>
-                    </div>
-                    <Button variant="outline">Change Plan</Button>
-                  </div>
-                  <div className="mt-4 text-sm">
-                    <p>
-                      Your next billing date is <strong>July 15, 2023</strong>
-                    </p>
-                    <div className="mt-2">
-                      <span className="text-muted-foreground">
-                        5,000 messages per month
-                      </span>
-                      <div className="h-2 w-full bg-muted-foreground/20 rounded-full mt-1">
-                        <div className="h-2 w-3/5 bg-primary rounded-full"></div>
-                      </div>
-                      <div className="flex justify-between text-xs mt-1">
-                        <span>3,120 used</span>
-                        <span>5,000 total</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
+                
                 <div className="space-y-2">
-                  <h3 className="font-medium">Plan Features</h3>
-                  <ul className="space-y-2">
-                    <li className="flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                      <span>5,000 messages per month</span>
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                      <span>Up to 10 AI agents</span>
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                      <span>Web and mobile integration</span>
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                      <span>WhatsApp integration</span>
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                      <span>Advanced analytics</span>
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                      <span>Team collaboration (up to 5 members)</span>
-                    </li>
-                  </ul>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={profile?.email || ''}
+                    readOnly
+                    disabled
+                    className="bg-muted"
+                  />
                 </div>
-
+                
+                <div className="space-y-2">
+                  <Label htmlFor="company">Company</Label>
+                  <Input
+                    id="company"
+                    name="company"
+                    defaultValue={profile?.company || ''}
+                    placeholder="Your company name"
+                  />
+                </div>
+                
                 <div className="pt-4">
-                  <Button>Manage Subscription</Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="billing" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Subscription Plan</CardTitle>
-              <CardDescription>
-                Manage your subscription and billing information.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="bg-muted p-4 rounded-lg">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="font-medium">Professional Plan</h3>
-                      <p className="text-sm text-muted-foreground">$99/month</p>
-                    </div>
-                    <Button variant="outline">Change Plan</Button>
-                  </div>
-                  <div className="mt-4 text-sm">
-                    <p>
-                      Your next billing date is <strong>July 15, 2023</strong>
-                    </p>
-                    <div className="mt-2">
-                      <span className="text-muted-foreground">
-                        5,000 messages per month
-                      </span>
-                      <div className="h-2 w-full bg-muted-foreground/20 rounded-full mt-1">
-                        <div className="h-2 w-3/5 bg-primary rounded-full"></div>
-                      </div>
-                      <div className="flex justify-between text-xs mt-1">
-                        <span>3,120 used</span>
-                        <span>5,000 total</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="font-medium">Payment Method</h3>
-                  <div className="flex items-center justify-between bg-muted p-3 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-12 bg-background rounded flex items-center justify-center text-xs font-medium">
-                        VISA
-                      </div>
-                      <div>
-                        <p className="text-sm">•••• •••• •••• 4242</p>
-                        <p className="text-xs text-muted-foreground">
-                          Expires 12/24
-                        </p>
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="sm">
-                      Edit
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="font-medium">Billing History</h3>
-                  <div className="border rounded-lg">
-                    <div className="flex justify-between items-center p-3 border-b">
-                      <div>
-                        <p className="text-sm font-medium">June 15, 2023</p>
-                        <p className="text-xs text-muted-foreground">
-                          Professional Plan - Monthly
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">$99.00</p>
-                        <p className="text-xs text-green-500">Paid</p>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center p-3 border-b">
-                      <div>
-                        <p className="text-sm font-medium">May 15, 2023</p>
-                        <p className="text-xs text-muted-foreground">
-                          Professional Plan - Monthly
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">$99.00</p>
-                        <p className="text-xs text-green-500">Paid</p>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center p-3">
-                      <div>
-                        <p className="text-sm font-medium">April 15, 2023</p>
-                        <p className="text-xs text-muted-foreground">
-                          Professional Plan - Monthly
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">$99.00</p>
-                        <p className="text-xs text-green-500">Paid</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="team" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Members</CardTitle>
-              <CardDescription>
-                Manage your team members and their access permissions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-medium">Team Members (3)</h3>
-                  <Button size="sm">
-                    <Users className="h-4 w-4 mr-2" /> Invite Member
-                  </Button>
-                </div>
-
-                <div className="border rounded-lg">
-                  <div className="flex justify-between items-center p-4 border-b">
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=user123" />
-                        <AvatarFallback>JD</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">John Doe</p>
-                        <p className="text-sm text-muted-foreground">
-                          john.doe@example.com
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm bg-primary/10 text-primary px-2 py-1 rounded">
-                        Admin
-                      </span>
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center p-4 border-b">
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=user456" />
-                        <AvatarFallback>JS</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">Jane Smith</p>
-                        <p className="text-sm text-muted-foreground">
-                          jane.smith@example.com
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm bg-muted px-2 py-1 rounded">
-                        Member
-                      </span>
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center p-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=user789" />
-                        <AvatarFallback>RJ</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">Robert Johnson</p>
-                        <p className="text-sm text-muted-foreground">
-                          robert.johnson@example.com
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm bg-muted px-2 py-1 rounded">
-                        Member
-                      </span>
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="api" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>API Keys</CardTitle>
-              <CardDescription>
-                Manage your API keys for integrating with our platform.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-medium">Your API Keys</h3>
-                  <Button size="sm">
-                    <Globe className="h-4 w-4 mr-2" /> Generate New Key
-                  </Button>
-                </div>
-
-                <div className="border rounded-lg">
-                  <div className="flex justify-between items-center p-4 border-b">
-                    <div>
-                      <p className="font-medium">Production Key</p>
-                      <p className="text-sm text-muted-foreground">
-                        Created on June 10, 2023
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <code className="bg-muted px-2 py-1 rounded text-sm">
-                        ak_*************dKp8
-                      </code>
-                      <Button variant="ghost" size="sm">
-                        Copy
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center p-4">
-                    <div>
-                      <p className="font-medium">Development Key</p>
-                      <p className="text-sm text-muted-foreground">
-                        Created on May 22, 2023
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <code className="bg-muted px-2 py-1 rounded text-sm">
-                        ak_*************jF2s
-                      </code>
-                      <Button variant="ghost" size="sm">
-                        Copy
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-muted p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">API Documentation</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Learn how to integrate our API with your applications.
-                  </p>
-                  <Button variant="outline" size="sm">
-                    View Documentation
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : profile?.created_at ? "Save Changes" : "Create Profile"}
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -7,9 +7,10 @@ import {
   useRoutes,
   useNavigate,
   useLocation,
+  BrowserRouter,
 } from "react-router-dom";
 import routes from "tempo-routes";
-import { AuthProvider } from "./contexts/AuthContext";
+import { AuthProvider } from "./contexts/ConsolidatedAuthContext";
 import LandingPage from "./pages/LandingPage";
 import { SearchProvider } from "./contexts/SearchContext";
 import { EnvWarning } from "@/components/ui/env-warning";
@@ -122,10 +123,7 @@ const RouteRedirect = () => {
 };
 
 function App() {
-  // Get the current location
   const location = useLocation();
-
-  // Use the useRoutes hook for Tempo routes
   const tempoRoutes = import.meta.env.VITE_TEMPO ? useRoutes(routes) : null;
 
   return (
@@ -362,7 +360,7 @@ function App() {
 
             {/* Admin routes - now under dashboard */}
             <Route
-              path="/admin/users"
+              path="/dashboard/users"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -372,7 +370,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/settings"
+              path="/dashboard/admin-settings"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -382,7 +380,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/packages"
+              path="/dashboard/packages"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -392,7 +390,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/moderation"
+              path="/dashboard/moderation"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -402,7 +400,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/email-templates"
+              path="/dashboard/email-templates"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -412,7 +410,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/lead-magnets"
+              path="/dashboard/lead-magnets"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -422,7 +420,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/landing-pages"
+              path="/dashboard/landing-pages"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -432,7 +430,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/blog"
+              path="/dashboard/blog"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -442,7 +440,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/affiliates"
+              path="/dashboard/affiliates"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -452,7 +450,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/compliance"
+              path="/dashboard/compliance"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -462,7 +460,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/run-migration"
+              path="/dashboard/run-migration"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -472,7 +470,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/workflows"
+              path="/dashboard/workflows"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -482,7 +480,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/database-schema"
+              path="/dashboard/database-schema"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -492,7 +490,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/user-sync"
+              path="/dashboard/user-sync"
               element={
                 <PrivateRoute>
                   <DashboardLayout>
@@ -502,7 +500,7 @@ function App() {
               }
             />
             <Route
-              path="/admin/user-status-migration"
+              path="/dashboard/user-status-migration"
               element={
                 <PrivateRoute>
                   <DashboardLayout>

@@ -54,6 +54,7 @@ import { useSearch } from "@/contexts/SearchContext";
 import { toast } from "@/components/ui/use-toast";
 import { safeLocalStorage, safeSessionStorage } from "@/lib/browser-check";
 import "@/styles/dashboard.css";
+import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
 
 interface SidebarItemProps {
   icon: React.ReactNode;
@@ -274,43 +275,50 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
     {
       icon: <Users className="h-5 w-5" />,
       label: "Users",
-      href: "/admin/users",
+      href: "/dashboard/users",
+      subItems: []
     },
     {
       icon: <UsersRound className="h-5 w-5" />,
       label: "User Sync",
-      href: "/admin/user-sync",
+      href: "/dashboard/user-sync",
+      subItems: []
     },
-
     {
       icon: <Shield className="h-5 w-5" />,
       label: "Moderation",
-      href: "/admin/moderation",
+      href: "/dashboard/moderation",
+      subItems: []
     },
     {
       icon: <Mail className="h-5 w-5" />,
       label: "Email Templates",
-      href: "/admin/email-templates",
+      href: "/dashboard/email-templates",
+      subItems: []
     },
     {
       icon: <CreditCard className="h-5 w-5" />,
       label: "Billing",
       href: "/dashboard/billing",
+      subItems: []
     },
     {
       icon: <BarChart3 className="h-5 w-5" />,
       label: "Workflows",
       href: "/dashboard/workflows",
+      subItems: []
     },
     {
       icon: <BarChart3 className="h-5 w-5" />,
       label: "Analytics",
       href: "/dashboard/analytics",
+      subItems: []
     },
     {
       icon: <Database className="h-5 w-5" />,
       label: "Database",
-      href: "/admin/database",
+      href: "/dashboard/database",
+      subItems: []
     },
   ];
 
@@ -325,22 +333,19 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
         {!collapsed ? (
           <Link
             to="/"
-            className="flex items-center gap-2 font-semibold text-primary"
+            className="flex items-center gap-2 w-full justify-center"
           >
-            <Shield className="h-6 w-6" />
-            <span className="text-xl">Akii</span>
+            <Circle className="h-6 w-6 fill-green-500 text-green-500" />
+            <span className="text-xl font-semibold text-black dark:text-white">Akii</span>
           </Link>
         ) : (
-          <Shield className="mx-auto h-6 w-6 text-primary" />
+          <Link
+            to="/"
+            className="w-full flex justify-center"
+          >
+            <Circle className="h-6 w-6 fill-green-500 text-green-500" />
+          </Link>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn("ml-auto", collapsed && "hidden")}
-          onClick={onToggle}
-        >
-          <SidebarIcon className="h-5 w-5" />
-        </Button>
       </div>
       <div className="flex-1 overflow-auto py-2">
         <nav className="grid gap-1 px-2">
@@ -371,7 +376,7 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
                     label={item.label}
                     href={item.href}
                     active={isActive(item.href)}
-                    subItems={[]}
+                    subItems={item.subItems || []}
                     collapsed={collapsed}
                   />
                 ))}
@@ -440,12 +445,14 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
   const handleSignOut = async () => {
     try {
       await signOut();
-      navigate("/login");
+      
+      // Navigate to home page after sign out
+      window.location.href = "/";
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.error("Error during logout:", error);
       toast({
-        title: "Error",
-        description: "Failed to sign out. Please try again.",
+        title: "Logout Error",
+        description: "There was an issue logging out.",
         variant: "destructive",
       });
     }
@@ -609,7 +616,11 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto">{children}</main>
+        <div className="flex-1 overflow-auto">
+          <DashboardPageContainer>
+            {children}
+          </DashboardPageContainer>
+        </div>
       </div>
     </div>
   );

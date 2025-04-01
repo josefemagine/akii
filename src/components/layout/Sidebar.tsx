@@ -53,15 +53,19 @@ const SidebarLink = ({
           <Link
             to={to}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent relative",
               isActive
                 ? "bg-accent text-accent-foreground font-medium"
                 : "text-muted-foreground",
               isCollapsed ? "justify-center" : "",
             )}
           >
-            <div className={cn("h-5 w-5", isActive ? "text-primary" : "")}>
-              {icon}
+            <div className="w-5 h-5 flex items-center justify-center overflow-hidden shrink-0">
+              {React.cloneElement(icon as React.ReactElement, {
+                className: "w-[18px] h-[18px]",
+                size: 18,
+                strokeWidth: 2
+              })}
             </div>
             {!isCollapsed && <span>{label}</span>}
           </Link>
@@ -205,7 +209,7 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
       <div className="flex flex-col gap-6">
         <div
           className={cn(
-            "flex items-center",
+            "flex items-center justify-between",
             isCollapsed ? "justify-center" : "px-2",
           )}
         >
@@ -219,7 +223,7 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
               )}
             </div>
           ) : (
-            <div className="flex h-10 items-center gap-2 rounded-md bg-primary px-3 text-xl font-bold text-primary-foreground">
+            <div className="flex h-10 w-full items-center gap-2 rounded-md bg-primary px-3 text-xl font-bold text-primary-foreground">
               <span>Akii</span>
               <span className="text-sm font-normal opacity-70">
                 AI Platform
@@ -235,28 +239,38 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
           )}
         </div>
 
-        <nav className="space-y-1">
-          {mainLinks.map((link) => (
-            <SidebarLink
-              key={link.to}
-              to={link.to}
-              icon={link.icon}
-              label={link.label}
-              isActive={currentPath === link.to}
-              isCollapsed={isCollapsed}
-            />
-          ))}
-        </nav>
-
-        {/* Admin section - always show for josef@holm.com */}
-        {(isAdmin || user?.email === "josef@holm.com") && (
-          <>
-            <div className={cn("mt-6", isCollapsed ? "text-center" : "px-3")}>
-              <p className="text-xs font-semibold text-muted-foreground">
-                ADMIN
+        <div className="flex flex-col gap-1">
+          <div className={isCollapsed ? "px-0 text-center" : "px-3"}>
+            {!isCollapsed && (
+              <p className="text-xs font-semibold text-muted-foreground mb-2">
+                MAIN
               </p>
+            )}
+          </div>
+          <nav className="space-y-1">
+            {mainLinks.map((link) => (
+              <SidebarLink
+                key={link.to}
+                to={link.to}
+                icon={link.icon}
+                label={link.label}
+                isActive={currentPath === link.to}
+                isCollapsed={isCollapsed}
+              />
+            ))}
+          </nav>
+        </div>
+
+        {(isAdmin || user?.email === "josef@holm.com") && (
+          <div className="flex flex-col gap-1">
+            <div className={isCollapsed ? "px-0 text-center" : "px-3"}>
+              {!isCollapsed && (
+                <p className="text-xs font-semibold text-muted-foreground mb-2">
+                  ADMIN
+                </p>
+              )}
             </div>
-            <nav className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
+            <nav className="space-y-1">
               {adminLinks.map((link) => (
                 <SidebarLink
                   key={link.to}
@@ -268,7 +282,7 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
                 />
               ))}
             </nav>
-          </>
+          </div>
         )}
       </div>
 
@@ -290,7 +304,9 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
             isCollapsed ? "justify-center" : "",
           )}
         >
-          <LogOut className="h-5 w-5" />
+          <div className="w-5 h-5 flex items-center justify-center overflow-hidden shrink-0">
+            <LogOut className="w-[18px] h-[18px]" size={18} strokeWidth={2} />
+          </div>
           {!isCollapsed && <span>Logout</span>}
         </button>
       </div>

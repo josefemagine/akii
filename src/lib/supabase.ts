@@ -1,9 +1,13 @@
 /**
  * Supabase client export
- * This file re-exports the centralized Supabase client from auth-core
- * to maintain backward compatibility with existing imports
+ * This file re-exports the centralized Supabase client
+ * Instead of importing from supabase-singleton directly, import from here
  */
 
-import { supabase, supabaseClient, supabaseAdmin, auth } from "./auth-core";
+import { supabase, supabaseAdmin, auth } from "./supabase-singleton";
 
-export { supabase, supabaseClient, supabaseAdmin, auth };
+// Export the clients and auth
+export { supabase, supabaseAdmin, auth };
+
+// Default export for convenience
+export default supabase;

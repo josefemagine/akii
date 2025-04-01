@@ -6,9 +6,28 @@ import "./index.css";
 import { SearchProvider } from "@/contexts/SearchContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TempoDevtools } from "tempo-devtools";
+import { debugSupabaseInstances } from '@/lib/supabase-singleton';
 
 // Initialize Tempo Devtools
 TempoDevtools.init();
+
+// Add proper type declaration for window.debugSupabase
+declare global {
+  interface Window {
+    debugSupabase?: any;
+  }
+}
+
+// Debug Supabase instances during development
+if (process.env.NODE_ENV !== 'production') {
+  console.log('Checking Supabase instances at startup...');
+  debugSupabaseInstances();
+  
+  // Then in your initialization code
+  if (import.meta.env.MODE === 'development') {
+    window.debugSupabase = debugSupabaseInstances;
+  }
+}
 
 // Add error boundary to catch and report React rendering errors
 // Define as a named class outside of the render path for Fast Refresh compatibility
@@ -255,7 +274,7 @@ try {
   // Render with minimal dependencies first to avoid complex initialization issues
   root.render(
     <React.StrictMode>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ErrorBoundary>
           <SearchProvider>
             <AuthProvider>

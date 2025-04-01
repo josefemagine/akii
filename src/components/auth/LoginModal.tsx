@@ -18,6 +18,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
+import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from './AuthStateManager';
+import supabase from "@/lib/supabase";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -41,16 +43,189 @@ export default function LoginModal({
 }: LoginModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { user, signIn, signInWithGoogle } = useAuth();
+  const { user, session, signIn, signInWithGoogle } = useAuth();
 
-  // Auto-close if user is already logged in
+  // Debug function to check auth state
+  const checkAuthState = () => {
+    console.log("[Login Modal] Current auth state:", {
+      user: user ? "Logged in" : "Not logged in",
+      userId: user?.id,
+      email: user?.email,
+      hasSession: !!session,
+      isModalOpen: isOpen,
+    });
+    return !!user;
+  };
+
+  // Call on mount and when auth state changes
   useEffect(() => {
-    if (user && isOpen) {
-      console.log("[Login Modal] User already logged in, closing modal");
-      onClose();
-      window.location.href = "/dashboard";
+    if (isOpen) {
+      const isAuthenticated = checkAuthState();
+      console.log("[Login Modal] Authentication check:", isAuthenticated);
     }
-  }, [user, isOpen, onClose]);
+  }, [user, session, isOpen]);
+
+  // Enhanced auto-close if user is logged in
+  useEffect(() => {
+    if ((user || session) && isOpen) {
+      console.log("[Login Modal] User authenticated, closing modal automatically");
+      
+      // Try to close modal immediately
+      onClose();
+      
+      // Fallback in case the close didn't work
+      setTimeout(() => {
+        if (isOpen && (user || session)) {
+          console.log("[Login Modal] Fallback - forcing modal close after delay");
+          onClose();
+        }
+      }, 500);
+    }
+  }, [user, session, isOpen, onClose]);
+
+  // Modify the periodic auth check to stop after detecting authentication
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let checkCount = 0;
+    const MAX_CHECKS = 10; // Limit the number of checks to prevent infinite loops
+    
+    const checkAndCleanup = async () => {
+      checkCount++;
+      const { data } = await supabase.auth.getSession();
+      const sessionExists = !!data?.session;
+      
+      console.log(`[LoginModal] Auth check #${checkCount}:`, { 
+        session: sessionExists, 
+        user: !!user,
+        isOpen 
+      });
+      
+      // Stop checking if authenticated or exceeded max checks
+      if (sessionExists || user || checkCount >= MAX_CHECKS) {
+        if (sessionExists || user) {
+          console.log('[LoginModal] Detected authentication, closing modal');
+          onClose();
+        }
+        if (interval) {
+          console.log('[LoginModal] Stopping auth check interval');
+          clearInterval(interval);
+          interval = null;
+        }
+      }
+    };
+    
+    // Only start the interval if the modal is open
+    if (isOpen) {
+      // Check immediately
+      checkAndCleanup();
+      
+      // Then check periodically
+      interval = setInterval(() => {
+        checkAndCleanup();
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isOpen, user, onClose]);
+
+  // Listen for global auth state changes
+  useEffect(() => {
+    const handleAuthStateChange = (e: CustomEvent<AuthStateChangeEvent>) => {
+      if (e.detail.authenticated && isOpen) {
+        console.log('[LoginModal] Detected authenticated state from event, closing modal');
+        onClose();
+      }
+    };
+    
+    // Add event listener
+    document.addEventListener(
+      AUTH_STATE_CHANGE_EVENT, 
+      handleAuthStateChange as EventListener
+    );
+    
+    // Clean up
+    return () => {
+      document.removeEventListener(
+        AUTH_STATE_CHANGE_EVENT, 
+        handleAuthStateChange as EventListener
+      );
+    };
+  }, [isOpen, onClose]);
+
+  // Force close the modal on route change or on component mount if already authenticated
+  useEffect(() => {
+    // Direct DOM-based solution that will forcibly close the modal
+    const forceCloseModal = () => {
+      console.log('[LoginModal] Force closing modal...');
+      
+      // First try using the onClose prop
+      onClose();
+      
+      // As a fallback, find and click any close button in the modal
+      setTimeout(() => {
+        try {
+          // Try clicking the close button
+          const closeButton = document.querySelector('[data-dialog-close="true"]');
+          if (closeButton) {
+            console.log('[LoginModal] Found close button, clicking it');
+            (closeButton as HTMLElement).click();
+          }
+          
+          // Try clicking the overlay as another fallback
+          const overlay = document.querySelector('[data-radix-dialog-overlay]');
+          if (overlay) {
+            console.log('[LoginModal] Found overlay, clicking it');
+            (overlay as HTMLElement).click();
+          }
+        } catch (e) {
+          console.error('[LoginModal] Error in force close:', e);
+        }
+      }, 100);
+    };
+
+    // Check for auth tokens directly from localStorage as a backup method
+    const checkTokensDirectly = () => {
+      const hasToken = localStorage.getItem('supabase.auth.token') !== null;
+      return hasToken;
+    };
+    
+    const handleVisibilityChange = () => {
+      // When tab becomes visible again, check if user is authenticated
+      if (!document.hidden && (session || checkTokensDirectly())) {
+        console.log('[LoginModal] Tab visible again & user authenticated, force closing');
+        forceCloseModal();
+      }
+    };
+    
+    // Force close if already authenticated
+    if (session || user || checkTokensDirectly()) {
+      console.log('[LoginModal] Session or user or token detected, force closing modal');
+      forceCloseModal();
+    }
+    
+    // Add visibility change listener to close modal when tab becomes visible
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Directly listen for storage events to detect auth changes
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && (e.key.includes('supabase.auth.token') || e.key.includes('supabase.auth.refreshToken'))) {
+        console.log('[LoginModal] Auth storage changed, likely authenticated');
+        forceCloseModal();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [onClose, session, user]);
 
   const {
     register,
@@ -64,20 +239,6 @@ export default function LoginModal({
       password: "",
     },
   });
-
-  // Debug function to check auth state
-  const checkAuthState = () => {
-    console.log("[Login Modal] Current auth state:", {
-      user: user ? "Logged in" : "Not logged in",
-      email: user?.email,
-      isModalOpen: isOpen,
-    });
-  };
-
-  // Call on mount and when auth state changes
-  useEffect(() => {
-    checkAuthState();
-  }, [user, isOpen]);
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
@@ -105,19 +266,32 @@ export default function LoginModal({
       // Use try-catch to ensure login attempt works even if there are network issues
       try {
         // Call the signIn function from AuthContext
-        const { error } = await signIn(data.email, data.password);
+        const { error, data: authData } = await signIn(data.email, data.password);
 
         if (error) {
           console.error("[Login Modal] Sign-in error:", error.message);
           setError(error.message);
         } else {
           console.log(
-            "[Login Modal] Sign-in successful - CRITICAL FIX: Forcing immediate redirect",
+            "[Login Modal] Sign-in successful - CRITICAL FIX: Forcing immediate redirect and modal close",
+            authData
           );
 
-          // Close modal immediately
+          // Reset form and close modal immediately
           reset();
-          onClose();
+          onClose(); // First attempt to close
+          
+          // Force a second close attempt after a small delay
+          setTimeout(() => {
+            console.log("[Login Modal] Second attempt to close modal");
+            onClose();
+            // Try to redirect if not already redirected
+            const returnPath = localStorage.getItem("auth-return-path") || "/dashboard";
+            if (window.location.pathname !== returnPath) {
+              console.log("[Login Modal] Forcing redirect to:", returnPath);
+              window.location.href = returnPath;
+            }
+          }, 100);
 
           // Set a success flag for handling possible connection errors
           localStorage.setItem("akii-auth-success", "true");
@@ -134,7 +308,7 @@ export default function LoginModal({
         console.error("[Login Modal] Exception during sign-in:", signInError);
         // Fall back to manual login pattern if the signIn function throws
         setError(
-          "Error during login. Please try refreshing the page and trying again.",
+          "Error during login. Please try refreshing the page and trying again."
         );
       }
     } catch (error) {
@@ -157,7 +331,7 @@ export default function LoginModal({
       console.error("Failed to create success marker:", e);
     }
 
-    console.log("[EXTENDED FIX] Forcing direct navigation to:", returnPath);
+    console.log("[Login Modal] Forcing direct navigation to:", returnPath);
 
     // Use multiple techniques for resilience
     try {
@@ -167,7 +341,7 @@ export default function LoginModal({
       // 2. Set a backup timeout to force location.replace
       setTimeout(() => {
         if (document.location.pathname !== returnPath) {
-          console.log("[EXTENDED FIX] Backup navigation with location.replace");
+          console.log("[Login Modal] Backup navigation with location.replace");
           window.location.replace(returnPath);
         }
       }, 200);
@@ -175,7 +349,7 @@ export default function LoginModal({
       // 3. Final fallback
       setTimeout(() => {
         if (document.location.pathname !== returnPath) {
-          console.log("[EXTENDED FIX] Final fallback with form submission");
+          console.log("[Login Modal] Final fallback with form submission");
           const form = document.createElement("form");
           form.method = "GET";
           form.action = returnPath;
@@ -184,7 +358,7 @@ export default function LoginModal({
         }
       }, 500);
     } catch (e) {
-      console.error("[EXTENDED FIX] Error during navigation:", e);
+      console.error("[Login Modal] Error during navigation:", e);
       // Last resort
       window.location.href = returnPath;
     }

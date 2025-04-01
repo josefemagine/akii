@@ -23,10 +23,10 @@ export interface AuthResult<T = any> {
 }
 
 // Import Supabase clients from the centralized core module
-import { supabaseClient, adminClient, supabase } from "./supabase-core";
+import { supabase, supabaseAdmin } from "./supabase";
 
 // Re-export the clients for use in other modules
-export { supabaseClient, adminClient, supabase };
+export { supabase, supabaseAdmin };
 
 // Core auth functions
 export async function signIn(
@@ -34,7 +34,7 @@ export async function signIn(
   password: string,
 ): Promise<AuthResult<User>> {
   try {
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -55,7 +55,7 @@ export async function signIn(
 export async function signOut(): Promise<AuthResult> {
   try {
     // Sign out from Supabase
-    const { error } = await supabaseClient.auth.signOut();
+    const { error } = await supabase.auth.signOut();
     if (error) throw error;
 
     return { data: true, error: null };
@@ -67,7 +67,7 @@ export async function signOut(): Promise<AuthResult> {
 
 export async function getCurrentSession(): Promise<AuthResult<Session>> {
   try {
-    const { data, error } = await supabaseClient.auth.getSession();
+    const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
 
     return { data: data.session, error: null };
@@ -79,7 +79,7 @@ export async function getCurrentSession(): Promise<AuthResult<Session>> {
 
 export async function getCurrentUser(): Promise<AuthResult<User>> {
   try {
-    const { data, error } = await supabaseClient.auth.getUser();
+    const { data, error } = await supabase.auth.getUser();
     if (error) throw error;
 
     return { data: data.user, error: null };
@@ -95,7 +95,7 @@ export async function getUserProfile(
 ): Promise<AuthResult<UserProfile>> {
   try {
     // Get from database
-    const { data, error } = await supabaseClient
+    const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
@@ -121,7 +121,7 @@ export async function getUserProfile(
 
     // Try with admin client as fallback
     try {
-      const { data } = await adminClient
+      const { data } = await supabaseAdmin
         .from("profiles")
         .select("*")
         .eq("id", userId)
@@ -158,7 +158,7 @@ export async function syncUserProfile(
     }
 
     // Check if profile exists
-    const { data: existingProfile, error: checkError } = await adminClient
+    const { data: existingProfile, error: checkError } = await supabaseAdmin
       .from("profiles")
       .select("*")
       .eq("id", user.id)
@@ -171,7 +171,7 @@ export async function syncUserProfile(
 
     if (!existingProfile) {
       // Create profile if it doesn't exist
-      const { data: newProfile, error: insertError } = await adminClient
+      const { data: newProfile, error: insertError } = await supabaseAdmin
         .from("profiles")
         .insert({
           id: user.id,
@@ -200,7 +200,7 @@ export async function syncUserProfile(
       }
     } else {
       // Update existing profile to ensure email matches
-      const { data: updatedProfile, error: updateError } = await adminClient
+      const { data: updatedProfile, error: updateError } = await supabaseAdmin
         .from("profiles")
         .update({
           email: user.email,
@@ -257,7 +257,7 @@ export async function ensureJosefAdmin(): Promise<AuthResult> {
 
   try {
     // Update profile with admin client
-    const { error: updateError } = await adminClient
+    const { error: updateError } = await supabaseAdmin
       .from("profiles")
       .update({
         role: "admin",
@@ -271,7 +271,7 @@ export async function ensureJosefAdmin(): Promise<AuthResult> {
 
       // Try fallback with RPC
       try {
-        const { error: rpcError } = await adminClient.rpc("force_admin_role", {
+        const { error: rpcError } = await supabaseAdmin.rpc("force_admin_role", {
           target_email: email,
         });
 
