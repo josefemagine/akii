@@ -202,16 +202,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       // Ensure profile exists - this will create it if needed
-      const { data: userProfile, error: profileError } = await ensureUserProfile({
-        ...user,
-        user_metadata: {
-          ...user.user_metadata,
-          ...storedMetadata
+      let retryCount = 0;
+      let userProfile = null;
+      let profileError = null;
+      
+      while (retryCount < 3 && !userProfile) {
+        if (retryCount > 0) {
+          console.log(`Retry attempt ${retryCount} to get/create profile`);
+          // Add a small delay before retrying
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
-      });
+        
+        const result = await ensureUserProfile({
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            ...storedMetadata
+          }
+        });
+        
+        userProfile = result.data;
+        profileError = result.error;
+        
+        if (profileError) {
+          console.error(`Profile error on attempt ${retryCount}:`, profileError);
+        }
+        
+        if (userProfile) {
+          break;
+        }
+        
+        retryCount++;
+      }
       
       if (profileError) {
-        console.error("Error ensuring user profile:", profileError);
+        console.error("Error ensuring user profile after retries:", profileError);
         
         // Set error state but continue with user authentication
         setState(prev => ({
@@ -231,14 +256,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           variant: "destructive",
         });
         
-        return;
+        // Create a minimal profile anyway to allow basic functionality
+        userProfile = {
+          id: user.id,
+          email: user.email || "",
+          role: "user",
+          status: "active",
+          first_name: user.user_metadata?.first_name || "",
+          last_name: user.user_metadata?.last_name || "",
+          company: user.user_metadata?.company || "",
+        };
       }
       
+      // Clear stored metadata after profile processing
+      try {
+        localStorage.removeItem("signup-metadata");
+        localStorage.removeItem("signup-email");
+        localStorage.removeItem("signup-timestamp");
+      } catch (error) {
+        console.error("Error clearing stored metadata:", error);
+      }
+      
+      // Always create a minimal profile as a fallback if everything fails
       if (!userProfile) {
         console.error("No profile returned after ensure operation");
         
         // Create minimal profile in memory to allow basic functionality
-        const minimalProfile: UserProfile = {
+        userProfile = {
           id: user.id,
           email: user.email || "",
           role: "user",
@@ -248,33 +292,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           company: user.user_metadata?.company || "",
         };
         
-        setState(prev => ({
-          ...prev,
-          user,
-          session,
-          profile: minimalProfile,
-          isLoading: false,
-          isAdmin: false,
-          userRole: "user",
-          error: new Error("Failed to create user profile"),
-        }));
-        
         toast({
-          title: "Profile Creation Failed",
-          description: "We couldn't create your user profile. Please contact support.",
-          variant: "destructive",
+          title: "Using Fallback Profile",
+          description: "We're using basic account information. You may need to update your profile.",
+          variant: "default",
         });
-        
-        return;
-      }
-      
-      // Clear stored metadata after successful profile retrieval
-      try {
-        localStorage.removeItem("signup-metadata");
-        localStorage.removeItem("signup-email");
-        localStorage.removeItem("signup-timestamp");
-      } catch (error) {
-        console.error("Error clearing stored metadata:", error);
       }
       
       // Check admin status
@@ -319,7 +341,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log(`Auth event: ${event}`, session);
       
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        initializeAuth();
+        try {
+          // Get latest user data
+          const { data: user, error: userError } = await getCurrentUser();
+          
+          if (userError) {
+            console.error("Error getting user during auth state change:", userError);
+            return;
+          }
+          
+          if (!user) {
+            console.warn("No user data during auth state change");
+            return;
+          }
+          
+          // Get or create profile with error handling
+          const { data: profile, error: profileError } = await ensureUserProfile(user);
+          
+          // Even if there's a profile error, we might still have a fallback profile
+          if (profile) {
+            // Check admin status
+            const isUserAdmin = (profile.role === "admin") || hasValidAdminOverride(user.email || "");
+            
+            // Update state with user, profile and session
+            setState(prev => ({
+              ...prev,
+              user,
+              profile,
+              session,
+              isLoading: false,
+              isAdmin: isUserAdmin,
+              userRole: profile.role || null,
+              error: profileError, // May be null or an error that was handled
+            }));
+            
+            // If there was a profile error but we're using a fallback, show a toast
+            if (profileError) {
+              console.warn("Using fallback profile due to error:", profileError);
+              toast({
+                title: "Limited Profile Access",
+                description: "We're using local profile data. Some features may be limited.",
+                variant: "default",
+              });
+            }
+          } else {
+            console.error("Failed to get or create profile during auth state change");
+            // Update state with just user and session
+            setState(prev => ({
+              ...prev,
+              user,
+              session,
+              isLoading: false,
+              error: profileError,
+            }));
+            
+            toast({
+              title: "Profile Error",
+              description: "There was an error loading your profile. Some features may be limited.",
+              variant: "destructive",
+            });
+          }
+        } catch (error) {
+          console.error("Error handling auth state change:", error);
+          setState(prev => ({ 
+            ...prev, 
+            isLoading: false, 
+            error: error as Error 
+          }));
+        }
       } else if (event === "SIGNED_OUT") {
         setState({
           user: null,
@@ -337,7 +426,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       authListener?.subscription.unsubscribe();
     };
-  }, [initializeAuth]);
+  }, [initializeAuth, toast]);
 
   // Sign in function
   const signIn = async (

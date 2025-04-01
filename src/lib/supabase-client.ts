@@ -51,28 +51,50 @@ let _auth: SupabaseClient["auth"] | null = null;
  * Get or create the Supabase client instance
  */
 export function getSupabaseClient(): SupabaseClient {
-  // Try to use the global singleton first (browser)
-  if (isBrowser && window.__SUPABASE_SINGLETON?.client) {
+  // Return existing instance if available
+  if (window.__SUPABASE_SINGLETON?.client) {
     return window.__SUPABASE_SINGLETON.client;
   }
   
-  // Fall back to module-level singleton or create new instance
+  // Initialize client with proper URL based on environment
   if (!_supabase) {
-    _supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://api.akii.com';
+    const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
+    
+    if (!supabaseKey) {
+      console.error("Missing Supabase API key. Authentication will not work.");
+    }
+    
+    // Add production-specific configuration
+    const isProd = supabaseUrl.includes('api.akii.com');
+    
+    // Create client with custom headers and options for production
+    _supabase = createClient(supabaseUrl, supabaseKey || '', {
       auth: {
-        persistSession: isBrowser,
-        storageKey: "sb",
+        persistSession: true,
         autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+      global: {
+        headers: {
+          'x-client-info': 'supabase-js-web/2.49.4',
+          'Origin': isProd ? 'https://www.akii.com' : window.location.origin,
+        },
+      },
+      // Customize REST path for production vs development
+      db: {
+        schema: 'public',
       },
     });
     
-    // Store in global singleton if in browser
-    if (isBrowser && window.__SUPABASE_SINGLETON) {
-      window.__SUPABASE_SINGLETON.client = _supabase;
-    }
-    
-    console.log("Supabase client initialized");
+    console.log(`Supabase client initialized with URL: ${supabaseUrl}, isProd: ${isProd}`);
   }
+  
+  // Store in global singleton
+  if (!window.__SUPABASE_SINGLETON) {
+    window.__SUPABASE_SINGLETON = {};
+  }
+  window.__SUPABASE_SINGLETON.client = _supabase;
   
   return _supabase;
 }
