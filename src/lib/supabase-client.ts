@@ -8,6 +8,9 @@
 import { createClient, SupabaseClient, AuthResponse, Subscription } from "@supabase/supabase-js";
 import { isBrowser } from "./browser-check";
 
+// Use a consistent type for Supabase client
+type AkiiSupabaseClient = SupabaseClient<any, string, any>;
+
 // Default mock values for development - only used if variables are completely missing
 const DEFAULT_DEV_SUPABASE_URL = 'https://your-project.supabase.co';
 const DEFAULT_DEV_ANON_KEY = 'eyJh...dummy-key-for-dev-only'; // This is a dummy key that won't work in production
@@ -16,9 +19,9 @@ const DEFAULT_DEV_ANON_KEY = 'eyJh...dummy-key-for-dev-only'; // This is a dummy
 declare global {
   interface Window {
     __SUPABASE_SINGLETON?: {
-      client?: SupabaseClient;
-      admin?: SupabaseClient;
-      auth?: SupabaseClient["auth"];
+      client?: AkiiSupabaseClient;
+      admin?: AkiiSupabaseClient;
+      auth?: AkiiSupabaseClient["auth"];
       initialized?: boolean;
       initializationError?: Error | null;
       apiKeyStatus?: 'valid' | 'missing' | 'fallback-used';
@@ -90,30 +93,61 @@ if (isBrowser && !window.__SUPABASE_SINGLETON) {
 }
 
 // Module-level singleton fallback (for SSR or if window is not available)
-let _supabase: SupabaseClient | null = null;
-let _supabaseAdmin: SupabaseClient | null = null;
-let _auth: SupabaseClient["auth"] | null = null;
+let _supabase: AkiiSupabaseClient | null = null;
+let _supabaseAdmin: AkiiSupabaseClient | null = null;
+let _auth: AkiiSupabaseClient["auth"] | null = null;
+
+// Add this right after the imports
+// True global singleton using a unique symbol as key in the global object
+const GLOBAL_KEY = Symbol.for('__SUPABASE_GLOBAL_SINGLETON__');
+
+interface GlobalSupabaseSingleton {
+  client?: AkiiSupabaseClient;
+  admin?: AkiiSupabaseClient | null;
+  auth?: AkiiSupabaseClient["auth"];
+  initialized: boolean;
+  clientOptions?: Record<string, any>;
+}
+
+// Initialize the global object if it doesn't exist
+const global = globalThis as any;
+if (!global[GLOBAL_KEY]) {
+  global[GLOBAL_KEY] = {
+    initialized: false,
+    clientOptions: null
+  } as GlobalSupabaseSingleton;
+}
+
+// Get a reference to our global singleton
+const globalSingleton = global[GLOBAL_KEY] as GlobalSupabaseSingleton;
 
 /**
  * Get or create the Supabase client instance
  */
-export function getSupabaseClient(): SupabaseClient {
+export function getSupabaseClient(): AkiiSupabaseClient {
   try {
-    // Return existing instance if available
+    // Return existing instance if available from the global object
+    if (globalSingleton.client) {
+      return globalSingleton.client;
+    }
+    
+    // Browser singleton (for backward compatibility)
     if (isBrowser && window.__SUPABASE_SINGLETON?.client) {
+      // Store in global singleton too
+      globalSingleton.client = window.__SUPABASE_SINGLETON.client;
       return window.__SUPABASE_SINGLETON.client;
     }
     
     // Get configuration with fallbacks
     const { url, anonKey, apiKeyStatus } = getSupabaseConfig();
     
-    // Store API key status in singleton
+    // Store API key status
     if (isBrowser && window.__SUPABASE_SINGLETON) {
       window.__SUPABASE_SINGLETON.apiKeyStatus = apiKeyStatus;
     }
     
     // Initialize client if it doesn't exist yet
-    if (!_supabase) {
+    if (!_supabase && !globalSingleton.client) {
       // Prevent initialization with empty key in production
       if (!anonKey && import.meta.env.PROD) {
         throw new Error(
@@ -125,8 +159,8 @@ export function getSupabaseClient(): SupabaseClient {
       const isProd = url.includes('api.akii.com') || import.meta.env.PROD;
       
       try {
-        // Create client with proper error handling
-        _supabase = createClient(url, anonKey, {
+        // Save client options to ensure we always use the same options
+        const clientOptions = {
           auth: {
             persistSession: true,
             autoRefreshToken: true,
@@ -142,11 +176,20 @@ export function getSupabaseClient(): SupabaseClient {
           db: {
             schema: 'public',
           },
-        });
+        };
+        
+        // Store options for future reference (to ensure consistency)
+        globalSingleton.clientOptions = clientOptions;
+        
+        // Create client with proper error handling
+        _supabase = createClient(url, anonKey, clientOptions);
         
         console.log(`Supabase client initialized with URL: ${url}`);
         
-        // Store in global singleton for browser
+        // Store in both singletons
+        globalSingleton.client = _supabase;
+        globalSingleton.initialized = true;
+        
         if (isBrowser && window.__SUPABASE_SINGLETON) {
           window.__SUPABASE_SINGLETON.client = _supabase;
           window.__SUPABASE_SINGLETON.initialized = true;
@@ -164,6 +207,8 @@ export function getSupabaseClient(): SupabaseClient {
           console.warn("Using mock Supabase client to prevent application crash");
           _supabase = createMockSupabaseClient();
           
+          globalSingleton.client = _supabase;
+          
           if (isBrowser && window.__SUPABASE_SINGLETON) {
             window.__SUPABASE_SINGLETON.client = _supabase;
           }
@@ -171,9 +216,15 @@ export function getSupabaseClient(): SupabaseClient {
           throw error; // Re-throw in production
         }
       }
+    } else if (_supabase && !globalSingleton.client) {
+      // If module-level singleton exists but global doesn't, sync them
+      globalSingleton.client = _supabase;
+    } else if (globalSingleton.client && !_supabase) {
+      // If global singleton exists but module-level doesn't, sync them
+      _supabase = globalSingleton.client;
     }
     
-    return _supabase;
+    return globalSingleton.client || _supabase;
   } catch (error) {
     console.error("Critical error initializing Supabase client:", error);
     
@@ -194,7 +245,7 @@ export function getSupabaseClient(): SupabaseClient {
 /**
  * Get or create the Supabase admin client instance
  */
-export function getAdminClient(): SupabaseClient | null {
+export function getAdminClient(): AkiiSupabaseClient | null {
   try {
     // Check for global singleton first (browser)
     if (isBrowser && window.__SUPABASE_SINGLETON?.admin) {
@@ -236,22 +287,39 @@ export function getAdminClient(): SupabaseClient | null {
 /**
  * Get the Supabase auth instance
  */
-export function getAuth(): SupabaseClient["auth"] {
+export function getAuth(): AkiiSupabaseClient["auth"] {
   try {
-    // Check for global singleton first (browser)
+    // Return existing instance from global singleton first
+    if (globalSingleton.auth) {
+      return globalSingleton.auth;
+    }
+    
+    // Fallback to browser singleton
     if (isBrowser && window.__SUPABASE_SINGLETON?.auth) {
+      // Store in global singleton too
+      globalSingleton.auth = window.__SUPABASE_SINGLETON.auth;
       return window.__SUPABASE_SINGLETON.auth;
     }
     
     if (!_auth) {
-      _auth = getSupabaseClient().auth;
+      const client = getSupabaseClient();
+      _auth = client.auth;
       
-      // Store in global singleton if in browser
+      // Store in both singletons
+      globalSingleton.auth = _auth;
+      
       if (isBrowser && window.__SUPABASE_SINGLETON) {
         window.__SUPABASE_SINGLETON.auth = _auth;
       }
+    } else if (_auth && !globalSingleton.auth) {
+      // If module-level singleton exists but global doesn't, sync them
+      globalSingleton.auth = _auth;
+    } else if (globalSingleton.auth && !_auth) {
+      // If global singleton exists but module-level doesn't, sync them
+      _auth = globalSingleton.auth;
     }
-    return _auth;
+    
+    return globalSingleton.auth || _auth;
   } catch (error) {
     console.error("Error getting auth instance:", error);
     
@@ -265,9 +333,9 @@ export function getAuth(): SupabaseClient["auth"] {
 
 // For backwards compatibility, initialize the clients immediately
 // But with try/catch to prevent critical failures
-let supabase: SupabaseClient;
-let supabaseAdmin: SupabaseClient | null;
-let auth: SupabaseClient["auth"];
+let supabase: AkiiSupabaseClient;
+let supabaseAdmin: AkiiSupabaseClient | null;
+let auth: AkiiSupabaseClient["auth"];
 
 try {
   supabase = getSupabaseClient();
@@ -276,9 +344,9 @@ try {
 } catch (error) {
   console.error("Error during initial Supabase client setup:", error);
   // Provide fallbacks for direct imports
-  supabase = null as unknown as SupabaseClient;
+  supabase = null as unknown as AkiiSupabaseClient;
   supabaseAdmin = null;
-  auth = null as unknown as SupabaseClient["auth"];
+  auth = null as unknown as AkiiSupabaseClient["auth"];
 }
 
 // Export the instances
@@ -292,15 +360,18 @@ export function debugSupabaseInstances(): {
   adminExists: boolean;
   authExists: boolean;
   globalSingleton: boolean;
+  browserSingleton: boolean;
   apiKeyStatus: string;
   environmentInfo: Record<string, string | boolean>;
   initializationError: string | null;
+  globalSingletonInfo: any;
 } {
   return {
     supabaseExists: !!_supabase,
     adminExists: !!_supabaseAdmin,
     authExists: !!_auth,
-    globalSingleton: isBrowser && !!window.__SUPABASE_SINGLETON?.client,
+    globalSingleton: !!globalSingleton.client,
+    browserSingleton: isBrowser && !!window.__SUPABASE_SINGLETON?.client,
     apiKeyStatus: isBrowser ? window.__SUPABASE_SINGLETON?.apiKeyStatus || 'unknown' : 'unknown',
     environmentInfo: {
       isDev: import.meta.env.DEV === true,
@@ -311,7 +382,14 @@ export function debugSupabaseInstances(): {
     },
     initializationError: isBrowser && window.__SUPABASE_SINGLETON?.initializationError 
       ? window.__SUPABASE_SINGLETON.initializationError.message 
-      : null
+      : null,
+    globalSingletonInfo: {
+      initialized: globalSingleton.initialized,
+      hasClient: !!globalSingleton.client,
+      hasAuth: !!globalSingleton.auth,
+      hasAdmin: !!globalSingleton.admin,
+      optionsStored: !!globalSingleton.clientOptions
+    }
   };
 }
 
@@ -319,7 +397,7 @@ export function debugSupabaseInstances(): {
  * Creates a minimal mock Supabase client for development
  * This prevents the application from crashing when Supabase is not available
  */
-function createMockSupabaseClient(): SupabaseClient {
+function createMockSupabaseClient(): AkiiSupabaseClient {
   // Simple mock that just logs operations and returns empty results
   // @ts-ignore - This is intentionally not a complete implementation
   return {
@@ -362,13 +440,13 @@ function createMockSupabaseClient(): SupabaseClient {
         getPublicUrl: () => ({ data: { publicUrl: 'http://mock-url.com' } }),
       }),
     },
-  } as unknown as SupabaseClient;
+  } as unknown as AkiiSupabaseClient;
 }
 
 /**
  * Creates a mock auth instance for development
  */
-function createMockAuthInstance(): SupabaseClient["auth"] {
+function createMockAuthInstance(): AkiiSupabaseClient["auth"] {
   const mockCallback = () => {};
   
   // Create a proper Subscription object that matches the expected interface
