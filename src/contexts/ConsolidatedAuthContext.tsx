@@ -195,7 +195,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (metadataString && storedEmail === user.email) {
           storedMetadata = JSON.parse(metadataString);
-          console.log("Retrieved stored metadata:", storedMetadata);
+          console.log("Retrieved stored metadata for profile creation:", storedMetadata);
+          
+          // Update user metadata for profile creation
+          if (storedMetadata) {
+            user.user_metadata = {
+              ...user.user_metadata,
+              ...storedMetadata
+            };
+          }
+        }
+        
+        // Also check backup storage location
+        const backupKey = `akii-signup-${user.email.replace(/[^a-zA-Z0-9]/g, "")}`;
+        const backupData = sessionStorage.getItem(backupKey);
+        if (backupData && (!storedMetadata || Object.keys(storedMetadata).length === 0)) {
+          try {
+            const parsedBackup = JSON.parse(backupData);
+            console.log("Retrieved backup metadata for profile creation:", parsedBackup.metadata);
+            
+            if (parsedBackup.metadata) {
+              storedMetadata = parsedBackup.metadata;
+              user.user_metadata = {
+                ...user.user_metadata,
+                ...parsedBackup.metadata
+              };
+            }
+          } catch (e) {
+            console.warn("Failed to parse backup metadata:", e);
+          }
         }
       } catch (error) {
         console.error("Error retrieving stored metadata:", error);
@@ -205,12 +233,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let retryCount = 0;
       let userProfile = null;
       let profileError = null;
+      const MAX_RETRIES = 3;
       
-      while (retryCount < 3 && !userProfile) {
+      while (retryCount < MAX_RETRIES && !userProfile) {
         if (retryCount > 0) {
           console.log(`Retry attempt ${retryCount} to get/create profile`);
           // Add a small delay before retrying
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
         }
         
         const result = await ensureUserProfile({
@@ -235,99 +264,130 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         retryCount++;
       }
       
-      if (profileError) {
-        console.error("Error ensuring user profile after retries:", profileError);
+      // Force profile creation if still no profile
+      if (!userProfile && retryCount >= MAX_RETRIES) {
+        console.warn("Creating fallback profile after max retries");
         
-        // Set error state but continue with user authentication
-        setState(prev => ({
-          ...prev,
-          user,
-          session,
-          profile: null,
-          isLoading: false,
-          isAdmin: false,
-          userRole: null,
-          error: profileError,
-        }));
-        
-        toast({
-          title: "Profile Error",
-          description: "There was an error loading your profile. Some features may be limited.",
-          variant: "destructive",
-        });
-        
-        // Create a minimal profile anyway to allow basic functionality
+        // Create a minimal profile directly
         userProfile = {
           id: user.id,
           email: user.email || "",
-          role: "user",
-          status: "active",
           first_name: user.user_metadata?.first_name || "",
           last_name: user.user_metadata?.last_name || "",
           company: user.user_metadata?.company || "",
+          role: "user",
+          status: "active",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         };
+        
+        // Try to persist this profile to cache
+        try {
+          // Store in local cache
+          const cachedProfiles = JSON.parse(localStorage.getItem('akii-profile-cache') || '{}');
+          cachedProfiles[user.id] = {
+            ...userProfile,
+            cached_at: new Date().toISOString()
+          };
+          localStorage.setItem('akii-profile-cache', JSON.stringify(cachedProfiles));
+          
+          console.log("Stored fallback profile in cache");
+        } catch (cacheError) {
+          console.error("Failed to store fallback profile in cache:", cacheError);
+        }
       }
       
-      // Clear stored metadata after profile processing
+      // If we have a user but no profile, proceed with user only
+      if (!userProfile) {
+        console.warn("No profile available, proceeding with user only");
+      }
+      
+      // Determine if user is admin
+      const isAdmin = userProfile?.role === "admin" || hasValidAdminOverride(user.email || "");
+      const userRole = userProfile?.role || null;
+      
+      // Set state with user, profile and session
+      setState({
+        user,
+        profile: userProfile,
+        session,
+        isLoading: false,
+        isAdmin,
+        userRole,
+        error: null
+      });
+      
+      // Clean up stored metadata once profile is loaded or created
       try {
         localStorage.removeItem("signup-metadata");
         localStorage.removeItem("signup-email");
         localStorage.removeItem("signup-timestamp");
       } catch (error) {
-        console.error("Error clearing stored metadata:", error);
+        console.error("Error cleaning up stored metadata:", error);
       }
-      
-      // Always create a minimal profile as a fallback if everything fails
-      if (!userProfile) {
-        console.error("No profile returned after ensure operation");
-        
-        // Create minimal profile in memory to allow basic functionality
-        userProfile = {
-          id: user.id,
-          email: user.email || "",
-          role: "user",
-          status: "active",
-          first_name: user.user_metadata?.first_name || "",
-          last_name: user.user_metadata?.last_name || "",
-          company: user.user_metadata?.company || "",
-        };
-        
-        toast({
-          title: "Using Fallback Profile",
-          description: "We're using basic account information. You may need to update your profile.",
-          variant: "default",
-        });
-      }
-      
-      // Check admin status
-      const isUserAdmin = (userProfile.role === "admin") || hasValidAdminOverride(user.email || "");
-      
-      // Update state with user, profile and session
-      console.log("Auth initialization completed successfully", { 
-        userId: user.id, 
-        profileId: userProfile.id,
-        role: userProfile.role
-      });
-      
-      setState({
-        user,
-        session,
-        profile: userProfile,
-        isLoading: false,
-        isAdmin: isUserAdmin,
-        userRole: userProfile.role || null,
-        error: null,
-      });
-      
     } catch (error) {
-      console.error("Auth initialization error:", error);
+      console.error("Error initializing auth:", error);
+      
+      // Attempt to recover if there's a saved user ID
+      try {
+        const savedUserId = localStorage.getItem("akii-auth-user-id");
+        const savedEmail = localStorage.getItem("akii-auth-user-email");
+        
+        if (savedUserId && savedEmail) {
+          console.log("Attempting recovery with saved user ID:", savedUserId);
+          
+          // Create minimal user and profile objects
+          const recoveryUser = {
+            id: savedUserId,
+            email: savedEmail,
+            user_metadata: {}
+          } as User;
+          
+          const recoveryProfile = {
+            id: savedUserId,
+            email: savedEmail,
+            role: "user" as UserRole,
+            status: "active" as UserStatus,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          // Set state with recovery data
+          setState({
+            user: recoveryUser,
+            profile: recoveryProfile,
+            session: null, 
+            isLoading: false,
+            isAdmin: false,
+            userRole: "user",
+            error: error as Error
+          });
+          
+          // Show toast for recovery
+          toast({
+            title: "Session Recovery",
+            description: "Your session needed recovery. Some features may require you to sign in again.",
+            variant: "destructive"
+          });
+          
+          return;
+        }
+      } catch (recoveryError) {
+        console.error("Recovery attempt failed:", recoveryError);
+      }
+      
       setState(prev => ({ 
         ...prev, 
         isLoading: false, 
-        error: error as Error 
+        error: error as Error,
+        user: null,
+        profile: null,
+        session: null,
+        isAdmin: false,
+        userRole: null
       }));
     }
-  }, []);
+  }, [toast]);
 
   // Effect to initialize auth and handle auth changes
   useEffect(() => {

@@ -7,6 +7,7 @@
 
 import type { PostgrestError, User, Session, AuthError, AuthApiError } from "@supabase/supabase-js";
 import { supabase, supabaseAdmin, auth, getAuth, getSupabaseClient } from "./supabase-client";
+import { isBrowser } from "./browser-check";
 
 // Re-export Supabase instances and auth
 export { supabase, supabaseAdmin, auth, getAuth };
@@ -315,158 +316,215 @@ export const ensureUserProfile = async (user: User) => {
     return { data: updatedProfile, error: null };
   }
   
-  const supabase = getSupabaseClient();
+  // Add mutex status for this user ID to prevent multiple concurrent profile creations
+  const MUTEX_KEY = `PROFILE_CREATION_${user.id}`;
   
-  // First check if a profile already exists
-  console.log(`Checking if profile exists for user ID: ${user.id}`);
-  try {
-    const { data: existingProfile, error: fetchError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-    
-    if (fetchError) {
-      // Enhanced error logging
-      console.error(`Profile fetch error for user ${user.id}:`, fetchError);
-      console.error(`Error code: ${fetchError.code}, message: ${fetchError.message}`);
+  // Check if we're already in process of creating this profile
+  if (isBrowser) {
+    const inProgress = sessionStorage.getItem(MUTEX_KEY);
+    if (inProgress) {
+      console.log(`Profile creation already in progress for ${user.id}, waiting...`);
+      // Wait for the mutex to clear (max 3 seconds)
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      if (fetchError.code === "PGRST116") {
-        // No data found is not a critical error
-        console.log("No profile found, continuing to creation");
-      } else if (fetchError.code === "PGRST301" || fetchError.code === "42501" || (fetchError as any).status === 403) {
-        console.warn("Permission denied accessing database table. Using fallback approach.");
-        
-        // Get metadata from Auth API instead of database
-        const metadata = await getUserMetadataFromAuthAPI(user.id);
-        
-        // Create a profile with the metadata we could retrieve
-        const fallbackProfile: UserProfile = {
-          id: user.id,
-          email: user.email || "",
-          first_name: metadata.first_name || "",
-          last_name: metadata.last_name || "",
-          company: metadata.company || "",
-          role: "user" as UserRole,
-          status: "active" as UserStatus,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        
-        console.log("Created fallback profile with Auth API data:", fallbackProfile);
-        cacheProfile(fallbackProfile);
-        return { 
-          data: fallbackProfile as UserProfile, 
-          error: null 
-        };
-      } else {
-        // Log but continue with attempt to create profile
-        console.error("Error checking for profile, will still try to create one:", fetchError);
+      // Check cache again after waiting
+      const profileAfterWait = getCachedProfile(user.id);
+      if (profileAfterWait) {
+        return { data: profileAfterWait, error: null };
       }
     }
     
-    // If profile exists, cache and return it
-    if (existingProfile) {
-      console.log(`Profile found for user ID: ${user.id}`);
-      cacheProfile(existingProfile as UserProfile);
-      return { data: existingProfile as UserProfile, error: null };
+    // Set mutex to prevent concurrent creation
+    try {
+      sessionStorage.setItem(MUTEX_KEY, Date.now().toString());
+    } catch (e) {
+      console.warn("Could not set session storage mutex", e);
+    }
+  }
+  
+  // Get all clients we might need
+  const supabase = getSupabaseClient();
+  const adminClient = supabaseAdmin;
+  
+  try {
+    // First check if a profile already exists
+    console.log(`Checking if profile exists for user ID: ${user.id}`);
+    
+    try {
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      
+      if (fetchError) {
+        if (fetchError.code !== "PGRST116") { // Not the "no rows returned" error
+          console.error(`Profile fetch error for user ${user.id}:`, fetchError);
+        }
+        
+        // No profile found or error occurred, continue to creation
+      } else if (existingProfile) {
+        // Profile found, cache and return it
+        console.log(`Profile found for user ID: ${user.id}`);
+        cacheProfile(existingProfile as UserProfile);
+        
+        // Clear mutex
+        if (isBrowser) {
+          sessionStorage.removeItem(MUTEX_KEY);
+        }
+        
+        return { data: existingProfile as UserProfile, error: null };
+      }
+    } catch (fetchError) {
+      console.error(`Unexpected error checking for profile: ${user.id}:`, fetchError);
+      // Continue to creation attempt
     }
     
-    console.log(`No profile found for user ID: ${user.id}, creating new profile`);
+    console.log(`Creating profile for user ID: ${user.id}`);
     
-    // Get additional metadata from Auth API to ensure we have the most complete data
+    // Get additional metadata - start by using data from Auth API
     const authMetadata = await getUserMetadataFromAuthAPI(user.id);
     
-    // Prepare profile data with all required fields, combining data from user and Auth API
+    // Also check localStorage for saved metadata from signup
+    let signupMetadata: Record<string, any> = {};
+    try {
+      const metadataString = localStorage.getItem("signup-metadata");
+      const storedEmail = localStorage.getItem("signup-email");
+      
+      if (metadataString && storedEmail === user.email) {
+        signupMetadata = JSON.parse(metadataString);
+        console.log("Retrieved stored signup metadata:", signupMetadata);
+      }
+    } catch (storageError) {
+      console.warn("Error retrieving stored signup metadata:", storageError);
+    }
+    
+    // Merge all metadata sources with priority order:
+    // 1. User's user_metadata (from auth)
+    // 2. Stored signup metadata (from localStorage)
+    // 3. Auth API metadata (retrieved separately)
+    const mergedMetadata = {
+      ...authMetadata,
+      ...signupMetadata,
+      ...user.user_metadata
+    };
+    
+    // Prepare profile data with all required fields
     const profileData = {
       id: user.id,
       email: user.email || "",
-      first_name: user.user_metadata?.first_name || authMetadata.first_name || "",
-      last_name: user.user_metadata?.last_name || authMetadata.last_name || "",
-      company: user.user_metadata?.company || authMetadata.company || "",
+      first_name: mergedMetadata.first_name || "",
+      last_name: mergedMetadata.last_name || "",
+      company: mergedMetadata.company || "",
+      full_name: mergedMetadata.full_name || 
+                `${mergedMetadata.first_name || ""} ${mergedMetadata.last_name || ""}`.trim() || 
+                null,
       role: "user" as UserRole, // Default role
       status: "active" as UserStatus,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     
-    // Try to create profile using upsert
-    const { data: insertedProfile, error: insertError } = await supabase
-      .from("profiles")
-      .upsert(profileData)
-      .select()
-      .single();
-      
-    if (insertError) {
-      console.error("Error creating profile:", insertError);
-      
-      // If permission error, use fallback profile
-      if (insertError.code === "PGRST301" || insertError.code === "42501" || (insertError as any).status === 403) {
-        console.warn("Permission denied creating profile. Using fallback profile.");
-        cacheProfile(profileData as UserProfile);
-        return { 
-          data: profileData as UserProfile, 
-          error: null 
-        };
-      }
-      
-      // For other errors, try recovery mechanism
-      console.log("Checking if profile was created despite error");
-      const { data: recoveryProfile, error: recoveryError } = await supabase
+    console.log(`Attempting to create profile with data:`, profileData);
+    
+    let createdProfile: UserProfile | null = null;
+    let creationError: Error | null = null;
+    
+    // Try with regular client first
+    try {
+      const { data: insertedProfile, error: insertError } = await supabase
         .from("profiles")
-        .select("*")
-        .eq("id", user.id)
+        .upsert(profileData)
+        .select()
         .single();
         
-      if (recoveryError) {
-        if (recoveryError.code === "PGRST301" || recoveryError.code === "42501" || (recoveryError as any).status === 403) {
-          // Permission denied again, use fallback
-          console.warn("Permission denied during recovery. Using fallback profile.");
-          cacheProfile(profileData as UserProfile);
-          return { 
-            data: profileData as UserProfile, 
-            error: null 
-          };
-        }
-        
-        console.error("Recovery attempt failed:", recoveryError);
-        cacheProfile(profileData as UserProfile);
-        return { 
-          data: profileData as UserProfile, 
-          error: insertError 
-        };
+      if (insertError) {
+        console.error("Error creating profile with regular client:", insertError);
+        creationError = insertError;
+      } else if (insertedProfile) {
+        createdProfile = insertedProfile as UserProfile;
       }
-      
-      if (recoveryProfile) {
-        console.log("Profile was created despite error, returning recovery profile");
-        cacheProfile(recoveryProfile as UserProfile);
-        return { data: recoveryProfile as UserProfile, error: null };
-      }
-      
-      // If all else fails, return a fallback profile
-      cacheProfile(profileData as UserProfile);
-      return { 
-        data: profileData as UserProfile, 
-        error: insertError 
-      };
+    } catch (error) {
+      console.error("Exception creating profile with regular client:", error);
+      creationError = error as Error;
     }
     
-    console.log(`Profile successfully created for user ID: ${user.id}`);
-    cacheProfile(insertedProfile as UserProfile);
-    return { data: insertedProfile as UserProfile, error: null };
+    // If first attempt failed and we have admin client, try with that
+    if (!createdProfile && creationError && adminClient) {
+      try {
+        console.log("Trying profile creation with admin client");
+        const { data: adminInsertedProfile, error: adminInsertError } = await adminClient
+          .from("profiles")
+          .upsert(profileData)
+          .select()
+          .single();
+          
+        if (adminInsertError) {
+          console.error("Error creating profile with admin client:", adminInsertError);
+        } else if (adminInsertedProfile) {
+          createdProfile = adminInsertedProfile as UserProfile;
+          creationError = null;
+        }
+      } catch (adminError) {
+        console.error("Exception creating profile with admin client:", adminError);
+      }
+    }
+    
+    // If creation still failed but we're in a browser, check if maybe it was created anyway
+    if (!createdProfile && isBrowser) {
+      try {
+        console.log("Checking if profile was created despite errors");
+        const { data: recoveryProfile, error: recoveryError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+          
+        if (!recoveryError && recoveryProfile) {
+          console.log("Found profile during recovery check");
+          createdProfile = recoveryProfile as UserProfile;
+          creationError = null;
+        }
+      } catch (recoveryAttemptError) {
+        console.error("Error during recovery attempt:", recoveryAttemptError);
+      }
+    }
+    
+    // If still no profile, use our prepared data as a fallback
+    if (!createdProfile) {
+      console.log("Using fallback profile data");
+      createdProfile = profileData as UserProfile;
+    }
+    
+    // Cache the profile whatever the result
+    if (createdProfile) {
+      cacheProfile(createdProfile);
+    }
+    
+    // Clear mutex
+    if (isBrowser) {
+      sessionStorage.removeItem(MUTEX_KEY);
+    }
+    
+    return { 
+      data: createdProfile, 
+      error: creationError
+    };
   } catch (unexpectedError) {
-    console.error("Unexpected error in ensureUserProfile:", unexpectedError);
+    console.error("Critical error in ensureUserProfile:", unexpectedError);
     
-    // Try to get user metadata from Auth API
-    const authMetadata = await getUserMetadataFromAuthAPI(user.id);
+    // Clear mutex on error
+    if (isBrowser) {
+      sessionStorage.removeItem(MUTEX_KEY);
+    }
     
-    // Create a fallback profile with available data
+    // Create a fallback profile
     const fallbackProfile = {
       id: user.id,
       email: user.email || "",
-      first_name: user.user_metadata?.first_name || authMetadata.first_name || "",
-      last_name: user.user_metadata?.last_name || authMetadata.last_name || "",
-      company: user.user_metadata?.company || authMetadata.company || "",
+      first_name: user.user_metadata?.first_name || "",
+      last_name: user.user_metadata?.last_name || "",
+      company: user.user_metadata?.company || "",
       role: "user" as UserRole,
       status: "active" as UserStatus,
       created_at: new Date().toISOString(),
@@ -659,11 +717,23 @@ export async function signUp({
 }: SignUpParams): Promise<SignUpResponse> {
   try {
     // Store metadata in localStorage before attempting signup
+    // This is crucial as we need this data after email confirmation
     try {
       if (metadata) {
+        console.log("Storing signup metadata for later profile creation:", metadata);
+        
+        // Store with a more robust approach
         localStorage.setItem("signup-metadata", JSON.stringify(metadata));
         localStorage.setItem("signup-email", email);
         localStorage.setItem("signup-timestamp", Date.now().toString());
+        
+        // Add redundant backup in case primary storage gets cleared
+        const backupKey = `akii-signup-${email.replace(/[^a-zA-Z0-9]/g, "")}`;
+        sessionStorage.setItem(backupKey, JSON.stringify({
+          metadata,
+          email,
+          timestamp: Date.now()
+        }));
       }
     } catch (storageError) {
       console.error("Failed to store signup metadata:", storageError);
@@ -675,23 +745,61 @@ export async function signUp({
       email,
       password,
       options: {
-        emailRedirectTo: redirectTo,
+        emailRedirectTo: redirectTo || `${window.location.origin}/auth/callback`,
         data: metadata,
       },
     });
     
-    // For auto-confirmed accounts (or if email confirmation disabled) create profile
-    // Most users will create profile when they sign in after email confirmation
-    if (data?.session) {
-      // User has active session immediately after signup
-      console.log("User has active session after signup, creating profile");
+    if (error) {
+      console.error("Signup error:", error);
+      return { data: null, error };
+    }
+    
+    // We have 2 scenarios here:
+    // 1. Email confirmation is required (most common) - profile will be created after email confirmation
+    // 2. User gets an active session immediately (e.g., auto-confirm is enabled)
+    
+    if (!data?.session) {
+      // Email confirmation required - make sure metadata is stored for when they return
+      console.log("Email confirmation required. Metadata has been stored for when user confirms email.");
+      
+      // We don't create profile now - it will be created after email confirmation
+      // Instead we store a reminder that this user needs profile creation
+      if (isBrowser) {
+        localStorage.setItem(`profile-pending-${email.replace(/[^a-zA-Z0-9]/g, "")}`, "true");
+      }
+    } else {
+      // User has active session immediately after signup (auto-confirm enabled)
+      console.log("User has active session after signup, creating profile immediately");
+      
       try {
+        // Ensure we have the metadata available to the profile creation function
+        if (data.user && metadata) {
+          // Add metadata to user object to ensure it's available for profile creation
+          data.user.user_metadata = {
+            ...data.user.user_metadata,
+            ...metadata
+          };
+        }
+        
         const { data: profileData, error: profileError } = await ensureUserProfile(data.user);
         
         if (profileError) {
           console.error("Error creating profile after signup:", profileError);
         } else if (profileData) {
-          console.log("Profile created successfully after signup");
+          console.log("Profile created successfully after signup:", profileData.id);
+          
+          // Clear signup metadata since we've successfully created the profile
+          if (isBrowser) {
+            try {
+              localStorage.removeItem("signup-metadata");
+              localStorage.removeItem("signup-email");
+              localStorage.removeItem("signup-timestamp");
+              localStorage.removeItem(`profile-pending-${email.replace(/[^a-zA-Z0-9]/g, "")}`);
+            } catch (e) {
+              console.warn("Could not clear signup metadata:", e);
+            }
+          }
         }
       } catch (profileCreationError) {
         console.error("Exception during profile creation after signup:", profileCreationError);
@@ -703,6 +811,7 @@ export async function signUp({
       error,
     };
   } catch (err) {
+    console.error("Unexpected error during signup:", err);
     return {
       data: null,
       error: err as AuthApiError,
