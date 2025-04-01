@@ -8,6 +8,17 @@
 import { createClient, SupabaseClient, AuthResponse } from "@supabase/supabase-js";
 import { isBrowser } from "./browser-check";
 
+// Check for existing client in window object (cross-module singleton)
+declare global {
+  interface Window {
+    __SUPABASE_SINGLETON?: {
+      client?: SupabaseClient;
+      admin?: SupabaseClient;
+      auth?: SupabaseClient["auth"];
+    }
+  }
+}
+
 // Environment variables using Vite's import.meta.env
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -26,7 +37,12 @@ if (!supabaseAnonKey) {
   );
 }
 
-// Singleton instances
+// Initialize the global singleton container
+if (isBrowser && !window.__SUPABASE_SINGLETON) {
+  window.__SUPABASE_SINGLETON = {};
+}
+
+// Module-level singleton fallback (for SSR or if window is not available)
 let _supabase: SupabaseClient | null = null;
 let _supabaseAdmin: SupabaseClient | null = null;
 let _auth: SupabaseClient["auth"] | null = null;
@@ -35,6 +51,12 @@ let _auth: SupabaseClient["auth"] | null = null;
  * Get or create the Supabase client instance
  */
 export function getSupabaseClient(): SupabaseClient {
+  // Try to use the global singleton first (browser)
+  if (isBrowser && window.__SUPABASE_SINGLETON?.client) {
+    return window.__SUPABASE_SINGLETON.client;
+  }
+  
+  // Fall back to module-level singleton or create new instance
   if (!_supabase) {
     _supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
@@ -43,8 +65,15 @@ export function getSupabaseClient(): SupabaseClient {
         autoRefreshToken: true,
       },
     });
+    
+    // Store in global singleton if in browser
+    if (isBrowser && window.__SUPABASE_SINGLETON) {
+      window.__SUPABASE_SINGLETON.client = _supabase;
+    }
+    
     console.log("Supabase client initialized");
   }
+  
   return _supabase;
 }
 
@@ -52,6 +81,11 @@ export function getSupabaseClient(): SupabaseClient {
  * Get or create the Supabase admin client instance
  */
 export function getAdminClient(): SupabaseClient | null {
+  // Check for global singleton first (browser)
+  if (isBrowser && window.__SUPABASE_SINGLETON?.admin) {
+    return window.__SUPABASE_SINGLETON.admin;
+  }
+  
   if (supabaseServiceKey) {
     if (!_supabaseAdmin) {
       _supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -60,11 +94,20 @@ export function getAdminClient(): SupabaseClient | null {
           autoRefreshToken: false,
         },
       });
+      
+      // Store in global singleton if in browser
+      if (isBrowser && window.__SUPABASE_SINGLETON) {
+        window.__SUPABASE_SINGLETON.admin = _supabaseAdmin;
+      }
+      
       console.log("Supabase admin client initialized");
     }
     return _supabaseAdmin;
   } else {
-    console.warn("Missing VITE_SUPABASE_SERVICE_KEY. Admin client not available.");
+    // In production, we don't want to warn about missing service key
+    if (import.meta.env.DEV) {
+      console.warn("Missing VITE_SUPABASE_SERVICE_KEY. Admin client not available.");
+    }
     return null;
   }
 }
@@ -73,8 +116,18 @@ export function getAdminClient(): SupabaseClient | null {
  * Get the Supabase auth instance
  */
 export function getAuth(): SupabaseClient["auth"] {
+  // Check for global singleton first (browser)
+  if (isBrowser && window.__SUPABASE_SINGLETON?.auth) {
+    return window.__SUPABASE_SINGLETON.auth;
+  }
+  
   if (!_auth) {
     _auth = getSupabaseClient().auth;
+    
+    // Store in global singleton if in browser
+    if (isBrowser && window.__SUPABASE_SINGLETON) {
+      window.__SUPABASE_SINGLETON.auth = _auth;
+    }
   }
   return _auth;
 }
@@ -91,11 +144,13 @@ export function debugSupabaseInstances(): {
   supabaseExists: boolean;
   adminExists: boolean;
   authExists: boolean;
+  globalSingleton: boolean;
 } {
   return {
     supabaseExists: !!_supabase,
     adminExists: !!_supabaseAdmin,
     authExists: !!_auth,
+    globalSingleton: isBrowser && !!window.__SUPABASE_SINGLETON?.client
   };
 }
 
