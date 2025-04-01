@@ -21,6 +21,8 @@ export interface UserProfile {
   last_name?: string | null;
   role: UserRole;
   status: UserStatus;
+  company?: string | null;
+  avatar_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +47,8 @@ export async function signIn(
     // Clear previous auth state
     await clearStoredAuth();
 
+    console.log("Signing in user:", email);
+
     // Sign in with Supabase
     const { data, error } = await supabaseClient.auth.signInWithPassword({
       email,
@@ -53,6 +57,8 @@ export async function signIn(
 
     if (error) throw error;
     if (!data.user) throw new Error("No user returned after sign in");
+
+    console.log("Sign in successful for:", data.user.email);
 
     // Store backup session data for resilience
     try {
@@ -251,6 +257,8 @@ export async function updateUserProfile(
     // Add updated timestamp
     safeUpdates.updated_at = new Date().toISOString();
 
+    console.log("Updating user profile with:", safeUpdates);
+
     const { data, error } = await supabaseClient
       .from("profiles")
       .update(safeUpdates)
@@ -263,6 +271,12 @@ export async function updateUserProfile(
       return { data: null, error };
     }
 
+    // Store avatar URL in localStorage for immediate access
+    if (safeUpdates.avatar_url) {
+      localStorage.setItem("akii-avatar-url", safeUpdates.avatar_url);
+    }
+
+    console.log("Profile updated successfully:", data);
     return { data: data as UserProfile, error: null };
   } catch (error) {
     console.error("Unexpected error updating user profile:", error);

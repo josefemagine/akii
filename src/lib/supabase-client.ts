@@ -1,12 +1,12 @@
-import { createClient } from "@supabase/supabase-js";
+/**
+ * Supabase client export
+ * This file re-exports the centralized Supabase client from auth-core
+ * to maintain backward compatibility with existing imports
+ */
 
-// Create a single instance of the Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { supabaseClient } from "./auth-core";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Missing Supabase environment variables");
-}
+export { supabaseClient };
 
-// Export a single instance to be used throughout the app
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// For backward compatibility
+export const supabase = supabaseClient;

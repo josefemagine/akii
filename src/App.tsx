@@ -1,6 +1,14 @@
-import React, { Suspense, lazy } from "react";
-import { Routes, Route, Navigate, Outlet, useRoutes } from "react-router-dom";
-import routes from "./tempo-routes";
+import React, { Suspense, lazy, useEffect } from "react";
+import {
+  Routes,
+  Route,
+  Navigate,
+  Outlet,
+  useRoutes,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
+import routes from "tempo-routes";
 import { AuthProvider } from "./contexts/AuthContext";
 import LandingPage from "./pages/LandingPage";
 import { SearchProvider } from "./contexts/SearchContext";
@@ -96,14 +104,37 @@ const LoadingFallback = () => (
   </div>
 );
 
+// Route redirection component
+const RouteRedirect = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Check if we're trying to access dashboard routes
+    if (location.pathname.startsWith("/dashboard")) {
+      console.log("Redirecting to dashboard");
+      // Force a navigation to the dashboard route
+      navigate("/dashboard", { replace: true });
+    }
+  }, [location, navigate]);
+
+  return <LoadingScreen />;
+};
+
 function App() {
+  // Get the current location
+  const location = useLocation();
+
+  // Use the useRoutes hook for Tempo routes
+  const tempoRoutes = import.meta.env.VITE_TEMPO ? useRoutes(routes) : null;
+
   return (
     <SearchProvider>
       <Suspense fallback={<LoadingScreen />}>
         <EnvWarning />
         <AuthProvider>
           {/* Tempo routes */}
-          {import.meta.env.VITE_TEMPO && useRoutes(routes)}
+          {tempoRoutes}
 
           <Routes>
             {/* Public home routes */}
@@ -330,33 +361,159 @@ function App() {
             />
 
             {/* Admin routes - now under dashboard */}
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/settings" element={<AdminSettings />} />
-            <Route path="/admin/packages" element={<AdminPackages />} />
-            <Route path="/admin/moderation" element={<Moderation />} />
+            <Route
+              path="/admin/users"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <AdminUsers />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/settings"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <AdminSettings />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/packages"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <AdminPackages />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/moderation"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <Moderation />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/admin/email-templates"
-              element={<AdminEmailTemplates />}
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <AdminEmailTemplates />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
             />
-            <Route path="/admin/lead-magnets" element={<AdminLeadMagnets />} />
+            <Route
+              path="/admin/lead-magnets"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <AdminLeadMagnets />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/admin/landing-pages"
-              element={<AdminLandingPages />}
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <AdminLandingPages />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
             />
-            <Route path="/admin/blog" element={<AdminBlog />} />
-            <Route path="/admin/affiliates" element={<AdminAffiliates />} />
-            <Route path="/admin/compliance" element={<AdminCompliance />} />
-            <Route path="/admin/run-migration" element={<RunMigration />} />
-            <Route path="/admin/workflows" element={<AdminN8nWorkflows />} />
+            <Route
+              path="/admin/blog"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <AdminBlog />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/affiliates"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <AdminAffiliates />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/compliance"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <AdminCompliance />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/run-migration"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <RunMigration />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/admin/workflows"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <AdminN8nWorkflows />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/admin/database-schema"
-              element={<DatabaseSchemaPage />}
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <DatabaseSchemaPage />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
             />
-            <Route path="/admin/user-sync" element={<UserSyncPage />} />
+            <Route
+              path="/admin/user-sync"
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <UserSyncPage />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/admin/user-status-migration"
-              element={<UserStatusMigration />}
+              element={
+                <PrivateRoute>
+                  <DashboardLayout>
+                    <UserStatusMigration />
+                  </DashboardLayout>
+                </PrivateRoute>
+              }
             />
+
+            {/* Dashboard redirect for any unmatched dashboard routes */}
+            <Route path="/dashboard/*" element={<RouteRedirect />} />
 
             {/* Fallback route */}
             {/* Add this before the catchall route */}

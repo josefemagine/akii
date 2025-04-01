@@ -69,6 +69,13 @@ export default function LoginForm() {
           data?.user ? "User exists" : "No user data",
         );
 
+        // Store user email and ID for backup recovery
+        if (data?.user) {
+          localStorage.setItem("akii-auth-user-email", email);
+          localStorage.setItem("akii-auth-user-id", data.user.id);
+          localStorage.setItem("akii-auth-timestamp", Date.now().toString());
+        }
+
         // Clear login attempt tracking
         localStorage.removeItem("login-attempt");
         localStorage.removeItem("login-attempt-time");

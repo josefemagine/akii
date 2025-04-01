@@ -14,9 +14,24 @@ export function DashboardSafeWrapper({ children }: DashboardSafeWrapperProps) {
 
   useEffect(() => {
     // Check if we're in a browser environment
-    if (isBrowser()) {
-      setIsSafe(true);
+    let mounted = true;
+    // Only set state if component is still mounted
+    if (isBrowser() && mounted) {
+      // Use a timeout to ensure this doesn't cause a render loop
+      const timer = setTimeout(() => {
+        if (mounted) {
+          setIsSafe(true);
+        }
+      }, 0);
+
+      return () => {
+        mounted = false;
+        clearTimeout(timer);
+      };
     }
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (!isSafe) {

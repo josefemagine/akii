@@ -295,6 +295,7 @@ export interface Database {
           team_id: string;
           user_id: string;
           role: string;
+          ai_instance_access?: string[];
           created_at: string;
           updated_at: string;
         };
@@ -303,6 +304,7 @@ export interface Database {
           team_id: string;
           user_id: string;
           role: string;
+          ai_instance_access?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -311,8 +313,61 @@ export interface Database {
           team_id?: string;
           user_id?: string;
           role?: string;
+          ai_instance_access?: string[];
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      ai_instances: {
+        Row: {
+          id: string;
+          team_id: string;
+          name: string;
+          description: string | null;
+          created_at: string;
+          updated_at: string;
+          settings: Json;
+          status: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          name: string;
+          description?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          settings?: Json;
+          status?: string;
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          name?: string;
+          description?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          settings?: Json;
+          status?: string;
+        };
+      };
+      team_ai_instance_access: {
+        Row: {
+          id: string;
+          team_member_id: string;
+          ai_instance_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_member_id: string;
+          ai_instance_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          team_member_id?: string;
+          ai_instance_id?: string;
+          created_at?: string;
         };
       };
     };
@@ -323,4 +378,4 @@ export interface Database {
       [_ in never]: never;
     };
   };
-} 
+}

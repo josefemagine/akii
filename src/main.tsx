@@ -11,6 +11,7 @@ import { TempoDevtools } from "tempo-devtools";
 TempoDevtools.init();
 
 // Add error boundary to catch and report React rendering errors
+// Define as a named class outside of the render path for Fast Refresh compatibility
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; error: Error | null }
@@ -258,7 +259,7 @@ try {
         <ErrorBoundary>
           <SearchProvider>
             <AuthProvider>
-        <App />
+              <App />
             </AuthProvider>
           </SearchProvider>
         </ErrorBoundary>

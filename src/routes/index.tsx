@@ -1,125 +1,212 @@
-import { lazy } from 'react';
-import { 
-  Shield, FileText, MessageCircle, Layout, Users, 
-  Settings, UserCheck, Mail, CreditCard, TrendingUp, 
-  Database, PlusCircle
-} from 'lucide-react';
+import { lazy } from "react";
+import {
+  Shield,
+  FileText,
+  MessageCircle,
+  Layout,
+  Users,
+  Settings,
+  UserCheck,
+  Mail,
+  CreditCard,
+  TrendingUp,
+  Database,
+  PlusCircle,
+} from "lucide-react";
 
 // Lazy load page components
-const AIInstancesPage = lazy(() => import('@/pages/AIInstances'));
-const CreateAIInstancePage = lazy(() => import('@/pages/CreateAIInstance'));
-const TrainingDataPage = lazy(() => import('@/pages/TrainingData'));
-const ConversationsPage = lazy(() => import('@/pages/Conversations'));
-const AppsPage = lazy(() => import('@/pages/Apps'));
-const TeamPage = lazy(() => import('@/pages/Team'));
-const SettingsPage = lazy(() => import('@/pages/Settings'));
+const AIInstancesPage = lazy(() => import("@/pages/AIInstances"));
+const CreateAIInstancePage = lazy(() => import("@/pages/CreateAIInstance"));
+const TrainingDataPage = lazy(() => import("@/pages/TrainingData"));
+const ConversationsPage = lazy(() => import("@/pages/Conversations"));
+const AppsPage = lazy(() => import("@/pages/Apps"));
+const TeamPage = lazy(() => import("@/pages/dashboard/Team"));
+const SettingsPage = lazy(() => import("@/pages/Settings"));
 
 // Admin pages
-const UsersPage = lazy(() => import('@/pages/admin/Users'));
-const UserSyncPage = lazy(() => import('@/pages/admin/UserSync'));
-const ModerationPage = lazy(() => import('@/pages/admin/Moderation'));
-const EmailTemplatesPage = lazy(() => import('@/pages/admin/EmailTemplates'));
-const BillingPage = lazy(() => import('@/pages/admin/Billing'));
-const WorkflowsPage = lazy(() => import('@/pages/admin/Workflows'));
-const DatabaseSchemaPage = lazy(() => import('@/pages/admin/DatabaseSchema'));
-const AdminSettingsPage = lazy(() => import('@/pages/admin/AdminSettings'));
+const UsersPage = lazy(() => import("@/pages/admin/Users"));
+const UserSyncPage = lazy(() => import("@/pages/admin/UserSync"));
+const ModerationPage = lazy(() => import("@/pages/admin/Moderation"));
+const EmailTemplatesPage = lazy(() => import("@/pages/admin/EmailTemplates"));
+const BillingPage = lazy(() => import("@/pages/admin/Billing"));
+const WorkflowsPage = lazy(() => import("@/pages/admin/Workflows"));
+const DatabaseSchemaPage = lazy(() => import("@/pages/admin/DatabaseSchema"));
+const AdminSettingsPage = lazy(() => import("@/pages/admin/AdminSettings"));
 
-// Route configuration
-export const routes = {
+// Dashboard component for the root dashboard route
+const DashboardPage = lazy(() => import("@/pages/dashboard/Dashboard"));
+
+// Route configuration for sidebar navigation
+export const routes = [
+  {
+    path: "/dashboard",
+    element: <DashboardPage />,
+  },
+  {
+    path: "/dashboard/create-ai-instance",
+    element: <CreateAIInstancePage />,
+  },
+  {
+    path: "/dashboard/ai-instances",
+    element: <AIInstancesPage />,
+  },
+  {
+    path: "/dashboard/training-data",
+    element: <TrainingDataPage />,
+  },
+  {
+    path: "/dashboard/conversations",
+    element: <ConversationsPage />,
+  },
+  {
+    path: "/dashboard/apps",
+    element: <AppsPage />,
+  },
+  {
+    path: "/dashboard/team",
+    element: <TeamPage />,
+    errorElement: (
+      <div className="p-8">
+        <h2 className="text-2xl font-bold">Error loading team page</h2>
+        <p>There was an error loading the team page. Please try again later.</p>
+      </div>
+    ),
+  },
+  {
+    path: "/dashboard/settings",
+    element: <SettingsPage />,
+  },
+  // Admin routes
+  {
+    path: "/admin/users",
+    element: <UsersPage />,
+  },
+  {
+    path: "/admin/user-sync",
+    element: <UserSyncPage />,
+  },
+  {
+    path: "/admin/moderation",
+    element: <ModerationPage />,
+  },
+  {
+    path: "/admin/email-templates",
+    element: <EmailTemplatesPage />,
+  },
+  {
+    path: "/admin/billing",
+    element: <BillingPage />,
+  },
+  {
+    path: "/admin/workflows",
+    element: <WorkflowsPage />,
+  },
+  {
+    path: "/admin/database-schema",
+    element: <DatabaseSchemaPage />,
+  },
+  {
+    path: "/admin/settings",
+    element: <AdminSettingsPage />,
+  },
+];
+
+// Navigation configuration for sidebar
+export const navigationConfig = {
   dashboard: [
     {
       path: "/dashboard/create-ai-instance",
       component: CreateAIInstancePage,
       name: "Create AI Instance",
       icon: PlusCircle,
-      primary: true
+      primary: true,
     },
     {
       path: "/dashboard/ai-instances",
       component: AIInstancesPage,
       name: "AI Instances",
-      icon: Shield
+      icon: Shield,
     },
     {
       path: "/dashboard/training-data",
       component: TrainingDataPage,
       name: "Training Data",
-      icon: FileText
+      icon: FileText,
     },
     {
       path: "/dashboard/conversations",
       component: ConversationsPage,
       name: "Conversations",
-      icon: MessageCircle
+      icon: MessageCircle,
     },
     {
       path: "/dashboard/apps",
       component: AppsPage,
       name: "Apps",
       icon: Layout,
-      hasSubmenu: true
+      hasSubmenu: true,
     },
     {
       path: "/dashboard/team",
       component: TeamPage,
       name: "Team",
-      icon: Users
+      icon: Users,
     },
     {
       path: "/dashboard/settings",
       component: SettingsPage,
       name: "Settings",
-      icon: Settings
-    }
+      icon: Settings,
+    },
   ],
   admin: [
     {
-      path: "/dashboard/admin/users",
+      path: "/admin/users",
       component: UsersPage,
       name: "Users",
-      icon: Users
+      icon: Users,
     },
     {
-      path: "/dashboard/admin/user-sync",
+      path: "/admin/user-sync",
       component: UserSyncPage,
       name: "User Sync",
-      icon: UserCheck
+      icon: UserCheck,
     },
     {
-      path: "/dashboard/admin/moderation",
+      path: "/admin/moderation",
       component: ModerationPage,
       name: "Moderation",
-      icon: Shield
+      icon: Shield,
     },
     {
-      path: "/dashboard/admin/email-templates",
+      path: "/admin/email-templates",
       component: EmailTemplatesPage,
       name: "Email Templates",
-      icon: Mail
+      icon: Mail,
     },
     {
-      path: "/dashboard/admin/billing",
+      path: "/admin/billing",
       component: BillingPage,
       name: "Billing",
-      icon: CreditCard
+      icon: CreditCard,
     },
     {
-      path: "/dashboard/admin/workflows",
+      path: "/admin/workflows",
       component: WorkflowsPage,
       name: "Workflows",
-      icon: TrendingUp
+      icon: TrendingUp,
     },
     {
-      path: "/dashboard/admin/database-schema",
+      path: "/admin/database-schema",
       component: DatabaseSchemaPage,
       name: "Database Schema",
-      icon: Database
+      icon: Database,
     },
     {
-      path: "/dashboard/admin/settings",
+      path: "/admin/settings",
       component: AdminSettingsPage,
       name: "Admin Settings",
-      icon: Settings
-    }
-  ]
-}; 
+      icon: Settings,
+    },
+  ],
+};

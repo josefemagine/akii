@@ -11,6 +11,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import {
   supabaseClient,
+  auth,
   signIn as authSignIn,
   signOut as authSignOut,
   getCurrentSession,
@@ -86,6 +87,7 @@ const AdminEmailList = [
   // Add more admin emails as needed
 ];
 
+// Create the auth context with a meaningful name
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Helper to check admin override
@@ -157,13 +159,13 @@ function checkAdminOverride(user: User | null): boolean {
 const getDefaultAdminSubscription = (user: User | null) => {
   if (!user) return null;
   return {
-    plan: 'enterprise',
-    status: 'active',
+    plan: "enterprise",
+    status: "active",
     messages_used: 0,
     message_limit: 1000000,
     renews_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
     addons: {},
-    payment_method: 'admin'
+    payment_method: "admin",
   };
 };
 
@@ -190,6 +192,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function initializeAuth() {
       setState((prev) => ({ ...prev, isLoading: true }));
+
+      // Debug auth initialization
+      console.log("Initializing auth state...");
 
       try {
         // Get current session
@@ -253,6 +258,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await getCurrentUser();
 
           if (userError) throw userError;
+
+          console.log("Current user from session:", currentUser);
 
           if (isMounted) {
             setState((prev) => ({ ...prev, user: currentUser }));
@@ -418,15 +425,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Set up auth state change listener
-    const { data: authListener } = supabaseClient.auth.onAuthStateChange(
+    const { data: authListener } = auth.onAuthStateChange(
       async (event, currentSession) => {
-        console.log(`Auth state changed: ${event}`);
+        console.log(
+          `Auth state changed: ${event}`,
+          currentSession?.user?.email,
+        );
 
         if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
           if (isMounted) {
             setState((prev) => ({ ...prev, session: currentSession }));
 
             if (currentSession?.user) {
+              console.log(
+                "Auth state change - user data:",
+                currentSession.user,
+              );
               setState((prev) => ({ ...prev, user: currentSession.user }));
 
               // Check for admin override
@@ -551,15 +565,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Update state.user with subscription data for admins
   useEffect(() => {
     if (state.user && state.isAdmin) {
-      setState(prev => ({
-        ...prev,
-        user: {
-          ...prev.user,
-          subscription: getDefaultAdminSubscription(prev.user)
-        }
-      }));
+      // Use a local variable to track if we've already updated the subscription
+      const hasSubscription = state.user.subscription !== undefined;
+
+      if (!hasSubscription) {
+        setState((prev) => ({
+          ...prev,
+          user: {
+            ...prev.user,
+            subscription: getDefaultAdminSubscription(prev.user),
+          },
+        }));
+      }
     }
-  }, [state.user, state.isAdmin]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.user, state.isAdmin]); // Include dependencies to ensure proper updates
 
   // Sign-in handler
   const signIn = async (
@@ -568,10 +588,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
+      console.log("AuthContext: Signing in user", email);
 
       const response = await authSignIn(email, password);
 
       if (response.error) {
+        console.error("AuthContext: Sign-in error", response.error);
         setState((prev) => ({
           ...prev,
           isLoading: false,
@@ -580,6 +602,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return response;
       }
 
+      console.log("AuthContext: Sign-in successful", response.data);
       // If sign-in successful, user state will be updated by the auth listener
       setState((prev) => ({ ...prev, isLoading: false }));
       return response;
@@ -606,7 +629,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
 
-      const { data, error } = await supabaseClient.auth.signUp({
+      const { data, error } = await auth.signUp({
         email,
         password,
       });
@@ -636,7 +659,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
 
-      const { data, error } = await supabaseClient.auth.signInWithOAuth({
+      const { data, error } = await auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -666,17 +689,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     token: string,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
-      const { data, error } = await supabaseClient.auth.verifyOtp({
+      const { data, error } = await auth.verifyOtp({
         email,
         token,
-        type: 'email',
+        type: "email",
       });
 
       if (error) throw error;
 
       return { data, error: null };
     } catch (error) {
-      console.error('Error verifying OTP:', error);
+      console.error("Error verifying OTP:", error);
       return { data: null, error: error as Error };
     }
   };
@@ -686,13 +709,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
-      const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email);
+      const { data, error } = await auth.resetPasswordForEmail(email);
 
       if (error) throw error;
 
       return { data, error: null };
     } catch (error) {
-      console.error('Error resetting password:', error);
+      console.error("Error resetting password:", error);
       return { data: null, error: error as Error };
     }
   };
@@ -704,7 +727,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
   ): Promise<{ data: any | null; error: Error | null }> => {
     try {
-      const { data, error } = await supabaseClient.auth.updateUser({
+      const { data, error } = await auth.updateUser({
         password,
       });
 
@@ -712,7 +735,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return { data, error: null };
     } catch (error) {
-      console.error('Error confirming password reset:', error);
+      console.error("Error confirming password reset:", error);
       return { data: null, error: error as Error };
     }
   };
@@ -753,6 +776,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!state.user) return;
 
     try {
+      console.log("Refreshing user profile for ID:", state.user.id);
+
       // Check for admin override
       const hasAdminOverride = checkAdminOverride(state.user);
       if (hasAdminOverride) {
@@ -760,14 +785,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState((prev) => ({ ...prev, isAdmin: true }));
       }
 
-      const { data: profile } = await getUserProfile(state.user.id);
+      const { data: profile, error: profileError } = await getUserProfile(
+        state.user.id,
+      );
+
+      if (profileError) {
+        console.error("Error fetching user profile:", profileError);
+        return;
+      }
 
       if (profile) {
+        console.log("Profile refreshed successfully:", profile);
         setState((prev) => ({ ...prev, profile: profile }));
+
+        // Store avatar URL in localStorage as backup
+        if (profile.avatar_url) {
+          localStorage.setItem("akii-avatar-url", profile.avatar_url);
+        }
+
         // Only set isAdmin from profile if no override
         if (!hasAdminOverride) {
           setState((prev) => ({ ...prev, isAdmin: profile.role === "admin" }));
         }
+      } else {
+        console.warn("No profile data returned when refreshing user");
       }
     } catch (error) {
       console.error("Error refreshing user profile:", error);
@@ -843,7 +884,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updatePassword = async (password: string) => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
-      const { data, error } = await supabaseClient.auth.updateUser({
+      const { data, error } = await auth.updateUser({
         password: password,
       });
       setState((prev) => ({ ...prev, isLoading: false }));
@@ -880,39 +921,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updatePassword,
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user: state.user,
-        profile: state.profile,
-        session: state.session,
-        isLoading: state.isLoading,
-        isAdmin: state.isAdmin,
-        userRole: state.userRole,
-        error: state.error,
-        signIn,
-        signUp,
-        signInWithGoogle,
-        signOut,
-        updateProfile,
-        refreshUser,
-        checkAdminStatus,
-        bypassAdminCheck,
-        updatePassword,
-        verifyOtp,
-        resetPassword,
-        confirmPasswordReset,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// Add displayName to improve debugging
+AuthContext.displayName = "AuthContext";
+
 // Hook for using the auth context
-// Named function declaration is required for Fast Refresh compatibility
-// Do not convert to arrow function
-export function useAuth() {
+// Named function declaration for Fast Refresh compatibility
+export const useAuth = () => {
   const context = useContext(AuthContext);
 
   if (context === undefined) {
@@ -920,4 +937,4 @@ export function useAuth() {
   }
 
   return context;
-}
+};

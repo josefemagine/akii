@@ -1,11 +1,12 @@
-import {
-  createClient,
-  PostgrestError,
-  Session,
-  User,
-} from "@supabase/supabase-js";
-import { isBrowser, safeStorage } from './browser-check';
+/**
+ * Centralized authentication client configuration
+ * This file creates and exports a single instance of the Supabase auth client
+ * to prevent duplicate GoTrueClient instances across the application
+ */
+
+import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
+import { isBrowser } from "./browser-check";
 
 // Define core types
 export type UserRole = "user" | "admin" | "team_member";
@@ -22,19 +23,21 @@ export interface UserProfile {
   updated_at?: string;
 }
 
-export interface AuthResult<T = any> {
-  data: T | null;
-  error: Error | PostgrestError | null;
-  message?: string;
-}
-
-// Create Supabase clients
+// Environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabaseServiceKey =
-  import.meta.env.VITE_SUPABASE_SERVICE_KEY || supabaseAnonKey;
+  import.meta.env.VITE_SUPABASE_SERVICE_KEY ||
+  import.meta.env.SUPABASE_SERVICE_KEY;
 
-// Standard client for normal operations
+// Validate environment variables
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error(
+    "Missing Supabase environment variables. Check your .env file.",
+  );
+}
+
+// Create a single instance of the Supabase client for public usage
 export const supabaseClient = createClient<Database>(
   supabaseUrl,
   supabaseAnonKey,
@@ -52,38 +55,30 @@ export const supabaseClient = createClient<Database>(
   },
 );
 
-// Admin client with service role for bypassing RLS
-export const adminClient = createClient<Database>(
-  supabaseUrl,
-  supabaseServiceKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-    global: {
-      headers: {
-        "x-application-name": "akii-web-admin-core",
+// Create a single instance of the Supabase client with admin privileges
+// Only use this for server-side operations that require elevated permissions
+export const supabaseAdmin = supabaseServiceKey
+  ? createClient<Database>(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
-    },
-  },
-);
+      global: {
+        headers: {
+          "x-application-name": "akii-web-admin-core",
+        },
+      },
+    })
+  : null;
 
-// For backward compatibility
+// Export the auth client for direct access when needed
 export const supabase = supabaseClient;
 
-// Storage keys
-const ADMIN_OVERRIDE_KEY = "akii_admin_override";
-const ADMIN_OVERRIDE_EMAIL_KEY = "akii_admin_override_email";
-const ADMIN_OVERRIDE_EXPIRY_KEY = "akii_admin_override_expiry";
-const USER_PROFILE_CACHE_KEY = "akii_user_profile";
-const USER_ROLE_CACHE_KEY = "akii_user_role";
+// Export the auth instance for direct access when needed
+export const auth = supabaseClient.auth;
 
-// Core auth functions
-export async function signIn(
-  email: string,
-  password: string,
-): Promise<AuthResult<User>> {
+// Re-export all the existing functions from the original file
+export async function signIn(email: string, password: string) {
   try {
     // Clear any previous auth state
     await clearAuthState();
@@ -107,7 +102,7 @@ export async function signIn(
   }
 }
 
-export async function signOut(): Promise<AuthResult> {
+export async function signOut() {
   try {
     // Clear all local storage related to auth
     await clearAuthState();
@@ -123,7 +118,7 @@ export async function signOut(): Promise<AuthResult> {
   }
 }
 
-export async function getCurrentSession(): Promise<AuthResult<Session>> {
+export async function getCurrentSession() {
   try {
     const { data, error } = await supabaseClient.auth.getSession();
     if (error) throw error;
@@ -135,7 +130,7 @@ export async function getCurrentSession(): Promise<AuthResult<Session>> {
   }
 }
 
-export async function getCurrentUser(): Promise<AuthResult<User>> {
+export async function getCurrentUser() {
   try {
     const { data, error } = await supabaseClient.auth.getUser();
     if (error) throw error;
@@ -148,16 +143,8 @@ export async function getCurrentUser(): Promise<AuthResult<User>> {
 }
 
 // User profile management
-export async function getUserProfile(
-  userId: string,
-): Promise<AuthResult<UserProfile>> {
+export async function getUserProfile(userId: string) {
   try {
-    // Try to get from cache first
-    const cachedProfile = getCachedUserProfile();
-    if (cachedProfile && cachedProfile.id === userId) {
-      return { data: cachedProfile, error: null };
-    }
-
     // Get from database
     const { data, error } = await supabaseClient
       .from("profiles")
@@ -179,35 +166,33 @@ export async function getUserProfile(
       updated_at: data.updated_at,
     };
 
-    // Cache the profile
-    cacheUserProfile(profile);
-
     return { data: profile, error: null };
   } catch (error) {
     console.error("Get user profile error:", error);
 
     // Try with admin client as fallback
     try {
-      const { data } = await adminClient
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
+      if (supabaseAdmin) {
+        const { data } = await supabaseAdmin
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single();
 
-      if (data) {
-        const profile: UserProfile = {
-          id: data.id,
-          email: data.email,
-          role: (data.role as UserRole) || "user",
-          status: (data.status as UserStatus) || "active",
-          full_name: data.full_name,
-          avatar_url: data.avatar_url,
-          created_at: data.created_at,
-          updated_at: data.updated_at,
-        };
+        if (data) {
+          const profile: UserProfile = {
+            id: data.id,
+            email: data.email,
+            role: (data.role as UserRole) || "user",
+            status: (data.status as UserStatus) || "active",
+            full_name: data.full_name,
+            avatar_url: data.avatar_url,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+          };
 
-        cacheUserProfile(profile);
-        return { data: profile, error: null };
+          return { data: profile, error: null };
+        }
       }
     } catch (fallbackError) {
       console.error("Admin fallback error:", fallbackError);
@@ -217,16 +202,18 @@ export async function getUserProfile(
   }
 }
 
-export async function syncUserProfile(
-  user: User,
-): Promise<AuthResult<UserProfile>> {
+export async function syncUserProfile(user: any) {
   try {
     if (!user || !user.id || !user.email) {
       throw new Error("Invalid user data for sync");
     }
 
+    if (!supabaseAdmin) {
+      throw new Error("Admin client not available for profile sync");
+    }
+
     // Check if profile exists
-    const { data: existingProfile, error: checkError } = await adminClient
+    const { data: existingProfile, error: checkError } = await supabaseAdmin
       .from("profiles")
       .select("*")
       .eq("id", user.id)
@@ -239,7 +226,7 @@ export async function syncUserProfile(
 
     if (!existingProfile) {
       // Create profile if it doesn't exist
-      const { data: newProfile, error: insertError } = await adminClient
+      const { data: newProfile, error: insertError } = await supabaseAdmin
         .from("profiles")
         .insert({
           id: user.id,
@@ -254,7 +241,6 @@ export async function syncUserProfile(
 
       if (insertError) throw insertError;
 
-      // Cache the new profile
       if (newProfile) {
         const profile: UserProfile = {
           id: newProfile.id,
@@ -265,12 +251,11 @@ export async function syncUserProfile(
           updated_at: newProfile.updated_at,
         };
 
-        cacheUserProfile(profile);
         return { data: profile, error: null };
       }
     } else {
       // Update existing profile to ensure email matches
-      const { data: updatedProfile, error: updateError } = await adminClient
+      const { data: updatedProfile, error: updateError } = await supabaseAdmin
         .from("profiles")
         .update({
           email: user.email,
@@ -294,7 +279,6 @@ export async function syncUserProfile(
           updated_at: updatedProfile.updated_at,
         };
 
-        cacheUserProfile(profile);
         return { data: profile, error: null };
       }
     }
@@ -312,7 +296,6 @@ export async function syncUserProfile(
         updated_at: existingProfile.updated_at,
       };
 
-      cacheUserProfile(profile);
       return { data: profile, error: null };
     }
 
@@ -323,22 +306,58 @@ export async function syncUserProfile(
   }
 }
 
-// Admin elevation functions
-export async function setUserRole(
+// Simplified version of ensureUserProfile for compatibility
+export async function ensureUserProfile(user: any) {
+  return syncUserProfile(user);
+}
+
+// Simplified version of updateUserProfile for compatibility
+export async function updateUserProfile(
   userId: string,
-  role: UserRole,
-): Promise<AuthResult> {
+  profileData: Partial<UserProfile>,
+) {
   try {
-    // Only allow admin client to set roles for security
-    const { error } = await adminClient
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .update(profileData)
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) throw new Error("No profile data returned");
+
+    const profile: UserProfile = {
+      id: data.id,
+      email: data.email,
+      role: (data.role as UserRole) || "user",
+      status: (data.status as UserStatus) || "active",
+      full_name: data.full_name,
+      avatar_url: data.avatar_url,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    };
+
+    return { data: profile, error: null };
+  } catch (error) {
+    console.error("Update user profile error:", error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// Simplified version of setUserRole for compatibility
+export async function setUserRole(userId: string, role: UserRole) {
+  try {
+    if (!supabaseAdmin) {
+      throw new Error("Admin client not available for setting user role");
+    }
+
+    const { error } = await supabaseAdmin
       .from("profiles")
       .update({ role, updated_at: new Date().toISOString() })
       .eq("id", userId);
 
     if (error) throw error;
-
-    // Clear cache to ensure fresh data
-    clearUserCache();
 
     return { data: true, error: null };
   } catch (error) {
@@ -347,137 +366,50 @@ export async function setUserRole(
   }
 }
 
-export async function setUserRoleByEmail(
-  email: string,
-  role: UserRole,
-): Promise<AuthResult> {
+// Simplified version of setUserStatus for compatibility
+export async function setUserStatus(userId: string, status: UserStatus) {
   try {
-    // Try direct update by email first (simpler approach)
-    const { error } = await adminClient
+    if (!supabaseAdmin) {
+      throw new Error("Admin client not available for setting user status");
+    }
+
+    const { error } = await supabaseAdmin
       .from("profiles")
-      .update({ role, updated_at: new Date().toISOString() })
-      .eq("email", email);
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", userId);
 
     if (error) throw error;
 
-    clearUserCache();
     return { data: true, error: null };
   } catch (error) {
-    console.error("Set user role by email error:", error);
+    console.error("Set user status error:", error);
     return { data: null, error: error as Error };
   }
 }
 
-// Emergency admin access (to be used sparingly)
-export function enableAdminOverride(email: string, durationHours = 24): void {
-  // Current time
-  const now = new Date();
-
-  // Set expiry time
-  const expiry = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
-
-  // Store in both localStorage and sessionStorage for redundancy
-  localStorage.setItem(ADMIN_OVERRIDE_KEY, "true");
-  localStorage.setItem(ADMIN_OVERRIDE_EMAIL_KEY, email);
-  localStorage.setItem(ADMIN_OVERRIDE_EXPIRY_KEY, expiry.toISOString());
-
-  sessionStorage.setItem(ADMIN_OVERRIDE_KEY, "true");
-  sessionStorage.setItem(ADMIN_OVERRIDE_EMAIL_KEY, email);
-  sessionStorage.setItem(ADMIN_OVERRIDE_EXPIRY_KEY, expiry.toISOString());
-
-  console.log(
-    `Admin override enabled for ${email} until ${expiry.toLocaleString()}`,
-  );
-}
-
-export function hasValidAdminOverride(email: string): boolean {
+// Simplified version of checkUserStatus for compatibility
+export async function checkUserStatus(userId: string) {
   try {
-    // Check localStorage first
-    const override = localStorage.getItem(ADMIN_OVERRIDE_KEY) === "true";
-    const overrideEmail = localStorage.getItem(ADMIN_OVERRIDE_EMAIL_KEY);
-    const expiryStr = localStorage.getItem(ADMIN_OVERRIDE_EXPIRY_KEY);
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .select("status")
+      .eq("id", userId)
+      .single();
 
-    if (override && overrideEmail === email && expiryStr) {
-      const expiry = new Date(expiryStr);
-      const now = new Date();
+    if (error) throw error;
+    if (!data) throw new Error("No profile found");
 
-      if (now < expiry) {
-        return true;
-      }
-    }
-
-    // Check sessionStorage as fallback
-    const sessionOverride =
-      sessionStorage.getItem(ADMIN_OVERRIDE_KEY) === "true";
-    const sessionEmail = sessionStorage.getItem(ADMIN_OVERRIDE_EMAIL_KEY);
-    const sessionExpiryStr = sessionStorage.getItem(ADMIN_OVERRIDE_EXPIRY_KEY);
-
-    if (sessionOverride && sessionEmail === email && sessionExpiryStr) {
-      const expiry = new Date(sessionExpiryStr);
-      const now = new Date();
-
-      if (now < expiry) {
-        return true;
-      }
-    }
-
-    return false;
+    return { data: data.status as UserStatus, error: null };
   } catch (error) {
-    console.error("Error checking admin override:", error);
-    return false;
+    console.error("Check user status error:", error);
+    return { data: null, error: error as Error };
   }
-}
-
-// Cache helpers
-function cacheUserProfile(profile: UserProfile): void {
-  try {
-    localStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify(profile));
-    localStorage.setItem(USER_ROLE_CACHE_KEY, profile.role);
-  } catch (error) {
-    console.error("Error caching user profile:", error);
-  }
-}
-
-function getCachedUserProfile(): UserProfile | null {
-  try {
-    const profileJson = localStorage.getItem(USER_PROFILE_CACHE_KEY);
-    if (!profileJson) return null;
-
-    return JSON.parse(profileJson) as UserProfile;
-  } catch (error) {
-    console.error("Error getting cached profile:", error);
-    return null;
-  }
-}
-
-function getCachedUserRole(): UserRole | null {
-  try {
-    const role = localStorage.getItem(USER_ROLE_CACHE_KEY) as UserRole;
-    return role || null;
-  } catch (error) {
-    console.error("Error getting cached role:", error);
-    return null;
-  }
-}
-
-function clearUserCache(): void {
-  localStorage.removeItem(USER_PROFILE_CACHE_KEY);
-  localStorage.removeItem(USER_ROLE_CACHE_KEY);
 }
 
 // Clear all auth state including Supabase stored session
-export async function clearAuthState(): Promise<void> {
+export async function clearAuthState() {
   try {
-    // Clear our custom storage
-    clearUserCache();
-
-    // Clear admin override
-    localStorage.removeItem(ADMIN_OVERRIDE_KEY);
-    localStorage.removeItem(ADMIN_OVERRIDE_EMAIL_KEY);
-    localStorage.removeItem(ADMIN_OVERRIDE_EXPIRY_KEY);
-    sessionStorage.removeItem(ADMIN_OVERRIDE_KEY);
-    sessionStorage.removeItem(ADMIN_OVERRIDE_EMAIL_KEY);
-    sessionStorage.removeItem(ADMIN_OVERRIDE_EXPIRY_KEY);
+    if (!isBrowser()) return;
 
     // Clear any Supabase items
     for (let i = 0; i < localStorage.length; i++) {
@@ -519,39 +451,8 @@ export async function clearAuthState(): Promise<void> {
     localStorage.removeItem("akii-user-data");
     localStorage.removeItem("akii-auth-state");
 
-    // Clear any cookies related to auth
-    document.cookie.split(";").forEach(function (c) {
-      if (
-        c.trim().startsWith("sb-") ||
-        c.trim().startsWith("supabase-") ||
-        c.includes("auth")
-      ) {
-        document.cookie = c
-          .replace(/^ +/, "")
-          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-      }
-    });
-
     console.log("Auth state cleared successfully");
   } catch (error) {
     console.error("Error clearing auth state:", error);
   }
 }
-
-// Special function to force josef as admin
-export const forceJosefAsAdmin = async () => {
-  try {
-    if (isBrowser()) {
-      safeStorage.setItem("akii_admin_override", "true");
-      safeStorage.setItem("akii_admin_override_email", "josef@holm.com");
-      safeStorage.setItem(
-        "akii_admin_override_expiry",
-        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      );
-    }
-    return { message: "Admin access granted", error: null };
-  } catch (error) {
-    console.error("Error forcing admin role:", error);
-    return { message: null, error };
-  }
-};

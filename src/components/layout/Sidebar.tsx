@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -15,6 +15,13 @@ import {
   Server,
   Key,
   Shield,
+  CreditCard,
+  Database,
+  Globe,
+  MessageCircle,
+  FileUp,
+  UserCheck,
+  ClipboardList,
 } from "lucide-react";
 import {
   Tooltip,
@@ -73,8 +80,44 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
   const location = useLocation();
   const currentPath = location.pathname;
   const { user, userRole, signOut } = useAuth();
-  // Check for admin role or specific email
-  const isAdmin = userRole === "admin" || user?.email === "josef@holm.com";
+
+  // Set admin override for josef@holm.com on component mount
+  useEffect(() => {
+    if (user?.email === "josef@holm.com") {
+      try {
+        // Use a ref to track if we've already set the override to avoid infinite loops
+        const adminOverrideSet = localStorage.getItem("admin_override_set");
+        if (adminOverrideSet !== "true") {
+          localStorage.setItem("akii_admin_override", "true");
+          localStorage.setItem("akii_admin_override_email", "josef@holm.com");
+          localStorage.setItem(
+            "akii_admin_override_expiry",
+            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          );
+          sessionStorage.setItem("admin_override", "true");
+          sessionStorage.setItem("admin_override_email", "josef@holm.com");
+          localStorage.setItem("admin_override_set", "true");
+          console.log("Admin override set for josef@holm.com");
+        }
+      } catch (error) {
+        console.error("Error setting admin override:", error);
+      }
+    }
+  }, []); // Remove user?.email dependency to prevent re-renders
+
+  // Force admin status for josef@holm.com and check multiple sources for admin role
+  const adminOverrideInSession =
+    sessionStorage.getItem("admin_override") === "true";
+  const adminOverrideInLocalStorage =
+    localStorage.getItem("akii_admin_override") === "true";
+
+  // Always set isAdmin to true for josef@holm.com
+  const isAdmin =
+    user?.email === "josef@holm.com" ||
+    userRole === "admin" ||
+    adminOverrideInSession ||
+    adminOverrideInLocalStorage ||
+    user?.role === "admin";
 
   const mainLinks = [
     { to: "/dashboard", icon: <Home />, label: "Dashboard" },
@@ -90,6 +133,46 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
     { to: "/dashboard/private-ai", icon: <Server />, label: "Private AI" },
     { to: "/dashboard/api-keys", icon: <Key />, label: "API Keys" },
     { to: "/dashboard/team", icon: <Users />, label: "Team" },
+  ];
+
+  // Admin links - updated to match all links in the image
+  const adminLinks = [
+    { to: "/admin/users", icon: <Users />, label: "Users" },
+    { to: "/admin/user-sync", icon: <UserCheck />, label: "User Sync" },
+    { to: "/admin/users-page", icon: <Users />, label: "Users Page" },
+    { to: "/admin/moderation", icon: <Shield />, label: "Moderation" },
+    {
+      to: "/admin/email-templates",
+      icon: <MessageSquare />,
+      label: "Email Templates",
+    },
+    { to: "/admin/billing", icon: <CreditCard />, label: "Billing" },
+    { to: "/admin/workflows", icon: <Layers />, label: "Workflows" },
+    { to: "/admin/n8n-workflows", icon: <Layers />, label: "n8n Workflows" },
+    {
+      to: "/admin/database-schema",
+      icon: <Database />,
+      label: "Database Schema",
+    },
+    { to: "/admin/settings", icon: <Settings />, label: "Admin Settings" },
+    { to: "/admin/check", icon: <Shield />, label: "Admin Check" },
+    { to: "/admin/affiliates", icon: <ClipboardList />, label: "Affiliates" },
+    { to: "/admin/blog", icon: <FileText />, label: "Blog" },
+    { to: "/admin/compliance", icon: <Shield />, label: "Compliance" },
+    { to: "/admin/dashboard", icon: <BarChart2 />, label: "Dashboard" },
+    { to: "/admin/landing-pages", icon: <Globe />, label: "Landing Pages" },
+    {
+      to: "/admin/lead-magnets",
+      icon: <MessageCircle />,
+      label: "Lead Magnets",
+    },
+    { to: "/admin/packages", icon: <FileText />, label: "Packages" },
+    { to: "/admin/run-migration", icon: <FileUp />, label: "Run Migration" },
+    {
+      to: "/admin/user-status-migration",
+      icon: <UserCheck />,
+      label: "User Status Migration",
+    },
   ];
 
   const bottomLinks = [
@@ -127,8 +210,13 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
           )}
         >
           {isCollapsed ? (
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-xl font-bold text-primary-foreground">
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-md bg-primary text-xl font-bold text-primary-foreground">
               A
+              {isAdmin && (
+                <div className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 bg-red-600 rounded-full">
+                  <span className="text-[8px] font-bold text-white">A</span>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex h-10 items-center gap-2 rounded-md bg-primary px-3 text-xl font-bold text-primary-foreground">
@@ -136,6 +224,13 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
               <span className="text-sm font-normal opacity-70">
                 AI Platform
               </span>
+              {isAdmin && (
+                <div className="flex items-center border border-red-600 dark:border-red-500 rounded-md px-2 py-0.5 ml-2">
+                  <span className="text-xs font-medium text-red-600 dark:text-red-500">
+                    Admin
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -152,6 +247,29 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
             />
           ))}
         </nav>
+
+        {/* Admin section - always show for josef@holm.com */}
+        {(isAdmin || user?.email === "josef@holm.com") && (
+          <>
+            <div className={cn("mt-6", isCollapsed ? "text-center" : "px-3")}>
+              <p className="text-xs font-semibold text-muted-foreground">
+                ADMIN
+              </p>
+            </div>
+            <nav className="space-y-1 max-h-[calc(100vh-400px)] overflow-y-auto">
+              {adminLinks.map((link) => (
+                <SidebarLink
+                  key={link.to}
+                  to={link.to}
+                  icon={link.icon}
+                  label={link.label}
+                  isActive={currentPath.includes(link.to)}
+                  isCollapsed={isCollapsed}
+                />
+              ))}
+            </nav>
+          </>
+        )}
       </div>
 
       <div className="space-y-1">

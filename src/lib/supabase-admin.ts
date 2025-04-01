@@ -1,22 +1,23 @@
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/supabase";
+/**
+ * Supabase admin client export
+ * This file re-exports the centralized admin client from auth-core
+ * to maintain backward compatibility with existing imports
+ */
 
-// Create a Supabase client with the service role key for admin operations
-// This bypasses Row Level Security policies
-export const supabaseAdmin = createClient<Database>(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_SERVICE_KEY, // Use the service role key from env
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  },
-);
+import { supabaseAdmin } from "./auth-core";
+
+export { supabaseAdmin };
+
+// Re-export functions for backward compatibility
+import { getUserProfile, syncUserProfile, setUserRole } from "./auth-core";
 
 // Function to get user role directly from database
 export async function getUserRole(email: string) {
   try {
+    if (!supabaseAdmin) {
+      throw new Error("Admin client not available");
+    }
+
     const { data, error } = await supabaseAdmin
       .from("profiles")
       .select("role")
@@ -31,25 +32,13 @@ export async function getUserRole(email: string) {
   }
 }
 
-// Function to set user role
-export async function setUserRole(email: string, role: string) {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("profiles")
-      .update({ role })
-      .eq("email", email);
-
-    if (error) throw error;
-    return { success: true, error: null };
-  } catch (error) {
-    console.error("Error setting user role:", error);
-    return { success: false, error };
-  }
-}
-
 // Function to fetch all users
 export async function getAllUsers() {
   try {
+    if (!supabaseAdmin) {
+      throw new Error("Admin client not available");
+    }
+
     // Get users from profiles table
     const { data: profileData, error: profileError } = await supabaseAdmin
       .from("profiles")
@@ -67,6 +56,10 @@ export async function getAllUsers() {
 // Update the setUserAsAdmin function to be more resilient
 export async function setUserAsAdmin(email: string) {
   try {
+    if (!supabaseAdmin) {
+      throw new Error("Admin client not available");
+    }
+
     // First try with the admin client
     const { data, error } = await supabaseAdmin
       .from("profiles")
@@ -116,6 +109,10 @@ export async function setUserAsAdmin(email: string) {
  */
 export async function getAuthUsers() {
   try {
+    if (!supabaseAdmin) {
+      throw new Error("Admin client not available");
+    }
+
     // First try the admin API
     const { data, error } = await supabaseAdmin.auth.admin.listUsers();
 
