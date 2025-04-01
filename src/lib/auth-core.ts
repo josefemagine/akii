@@ -5,14 +5,13 @@
  * This module provides core auth functions that are used throughout the app.
  */
 
-import type { PostgrestError } from "@supabase/supabase-js";
-import { supabase, supabaseAdmin, auth, getAuth } from "./supabase-client";
+import type { PostgrestError, User, Session, AuthError, AuthApiError } from "@supabase/supabase-js";
+import { supabase, supabaseAdmin, auth, getAuth, getSupabaseClient } from "./supabase-client";
 
 // Re-export Supabase instances and auth
 export { supabase, supabaseAdmin, auth, getAuth };
 
 // Re-export types from supabase
-import type { Session, User } from "@supabase/supabase-js";
 export type { Session, User };
 
 // Core type definitions
@@ -33,13 +32,29 @@ export interface UserProfile {
   updated_at?: string;
 }
 
-export interface AuthResponse<T = any> {
+export interface SupabaseResponse<T = any> {
   data: T | null;
   error: Error | PostgrestError | null;
 }
 
+// Define SignUp types
+export interface SignUpParams {
+  email: string;
+  password: string;
+  metadata?: Record<string, any>;
+  redirectTo?: string;
+}
+
+export interface SignUpResponse {
+  data: {
+    user: User | null;
+    session: Session | null;
+  } | null;
+  error: Error | AuthApiError | null;
+}
+
 // Session management functions
-export async function getCurrentSession(): Promise<AuthResponse<Session>> {
+export async function getCurrentSession(): Promise<SupabaseResponse<Session>> {
   try {
     const { data, error } = await auth.getSession();
     if (error) throw error;
@@ -50,7 +65,7 @@ export async function getCurrentSession(): Promise<AuthResponse<Session>> {
   }
 }
 
-export async function getCurrentUser(): Promise<AuthResponse<User>> {
+export async function getCurrentUser(): Promise<SupabaseResponse<User>> {
   try {
     const { data, error } = await auth.getUser();
     if (error) throw error;
@@ -64,7 +79,7 @@ export async function getCurrentUser(): Promise<AuthResponse<User>> {
 // User profile functions
 export async function getUserProfile(
   userId?: string
-): Promise<AuthResponse<UserProfile>> {
+): Promise<SupabaseResponse<UserProfile>> {
   try {
     // Guard against undefined userId
     if (!userId) {
@@ -95,50 +110,95 @@ export async function getUserProfile(
   }
 }
 
-export async function ensureUserProfile(
-  user: User
-): Promise<AuthResponse<UserProfile>> {
+/**
+ * Ensures that a user has a profile, creating one if it doesn't exist
+ */
+export const ensureUserProfile = async (user: User) => {
+  if (!user?.id) {
+    console.error("Cannot ensure profile for user with no ID");
+    return { data: null, error: new Error("Cannot ensure profile for user with no ID") };
+  }
+
+  const supabase = getSupabaseClient();
+  
+  // First check if a profile already exists
+  console.log(`Checking if profile exists for user ID: ${user.id}`);
   try {
-    if (!user?.id || !user?.email) {
-      throw new Error("Invalid user data");
-    }
-
-    // Check if profile exists
-    const { data: existingProfile } = await getUserProfile(user.id);
-    
-    if (existingProfile) {
-      return { data: existingProfile, error: null };
-    }
-
-    // Create profile if it doesn't exist
-    const { data, error } = await supabase
+    const { data: existingProfile, error: fetchError } = await supabase
       .from("profiles")
-      .insert({
-        id: user.id,
-        email: user.email,
-        first_name: user.user_metadata?.first_name,
-        last_name: user.user_metadata?.last_name,
-        company: user.user_metadata?.company,
-        role: "user",
-        status: "active",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .select("*")
+      .eq("id", user.id)
+      .single();
+    
+    if (fetchError && fetchError.code !== "PGRST116") {
+      // Log other errors but continue with creation attempt
+      console.error("Error checking existing profile:", fetchError);
+    }
+    
+    // If profile exists, return it
+    if (existingProfile) {
+      console.log(`Profile found for user ID: ${user.id}`);
+      return { data: existingProfile as UserProfile, error: null };
+    }
+    
+    console.log(`No profile found for user ID: ${user.id}, creating new profile`);
+    
+    // Prepare profile data with all required fields
+    const profileData = {
+      id: user.id,
+      email: user.email || "",
+      first_name: user.user_metadata?.first_name || "",
+      last_name: user.user_metadata?.last_name || "",
+      company: user.user_metadata?.company || "",
+      role: "user", // Default role
+      status: "active",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    
+    // Create profile using upsert to handle race conditions
+    const { data: insertedProfile, error: insertError } = await supabase
+      .from("profiles")
+      .upsert(profileData)
       .select()
       .single();
-
-    if (error) throw error;
-    return { data: data as UserProfile, error: null };
-  } catch (error) {
-    console.error("Ensure user profile error:", error);
-    return { data: null, error: error as Error };
+      
+    if (insertError) {
+      console.error("Error creating profile:", insertError);
+      
+      // Recovery mechanism: Check if profile was created despite error
+      console.log("Checking if profile was created despite error");
+      const { data: recoveryProfile, error: recoveryError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+        
+      if (recoveryError) {
+        console.error("Recovery attempt failed:", recoveryError);
+        return { data: null, error: insertError };
+      }
+      
+      if (recoveryProfile) {
+        console.log("Profile was created despite error, returning recovery profile");
+        return { data: recoveryProfile as UserProfile, error: null };
+      }
+      
+      return { data: null, error: insertError };
+    }
+    
+    console.log(`Profile successfully created for user ID: ${user.id}`);
+    return { data: insertedProfile as UserProfile, error: null };
+  } catch (unexpectedError) {
+    console.error("Unexpected error in ensureUserProfile:", unexpectedError);
+    return { data: null, error: unexpectedError as Error };
   }
-}
+};
 
 export async function updateUserProfile(
   userId: string, 
   updates: Partial<UserProfile>
-): Promise<AuthResponse<UserProfile>> {
+): Promise<SupabaseResponse<UserProfile>> {
   try {
     // Prevent updating protected fields
     const safeUpdates = { ...updates };
@@ -168,7 +228,7 @@ export async function updateUserProfile(
 export async function setUserRole(
   userId: string,
   role: UserRole
-): Promise<AuthResponse<UserProfile>> {
+): Promise<SupabaseResponse<UserProfile>> {
   try {
     const adminClient = supabaseAdmin;
     if (!adminClient) {
@@ -196,7 +256,7 @@ export async function setUserRole(
 export async function setUserStatus(
   userId: string,
   status: UserStatus
-): Promise<AuthResponse<UserProfile>> {
+): Promise<SupabaseResponse<UserProfile>> {
   try {
     const adminClient = supabaseAdmin;
     if (!adminClient) {
@@ -225,7 +285,7 @@ export async function setUserStatus(
 export async function signIn(
   email: string,
   password: string
-): Promise<AuthResponse<User>> {
+): Promise<SupabaseResponse<User>> {
   try {
     // Clear stored auth data
     clearStoredAuth();
@@ -258,63 +318,66 @@ export async function signIn(
   }
 }
 
-export async function signUp(
-  email: string,
-  password: string,
-  metadata?: Record<string, any>
-): Promise<AuthResponse<User>> {
+export async function signUp({
+  email,
+  password,
+  metadata,
+  redirectTo,
+}: SignUpParams): Promise<SignUpResponse> {
   try {
+    // Store metadata in localStorage before attempting signup
+    try {
+      if (metadata) {
+        localStorage.setItem("signup-metadata", JSON.stringify(metadata));
+        localStorage.setItem("signup-email", email);
+        localStorage.setItem("signup-timestamp", Date.now().toString());
+      }
+    } catch (storageError) {
+      console.error("Failed to store signup metadata:", storageError);
+    }
+    
+    console.log("Attempting to sign up with email:", email, "and metadata:", metadata);
+    
     const { data, error } = await auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: redirectTo,
         data: metadata,
       },
     });
-
-    if (error) throw error;
-    if (!data?.user) throw new Error("No user returned from sign up");
     
-    // Create or ensure user profile with metadata
-    // Note: In some auth flows, profile creation might need to happen after email confirmation
-    // but we'll attempt it now to capture metadata
-    if (data.user.id && data.user.email) {
-      console.log("Creating initial profile with metadata:", metadata);
-      
+    // For auto-confirmed accounts (or if email confirmation disabled) create profile
+    // Most users will create profile when they sign in after email confirmation
+    if (data?.session) {
+      // User has active session immediately after signup
+      console.log("User has active session after signup, creating profile");
       try {
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .insert({
-            id: data.user.id,
-            email: data.user.email,
-            first_name: metadata?.first_name || data.user.user_metadata?.first_name,
-            last_name: metadata?.last_name || data.user.user_metadata?.last_name,
-            company: metadata?.company || data.user.user_metadata?.company,
-            role: "user",
-            status: "active",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-          
+        const { data: profileData, error: profileError } = await ensureUserProfile(data.user);
+        
         if (profileError) {
-          console.error("Profile creation during signup failed:", profileError);
-        } else {
-          console.log("Profile created successfully during signup");
+          console.error("Error creating profile after signup:", profileError);
+        } else if (profileData) {
+          console.log("Profile created successfully after signup");
         }
-      } catch (profileError) {
-        console.error("Exception creating profile during signup:", profileError);
-        // We don't throw here as signup was successful even if profile creation failed
+      } catch (profileCreationError) {
+        console.error("Exception during profile creation after signup:", profileCreationError);
       }
     }
 
-    return { data: data.user, error: null };
-  } catch (error) {
-    console.error("Sign up error:", error);
-    return { data: null, error: error as Error };
+    return {
+      data,
+      error,
+    };
+  } catch (err) {
+    return {
+      data: null,
+      error: err as AuthApiError,
+    };
   }
 }
 
-export async function signOut(): Promise<AuthResponse<boolean>> {
+export async function signOut(): Promise<SupabaseResponse<boolean>> {
   try {
     // Clear stored auth data
     clearStoredAuth();
@@ -332,7 +395,7 @@ export async function signOut(): Promise<AuthResponse<boolean>> {
 
 export async function signInWithOAuth(
   provider: 'google' | 'github'
-): Promise<AuthResponse<any>> {
+): Promise<SupabaseResponse<any>> {
   try {
     const { data, error } = await auth.signInWithOAuth({
       provider,
@@ -351,7 +414,7 @@ export async function signInWithOAuth(
 
 export async function resetPassword(
   email: string
-): Promise<AuthResponse<boolean>> {
+): Promise<SupabaseResponse<boolean>> {
   try {
     const { error } = await auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
@@ -367,7 +430,7 @@ export async function resetPassword(
 
 export async function updatePassword(
   password: string
-): Promise<AuthResponse<User>> {
+): Promise<SupabaseResponse<User>> {
   try {
     const { data, error } = await auth.updateUser({
       password,
@@ -439,7 +502,7 @@ export function clearStoredAuth(): void {
 }
 
 // Admin functions
-export async function getAllUsers(): Promise<AuthResponse<UserProfile[]>> {
+export async function getAllUsers(): Promise<SupabaseResponse<UserProfile[]>> {
   try {
     const adminClient = supabaseAdmin;
     if (!adminClient) {

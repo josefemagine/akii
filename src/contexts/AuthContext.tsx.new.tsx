@@ -17,7 +17,7 @@ import {
   UserProfile,
   UserRole,
   UserStatus,
-  AuthResponse,
+  SupabaseResponse,
   getCurrentSession,
   getCurrentUser,
   getUserProfile,
@@ -65,23 +65,23 @@ export interface AuthContextType {
   signIn: (
     email: string,
     password: string,
-  ) => Promise<AuthResponse<User>>;
+  ) => Promise<SupabaseResponse<User>>;
   signUp: (
     email: string,
     password: string,
     metadata?: Record<string, any>,
-  ) => Promise<AuthResponse<User>>;
-  signInWithGoogle: () => Promise<AuthResponse<any>>;
+  ) => Promise<SupabaseResponse<User>>;
+  signInWithGoogle: () => Promise<SupabaseResponse<any>>;
   resetPassword: (
     email: string,
-  ) => Promise<AuthResponse<boolean>>;
+  ) => Promise<SupabaseResponse<boolean>>;
   updatePassword: (
     password: string,
-  ) => Promise<AuthResponse<User>>;
-  signOut: () => Promise<AuthResponse<boolean>>;
-  updateProfile: (profile: Partial<UserProfile>) => Promise<AuthResponse<UserProfile>>;
+  ) => Promise<SupabaseResponse<User>>;
+  signOut: () => Promise<SupabaseResponse<boolean>>;
+  updateProfile: (profile: Partial<UserProfile>) => Promise<SupabaseResponse<UserProfile>>;
   refreshUser: () => Promise<void>;
-  setUserRole: (userId: string, role: UserRole) => Promise<AuthResponse<UserProfile>>;
+  setUserRole: (userId: string, role: UserRole) => Promise<SupabaseResponse<UserProfile>>;
   verifyConnection: () => Promise<{
     success: boolean;
     message: string;
@@ -259,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (
     email: string,
     password: string,
-  ): Promise<AuthResponse<User>> => {
+  ): Promise<SupabaseResponse<User>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
@@ -299,11 +299,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
     metadata?: Record<string, any>,
-  ): Promise<AuthResponse<User>> => {
+  ): Promise<SupabaseResponse<User>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
-      const response = await authSignUp(email, password, metadata);
+      const response = await authSignUp({
+        email,
+        password,
+        metadata,
+        redirectTo: `${window.location.origin}/auth/callback`
+      });
       
       if (response.error) {
         toast({
@@ -319,7 +324,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
       
-      return response;
+      return { 
+        data: response.data?.user || null, 
+        error: response.error 
+      };
     } catch (error) {
       console.error("Sign up error:", error);
       toast({
@@ -334,7 +342,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Sign in with Google
-  const signInWithGoogle = async (): Promise<AuthResponse<any>> => {
+  const signInWithGoogle = async (): Promise<SupabaseResponse<any>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
@@ -365,7 +373,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Reset password
   const resetPassword = async (
     email: string,
-  ): Promise<AuthResponse<boolean>> => {
+  ): Promise<SupabaseResponse<boolean>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
@@ -402,7 +410,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Update password
   const updatePassword = async (
     password: string,
-  ): Promise<AuthResponse<User>> => {
+  ): Promise<SupabaseResponse<User>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
@@ -436,7 +444,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Sign out
-  const signOut = async (): Promise<AuthResponse<boolean>> => {
+  const signOut = async (): Promise<SupabaseResponse<boolean>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
@@ -475,7 +483,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Update profile
   const updateProfile = async (
     profileData: Partial<UserProfile>,
-  ): Promise<AuthResponse<UserProfile>> => {
+  ): Promise<SupabaseResponse<UserProfile>> => {
     if (!state.user?.id) {
       return {
         data: null,
@@ -569,7 +577,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleSetUserRole = async (
     userId: string, 
     role: UserRole
-  ): Promise<AuthResponse<UserProfile>> => {
+  ): Promise<SupabaseResponse<UserProfile>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       

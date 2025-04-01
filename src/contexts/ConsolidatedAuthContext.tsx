@@ -18,7 +18,7 @@ import {
   UserProfile,
   UserRole,
   UserStatus,
-  AuthResponse,
+  SupabaseResponse,
   
   // Clients
   auth,
@@ -70,23 +70,23 @@ export interface AuthContextType {
   signIn: (
     email: string,
     password: string,
-  ) => Promise<AuthResponse<User>>;
+  ) => Promise<SupabaseResponse<User>>;
   signUp: (
     email: string,
     password: string,
     metadata?: Record<string, any>,
-  ) => Promise<AuthResponse<User>>;
-  signInWithGoogle: () => Promise<AuthResponse<any>>;
+  ) => Promise<SupabaseResponse<User>>;
+  signInWithGoogle: () => Promise<SupabaseResponse<any>>;
   resetPassword: (
     email: string,
-  ) => Promise<AuthResponse<boolean>>;
+  ) => Promise<SupabaseResponse<boolean>>;
   updatePassword: (
     password: string,
-  ) => Promise<AuthResponse<User>>;
-  signOut: () => Promise<AuthResponse<boolean>>;
-  updateProfile: (profile: Partial<UserProfile>) => Promise<AuthResponse<UserProfile>>;
+  ) => Promise<SupabaseResponse<User>>;
+  signOut: () => Promise<SupabaseResponse<boolean>>;
+  updateProfile: (profile: Partial<UserProfile>) => Promise<SupabaseResponse<UserProfile>>;
   refreshUser: () => Promise<void>;
-  setUserRole: (userId: string, role: UserRole) => Promise<AuthResponse<UserProfile>>;
+  setUserRole: (userId: string, role: UserRole) => Promise<SupabaseResponse<UserProfile>>;
   verifyConnection: () => Promise<{
     success: boolean;
     message: string;
@@ -185,70 +185,115 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      // Get profile
-      const { data: profile, error: profileError } = await getUserProfile(user.id);
+      console.log("User authenticated, attempting to load or create profile", { userId: user.id, email: user.email });
       
-      if (profileError) {
-        console.error("Error getting profile:", profileError);
+      // Retrieve stored metadata if available
+      let storedMetadata: Record<string, any> | null = null;
+      try {
+        const metadataString = localStorage.getItem("signup-metadata");
+        const storedEmail = localStorage.getItem("signup-email");
+        
+        if (metadataString && storedEmail === user.email) {
+          storedMetadata = JSON.parse(metadataString);
+          console.log("Retrieved stored metadata:", storedMetadata);
+        }
+      } catch (error) {
+        console.error("Error retrieving stored metadata:", error);
       }
       
-      // If no profile, create one
-      let userProfile = profile;
-      if (!profile) {
-        // Check if we have stored metadata from signup
-        let signupMetadata: Record<string, any> | null = null;
-        try {
-          const storedMetadata = localStorage.getItem("signup-metadata");
-          const storedEmail = localStorage.getItem("signup-email");
-          
-          if (storedMetadata && storedEmail && storedEmail === user.email) {
-            signupMetadata = JSON.parse(storedMetadata);
-            console.log("Found stored signup metadata:", signupMetadata);
-          }
-        } catch (err) {
-          console.error("Error retrieving stored metadata:", err);
+      // Ensure profile exists - this will create it if needed
+      const { data: userProfile, error: profileError } = await ensureUserProfile({
+        ...user,
+        user_metadata: {
+          ...user.user_metadata,
+          ...storedMetadata
         }
+      });
+      
+      if (profileError) {
+        console.error("Error ensuring user profile:", profileError);
         
-        // Merge stored metadata with user metadata
-        const mergedMetadata = {
-          ...signupMetadata,
-          ...user.user_metadata
-        };
+        // Set error state but continue with user authentication
+        setState(prev => ({
+          ...prev,
+          user,
+          session,
+          profile: null,
+          isLoading: false,
+          isAdmin: false,
+          userRole: null,
+          error: profileError,
+        }));
         
-        console.log("Creating profile with merged metadata:", mergedMetadata);
-        
-        const { data: newProfile, error: createError } = await ensureUserProfile({
-          ...user,
-          user_metadata: mergedMetadata
+        toast({
+          title: "Profile Error",
+          description: "There was an error loading your profile. Some features may be limited.",
+          variant: "destructive",
         });
         
-        if (createError) {
-          console.error("Error creating profile:", createError);
-        } else {
-          userProfile = newProfile;
-          
-          // Clear stored metadata after successful profile creation
-          try {
-            localStorage.removeItem("signup-metadata");
-            localStorage.removeItem("signup-email");
-            localStorage.removeItem("signup-timestamp");
-          } catch (err) {
-            console.error("Error clearing stored metadata:", err);
-          }
-        }
+        return;
+      }
+      
+      if (!userProfile) {
+        console.error("No profile returned after ensure operation");
+        
+        // Create minimal profile in memory to allow basic functionality
+        const minimalProfile: UserProfile = {
+          id: user.id,
+          email: user.email || "",
+          role: "user",
+          status: "active",
+          first_name: user.user_metadata?.first_name || "",
+          last_name: user.user_metadata?.last_name || "",
+          company: user.user_metadata?.company || "",
+        };
+        
+        setState(prev => ({
+          ...prev,
+          user,
+          session,
+          profile: minimalProfile,
+          isLoading: false,
+          isAdmin: false,
+          userRole: "user",
+          error: new Error("Failed to create user profile"),
+        }));
+        
+        toast({
+          title: "Profile Creation Failed",
+          description: "We couldn't create your user profile. Please contact support.",
+          variant: "destructive",
+        });
+        
+        return;
+      }
+      
+      // Clear stored metadata after successful profile retrieval
+      try {
+        localStorage.removeItem("signup-metadata");
+        localStorage.removeItem("signup-email");
+        localStorage.removeItem("signup-timestamp");
+      } catch (error) {
+        console.error("Error clearing stored metadata:", error);
       }
       
       // Check admin status
-      const isUserAdmin = (userProfile?.role === "admin") || hasValidAdminOverride(user.email || "");
+      const isUserAdmin = (userProfile.role === "admin") || hasValidAdminOverride(user.email || "");
       
-      // Update state
+      // Update state with user, profile and session
+      console.log("Auth initialization completed successfully", { 
+        userId: user.id, 
+        profileId: userProfile.id,
+        role: userProfile.role
+      });
+      
       setState({
         user,
         session,
         profile: userProfile,
         isLoading: false,
         isAdmin: isUserAdmin,
-        userRole: userProfile?.role || null,
+        userRole: userProfile.role || null,
         error: null,
       });
       
@@ -298,7 +343,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (
     email: string,
     password: string,
-  ): Promise<AuthResponse<User>> => {
+  ): Promise<SupabaseResponse<User>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
@@ -338,14 +383,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
     metadata?: Record<string, any>,
-  ): Promise<AuthResponse<User>> => {
+  ): Promise<SupabaseResponse<User>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
       // Log the metadata being sent
       console.log("SignUp metadata:", metadata);
       
-      const response = await authSignUp(email, password, metadata);
+      const response = await authSignUp({
+        email,
+        password,
+        metadata,
+        redirectTo: `${window.location.origin}/auth/callback`
+      });
       
       if (response.error) {
         toast({
@@ -372,7 +422,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
       
-      return response;
+      return { 
+        data: response.data?.user || null,
+        error: response.error 
+      };
     } catch (error) {
       console.error("Sign up error:", error);
       toast({
@@ -387,7 +440,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Sign in with Google
-  const signInWithGoogle = async (): Promise<AuthResponse<any>> => {
+  const signInWithGoogle = async (): Promise<SupabaseResponse<any>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
@@ -418,7 +471,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Reset password
   const resetPassword = async (
     email: string,
-  ): Promise<AuthResponse<boolean>> => {
+  ): Promise<SupabaseResponse<boolean>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
@@ -455,7 +508,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Update password
   const updatePassword = async (
     password: string,
-  ): Promise<AuthResponse<User>> => {
+  ): Promise<SupabaseResponse<User>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
@@ -489,7 +542,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Sign out
-  const signOut = async (): Promise<AuthResponse<boolean>> => {
+  const signOut = async (): Promise<SupabaseResponse<boolean>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
@@ -528,7 +581,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Update profile
   const updateProfile = async (
     profileData: Partial<UserProfile>,
-  ): Promise<AuthResponse<UserProfile>> => {
+  ): Promise<SupabaseResponse<UserProfile>> => {
     if (!state.user?.id) {
       return {
         data: null,
@@ -622,7 +675,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleSetUserRole = async (
     userId: string, 
     role: UserRole
-  ): Promise<AuthResponse<UserProfile>> => {
+  ): Promise<SupabaseResponse<UserProfile>> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
