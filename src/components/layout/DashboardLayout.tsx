@@ -549,8 +549,7 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="rounded-full border border-gray-200 dark:border-gray-800"
+                  className="flex items-center gap-2 pl-2 pr-3 rounded-full border border-gray-200 dark:border-gray-800"
                 >
                   <Avatar className="h-8 w-8">
                     <AvatarImage
@@ -561,6 +560,12 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
                       {user?.email?.charAt(0).toUpperCase() || "U"}
                     </AvatarFallback>
                   </Avatar>
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-medium">
+                      {user?.user_metadata?.first_name || user?.user_metadata?.name?.split(' ')[0] || user?.email?.split('@')[0] || "User"}
+                      {user?.user_metadata?.last_name ? ` ${user?.user_metadata?.last_name}` : ''}
+                    </span>
+                  </div>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
