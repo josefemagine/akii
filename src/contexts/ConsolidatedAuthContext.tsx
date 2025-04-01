@@ -546,11 +546,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
+      // First update local state to signed out
+      setState({
+        user: null,
+        profile: null,
+        session: null,
+        isLoading: false,
+        isAdmin: false,
+        userRole: null,
+        error: null,
+      });
+      
+      // Force navigation to happen immediately, before awaiting signOut
+      navigate("/", { replace: true });
+      
+      // Now perform the actual sign out
       const response = await authSignOut();
       
       if (response.error) {
+        console.error("Sign out API error:", response.error);
         toast({
-          title: "Sign out failed",
+          title: "Sign out had an issue",
           description: response.error.message,
           variant: "destructive",
         });
@@ -559,9 +575,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           title: "Signed out successfully",
           variant: "default",
         });
-        
-        // Redirect to home
-        navigate("/");
       }
       
       return response;
@@ -574,6 +587,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       return { data: false, error: error as Error };
     } finally {
+      // Make sure loading state is reset
       setState(prev => ({ ...prev, isLoading: false }));
     }
   };
