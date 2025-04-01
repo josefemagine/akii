@@ -209,8 +209,8 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
       <div className="flex flex-col gap-6">
         <div
           className={cn(
-            "flex items-center justify-between",
-            isCollapsed ? "justify-center" : "px-2",
+            "flex items-center",
+            isCollapsed ? "justify-center" : "justify-start px-2",
           )}
         >
           {isCollapsed ? (
@@ -223,7 +223,7 @@ const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
               )}
             </div>
           ) : (
-            <div className="flex h-10 w-full items-center gap-2 rounded-md bg-primary px-3 text-xl font-bold text-primary-foreground">
+            <div className="flex h-10 items-center gap-2 rounded-md bg-primary px-3 text-xl font-bold text-primary-foreground">
               <span>Akii</span>
               <span className="text-sm font-normal opacity-70">
                 AI Platform
