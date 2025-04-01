@@ -211,7 +211,7 @@ const Header = ({}: HeaderProps) => {
       <MobileNavigation
         isOpen={mobileMenuOpen}
         onClose={closeMobileMenu}
-        user={user}
+        user={user as any}
         onSignIn={openLoginModal}
         onJoin={openJoinModal}
         onSignOut={handleSignOut}

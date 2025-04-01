@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { adminClient, supabaseClient } from "@/lib/auth-core";
+import { supabaseAdmin as adminClient, supabaseClient } from "@/lib/auth-core";
 
 export default function FixMyAdmin() {
   const [loading, setLoading] = useState(false);

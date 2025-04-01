@@ -165,12 +165,27 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const userSidebarItems = [
+  // Define a type for sidebar items
+  interface SidebarItemData {
+    icon: React.ReactNode;
+    label: string;
+    href: string;
+    className?: string;
+    subItems?: {
+      label: string;
+      href: string;
+      icon?: React.ReactNode;
+    }[];
+  }
+
+  // Then use this type for the array:
+  const userSidebarItems: SidebarItemData[] = [
     {
       icon: <PlusCircle className="h-5 w-5" />,
       label: "Create AI Instance",
       href: "#",
       className: "create-instance-btn",
+      subItems: []
     },
     {
       icon: <Circle className="h-5 w-5" />,
@@ -336,7 +351,7 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
               label={item.label}
               href={item.href}
               active={isActive(item.href)}
-              subItems={item.subItems}
+              subItems={item.subItems || []}
               collapsed={collapsed}
               className={item.className}
             />
@@ -356,7 +371,7 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
                     label={item.label}
                     href={item.href}
                     active={isActive(item.href)}
-                    subItems={item.subItems}
+                    subItems={[]}
                     collapsed={collapsed}
                   />
                 ))}
@@ -385,11 +400,12 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
   );
 };
 
-interface DashboardLayoutProps {
+export interface DashboardLayoutProps {
   children: React.ReactNode;
+  isAdmin?: boolean;
 }
 
-const DashboardLayout = ({ children }: DashboardLayoutProps) => {
+const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);

@@ -7,16 +7,14 @@
  * Checks if the current environment is a browser
  * @returns boolean indicating if code is running in a browser
  */
-export function isBrowser(): boolean {
-  return typeof window !== "undefined" && typeof document !== "undefined";
-}
+export const isBrowser = typeof window !== 'undefined';
 
 /**
  * Checks if the current environment supports localStorage
  * @returns boolean indicating if localStorage is available
  */
 export function hasLocalStorage(): boolean {
-  if (!isBrowser()) return false;
+  if (!isBrowser) return false;
 
   try {
     const testKey = "__storage_test__";
@@ -32,16 +30,46 @@ export function hasLocalStorage(): boolean {
  * Safely accesses localStorage
  * @returns localStorage object or null if not available
  */
-export function safeLocalStorage(): Storage | null {
-  return hasLocalStorage() ? localStorage : null;
-}
+export const safeLocalStorage = {
+  getItem: (key: string): string | null => {
+    if (!isBrowser) return null;
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      console.error('Error accessing localStorage:', e);
+      return null;
+    }
+  },
+
+  setItem: (key: string, value: string): boolean => {
+    if (!isBrowser) return false;
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (e) {
+      console.error('Error setting localStorage:', e);
+      return false;
+    }
+  },
+
+  removeItem: (key: string): boolean => {
+    if (!isBrowser) return false;
+    try {
+      localStorage.removeItem(key);
+      return true;
+    } catch (e) {
+      console.error('Error removing from localStorage:', e);
+      return false;
+    }
+  },
+};
 
 /**
  * Safely accesses sessionStorage
  * @returns sessionStorage object or null if not available
  */
 export function safeSessionStorage(): Storage | null {
-  if (!isBrowser()) return null;
+  if (!isBrowser) return null;
 
   try {
     const testKey = "__storage_test__";
@@ -56,7 +84,7 @@ export function safeSessionStorage(): Storage | null {
 // Utility object for safe storage operations
 export const safeStorage = {
   getItem: (key: string): string | null => {
-    if (isBrowser()) {
+    if (isBrowser) {
       try {
         return localStorage.getItem(key);
       } catch (error) {
@@ -67,7 +95,7 @@ export const safeStorage = {
   },
 
   setItem: (key: string, value: string): void => {
-    if (isBrowser()) {
+    if (isBrowser) {
       try {
         localStorage.setItem(key, value);
       } catch (error) {
@@ -77,7 +105,7 @@ export const safeStorage = {
   },
 
   removeItem: (key: string): void => {
-    if (isBrowser()) {
+    if (isBrowser) {
       try {
         localStorage.removeItem(key);
       } catch (error) {

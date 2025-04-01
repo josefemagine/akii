@@ -252,7 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const forceAdminRole = () => {
     if (!user || !user.email) return;
     
-    enableAdminOverride(user.email, 24); // 24 hours
+    enableAdminOverride(user.email);
     
     toast({
       title: "Admin Override Enabled",

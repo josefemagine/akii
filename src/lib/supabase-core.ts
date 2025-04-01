@@ -4,7 +4,9 @@
  * IMPORTANT: Import this file instead of creating new clients elsewhere
  */
 
-import { supabaseClient, adminClient, supabase, auth } from "./auth-core";
+import { supabaseClient, supabaseAdmin, supabase, auth } from "./auth-core";
 
-// Re-export the clients from auth-core to ensure single instances
-export { supabaseClient, adminClient, supabase, auth };
+// Export with consistent naming
+export { supabaseClient, supabaseAdmin, supabase, auth };
+// Also export the alias for backward compatibility
+export { supabaseAdmin as adminClient };

@@ -8,8 +8,30 @@ import { supabaseAdmin } from "./auth-core";
 
 export { supabaseAdmin };
 
-// Re-export functions for backward compatibility
-import { getUserProfile, syncUserProfile, setUserRole } from "./auth-core";
+// Re-export functions but NOT setUserRole
+import { getUserProfile, syncUserProfile } from "./auth-core";
+export { getUserProfile, syncUserProfile };
+
+// Define setUserRole here only once
+export async function setUserRole(userId: string, role: string) {
+  try {
+    if (!supabaseAdmin) {
+      throw new Error("Admin client not available");
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .update({ role })
+      .eq("id", userId)
+      .select();
+
+    if (error) throw error;
+    return { success: true, data, error: null };
+  } catch (error) {
+    console.error("Error setting user role:", error);
+    return { success: false, data: null, error };
+  }
+}
 
 // Function to get user role directly from database
 export async function getUserRole(email: string) {

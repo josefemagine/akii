@@ -33,10 +33,10 @@ export interface AuthResponse<T = any> {
 }
 
 // Import Supabase clients from the centralized core module
-import { supabaseClient, adminClient, supabase } from "./supabase-core";
+import { supabaseClient, supabaseAdmin as adminClient, supabase, auth } from "./supabase-core";
 
 // Re-export the clients for use in other modules
-export { supabaseClient, adminClient, supabase };
+export { supabaseClient, adminClient, supabase, auth };
 
 // Authentication functions
 export async function signIn(

@@ -118,12 +118,17 @@ const ConversationView = ({
 
       if (msgError) throw msgError;
       const processedMessages = (msgData || []).map((msg) => {
-        const typedMsg =
-          msg as unknown as Database["public"]["Tables"]["messages"]["Row"];
-        return {
-          ...typedMsg,
-          role: typedMsg.sender_type as "user" | "assistant" | "system",
-        };
+        const processedMessage = {
+          role: msg.role,
+          id: msg.id,
+          conversation_id: msg.conversation_id,
+          content: msg.content,
+          created_at: msg.created_at,
+          user_id: msg.user_id,
+          sender_type: msg.sender_type,
+          metadata: msg.metadata
+        } as Message;
+        return processedMessage;
       }) as Message[];
       setMessages(processedMessages);
     } catch (error) {
@@ -150,10 +155,16 @@ const ConversationView = ({
         (payload) => {
           const newMsg =
             payload.new as Database["public"]["Tables"]["messages"]["Row"];
-          const processedMessage: Message = {
-            ...newMsg,
-            role: newMsg.sender_type as "user" | "assistant" | "system",
-          };
+          const processedMessage = {
+            role: newMsg.role,
+            id: newMsg.id,
+            conversation_id: newMsg.conversation_id,
+            content: newMsg.content,
+            created_at: newMsg.created_at,
+            user_id: newMsg.user_id,
+            sender_type: newMsg.sender_type,
+            metadata: newMsg.metadata
+          } as Message;
           setMessages((prev) => [...prev, processedMessage]);
         },
       )

@@ -16,7 +16,7 @@ export function DashboardSafeWrapper({ children }: DashboardSafeWrapperProps) {
     // Check if we're in a browser environment
     let mounted = true;
     // Only set state if component is still mounted
-    if (isBrowser() && mounted) {
+    if (isBrowser && mounted) {
       // Use a timeout to ensure this doesn't cause a render loop
       const timer = setTimeout(() => {
         if (mounted) {
