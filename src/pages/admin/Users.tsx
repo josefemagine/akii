@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { getAdminClient } from "@/lib/supabase-singleton";
+import { supabase } from "@/lib/supabase-singleton";
 
 interface User {
   id: string;
@@ -64,6 +65,7 @@ interface User {
   agents: number;
   messagesUsed: number;
   messageLimit: number;
+  company_name?: string;
 }
 
 const mockUsers: User[] = [
@@ -212,70 +214,74 @@ const UsersPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editedUserData, setEditedUserData] = useState({
-    name: "",
+    first_name: "",
+    last_name: "",
     email: "",
+    company_name: "",
     role: "",
     status: "",
   });
 
-  // Fetch real users from the database
+  // Fetch all users from the database
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
       try {
-        console.log("Fetching users with client from supabase-admin...");
+        console.log("Fetching all users from profiles table...");
         
-        // Log available environment variables for debugging
-        console.log("Environment variables available:", {
-          url: import.meta.env.VITE_SUPABASE_URL ? "YES" : "NO",
-          anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ? "YES" : "NO",
-          serviceKey: import.meta.env.VITE_SUPABASE_SERVICE_KEY ? "YES" : "NO",
-        });
-        
-        // Use our dedicated admin function to get all users
-        const { users: dbUsers, error: usersError } = await getAllUsers();
+        // Use the standard client to fetch all profiles without any filters
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*");
 
-        if (usersError) {
-          console.error("Error fetching users:", usersError);
-          setError(usersError.message || "Failed to fetch users");
+        if (profileError) {
+          console.error("Error fetching profiles:", profileError);
+          setError(profileError.message || "Failed to fetch users");
+          // Don't immediately fall back to mock data to ensure we understand the error
+          toast({
+            title: "Error loading users",
+            description: profileError.message,
+            variant: "destructive",
+          });
           setUsers(mockUsers);
           return;
         }
 
-        if (dbUsers && dbUsers.length > 0) {
-          // Map database users to our User interface
-          const mappedUsers: User[] = dbUsers.map(user => {
-            console.log("Processing user:", user);
-            
+        if (profileData && profileData.length > 0) {
+          console.log(`Successfully loaded ${profileData.length} profiles`);
+          
+          // Map profiles to our User interface
+          const mappedUsers: User[] = profileData.map(profile => {
             // Determine status from either status field or active field
             let userStatus: User['status'] = 'inactive';
-            if (user.status === 'active') {
+            if (profile.status === 'active') {
               userStatus = 'active';
-            } else if (user.status === 'pending') {
+            } else if (profile.status === 'pending') {
               userStatus = 'pending';
-            } else if (user.active === true) {
+            } else if (profile.active === true) {
               userStatus = 'active';
             }
             
             return {
-              id: user.id || `profile-${Math.random()}`,
-              name: user.full_name || user.auth_email?.split('@')[0] || 'Unknown User',
-              email: user.auth_email || user.email || 'unknown@example.com',
-              role: user.role || 'user',
+              id: profile.id || `profile-${Math.random()}`,
+              name: profile.full_name || profile.first_name || profile.email?.split('@')[0] || 'Unknown User',
+              email: profile.email || 'unknown@example.com',
+              role: profile.role || 'user',
               status: userStatus,
-              plan: user.subscription_tier || 'free',
-              createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : 'Unknown',
-              lastLogin: user.last_sign_in_at ? new Date(user.last_sign_in_at).toISOString().split('T')[0] : '-',
-              agents: user.agents_count || 0,
-              messagesUsed: user.messages_used || 0,
-              messageLimit: user.message_limit || 1000,
+              plan: profile.subscription_tier || 'free',
+              createdAt: profile.created_at ? new Date(profile.created_at).toISOString().split('T')[0] : 'Unknown',
+              lastLogin: profile.last_sign_in_at ? new Date(profile.last_sign_in_at).toISOString().split('T')[0] : '-',
+              agents: profile.agents_count || 0,
+              messagesUsed: profile.messages_used || 0,
+              messageLimit: profile.message_limit || 1000,
+              company_name: profile.company_name || '',
             };
           });
 
           setUsers(mappedUsers);
-          console.log("Loaded users from database:", mappedUsers);
+          console.log("Loaded users from database:", mappedUsers.length);
         } else {
-          console.log("No users found, using mock data");
+          console.log("No users found in profiles table, using mock data");
           setUsers(mockUsers);
         }
       } catch (err) {
@@ -293,12 +299,17 @@ const UsersPage = () => {
   // Function to update a user's role
   const updateUserRole = async (userId: string, email: string, newRole: User['role']) => {
     try {
-      const { success, error } = await updateDbUserRole(email, newRole);
+      // Update role directly with standard client
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ role: newRole })
+        .eq('id', userId)
+        .select();
 
-      if (error || !success) {
+      if (error) {
         toast({
           title: "Error updating role",
-          description: error?.message || "Failed to update user role",
+          description: error.message || "Failed to update user role",
           variant: "destructive",
         });
         return;
@@ -325,9 +336,24 @@ const UsersPage = () => {
   // Function to open edit dialog
   const handleEditUser = (user: User) => {
     setEditingUser(user);
+    
+    // Split the name into first_name and last_name if it's a full name
+    let firstName = "";
+    let lastName = "";
+    
+    if (user.name && user.name.includes(" ")) {
+      const nameParts = user.name.split(" ");
+      firstName = nameParts[0];
+      lastName = nameParts.slice(1).join(" ");
+    } else {
+      firstName = user.name;
+    }
+    
     setEditedUserData({
-      name: user.name,
+      first_name: firstName,
+      last_name: lastName,
       email: user.email,
+      company_name: user.company_name || "",
       role: user.role,
       status: user.status,
     });
@@ -345,43 +371,111 @@ const UsersPage = () => {
     try {
       console.log("Saving user updates:", editedUserData);
       
-      const adminClient = getAdminClient();
-      if (!adminClient) {
-        toast({
-          title: "Admin client not available",
-          description: "Check your environment variables",
-          variant: "destructive",
-        });
-        return;
+      // Create full_name from first_name and last_name
+      const fullName = `${editedUserData.first_name} ${editedUserData.last_name}`.trim();
+      
+      // Start with basic fields that are known to exist
+      const updateData: Record<string, any> = {
+        first_name: editedUserData.first_name,
+        last_name: editedUserData.last_name,
+        full_name: fullName,
+        role: editedUserData.role,
+      };
+      
+      // Add status field if it exists (might not in some databases)
+      if (editedUserData.status) {
+        updateData.status = editedUserData.status;
       }
       
-      // Update user data in database
-      const { data, error } = await adminClient
+      // Add company_name field if provided
+      if (editedUserData.company_name) {
+        updateData.company_name = editedUserData.company_name;
+      }
+      
+      console.log("Updating with data:", updateData);
+      
+      // Update user data in database using standard client
+      const { data, error } = await supabase
         .from('profiles')
-        .update({
-          full_name: editedUserData.name,
-          role: editedUserData.role,
-          status: editedUserData.status,
-        })
-        .eq('email', editingUser.email);
+        .update(updateData)
+        .eq('id', editingUser.id)
+        .select();
 
       if (error) {
-        // Special handling for missing status column
-        if (error.message.includes("does not exist") && error.message.includes("status")) {
+        console.error("Error updating user in database:", error);
+        
+        // Check for specific column errors
+        if (error.message?.includes("Could not find the 'company_name' column")) {
+          // Try again without the company_name field
+          delete updateData.company_name;
+          console.log("Retrying without company_name field:", updateData);
+          
+          // Show toast with link to migration
           toast({
-            title: "Status field not available",
-            description: "The status column is missing from your database. Visit Admin > User Status Migration to add it.",
+            title: "Company Name field missing",
+            description: (
+              <div>
+                The company_name column is missing from your database. 
+                <br />
+                <a 
+                  href="/dashboard/admin/user-profile-migration" 
+                  className="underline text-blue-500 hover:text-blue-700"
+                >
+                  Run the Profile Migration
+                </a> to add it.
+              </div>
+            ),
             variant: "destructive",
           });
           
-          // Try again without the status field
-          const { data: retryData, error: retryError } = await adminClient
+          const { data: retryData, error: retryError } = await supabase
             .from('profiles')
-            .update({
-              full_name: editedUserData.name,
-              role: editedUserData.role,
-            })
-            .eq('email', editingUser.email);
+            .update(updateData)
+            .eq('id', editingUser.id)
+            .select();
+            
+          if (retryError) {
+            // If there's still an error, check for status column issues
+            if (retryError.message?.includes("Could not find the 'status' column")) {
+              // Try one more time without the status field
+              delete updateData.status;
+              console.log("Retrying without status field:", updateData);
+              
+              const { data: finalRetryData, error: finalRetryError } = await supabase
+                .from('profiles')
+                .update(updateData)
+                .eq('id', editingUser.id)
+                .select();
+                
+              if (finalRetryError) {
+                console.error("Error in final retry:", finalRetryError);
+                toast({
+                  title: "Error updating user",
+                  description: finalRetryError.message,
+                  variant: "destructive",
+                });
+                return;
+              }
+            } else {
+              console.error("Error updating user in retry:", retryError);
+              toast({
+                title: "Error updating user",
+                description: retryError.message,
+                variant: "destructive",
+              });
+              return;
+            }
+          }
+        } else if (error.message?.includes("Could not find the 'status' column")) {
+          // Try again without the status field
+          delete updateData.status;
+          console.log("Retrying without status field:", updateData);
+          
+          const { data: retryData, error: retryError } = await supabase
+            .from('profiles')
+            .update(updateData)
+            .eq('id', editingUser.id)
+            .select();
             
           if (retryError) {
             console.error("Error updating user in retry:", retryError);
@@ -393,7 +487,6 @@ const UsersPage = () => {
             return;
           }
         } else {
-          console.error("Error updating user in database:", error);
           toast({
             title: "Error updating user",
             description: error.message,
@@ -403,27 +496,31 @@ const UsersPage = () => {
         }
       }
 
-      // Update local state
-      setUsers(users.map(user => 
-        user.id === editingUser.id ? { 
-          ...user, 
-          name: editedUserData.name,
-          role: editedUserData.role as User['role'],
-          status: editedUserData.status as User['status'],
-        } : user
-      ));
+      // Update local state with the new data
+      setUsers(
+        users.map((user) =>
+          user.id === editingUser.id
+            ? {
+                ...user,
+                name: fullName,
+                company_name: editedUserData.company_name,
+                role: editedUserData.role as User["role"],
+                status: editedUserData.status as User["status"],
+              }
+            : user
+        )
+      );
 
       toast({
         title: "User updated",
-        description: `${editingUser.email} has been updated successfully.`,
+        description: "User details have been saved successfully.",
       });
 
-      // Close the dialog
-      handleCloseDialog();
+      setEditingUser(null);
     } catch (err) {
-      console.error("Exception updating user:", err);
+      console.error("Error saving user:", err);
       toast({
-        title: "Error updating user",
+        title: "Error saving user",
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
@@ -670,40 +767,62 @@ const UsersPage = () => {
 
       {/* Edit User Dialog */}
       <Dialog open={editingUser !== null} onOpenChange={open => !open && handleCloseDialog()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md dark:bg-gray-900 dark:border-gray-800">
           <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="dark:text-white">Edit User</DialogTitle>
+            <DialogDescription className="dark:text-gray-400">
               Update user details and permissions
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="first_name" className="dark:text-gray-200">First Name</Label>
               <Input 
-                id="name" 
-                value={editedUserData.name} 
-                onChange={e => setEditedUserData({...editedUserData, name: e.target.value})} 
+                id="first_name" 
+                value={editedUserData.first_name} 
+                onChange={e => setEditedUserData({...editedUserData, first_name: e.target.value})} 
+                className="dark:bg-gray-800 dark:border-gray-700 dark:text-white"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="last_name" className="dark:text-gray-200">Last Name</Label>
+              <Input 
+                id="last_name" 
+                value={editedUserData.last_name} 
+                onChange={e => setEditedUserData({...editedUserData, last_name: e.target.value})} 
+                className="dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="email" className="dark:text-gray-200">Email</Label>
               <Input 
                 id="email" 
                 value={editedUserData.email} 
                 disabled 
+                className="dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:opacity-70"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
+              <Label htmlFor="company_name" className="dark:text-gray-200">Company Name</Label>
+              <Input 
+                id="company_name" 
+                value={editedUserData.company_name} 
+                onChange={e => setEditedUserData({...editedUserData, company_name: e.target.value})} 
+                className="dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="role" className="dark:text-gray-200">Role</Label>
               <select 
                 id="role" 
                 value={editedUserData.role} 
                 onChange={e => setEditedUserData({...editedUserData, role: e.target.value})}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white"
               >
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
@@ -712,19 +831,19 @@ const UsersPage = () => {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="status">User Status</Label>
+              <Label htmlFor="status" className="dark:text-gray-200">User Status</Label>
               <select 
                 id="status" 
                 value={editedUserData.status} 
                 onChange={e => setEditedUserData({...editedUserData, status: e.target.value})}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-700 dark:text-white"
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
                 <option value="banned">Banned</option>
                 <option value="pending">Pending</option>
               </select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground dark:text-gray-400">
                 Setting a user to "inactive" or "banned" will prevent them from accessing the application.
                 If the status field is missing from your database, visit Admin &gt; User Status Migration.
               </p>
@@ -732,7 +851,7 @@ const UsersPage = () => {
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>Cancel</Button>
+            <Button variant="outline" onClick={handleCloseDialog} className="dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Cancel</Button>
             <Button onClick={() => {
               console.log("Save Changes button clicked");
               handleSaveUser();

@@ -11,6 +11,7 @@ export interface UserProfile {
   avatar_url?: string;
   created_at?: string;
   updated_at?: string;
+  theme_preference?: "light" | "dark";
 }
 
 export interface AuthResponse {

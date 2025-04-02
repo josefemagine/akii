@@ -1,317 +1,367 @@
-import React, { useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Home,
-  Bot,
-  FileText,
-  BarChart2,
-  Settings,
-  HelpCircle,
-  LogOut,
-  Users,
+  PlusCircle,
+  Circle,
   MessageSquare,
-  Layers,
-  Server,
-  Key,
-  Shield,
+  Users,
+  Settings,
+  ChevronDown,
+  HelpCircle,
+  Layout,
+  Bot,
+  BarChart3,
   CreditCard,
+  FileText,
+  ArrowUpCircle,
+  UserCircle,
+  Shield,
   Database,
-  Globe,
-  MessageCircle,
-  FileUp,
+  Box,
+  Network,
   UserCheck,
-  ClipboardList,
+  ArrowRight as Workflow,
+  Monitor,
+  Smartphone,
+  MessageCircle,
+  Send,
+  ShoppingBag,
+  Globe
 } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
-interface SidebarLinkProps {
-  to: string;
+interface SidebarItemProps {
   icon: React.ReactNode;
   label: string;
-  isActive?: boolean;
-  isCollapsed?: boolean;
+  href: string;
+  active?: boolean;
+  onClick?: () => void;
+  subItems?: Array<{
+    label: string;
+    href: string;
+    icon?: React.ReactNode;
+  }>;
+  collapsed?: boolean;
+  className?: string;
 }
 
-const SidebarLink = ({
-  to,
-  icon,
-  label,
-  isActive = false,
-  isCollapsed = false,
-}: SidebarLinkProps) => {
+const SidebarItem = ({
+  icon = <Home className="h-5 w-5" />,
+  label = "Menu Item",
+  href = "/",
+  active = false,
+  onClick = () => {},
+  subItems,
+  collapsed = false,
+  className,
+}: SidebarItemProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasSubItems = subItems && subItems.length > 0;
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isSubItemActive = (subHref: string) => location.pathname === subHref;
+  const isAnySubItemActive =
+    hasSubItems && subItems.some((item) => isSubItemActive(item.href));
+
   return (
-    <TooltipProvider delayDuration={0}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Link
-            to={to}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent relative",
-              isActive
-                ? "bg-accent text-accent-foreground font-medium"
-                : "text-muted-foreground",
-              isCollapsed ? "justify-center" : "",
+    <div>
+      <a
+        href={hasSubItems ? "#" : href}
+        onClick={(e) => {
+          e.preventDefault();
+          if (hasSubItems) {
+            setIsOpen(!isOpen);
+          } else {
+            navigate(href);
+            onClick();
+          }
+        }}
+        className={cn(
+          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+          !className && "hover:bg-gray-100 dark:hover:bg-gray-800",
+          !className && (active || isAnySubItemActive)
+            ? "bg-gray-100 text-primary dark:bg-gray-800"
+            : "text-gray-500 dark:text-gray-400",
+          className,
+        )}
+      >
+        {icon}
+        {!collapsed && (
+          <>
+            <span className="flex-1">{label}</span>
+            {hasSubItems && (
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  isOpen && "transform rotate-180",
+                )}
+              />
             )}
-          >
-            <div className="w-5 h-5 flex items-center justify-center overflow-hidden shrink-0">
-              {React.cloneElement(icon as React.ReactElement, {
-                className: "w-[18px] h-[18px]",
-                size: 18,
-                strokeWidth: 2
-              })}
-            </div>
-            {!isCollapsed && <span>{label}</span>}
-          </Link>
-        </TooltipTrigger>
-        {isCollapsed && <TooltipContent side="right">{label}</TooltipContent>}
-      </Tooltip>
-    </TooltipProvider>
+          </>
+        )}
+      </a>
+      {!collapsed && hasSubItems && isOpen && (
+        <div className="ml-8 mt-1 space-y-1">
+          {subItems.map((item, index) => (
+            <a
+              key={index}
+              href={item.href}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(item.href);
+              }}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-gray-100 dark:hover:bg-gray-800",
+                isSubItemActive(item.href)
+                  ? "bg-gray-100 text-primary dark:bg-gray-800"
+                  : "text-gray-500 dark:text-gray-400",
+              )}
+            >
+              {item.icon}
+              {item.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
 interface SidebarProps {
-  isCollapsed?: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
 }
 
-const Sidebar = ({ isCollapsed = false }: SidebarProps) => {
+// Simplified Sidebar component that doesn't rely on auth context
+const SimpleSidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
+  const navigate = useNavigate();
   const location = useLocation();
-  const currentPath = location.pathname;
-  const { user, userRole, signOut } = useAuth();
 
-  // Set admin override for josef@holm.com on component mount
-  useEffect(() => {
-    if (user?.email === "josef@holm.com") {
-      try {
-        // Use a ref to track if we've already set the override to avoid infinite loops
-        const adminOverrideSet = localStorage.getItem("admin_override_set");
-        if (adminOverrideSet !== "true") {
-          localStorage.setItem("akii_admin_override", "true");
-          localStorage.setItem("akii_admin_override_email", "josef@holm.com");
-          localStorage.setItem(
-            "akii_admin_override_expiry",
-            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          );
-          sessionStorage.setItem("admin_override", "true");
-          sessionStorage.setItem("admin_override_email", "josef@holm.com");
-          localStorage.setItem("admin_override_set", "true");
-          console.log("Admin override set for josef@holm.com");
-        }
-      } catch (error) {
-        console.error("Error setting admin override:", error);
-      }
-    }
-  }, []); // Remove user?.email dependency to prevent re-renders
+  const isActive = (path: string) => location.pathname === path;
 
-  // Force admin status for josef@holm.com and check multiple sources for admin role
-  const adminOverrideInSession =
-    sessionStorage.getItem("admin_override") === "true";
-  const adminOverrideInLocalStorage =
-    localStorage.getItem("akii_admin_override") === "true";
-
-  // Always set isAdmin to true for josef@holm.com
-  const isAdmin =
-    user?.email === "josef@holm.com" ||
-    userRole === "admin" ||
-    adminOverrideInSession ||
-    adminOverrideInLocalStorage ||
-    user?.role === "admin";
-
-  const mainLinks = [
-    { to: "/dashboard", icon: <Home />, label: "Dashboard" },
-    { to: "/dashboard/agents", icon: <Bot />, label: "AI Agents" },
-    { to: "/dashboard/documents", icon: <FileText />, label: "Documents" },
-    { to: "/dashboard/integrations", icon: <Layers />, label: "Integrations" },
+  // Always show all items regardless of admin status
+  const sidebarItems = [
     {
-      to: "/dashboard/conversations",
-      icon: <MessageSquare />,
+      icon: <PlusCircle className="h-5 w-5" />,
+      label: "Create AI Instance",
+      href: "/dashboard/create",
+      className: "create-instance-btn bg-primary text-white hover:bg-primary/90 dark:bg-primary dark:text-white dark:hover:bg-primary/90"
+    },
+    {
+      icon: <Circle className="h-5 w-5" />,
+      label: "AI Instances",
+      href: "/dashboard/agents",
+      subItems: [
+        {
+          label: "My Instances",
+          href: "/dashboard/agents",
+        },
+        {
+          label: "Recent Activity",
+          href: "/dashboard/activity",
+        },
+      ],
+    },
+    {
+      icon: <FileText className="h-5 w-5" />,
+      label: "Training Data",
+      href: "/dashboard/training",
+    },
+    {
+      icon: <MessageSquare className="h-5 w-5" />,
       label: "Conversations",
+      href: "/dashboard/conversations",
     },
-    { to: "/dashboard/analytics", icon: <BarChart2 />, label: "Analytics" },
-    { to: "/dashboard/private-ai", icon: <Server />, label: "Private AI" },
-    { to: "/dashboard/api-keys", icon: <Key />, label: "API Keys" },
-    { to: "/dashboard/team", icon: <Users />, label: "Team" },
+    {
+      icon: <Layout className="h-5 w-5" />,
+      label: "Apps",
+      href: "#",
+      subItems: [
+        {
+          label: "Web Chat",
+          href: "/dashboard/apps/web",
+          icon: <Monitor className="h-4 w-4" />
+        },
+        {
+          label: "Mobile Chat",
+          href: "/dashboard/apps/mobile",
+          icon: <Smartphone className="h-4 w-4" />
+        },
+        {
+          label: "WhatsApp Chat",
+          href: "/dashboard/apps/whatsapp",
+          icon: <MessageCircle className="h-4 w-4" />
+        },
+        {
+          label: "Telegram Chat",
+          href: "/dashboard/apps/telegram",
+          icon: <Send className="h-4 w-4" />
+        },
+        {
+          label: "Shopify Chat",
+          href: "/dashboard/apps/shopify",
+          icon: <ShoppingBag className="h-4 w-4" />
+        },
+        {
+          label: "WordPress Chat",
+          href: "/dashboard/apps/wordpress",
+          icon: <Globe className="h-4 w-4" />
+        },
+      ],
+    },
+    {
+      icon: <Users className="h-5 w-5" />,
+      label: "Team",
+      href: "/dashboard/team",
+    },
+    {
+      icon: <Settings className="h-5 w-5" />,
+      label: "Settings",
+      href: "/dashboard/settings",
+    },
   ];
 
-  // Admin links - updated to match all links in the image
-  const adminLinks = [
-    { to: "/admin/users", icon: <Users />, label: "Users" },
-    { to: "/admin/user-sync", icon: <UserCheck />, label: "User Sync" },
-    { to: "/admin/users-page", icon: <Users />, label: "Users Page" },
-    { to: "/admin/moderation", icon: <Shield />, label: "Moderation" },
+  // Admin section items for testing
+  const adminItems = [
     {
-      to: "/admin/email-templates",
-      icon: <MessageSquare />,
-      label: "Email Templates",
-    },
-    { to: "/admin/billing", icon: <CreditCard />, label: "Billing" },
-    { to: "/admin/workflows", icon: <Layers />, label: "Workflows" },
-    { to: "/admin/n8n-workflows", icon: <Layers />, label: "n8n Workflows" },
-    {
-      to: "/admin/database-schema",
-      icon: <Database />,
-      label: "Database Schema",
-    },
-    { to: "/admin/settings", icon: <Settings />, label: "Admin Settings" },
-    { to: "/admin/check", icon: <Shield />, label: "Admin Check" },
-    { to: "/admin/affiliates", icon: <ClipboardList />, label: "Affiliates" },
-    { to: "/admin/blog", icon: <FileText />, label: "Blog" },
-    { to: "/admin/compliance", icon: <Shield />, label: "Compliance" },
-    { to: "/admin/dashboard", icon: <BarChart2 />, label: "Dashboard" },
-    { to: "/admin/landing-pages", icon: <Globe />, label: "Landing Pages" },
-    {
-      to: "/admin/lead-magnets",
-      icon: <MessageCircle />,
-      label: "Lead Magnets",
-    },
-    { to: "/admin/packages", icon: <FileText />, label: "Packages" },
-    { to: "/admin/run-migration", icon: <FileUp />, label: "Run Migration" },
-    {
-      to: "/admin/user-status-migration",
-      icon: <UserCheck />,
-      label: "User Status Migration",
-    },
-  ];
-
-  const bottomLinks = [
-    { to: "/dashboard/settings", icon: <Settings />, label: "Settings" },
-    { to: "/help", icon: <HelpCircle />, label: "Help & Support" },
-  ];
-
-  // Add admin link if user has admin role
-  if (isAdmin) {
-    bottomLinks.unshift({
-      to: "/admin",
-      icon: <Shield />,
+      icon: <BarChart3 className="h-5 w-5" />,
       label: "Admin Dashboard",
-    });
-  }
-
-  const handleLogout = async () => {
-    if (signOut) {
-      await signOut();
+      href: "/admin/dashboard",
+    },
+    {
+      icon: <Users className="h-5 w-5" />,
+      label: "User Management",
+      href: "/admin/users",
+    },
+    {
+      icon: <Settings className="h-5 w-5" />,
+      label: "Admin Settings",
+      href: "/admin/settings",
+    },
+    {
+      icon: <CreditCard className="h-5 w-5" />,
+      label: "Billing",
+      href: "/admin/billing",
+    },
+    {
+      icon: <MessageSquare className="h-5 w-5" />,
+      label: "Email Templates",
+      href: "/admin/email-templates",
+    },
+    {
+      icon: <Layout className="h-5 w-5" />,
+      label: "Landing Pages",
+      href: "/admin/landing-pages",
+    },
+    {
+      icon: <Bot className="h-5 w-5" />,
+      label: "Lead Magnets",
+      href: "/admin/lead-magnets",
+    },
+    {
+      icon: <Shield className="h-5 w-5" />,
+      label: "Moderation",
+      href: "/admin/moderation",
+    },
+    {
+      icon: <Box className="h-5 w-5" />,
+      label: "Packages",
+      href: "/admin/packages",
+    },
+    {
+      icon: <Users className="h-5 w-5" />,
+      label: "Affiliates",
+      href: "/admin/affiliates",
+    },
+    {
+      icon: <FileText className="h-5 w-5" />,
+      label: "Blog",
+      href: "/admin/blog",
+    },
+    {
+      icon: <Shield className="h-5 w-5" />,
+      label: "Compliance",
+      href: "/admin/compliance",
+    },
+    {
+      icon: <Database className="h-5 w-5" />,
+      label: "Database Schema",
+      href: "/admin/database-schema",
+    },
+    {
+      icon: <Network className="h-5 w-5" />,
+      label: "n8n Workflows",
+      href: "/admin/n8n-workflows",
+    },
+    {
+      icon: <ArrowUpCircle className="h-5 w-5" />,
+      label: "Run Migration",
+      href: "/admin/run-migration",
+    },
+    {
+      icon: <UserCircle className="h-5 w-5" />,
+      label: "User Sync",
+      href: "/admin/user-sync",
+    },
+    {
+      icon: <UserCheck className="h-5 w-5" />,
+      label: "User Status Migration",
+      href: "/admin/user-status-migration",
+    },
+    {
+      icon: <Workflow className="h-5 w-5" />,
+      label: "Workflows",
+      href: "/admin/workflows",
     }
-  };
+  ];
 
   return (
     <aside
       className={cn(
-        "flex h-screen flex-col justify-between border-r bg-background p-4 transition-all",
-        isCollapsed ? "w-[80px]" : "w-[280px]",
+        "fixed top-16 z-30 h-[calc(100vh-4rem)] w-64 border-r bg-background transition-all",
+        collapsed && "w-16",
       )}
     >
-      <div className="flex flex-col gap-6">
-        <div
-          className={cn(
-            "flex items-center",
-            isCollapsed ? "justify-center" : "justify-start px-2",
-          )}
-        >
-          {isCollapsed ? (
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-md bg-primary text-xl font-bold text-primary-foreground">
-              A
-              {isAdmin && (
-                <div className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 bg-red-600 rounded-full">
-                  <span className="text-[8px] font-bold text-white">A</span>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex h-10 items-center gap-2 rounded-md bg-primary px-3 text-xl font-bold text-primary-foreground">
-              <span>Akii</span>
-              <span className="text-sm font-normal opacity-70">
-                AI Platform
-              </span>
-              {isAdmin && (
-                <div className="flex items-center border border-red-600 dark:border-red-500 rounded-md px-2 py-0.5 ml-2">
-                  <span className="text-xs font-medium text-red-600 dark:text-red-500">
-                    Admin
-                  </span>
-                </div>
-              )}
+      <div className="flex h-full flex-col gap-4 p-4">
+        <nav className="flex flex-1 flex-col gap-1">
+          {sidebarItems.map((item, index) => (
+            <SidebarItem
+              key={index}
+              icon={item.icon}
+              label={item.label}
+              href={item.href}
+              active={isActive(item.href)}
+              subItems={item.subItems}
+              collapsed={collapsed}
+              className={item.className}
+            />
+          ))}
+          
+          {/* Admin section */}
+          <div className="my-2 border-t dark:border-gray-800"></div>
+          {!collapsed && (
+            <div className="px-3 py-2">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Admin
+              </h2>
             </div>
           )}
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <div className={isCollapsed ? "px-0 text-center" : "px-3"}>
-            {!isCollapsed && (
-              <p className="text-xs font-semibold text-muted-foreground mb-2">
-                MAIN
-              </p>
-            )}
-          </div>
-          <nav className="space-y-1">
-            {mainLinks.map((link) => (
-              <SidebarLink
-                key={link.to}
-                to={link.to}
-                icon={link.icon}
-                label={link.label}
-                isActive={currentPath === link.to}
-                isCollapsed={isCollapsed}
-              />
-            ))}
-          </nav>
-        </div>
-
-        {(isAdmin || user?.email === "josef@holm.com") && (
-          <div className="flex flex-col gap-1">
-            <div className={isCollapsed ? "px-0 text-center" : "px-3"}>
-              {!isCollapsed && (
-                <p className="text-xs font-semibold text-muted-foreground mb-2">
-                  ADMIN
-                </p>
-              )}
-            </div>
-            <nav className="space-y-1">
-              {adminLinks.map((link) => (
-                <SidebarLink
-                  key={link.to}
-                  to={link.to}
-                  icon={link.icon}
-                  label={link.label}
-                  isActive={currentPath.includes(link.to)}
-                  isCollapsed={isCollapsed}
-                />
-              ))}
-            </nav>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-1">
-        {bottomLinks.map((link) => (
-          <SidebarLink
-            key={link.to}
-            to={link.to}
-            icon={link.icon}
-            label={link.label}
-            isActive={currentPath === link.to}
-            isCollapsed={isCollapsed}
-          />
-        ))}
-        <button
-          onClick={handleLogout}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive",
-            isCollapsed ? "justify-center" : "",
-          )}
-        >
-          <div className="w-5 h-5 flex items-center justify-center overflow-hidden shrink-0">
-            <LogOut className="w-[18px] h-[18px]" size={18} strokeWidth={2} />
-          </div>
-          {!isCollapsed && <span>Logout</span>}
-        </button>
+          {adminItems.map((item, index) => (
+            <SidebarItem
+              key={`admin-${index}`}
+              icon={item.icon}
+              label={item.label}
+              href={item.href}
+              active={isActive(item.href)}
+              collapsed={collapsed}
+            />
+          ))}
+        </nav>
       </div>
     </aside>
   );
 };
 
-export default Sidebar;
+export default SimpleSidebar;

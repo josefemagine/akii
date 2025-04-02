@@ -14,6 +14,14 @@ declare global {
       getDiagnostics: () => any;
       checkClient: (client: any) => any;
     };
+    __SUPABASE_SINGLETON?: {
+      auth?: any;
+      client?: any;
+      initialized?: boolean;
+    };
+    __akii_redirects?: {
+      href: (path: string) => void;
+    };
   }
 }
 

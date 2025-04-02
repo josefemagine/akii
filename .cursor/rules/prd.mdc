@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+We are coding for production. Take a systematic approach to fix the root cause of every error. Do not take shortcuts or apply quick fixes. Follow best practices for PostgREST, React, Vite, and Supabase. Always fix all linter errors.

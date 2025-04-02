@@ -1,10 +1,11 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import WebChatAnimation from "@/components/animations/WebChatAnimation";
 import AnimatedText from "@/components/animations/AnimatedText";
 import LeadMagnetButton from "@/components/marketing/LeadMagnetButton";
+import { useAuth } from "@/contexts/auth-compatibility";
 import {
   Zap,
   MessageSquare,
@@ -19,7 +20,12 @@ import {
   Globe,
 } from "lucide-react";
 
-const HeroSection = () => {
+// Add interfaces for the section props
+interface SectionWithUserProps {
+  user: any; // Using 'any' for simplicity, but ideally should match your User type
+}
+
+const HeroSection = ({ user }: SectionWithUserProps) => {
   return (
     <section className="py-20 md:py-28 bg-gradient-to-b from-background to-muted/30">
       <div className="container px-4 md:px-6">
@@ -62,12 +68,20 @@ const HeroSection = () => {
               </p>
             </div>
             <div className="flex flex-col gap-2 min-[400px]:flex-row">
-              <Button size="lg" asChild>
-                <Link to="/signup">Get Started</Link>
-              </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link to="/demo">Request Demo</Link>
-              </Button>
+              {user ? (
+                <Button size="lg" className="bg-green-500 hover:bg-green-600" asChild>
+                  <Link to="/dashboard">Go to Dashboard</Link>
+                </Button>
+              ) : (
+                <>
+                  <Button size="lg" asChild>
+                    <Link to="/signup">Get Started</Link>
+                  </Button>
+                  <Button size="lg" variant="outline" asChild>
+                    <Link to="/demo">Request Demo</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center justify-center">
@@ -387,7 +401,7 @@ const TestimonialsSection = () => {
   );
 };
 
-const CTASection = () => {
+const CTASection = ({ user }: SectionWithUserProps) => {
   return (
     <section className="py-16 md:py-24 bg-primary text-primary-foreground">
       <div className="container px-4 md:px-6">
@@ -397,33 +411,42 @@ const CTASection = () => {
               Ready to Transform Your Business?
             </h2>
             <p className="mx-auto max-w-[700px] md:text-xl">
-              Join thousands of businesses already using Akii to boost sales and
-              reduce costs.
+              {user ? 'Access your AI dashboard to manage your agents and analytics.' : 'Join thousands of businesses already using Akii to boost sales and reduce costs.'}
             </p>
           </div>
           <div className="flex flex-col gap-2 min-[400px]:flex-row">
-            <Button size="lg" variant="secondary" asChild>
-              <Link to="/signup">Get Started Free</Link>
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="bg-transparent"
-              asChild
-            >
-              <Link to="/contact-sales">Contact Sales</Link>
-            </Button>
+            {user ? (
+              <Button size="lg" variant="secondary" asChild>
+                <Link to="/dashboard">Go to Dashboard</Link>
+              </Button>
+            ) : (
+              <>
+                <Button size="lg" variant="secondary" asChild>
+                  <Link to="/signup">Get Started Free</Link>
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="bg-transparent"
+                  asChild
+                >
+                  <Link to="/contact-sales">Contact Sales</Link>
+                </Button>
+              </>
+            )}
           </div>
-          <div className="mt-6">
-            <LeadMagnetButton
-              variant="link"
-              className="text-primary-foreground underline underline-offset-4"
-              title="Boost Your Sales by 67% with AI Chat Agents"
-              description="Download our free guide with 10 proven strategies to increase your sales using AI chat agents."
-            >
-              Download our free guide: 10 steps to boost sales by 67% with AI
-            </LeadMagnetButton>
-          </div>
+          {!user && (
+            <div className="mt-6">
+              <LeadMagnetButton
+                variant="link"
+                className="text-primary-foreground underline underline-offset-4"
+                title="Boost Your Sales by 67% with AI Chat Agents"
+                description="Download our free guide with 10 proven strategies to increase your sales using AI chat agents."
+              >
+                Download our free guide: 10 steps to boost sales by 67% with AI
+              </LeadMagnetButton>
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -513,14 +536,63 @@ interface LandingPageProps {
 }
 
 const LandingPage = ({ searchValue }: LandingPageProps) => {
+  const { user, isLoading } = useAuth();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const navigate = useNavigate();
+  
+  // Add debug logging to check auth state
+  console.log("LandingPage auth state:", { 
+    user: user ? `User ID: ${user.id}` : "No user",
+    isLogged: !!user,
+    isLoading,
+    isAuthenticated
+  });
+
+  // Check if user is authenticated using multiple methods
+  useEffect(() => {
+    // First check if user is already set in auth context
+    if (user) {
+      setIsAuthenticated(true);
+      return;
+    }
+    
+    // If auth is still loading, wait for it
+    if (isLoading) {
+      return;
+    }
+    
+    // DO NOT rely on localStorage for authentication - this causes redirect loops
+    // Only set authenticated true if we have a real user session
+    setIsAuthenticated(false);
+    
+    // Log for debugging
+    console.log("LandingPage: No valid user session found, treating as unauthenticated");
+    
+    return () => {}; // Cleanup
+  }, [user, isLoading]);
+
+  // Use either context user or our authenticated state with a safe default
+  const effectiveUserState = user 
+    ? { ...user, isAuthenticated: true } 
+    : { id: null, isAuthenticated: false };
+  
+  // Add simple redirect for authenticated users - only redirect when we have an actual user
+  useEffect(() => {
+    // Only redirect to dashboard if we have a real user
+    if (user && !isLoading) {
+      console.log('LandingPage: User is authenticated with real session, redirecting to dashboard');
+      navigate('/dashboard');
+    }
+  }, [user, isLoading, navigate]);
+
   return (
     <>
-      <HeroSection />
+      <HeroSection user={effectiveUserState} />
       <ProductsSection />
       <FeaturesSection />
       <ResearchSection />
       <TestimonialsSection />
-      <CTASection />
+      <CTASection user={effectiveUserState} />
     </>
   );
 };

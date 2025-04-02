@@ -97,3 +97,21 @@ The authentication system is currently in a transition phase. The following road
 3. **Phase 3** - Remove deprecated auth implementations
 
 Developers should use the new authentication system for new components and gradually update existing components during regular maintenance.
+
+## Building for Production
+
+To build the project for production, run:
+
+```bash
+npm run build
+```
+
+The production build uses Vite's build system to create optimized assets without running TypeScript type checking, which improves build performance. 
+
+If you want to ensure type safety during the build process, use:
+
+```bash
+npm run build-with-type-check
+```
+
+The project includes several TypeScript files related to auth context refactoring that are intentionally excluded from type checking in `tsconfig.json` and from Vite's build process. These files will be removed in a future update once the migration is complete.

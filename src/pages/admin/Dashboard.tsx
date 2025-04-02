@@ -15,120 +15,120 @@ import {
   Bell,
   Settings,
 } from "lucide-react";
+import { dashboardStyles } from "@/components/layout/DashboardPageContainer";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { DashboardSection } from "@/components/layout/DashboardSection";
 
 const AdminDashboard = () => {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Monitor platform performance and manage system settings
-          </p>
+      <PageHeader
+        title="Admin Dashboard"
+        description="Monitor platform performance and manage system settings"
+      >
+        <Button asChild>
+          <Link to="/admin/run-migration">Database Migrations</Link>
+        </Button>
+        <div className="text-sm text-muted-foreground">
+          Project ID: <span className="font-mono">injxxchotrvgvvzelhvj</span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button asChild>
-            <Link to="/admin/run-migration">Database Migrations</Link>
-          </Button>
-          <div className="text-sm text-muted-foreground">
-            Project ID: <span className="font-mono">injxxchotrvgvvzelhvj</span>
-          </div>
+      </PageHeader>
+
+      <DashboardSection>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Total Users
+                  </p>
+                  <h3 className="text-2xl font-bold mt-1">2,543</h3>
+                </div>
+                <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
+                  <Users className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+              <div className="flex items-center mt-4 text-sm">
+                <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+                <span className="text-green-500 font-medium">12%</span>
+                <span className="text-muted-foreground ml-1">
+                  from last month
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Active Agents
+                  </p>
+                  <h3 className="text-2xl font-bold mt-1">1,247</h3>
+                </div>
+                <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
+                  <Circle className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+              <div className="flex items-center mt-4 text-sm">
+                <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+                <span className="text-green-500 font-medium">8%</span>
+                <span className="text-muted-foreground ml-1">
+                  from last month
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Total Messages
+                  </p>
+                  <h3 className="text-2xl font-bold mt-1">3.2M</h3>
+                </div>
+                <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
+                  <MessageSquare className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+              <div className="flex items-center mt-4 text-sm">
+                <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+                <span className="text-green-500 font-medium">24%</span>
+                <span className="text-muted-foreground ml-1">
+                  from last month
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Monthly Revenue
+                  </p>
+                  <h3 className="text-2xl font-bold mt-1">$48,254</h3>
+                </div>
+                <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
+                  <CreditCard className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+              <div className="flex items-center mt-4 text-sm">
+                <ArrowDownRight className="h-4 w-4 text-red-500 mr-1" />
+                <span className="text-red-500 font-medium">3%</span>
+                <span className="text-muted-foreground ml-1">
+                  from last month
+                </span>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Total Users
-                </p>
-                <h3 className="text-2xl font-bold mt-1">2,543</h3>
-              </div>
-              <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                <Users className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-            <div className="flex items-center mt-4 text-sm">
-              <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
-              <span className="text-green-500 font-medium">12%</span>
-              <span className="text-muted-foreground ml-1">
-                from last month
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Active Agents
-                </p>
-                <h3 className="text-2xl font-bold mt-1">1,247</h3>
-              </div>
-              <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                <Circle className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-            <div className="flex items-center mt-4 text-sm">
-              <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
-              <span className="text-green-500 font-medium">8%</span>
-              <span className="text-muted-foreground ml-1">
-                from last month
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Total Messages
-                </p>
-                <h3 className="text-2xl font-bold mt-1">3.2M</h3>
-              </div>
-              <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                <MessageSquare className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-            <div className="flex items-center mt-4 text-sm">
-              <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
-              <span className="text-green-500 font-medium">24%</span>
-              <span className="text-muted-foreground ml-1">
-                from last month
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Monthly Revenue
-                </p>
-                <h3 className="text-2xl font-bold mt-1">$48,254</h3>
-              </div>
-              <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center">
-                <CreditCard className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-            <div className="flex items-center mt-4 text-sm">
-              <ArrowDownRight className="h-4 w-4 text-red-500 mr-1" />
-              <span className="text-red-500 font-medium">3%</span>
-              <span className="text-muted-foreground ml-1">
-                from last month
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      </DashboardSection>
 
       <Tabs defaultValue="overview">
         <TabsList className="grid w-full grid-cols-5 mb-4">

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
-import Sidebar from "@/components/layout/Sidebar";
+import ConsolidatedSidebar from "@/components/layout/ConsolidatedSidebar";
 import TrialBanner from "./TrialBanner";
 import { DashboardSafeWrapper } from "./DashboardSafeWrapper";
 
@@ -14,7 +14,7 @@ const DashboardLayout = () => {
   return (
     <DashboardSafeWrapper>
       <div className="flex h-screen bg-background">
-        <Sidebar isCollapsed={isSidebarCollapsed} />
+        <ConsolidatedSidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex-1 flex flex-col overflow-hidden">
           <header className="h-16 border-b flex items-center justify-between px-6">
             <div className="flex items-center">

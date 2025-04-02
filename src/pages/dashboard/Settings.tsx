@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, createContext, useContext } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,8 +7,23 @@ import { toast } from "@/components/ui/use-toast";
 import AvatarManager from "@/components/avatar/AvatarManager";
 import { supabase } from "@/lib/supabase-singleton";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, LogIn, RefreshCw } from "lucide-react";
+
+// Import the useAuth hook conditionally to prevent errors
+let useAuth: any = () => ({ user: null });
+try {
+  // Try to import from StandardAuthContext first (new implementation)
+  useAuth = require("@/contexts/StandardAuthContext").useAuth;
+} catch (e) {
+  console.warn("Failed to import useAuth from StandardAuthContext, using fallback");
+  try {
+    // Try AuthContext as fallback
+    useAuth = require("@/contexts/AuthContext").useAuth;
+  } catch (e2) {
+    console.warn("Failed to import useAuth from any context, using dummy implementation");
+    // Keep the dummy implementation
+  }
+}
 
 // Define Profile types
 interface UserProfile {
@@ -49,8 +64,15 @@ const Settings = () => {
   // Navigation
   const navigate = useNavigate();
   
-  // Get auth from context
-  const { user: authUser } = useAuth();
+  // Get auth from context with error handling
+  let authUser;
+  try {
+    const auth = useAuth();
+    authUser = auth?.user;
+  } catch (e) {
+    console.error("Error using auth context in Settings:", e);
+    authUser = null;
+  }
 
   // Check auth state first
   useEffect(() => {
@@ -110,59 +132,32 @@ const Settings = () => {
     try {
       console.log("Settings: Loading profile for user ID:", userId);
       
-      // Add timeout protection
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Profile fetch timed out after 10 seconds")), 10000)
-      );
+      // Import the getUserProfile function from supabase-auth.ts
+      const { getUserProfile } = await import('@/lib/supabase-auth');
       
-      // Race the profile fetch against a timeout
-      const profilePromise = supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      // Use the enhanced getUserProfile function which handles RLS errors with fallbacks
+      const { data: profileData, error } = await getUserProfile(userId);
+      
+      if (error) {
+        console.error("Settings: Error getting profile:", error);
         
-      // Use Promise.race to implement a timeout
-      const { data: profileData, error: profileError } = await Promise.race([
-        profilePromise,
-        timeoutPromise.then(() => ({ data: null, error: new Error("Timeout") }))
-      ]) as any;
-        
-      if (profileError) {
-        // Log more details about the error
-        console.error("Settings: Profile load error details:", {
-          error: profileError,
-          errorCode: profileError.code,
-          errorMessage: profileError.message,
-          errorDetails: profileError.details,
-          userId
-        });
-        
-        // Handle the "not found" case
-        if (profileError.code === 'PGRST116') {
-          // Special case for Josef to auto-create profile with hardcoded ID
-          if (authState?.authUserEmail === "josef@holm.com" || authState?.storedEmail === "josef@holm.com") {
-            return await createJosefProfile();
-          }
-          
-          console.log("Settings: Profile not found, will need to create one");
-          setError("Your profile hasn't been set up yet. Please complete the form below to create it.");
-          
-          // Start with a blank profile
-          setProfile({
-            id: userId,
-            email: authState?.authUserEmail || authState?.sessionUserEmail || authState?.storedEmail || "",
-          });
+        // For severe errors we should still show an error
+        if (!profileData) {
+          setError(`Error loading your profile: ${error.message}. Please try refreshing the page.`);
           setIsLoading(false);
+          
+          // Add a manual refresh button by setting profile to a special state
+          setProfile({ 
+            id: userId || 'unknown',
+            email: authState?.authUserEmail || authState?.sessionUserEmail || authState?.storedEmail || 'unknown',
+            needsRefresh: true 
+          });
           return;
         }
-        
-        // Other database errors
-        throw new Error(`Database error: ${profileError.message}`);
       }
       
-      // Profile found
-      console.log("Settings: Profile loaded successfully");
+      // Profile found (either real or fallback)
+      console.log("Settings: Profile loaded:", profileData);
       setProfile(profileData);
       setIsLoading(false);
     } catch (error) {

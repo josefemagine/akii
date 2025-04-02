@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/SuperAuthContext";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { supabase } from "@/lib/supabase";
 
@@ -57,7 +57,8 @@ export default function TokenHandler() {
 
           // Redirect to dashboard after successful token handling
           setTimeout(() => {
-            navigate("/dashboard");
+            console.log("Redirecting to dashboard after token authentication");
+            navigate("/dashboard", { replace: true });
           }, 1000);
         } else {
           setError("Token verification failed");

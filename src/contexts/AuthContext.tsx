@@ -36,6 +36,8 @@ import {
 import {
   signIn as authSignIn,
   signOut as authSignOut,
+  signUp as authSignUp,
+  verifySupabaseConnection,
 } from "@/lib/auth-helpers";
 
 // Update imports to use the singleton
@@ -488,19 +490,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
 
-      const { data, error } = await getAuth().signUp({
-        email,
-        password,
-        options: { data: metadata },
-      });
+      const response = await authSignUp(email, password, metadata);
 
       setState((prev) => ({ ...prev, isLoading: false }));
 
-      if (error) {
-        return { data: null, error };
+      if (response.error) {
+        return { data: null, error: response.error };
       }
 
-      return { data, error: null };
+      return { data: response.data, error: null };
     } catch (error) {
       console.error("Sign-up error:", error);
       setState((prev) => ({ ...prev, isLoading: false }));
@@ -706,6 +704,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (profile) {
         console.log("Profile refreshed successfully:", profile);
+        
+        // Check for theme preference in user profile and set it in localStorage
+        if ('theme_preference' in profile && profile.theme_preference) {
+          localStorage.setItem("dashboard-theme", profile.theme_preference as string);
+          console.log("Loaded theme preference from profile:", profile.theme_preference);
+        }
+        
         setState((prev) => ({ ...prev, profile: profile }));
 
         // Store avatar URL in localStorage as backup

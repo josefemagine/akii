@@ -167,59 +167,6 @@ const WebChatAnimation = () => {
     },
   ];
 
-  const developerConversation: Message[] = [
-    {
-      id: 1,
-      text: "I'm a developer looking to build custom AI applications. Does Akii offer an API?",
-      sender: "user",
-      delay: 1000,
-    },
-    {
-      id: 2,
-      text: "Yes! Akii provides a comprehensive Private AI API that gives you full control to build custom applications with your own AI instance.",
-      sender: "bot",
-      delay: 2000,
-    },
-    {
-      id: 3,
-      text: "Great! Can you show me a code example of how I would use it?",
-      sender: "user",
-      delay: 2000,
-    },
-    {
-      id: 4,
-      text: "Here's a simple example of querying your private AI instance:",
-      sender: "bot",
-      delay: 1500,
-    },
-    {
-      id: 5,
-      text: "// Initialize the Akii client\nconst akii = new AkiiClient({\n  apiKey: 'your_api_key',\n  privateInstanceId: 'your_instance_id'\n});\n\n// Query your private AI\nasync function askPrivateAI(question) {\n  const response = await akii.privateAI.query({\n    prompt: question,\n    context: 'customer_support',\n    temperature: 0.7\n  });\n\n  return response.text;\n}\n\n// Example usage\nconst answer = await askPrivateAI('How do I reset my password?');\nconsole.log(answer);",
-      sender: "bot",
-      delay: 1500,
-      isCode: true,
-    },
-    {
-      id: 6,
-      text: "What about streaming responses for a chat interface?",
-      sender: "user",
-      delay: 2000,
-    },
-    {
-      id: 7,
-      text: "Absolutely! Here's how you'd implement streaming:",
-      sender: "bot",
-      delay: 1500,
-    },
-    {
-      id: 8,
-      text: "// Stream responses for real-time chat\nakii.privateAI.streamQuery({\n  prompt: userQuestion,\n  context: 'sales',\n  temperature: 0.5\n}, {\n  onToken: (token) => {\n    // Append token to UI in real-time\n    chatInterface.appendText(token);\n  },\n  onComplete: (fullResponse) => {\n    // Handle completion (e.g., enable input)\n    chatInterface.setLoading(false);\n  },\n  onError: (error) => {\n    console.error('Stream error:', error);\n  }\n});\n",
-      sender: "bot",
-      delay: 1500,
-      isCode: true,
-    },
-  ];
-
   // Reference to the messages container
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -230,8 +177,6 @@ const WebChatAnimation = () => {
         return supportConversation;
       case "sales":
         return salesConversation;
-      case "developer":
-        return developerConversation;
       default:
         return supportConversation;
     }
@@ -249,7 +194,7 @@ const WebChatAnimation = () => {
 
   // Handle demo change
   const changeDemoType = () => {
-    const demos = ["support", "sales", "developer"];
+    const demos = ["support", "sales"];
     const currentIndex = demos.indexOf(activeDemo);
     const nextIndex = (currentIndex + 1) % demos.length;
     setActiveDemo(demos[nextIndex]);
@@ -303,8 +248,6 @@ const WebChatAnimation = () => {
         return "Akii Support Assistant";
       case "sales":
         return "Akii Sales Assistant";
-      case "developer":
-        return "Akii Developer API";
       default:
         return "Akii AI Assistant";
     }
@@ -313,15 +256,29 @@ const WebChatAnimation = () => {
   return (
     <div className="w-full h-full bg-card rounded-lg shadow-xl overflow-hidden flex flex-col border border-primary/20">
       {/* Chat header */}
-      <div className="bg-primary p-4 text-primary-foreground flex items-center justify-between">
+      <div className={cn(
+        "p-4 flex items-center justify-between", 
+        activeDemo === "support"
+          ? "bg-gray-800 text-white" 
+          : "bg-primary text-primary-foreground"
+      )}>
         <div className="flex items-center space-x-2">
           <div className="h-3 w-3 rounded-full bg-green-400 animate-pulse"></div>
           <h3 className="font-medium">{getDemoTitle()}</h3>
         </div>
         <div className="flex space-x-2">
-          <div className="h-2 w-2 rounded-full bg-primary-foreground/70"></div>
-          <div className="h-2 w-2 rounded-full bg-primary-foreground/70"></div>
-          <div className="h-2 w-2 rounded-full bg-primary-foreground/70"></div>
+          <div className={cn(
+            "h-2 w-2 rounded-full", 
+            activeDemo === "support" ? "bg-white/70" : "bg-primary-foreground/70"
+          )}></div>
+          <div className={cn(
+            "h-2 w-2 rounded-full", 
+            activeDemo === "support" ? "bg-white/70" : "bg-primary-foreground/70"
+          )}></div>
+          <div className={cn(
+            "h-2 w-2 rounded-full", 
+            activeDemo === "support" ? "bg-white/70" : "bg-primary-foreground/70"
+          )}></div>
         </div>
       </div>
 
@@ -408,11 +365,6 @@ const WebChatAnimation = () => {
           <motion.div
             className={`h-2 w-2 rounded-full ${activeDemo === "sales" ? "bg-primary" : "bg-muted"}`}
             animate={activeDemo === "sales" ? { scale: [1, 1.2, 1] } : {}}
-            transition={{ repeat: Infinity, duration: 2 }}
-          />
-          <motion.div
-            className={`h-2 w-2 rounded-full ${activeDemo === "developer" ? "bg-primary" : "bg-muted"}`}
-            animate={activeDemo === "developer" ? { scale: [1, 1.2, 1] } : {}}
             transition={{ repeat: Infinity, duration: 2 }}
           />
         </div>

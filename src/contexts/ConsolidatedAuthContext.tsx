@@ -159,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (userError) {
         console.error("Error getting user:", userError);
+        console.log("Setting loading state to false due to user fetch error");
         setState(prev => ({ 
           ...prev, 
           isLoading: false, 
@@ -173,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       if (!user) {
+        console.log("No user found, setting loading state to false");
         setState(prev => ({ 
           ...prev, 
           isLoading: false,
@@ -185,7 +187,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      console.log("User authenticated, attempting to load or create profile", { userId: user.id, email: user.email });
+      console.log("User authenticated, attempting to load or create profile", { 
+        userId: user.id, 
+        email: user.email,
+        hasRawUserMetaData: !!(user as any)._rawData?.raw_user_meta_data || !!(user as any).raw_user_meta_data,
+        hasUserMetadata: !!user.user_metadata,
+        userMetadataKeys: user.user_metadata ? Object.keys(user.user_metadata) : []
+      });
       
       // Retrieve stored metadata if available
       let storedMetadata: Record<string, any> | null = null;
@@ -235,6 +243,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let profileError = null;
       const MAX_RETRIES = 3;
       
+      // Create a timeout for just the profile loading portion
+      const profileLoadingTimeout = setTimeout(() => {
+        if (!userProfile) {
+          console.warn("Profile loading taking too long, will continue with limited functionality");
+          profileError = new Error("Profile loading timed out");
+          
+          // Cache the user data for emergency recovery
+          if (user) {
+            try {
+              localStorage.setItem('akii-user-emergency', JSON.stringify(user));
+            } catch (e) {
+              console.warn("Failed to cache emergency user data:", e);
+            }
+          }
+        }
+      }, 5000); // 5 second timeout just for profile loading
+      
       while (retryCount < MAX_RETRIES && !userProfile) {
         if (retryCount > 0) {
           console.log(`Retry attempt ${retryCount} to get/create profile`);
@@ -263,6 +288,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         retryCount++;
       }
+      
+      // Clear the profile loading timeout since we've completed that step
+      clearTimeout(profileLoadingTimeout);
       
       // Force profile creation if still no profile
       if (!userProfile && retryCount >= MAX_RETRIES) {
@@ -393,8 +421,108 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isBrowser) return;
     
-    // Initialize auth
-    initializeAuth();
+    console.log("AuthProvider mounted, starting initialization");
+    
+    // Add a safety timeout to ensure loading state completes even if something gets stuck
+    const safetyTimer = setTimeout(() => {
+      console.warn("Auth loading safety timeout triggered after 20 seconds");
+      // Check if we're still loading and if so, complete it
+      setState(prev => {
+        if (prev.isLoading) {
+          console.warn("Forcing loading state to complete after timeout");
+          
+          // Try to get user data directly from local storage as emergency fallback
+          let emergencyUser = null;
+          let emergencyProfile = null;
+          try {
+            // Try to get session data
+            const sessionStr = localStorage.getItem('supabase.auth.token');
+            if (sessionStr) {
+              const sessionData = JSON.parse(sessionStr);
+              console.log("Emergency: Found session data in localStorage");
+              
+              if (sessionData?.currentSession?.user) {
+                emergencyUser = sessionData.currentSession.user;
+                console.log("Emergency: Retrieved user from localStorage", emergencyUser);
+                
+                // Try to retrieve cached profile if it exists
+                const cachedProfileStr = localStorage.getItem(`akii-profile-${emergencyUser.id}`);
+                if (cachedProfileStr) {
+                  try {
+                    emergencyProfile = JSON.parse(cachedProfileStr);
+                    console.log("Emergency: Retrieved cached profile", emergencyProfile);
+                  } catch (e) {
+                    console.error("Emergency: Failed to parse cached profile", e);
+                  }
+                }
+                
+                // Check if we can try a direct profile fetch
+                if (emergencyUser.id && !emergencyProfile) {
+                  // Perform an immediate fetch of the profile
+                  supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', emergencyUser.id)
+                    .single()
+                    .then(({ data, error }) => {
+                      if (data && !error) {
+                        console.log("Emergency: Direct profile fetch successful", data);
+                        // Store this profile for future use
+                        localStorage.setItem(`akii-profile-${emergencyUser.id}`, JSON.stringify(data));
+                        
+                        // Update the state with the fetched profile
+                        setState(currentState => {
+                          if (currentState.user?.id === emergencyUser.id) {
+                            return {
+                              ...currentState,
+                              profile: data,
+                              isAdmin: data.role === 'admin',
+                              userRole: data.role || null
+                            };
+                          }
+                          return currentState;
+                        });
+                      } else {
+                        console.error("Emergency: Failed to fetch profile directly", error);
+                      }
+                    });
+                }
+              }
+            }
+          } catch (e) {
+            console.error("Emergency recovery failed:", e);
+          }
+          
+          // If we have emergency user data, use it along with any profile data we found
+          if (emergencyUser) {
+            return { 
+              ...prev, 
+              isLoading: false,
+              user: emergencyUser,
+              profile: emergencyProfile || prev.profile,
+              isAdmin: emergencyProfile?.role === 'admin' || prev.isAdmin,
+              userRole: emergencyProfile?.role || prev.userRole,
+              error: new Error("Profile loading timed out, using emergency recovery data")
+            };
+          }
+          
+          // Otherwise just stop loading
+          return { 
+            ...prev, 
+            isLoading: false, 
+            error: new Error("Authentication initialization timed out. Please refresh the page.")
+          };
+        }
+        return prev;
+      });
+    }, 10000); // 10 second timeout (increased from 5)
+    
+    // Initialize auth with error handling
+    initializeAuth().catch(err => {
+      console.error("Unhandled error during auth initialization:", err);
+      // Force loading to complete even with errors
+      setState(prev => ({ ...prev, isLoading: false, error: err }));
+    });
     
     // Set up auth listener
     const { data: authListener } = auth.onAuthStateChange(async (event, session) => {
@@ -402,6 +530,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
         try {
+          // Check for redirect flags
+          const loginInProgress = localStorage.getItem("akii-login-in-progress") === "true";
+          let redirectTarget = localStorage.getItem("akii-auth-redirect");
+          
+          // Fix typo in redirect target if present
+          if (redirectTarget && redirectTarget.includes('/ddashboard')) {
+            console.log("Fixing typo in redirect target:", redirectTarget);
+            redirectTarget = redirectTarget.replace('/ddashboard', '/dashboard');
+            localStorage.setItem("akii-auth-redirect", redirectTarget);
+          }
+          
+          const shouldRedirect = loginInProgress || redirectTarget;
+          
+          if (shouldRedirect) {
+            console.log("Auth state changed with redirect flags, preparing for dashboard redirect");
+          }
+          
           // Get latest user data
           const { data: user, error: userError } = await getCurrentUser();
           
@@ -418,12 +563,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Get or create profile with error handling
           const { data: profile, error: profileError } = await ensureUserProfile(user);
           
+          // Log detailed information about the profile result
+          console.log("Profile loading result:", { 
+            hasProfile: !!profile, 
+            hasError: !!profileError,
+            errorMessage: profileError?.message,
+            profileKeys: profile ? Object.keys(profile) : []
+          });
+          
           // Even if there's a profile error, we might still have a fallback profile
           if (profile) {
             // Check admin status
             const isUserAdmin = (profile.role === "admin") || hasValidAdminOverride(user.email || "");
             
             // Update state with user, profile and session
+            console.log("Setting loading state to false with profile data");
+
+            // Cache the profile data for emergency recovery in the future
+            if (profile && user) {
+              try {
+                localStorage.setItem(`akii-profile-${user.id}`, JSON.stringify(profile));
+                console.log("Cached profile data for future emergency recovery");
+              } catch (e) {
+                console.warn("Failed to cache profile data:", e);
+              }
+            }
+
             setState(prev => ({
               ...prev,
               user,
@@ -446,7 +611,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           } else {
             console.error("Failed to get or create profile during auth state change");
-            // Update state with just user and session
+            // Update state with just user and session, but crucially set isLoading to false
+            console.log("Setting loading state to false despite profile failure");
             setState(prev => ({
               ...prev,
               user,
@@ -461,13 +627,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               variant: "destructive",
             });
           }
+          
+          // Handle redirect if we were in the middle of login flow
+          if (shouldRedirect) {
+            console.log("Auth state updated successfully, redirecting to dashboard");
+            // Clean up flags
+            localStorage.removeItem("akii-login-in-progress");
+            localStorage.removeItem("akii-auth-redirect");
+            localStorage.removeItem("akii-login-time");
+            localStorage.removeItem("akii-login-method");
+            
+            // Small delay to ensure state is updated
+            setTimeout(() => {
+              // Ensure we're using the correct path
+              let dashboardPath = redirectTarget || "/dashboard";
+              
+              // Double-check for typos in the path
+              if (dashboardPath.includes('/ddashboard')) {
+                console.log("Fixing typo in dashboard path right before redirect:", dashboardPath);
+                dashboardPath = dashboardPath.replace('/ddashboard', '/dashboard');
+              }
+              
+              window.location.href = dashboardPath;
+            }, 100);
+          }
         } catch (error) {
           console.error("Error handling auth state change:", error);
+          console.log("Setting loading state to false due to caught error");
           setState(prev => ({ 
             ...prev, 
             isLoading: false, 
-            error: error as Error 
+            error: error as Error
           }));
+          
+          // Clean up flags even on error
+          localStorage.removeItem("akii-login-in-progress");
+          localStorage.removeItem("akii-auth-redirect");
         }
       } else if (event === "SIGNED_OUT") {
         setState({
@@ -484,6 +679,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Cleanup
     return () => {
+      console.log("AuthProvider unmounting, cleaning up");
+      clearTimeout(safetyTimer);
       authListener?.subscription.unsubscribe();
     };
   }, [initializeAuth, toast]);
@@ -504,13 +701,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           description: response.error.message,
           variant: "destructive",
         });
-      } else if (response.data) {
+        
+        // Clear login in progress flag on error
+        localStorage.removeItem("akii-login-in-progress");
+      } else {
         toast({
           title: "Signed in successfully",
           variant: "default",
         });
         
         // Auth state will be updated by the onAuthStateChange listener
+        
+        // Clear the login in progress flag
+        localStorage.removeItem("akii-login-in-progress");
+        
+        // Always force a redirect to dashboard
+        console.log("Sign-in successful, redirecting to dashboard immediately");
+        
+        // Use a synchronous redirect for maximum reliability
+        const dashboardPath = "/dashboard";
+        window.location.replace(dashboardPath);
       }
       
       return response;
@@ -521,6 +731,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
+      
+      // Clear login in progress flag on error
+      localStorage.removeItem("akii-login-in-progress");
+      
       return { data: null, error: error as Error };
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));
@@ -593,6 +807,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
+      // Set a flag in localStorage to indicate we're in the middle of login
+      localStorage.setItem("akii-login-in-progress", "true");
+      localStorage.setItem("akii-login-time", Date.now().toString());
+      localStorage.setItem("akii-login-method", "google");
+      
       const response = await signInWithOAuth("google");
       
       if (response.error) {
@@ -601,6 +820,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           description: response.error.message,
           variant: "destructive",
         });
+        
+        // Clear login in progress flag on error
+        localStorage.removeItem("akii-login-in-progress");
+      } else {
+        // Note: The Google sign-in flow will redirect the user, so most of this 
+        // code won't execute until they return from the OAuth flow
+        
+        // Clear login in progress flag
+        localStorage.removeItem("akii-login-in-progress");
+        
+        // Ensure redirection happens for cases where the OAuth redirect doesn't work
+        console.log("Google sign-in started, will redirect to dashboard when complete");
+        
+        // Store redirect target for when user returns from OAuth
+        const redirectPath = "/dashboard";
+        localStorage.setItem("akii-auth-redirect", redirectPath);
+        
+        // Also check if any other localStorage entries have typos
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key) {
+              const value = localStorage.getItem(key);
+              if (value && value.includes('/ddashboard')) {
+                console.log(`[ConsolidatedAuthContext] Found typo in ${key}, fixing it`);
+                localStorage.setItem(key, value.replace('/ddashboard', '/dashboard'));
+              }
+            }
+          }
+        } catch (e) {
+          console.error("[ConsolidatedAuthContext] Error fixing localStorage typos:", e);
+        }
       }
       
       return response;
@@ -611,6 +862,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
+      
+      // Clear login in progress flag on error
+      localStorage.removeItem("akii-login-in-progress");
+      
       return { data: null, error: error as Error };
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));

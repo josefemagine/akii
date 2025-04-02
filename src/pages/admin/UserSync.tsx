@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
-import { supabaseAdmin, getAuthUsers } from "@/lib/supabase-admin";
+import { supabase } from "@/lib/supabase-singleton";
+import { getUserProfile, ensureUserProfile } from "@/lib/supabase-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, RefreshCw, UserPlus } from "lucide-react";
@@ -39,57 +40,23 @@ const UserSyncPage = () => {
       
       let authUsersList: AuthUser[] = [];
       
-      // Use our helper function to get auth users
-      const { data: authData, error: authError } = await getAuthUsers();
-      
-      if (authError) {
-        console.error("Could not fetch auth users:", authError);
-        setSyncError("Could not access auth users. Check server logs for details.");
-        
-        // Still try to get the current user as a fallback
-        try {
-          const { data: currentSession } = await supabaseAdmin.auth.getSession();
-          if (currentSession?.session?.user) {
-            const user = currentSession.session.user;
-            authUsersList = [{
-              id: user.id,
-              email: user.email || 'unknown',
-              created_at: user.created_at || new Date().toISOString(),
-              last_sign_in_at: null,
-              provider: 'email'
-            }];
-            
-            toast({
-              title: "Limited Auth Access",
-              description: "Only the current user could be fetched from auth",
-              variant: "destructive",
-            });
-          }
-        } catch (fallbackError) {
-          console.error("Fallback auth method failed:", fallbackError);
-        }
-      } else if (authData?.users) {
-        // Process auth users from admin API
-        authUsersList = authData.users.map(user => ({
+      // Get the current user as a starting point
+      const { data: currentSession } = await supabase.auth.getSession();
+      if (currentSession?.session?.user) {
+        const user = currentSession.session.user;
+        authUsersList = [{
           id: user.id,
           email: user.email || 'unknown',
-          created_at: user.created_at,
-          last_sign_in_at: user.last_sign_in_at,
+          created_at: user.created_at || new Date().toISOString(),
+          last_sign_in_at: user.last_sign_in_at || null,
           provider: user.app_metadata?.provider || 'email'
-        }));
-      } else if (Array.isArray(authData)) {
-        // Process auth users from RPC call
-        authUsersList = authData.map(user => ({
-          id: user.id,
-          email: user.email || 'unknown',
-          created_at: user.created_at,
-          last_sign_in_at: user.last_sign_in_at,
-          provider: user.role || 'unknown'
-        }));
+        }];
+      } else {
+        setSyncError("No authenticated user found. Please sign in first.");
       }
       
-      // Fetch profile users
-      const { data: profileData, error: profileError } = await supabaseAdmin
+      // Fetch profile users using the standard client
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id, email, full_name, role, created_at');
       
@@ -135,62 +102,24 @@ const UserSyncPage = () => {
     try {
       setSyncStatus(`Syncing user ${authUser.email}...`);
       
-      // Check if user already exists in profiles (by email)
-      const { data: existingProfile, error: checkError } = await supabaseAdmin
-        .from('profiles')
-        .select('*')
-        .eq('email', authUser.email)
-        .maybeSingle();
+      // Use ensureUserProfile to create or update the profile
+      const { data: profile, error } = await ensureUserProfile({
+        id: authUser.id,
+        email: authUser.email
+      });
       
-      if (checkError) {
-        console.error("Error checking for existing profile:", checkError);
-        setSyncError(checkError.message);
+      if (error) {
+        console.error("Error syncing user profile:", error);
+        setSyncError(error.message);
         return false;
       }
       
-      if (existingProfile) {
-        // Profile exists, update it
-        setSyncStatus(`Profile for ${authUser.email} already exists, updating...`);
-        
-        const { error: updateError } = await supabaseAdmin
-          .from('profiles')
-          .update({
-            id: authUser.id, // Ensure ID matches auth.users
-            updated_at: new Date().toISOString()
-          })
-          .eq('email', authUser.email);
-        
-        if (updateError) {
-          console.error("Error updating profile:", updateError);
-          setSyncError(updateError.message);
-          return false;
-        }
-        
-        setSyncStatus(`Updated profile for ${authUser.email}`);
+      if (profile) {
+        setSyncStatus(`Profile synced for ${authUser.email}`);
         return true;
       } else {
-        // Create new profile
-        setSyncStatus(`Creating new profile for ${authUser.email}...`);
-        
-        const { error: insertError } = await supabaseAdmin
-          .from('profiles')
-          .insert({
-            id: authUser.id,
-            email: authUser.email,
-            full_name: authUser.email.split('@')[0],
-            role: 'user',
-            created_at: authUser.created_at,
-            updated_at: new Date().toISOString()
-          });
-        
-        if (insertError) {
-          console.error("Error creating profile:", insertError);
-          setSyncError(insertError.message);
-          return false;
-        }
-        
-        setSyncStatus(`Created new profile for ${authUser.email}`);
-        return true;
+        setSyncError(`Failed to sync profile for ${authUser.email}`);
+        return false;
       }
     } catch (err) {
       console.error("Error syncing user:", err);

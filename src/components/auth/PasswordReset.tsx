@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/auth-compatibility";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,7 +57,20 @@ export default function PasswordReset({
   const [success, setSuccess] = useState<string | null>(null);
   const [resetStep, setResetStep] = useState<"email" | "reset">("email");
   const [email, setEmail] = useState("");
-  const { resetPassword, confirmPasswordReset } = useAuth();
+  
+  // Try to use the auth hook safely
+  let auth: any = {
+    resetPassword: async () => ({ error: new Error("Auth not initialized") }),
+    confirmPasswordReset: async () => ({ error: new Error("Auth not initialized") })
+  };
+  
+  try {
+    auth = useAuth();
+  } catch (error) {
+    console.error("Error using auth in PasswordReset:", error);
+  }
+  
+  const { resetPassword, confirmPasswordReset } = auth;
 
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),

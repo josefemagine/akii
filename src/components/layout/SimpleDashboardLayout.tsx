@@ -46,7 +46,9 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearch } from "@/contexts/SearchContext";
 import { toast } from "@/components/ui/use-toast";
-import { supabase } from "@/lib/auth-simple";
+// Import removed - file doesn't exist
+// import { supabase } from "@/lib/auth-simple";
+import ConsolidatedSidebar from './ConsolidatedSidebar';
 
 interface SidebarItemProps {
   icon: React.ReactNode;
@@ -165,6 +167,11 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
       href: "/dashboard/admin/user-sync",
     },
     {
+      icon: <UserCircle className="h-5 w-5" />,
+      label: "Profile Migration",
+      href: "/dashboard/admin/user-profile-migration",
+    },
+    {
       icon: <Shield className="h-5 w-5" />,
       label: "Moderation",
       href: "/dashboard/admin/moderation",
@@ -206,11 +213,11 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
       <div className="flex h-14 items-center border-b px-3 dark:border-gray-800">
         {collapsed ? (
           <div className="flex w-full justify-center">
-            <Circle className="h-6 w-6 fill-green-500 text-green-500" />
+            <Circle className="h-6 w-6 fill-primary text-primary" />
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <Circle className="h-6 w-6 fill-green-500 text-green-500" />
+            <Circle className="h-6 w-6 fill-primary text-primary" />
             <span className="text-xl font-bold">Akii</span>
           </div>
         )}
@@ -296,16 +303,31 @@ const Header = ({
   onMenuClick = () => {},
   onSearchChange,
   isAdmin = false,
-  theme = "light",
+  theme = "dark",
   onThemeChange,
 }: HeaderProps) => {
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateProfile } = useAuth();
   const { searchValue, setSearchValue } = useSearch();
   const navigate = useNavigate();
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
     localStorage.setItem("dashboard-theme", newTheme);
+    
+    // Save theme preference to user profile if user is logged in
+    if (user && updateProfile) {
+      // Use a dynamic approach with Record<string, any> to avoid type errors
+      const updates: Record<string, any> = { 
+        id: user.id
+      };
+      // Set theme_preference dynamically
+      updates['theme_preference'] = newTheme;
+      
+      updateProfile(updates).catch(err => {
+        console.error("Failed to save theme preference to profile:", err);
+      });
+    }
+    
     if (onThemeChange) {
       onThemeChange(newTheme);
     }
@@ -443,10 +465,10 @@ const DashboardLayout = ({
 }: DashboardLayoutProps) => {
   const [hasError, setHasError] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAdmin } = useAuth();
   const [theme, setTheme] = useState<"light" | "dark">(() => {
-    return (localStorage.getItem("dashboard-theme") as "light" | "dark") || "light";
+    return (localStorage.getItem("dashboard-theme") as "light" | "dark") || "dark";
   });
 
   // Save theme to localStorage whenever it changes
@@ -469,43 +491,40 @@ const DashboardLayout = ({
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  const toggleMobileSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
-
   return (
     <div className={cn("dashboard flex h-screen w-full", theme === "dark" && "dark")}>
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggle={toggleSidebar}
-        />
-      </div>
+      {/* Use the consolidated sidebar */}
+      <ConsolidatedSidebar isCollapsed={sidebarCollapsed} onToggle={toggleSidebar} />
 
-      {/* Mobile Sidebar */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="fixed inset-0 bg-black/50"
-            onClick={toggleMobileSidebar}
-          ></div>
-          <div className="fixed inset-y-0 left-0 w-[280px] bg-gray-950">
-            <Sidebar onToggle={toggleMobileSidebar} />
-          </div>
-        </div>
+      {/* Mobile menu overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black bg-opacity-50"
+          onClick={() => setMobileMenuOpen(false)}
+        ></div>
       )}
+
+      {/* Mobile sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 w-64 transform overflow-y-auto bg-white transition-transform duration-300 ease-in-out dark:bg-gray-950 lg:hidden",
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {/* Use the consolidated sidebar for mobile */}
+        <ConsolidatedSidebar />
+      </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header
-          onMenuClick={toggleMobileSidebar}
+          onMenuClick={() => setMobileMenuOpen(true)}
           onSearchChange={onSearchChange}
           isAdmin={isAdmin}
           theme={theme}
           onThemeChange={setTheme}
         />
-        <main className="flex-1 overflow-auto p-4 md:p-6 bg-gray-900 text-white">
-          <div className="mx-auto max-w-7xl">
+        <main className="flex-1 overflow-auto p-4 md:p-6 bg-background text-foreground">
+          <div className="w-full">
             {hasError ? (
               <div className="p-8 text-center bg-red-900/20 rounded-lg border border-red-500/30">
                 <h2 className="text-xl font-bold mb-2">Something went wrong</h2>

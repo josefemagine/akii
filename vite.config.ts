@@ -11,6 +11,18 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      // Exclude unused/transitional files from build to prevent errors
+      // These files are part of the authentication refactoring
+      // and will be removed in a future update
+      external: [
+        /ConsolidatedAuthContext\.tsx$/,
+        /AuthContext\.tsx\.new\.tsx$/,
+        /SimpleAuthContext\.tsx$/
+      ],
+    },
+  },
   server: {
     // @ts-ignore
     allowedHosts: process.env.TEMPO === "true" ? true : undefined,

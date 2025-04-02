@@ -6,21 +6,32 @@ import type { User } from "@supabase/supabase-js";
 interface MobileNavigationProps {
   isOpen: boolean;
   onClose: () => void;
-  user: User | null;
-  onSignIn: () => void;
+  user?: User | null;
+  isAuthenticated?: boolean;
+  onSignIn?: () => void;
+  onLogin?: () => void;
   onJoin: () => void;
-  onSignOut: () => void;
+  onSignOut?: () => void;
+  onLogout?: () => void;
 }
 
 const MobileNavigation = ({
   isOpen,
   onClose,
   user,
+  isAuthenticated = false,
   onSignIn,
+  onLogin,
   onJoin,
   onSignOut,
+  onLogout,
 }: MobileNavigationProps) => {
   if (!isOpen) return null;
+
+  // For backward compatibility
+  const handleLogin = onLogin || onSignIn;
+  const handleLogout = onLogout || onSignOut;
+  const isUserLoggedIn = isAuthenticated || user !== null;
 
   return (
     <div className="md:hidden border-t">
@@ -108,18 +119,18 @@ const MobileNavigation = ({
           Contact
         </Link>
         <div className="pt-4 flex flex-col space-y-2">
-          {user ? (
+          {isUserLoggedIn ? (
             <>
               <Button variant="outline" asChild>
                 <Link to="/dashboard" onClick={onClose}>
                   Dashboard
                 </Link>
               </Button>
-              <Button onClick={onSignOut}>Sign Out</Button>
+              <Button onClick={handleLogout}>Sign Out</Button>
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={onSignIn}>
+              <Button variant="outline" onClick={handleLogin}>
                 Sign In
               </Button>
               <Button onClick={onJoin}>Get Started</Button>

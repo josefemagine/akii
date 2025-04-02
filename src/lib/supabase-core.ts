@@ -10,8 +10,7 @@ import {
   auth,
   getSupabaseClient,
   getAdminClient,
-  getAuth,
-  debugSupabaseInstances
+  getAuth
 } from "./supabase-singleton";
 
 // Import from auth-helpers
@@ -60,7 +59,6 @@ export {
   getSupabaseClient,
   getAdminClient,
   getAuth,
-  debugSupabaseInstances,
   
   // User functions
   getCurrentUser,

@@ -1,7 +1,30 @@
 import React, { useEffect, useState } from 'react';
-import { verifySupabaseConnection } from '@/lib/auth-helpers';
+import { supabase } from '@/lib/supabase-singleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+
+// Implement verifySupabaseConnection directly in this file to avoid dependency issues
+async function verifySupabaseConnection() {
+  try {
+    const start = Date.now();
+    const { data, error } = await supabase.auth.getSession();
+    const latency = Date.now() - start;
+    
+    return {
+      success: !error,
+      latency,
+      sessionExists: !!data?.session,
+      error: error ? error.message : null
+    };
+  } catch (error) {
+    return {
+      success: false,
+      latency: 0,
+      sessionExists: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
 
 export default function SupabaseTest() {
   const [status, setStatus] = useState<{
@@ -23,7 +46,17 @@ export default function SupabaseTest() {
     
     try {
       const result = await verifySupabaseConnection();
-      setStatus(result);
+      
+      // Transform the result to match the expected status type
+      setStatus({
+        success: result.success,
+        message: result.error ? `Error: ${result.error}` : `Connection successful! Latency: ${result.latency}ms`,
+        details: {
+          connection: result.success,
+          profile: result.sessionExists,
+          service: !result.error
+        }
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
       setStatus(null);

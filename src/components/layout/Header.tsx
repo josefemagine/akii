@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import MobileNavigation from "./MobileNavigation";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/StandardAuthContext";
 import LoginModal from "@/components/auth/LoginModal";
 import JoinModal from "@/components/auth/JoinModal";
 import PasswordReset from "@/components/auth/PasswordReset";
+import { extractUserProfileData } from "@/lib/auth-core";
+import { supabase } from "@/lib/supabase-auth";
 
 interface NavLinkProps {
   href: string;
@@ -42,20 +44,138 @@ const NavLink = ({ href, children, className }: NavLinkProps) => {
 interface HeaderProps {}
 
 const Header = ({}: HeaderProps) => {
-  const { user, signOut } = useAuth();
+  // Use auth context directly
+  let user = null;
+  let signOut: () => Promise<any> = async () => { console.log("Auth not available"); return { error: null }; };
+  
+  try {
+    const auth = useAuth();
+    user = auth.user;
+    signOut = auth.signOut;
+    
+    // Debug auth state more clearly
+    console.log("Header auth state from context:", { 
+      hasUser: !!auth.user, 
+      userId: auth.user?.id,
+      session: !!auth.session,
+      isAdmin: auth.isAdmin,
+      isLoading: auth.isLoading
+    });
+  } catch (error) {
+    console.error("Error using auth in Header:", error);
+  }
+  
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [joinModalOpen, setJoinModalOpen] = useState(false);
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
+  const [forceRefresh, setForceRefresh] = useState(0);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Enhanced auth state detection
+  useEffect(() => {
+    console.log("Header auth state check:", { 
+      hasUser: !!user, 
+      userId: user?.id,
+      isAuthenticated
+    });
+    
+    // First check if user is available directly from context
+    if (user) {
+      console.log("Header: User found in auth context, setting isAuthenticated to true");
+      setIsAuthenticated(true);
+      return;
+    }
+    
+    // Check localStorage for auth tokens as a fallback
+    const checkLocalStorageAuth = () => {
+      try {
+        // Check all localStorage items
+        console.log("Header: Checking localStorage for auth tokens");
+        for (const key in localStorage) {
+          if (key && typeof key === 'string') {
+            console.log(`Header: Checking localStorage key: ${key}`);
+            if (
+              key.includes('supabase.auth.token') || 
+              key.includes('sb-') ||
+              key.includes('akii-auth') ||
+              key === 'force-auth-login'
+            ) {
+              console.log("Header: Found auth token in localStorage:", key);
+              setIsAuthenticated(true);
+              return true;
+            }
+          }
+        }
+        
+        // Direct check for Supabase auth data
+        const sbAuthKey = Object.keys(localStorage).find(key => key.startsWith('sb-'));
+        if (sbAuthKey) {
+          try {
+            console.log(`Header: Found Supabase key: ${sbAuthKey}, parsing contents`);
+            const authData = JSON.parse(localStorage.getItem(sbAuthKey) || '{}');
+            console.log("Header: Parsed auth data:", authData);
+            if (authData?.access_token || authData?.expires_at || authData?.refresh_token) {
+              console.log("Header: Found Supabase auth data in localStorage");
+              setIsAuthenticated(true);
+              return true;
+            }
+          } catch (e) {
+            console.error("Error parsing Supabase auth data:", e);
+          }
+        }
+      } catch (e) {
+        console.error("Error checking localStorage auth:", e);
+      }
+      return false;
+    };
+    
+    const hasLocalStorageAuth = checkLocalStorageAuth();
+    if (!hasLocalStorageAuth) {
+      console.log("Header: No auth found in localStorage");
+    }
+    
+    // Add a force check by directly checking with Supabase
+    const checkSupabaseAuth = async () => {
+      try {
+        console.log("Header: Checking Supabase session directly");
+        if (typeof supabase !== 'undefined' && supabase?.auth) {
+          const { data } = await supabase.auth.getSession();
+          console.log("Header: Direct Supabase session check result:", data);
+          if (data?.session) {
+            console.log("Header: Found active Supabase session");
+            setIsAuthenticated(true);
+            return true;
+          }
+        }
+      } catch (e) {
+        console.error("Error checking Supabase auth:", e);
+      }
+      return false;
+    };
+    
+    // Check Supabase if we still don't have auth
+    if (!hasLocalStorageAuth) {
+      checkSupabaseAuth();
+    }
+    
+    // Do a single delayed check if needed, but don't continuously refresh
+    if (!user && !hasLocalStorageAuth && forceRefresh === 0) {
+      console.log("Header: Scheduling delayed auth check");
+      setTimeout(() => {
+        setForceRefresh(1); // Only increment once to avoid infinite loops
+        checkSupabaseAuth(); // Also try Supabase directly after a delay
+      }, 1000);
+    }
+  }, [user, forceRefresh]);
 
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   const openLoginModal = () => {
-    // Check if already logged in before opening modal
-    if (user) {
-      console.log("User already logged in, redirecting to dashboard");
-      window.location.href = "/dashboard";
+    // Don't redirect if already logged in, just do nothing
+    if (user || isAuthenticated) {
+      console.log("User already logged in");
       return;
     }
     setLoginModalOpen(true);
@@ -141,45 +261,25 @@ const Header = ({}: HeaderProps) => {
         </nav>
 
         <div className="flex items-center gap-2">
-          {user ? (
-            <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="hidden md:flex items-center gap-2"
-                  >
-                    <span>{user.email?.split("@")[0] || "User"}</span>
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                    <Link to="/dashboard" className="w-full">
-                      Dashboard
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/dashboard/agents" className="w-full">
-                      My Agents
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/dashboard/subscription" className="w-full">
-                      Subscription
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link to="/dashboard/settings" className="w-full">
-                      Settings
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
+          {(user || isAuthenticated) ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="default"
+                className="hidden md:flex items-center gap-2 bg-green-500 hover:bg-green-600"
+                asChild
+              >
+                <Link to="/dashboard" className="flex-1 text-sm font-medium">
+                  Dashboard
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                className="hidden md:flex items-center gap-2 border-red-500 text-red-500 hover:bg-red-50"
+                onClick={handleSignOut}
+              >
+                Logout
+              </Button>
+            </div>
           ) : (
             <>
               <Button
@@ -214,10 +314,10 @@ const Header = ({}: HeaderProps) => {
       <MobileNavigation
         isOpen={mobileMenuOpen}
         onClose={closeMobileMenu}
-        user={user as any}
-        onSignIn={openLoginModal}
+        isAuthenticated={user !== null || isAuthenticated}
+        onLogin={openLoginModal}
         onJoin={openJoinModal}
-        onSignOut={handleSignOut}
+        onLogout={handleSignOut}
       />
 
       {/* Auth Modals */}

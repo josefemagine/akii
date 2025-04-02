@@ -155,17 +155,26 @@ export default function AuthCallback() {
           }
 
           // Get redirect path from localStorage or default to dashboard
-          const redirectPath =
-            localStorage.getItem("auth-return-path") || "/dashboard";
+          const redirectPath = localStorage.getItem("auth-return-path") || "/dashboard";
           localStorage.removeItem("auth-return-path");
 
           // Set success state (in case there's a delay in redirection)
           setStatus("success");
           setMessage(`Sign-in successful! Redirecting to dashboard...`);
 
-          // Redirect to the app
+          // Redirect to the app - ensure correct path format
           setTimeout(() => {
-            window.location.href = redirectPath;
+            // Explicitly use the dashboard path - never construct it dynamically
+            const dashboardPath = "/dashboard";
+            console.log(`Redirecting to dashboard at: ${dashboardPath}`);
+            
+            // Use our safe utility if available
+            if (window.__akii_redirects) {
+              console.log("Using safe redirect utility");
+              window.__akii_redirects.href(dashboardPath);
+            } else {
+              window.location.href = dashboardPath;
+            }
           }, 500);
         } else {
           // No session found - try with explicit exchange
@@ -238,17 +247,26 @@ export default function AuthCallback() {
                 }
 
                 // Get redirect path from localStorage or default to dashboard
-                const redirectPath =
-                  localStorage.getItem("auth-return-path") || "/dashboard";
+                const redirectPath = localStorage.getItem("auth-return-path") || "/dashboard";
                 localStorage.removeItem("auth-return-path");
 
                 // Set success state
                 setStatus("success");
                 setMessage(`Sign-in successful! Redirecting to dashboard...`);
 
-                // Redirect to the app
+                // Redirect to the app - ensure correct path format
                 setTimeout(() => {
-                  window.location.href = redirectPath;
+                  // Explicitly use the dashboard path - never construct it dynamically
+                  const dashboardPath = "/dashboard";
+                  console.log(`Redirecting to dashboard at: ${dashboardPath}`);
+                  
+                  // Use our safe utility if available
+                  if (window.__akii_redirects) {
+                    console.log("Using safe redirect utility");
+                    window.__akii_redirects.href(dashboardPath);
+                  } else {
+                    window.location.href = dashboardPath;
+                  }
                 }, 500);
                 return;
               } else {
@@ -332,17 +350,26 @@ export default function AuthCallback() {
                   }
 
                   // Get redirect path from localStorage or default to dashboard
-                  const redirectPath =
-                    localStorage.getItem("auth-return-path") || "/dashboard";
+                  const redirectPath = localStorage.getItem("auth-return-path") || "/dashboard";
                   localStorage.removeItem("auth-return-path");
 
                   // Set success state
                   setStatus("success");
                   setMessage(`Sign-in successful! Redirecting to dashboard...`);
 
-                  // Redirect to the app
+                  // Redirect to the app - ensure correct path format
                   setTimeout(() => {
-                    window.location.href = redirectPath;
+                    // Explicitly use the dashboard path - never construct it dynamically
+                    const dashboardPath = "/dashboard";
+                    console.log(`Redirecting to dashboard at: ${dashboardPath}`);
+                    
+                    // Use our safe utility if available
+                    if (window.__akii_redirects) {
+                      console.log("Using safe redirect utility");
+                      window.__akii_redirects.href(dashboardPath);
+                    } else {
+                      window.location.href = dashboardPath;
+                    }
                   }, 500);
                   return;
                 } else {
