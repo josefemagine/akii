@@ -109,65 +109,8 @@ const LoginModal = ({
       
       // Try to close modal immediately
       onClose();
-      
-      // Fallback in case the close didn't work
-      setTimeout(() => {
-        if (isOpen && (auth.user || auth.session)) {
-          console.log("[Login Modal] Fallback - forcing modal close after delay");
-          onClose();
-        }
-      }, 500);
     }
   }, [auth.user, auth.session, isOpen, onClose]);
-
-  // Modify the periodic auth check to stop after detecting authentication
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    let checkCount = 0;
-    const MAX_CHECKS = 10; // Limit the number of checks to prevent infinite loops
-    
-    const checkAndCleanup = async () => {
-      checkCount++;
-      const { data } = await supabase.auth.getSession();
-      const sessionExists = !!data?.session;
-      
-      console.log(`[LoginModal] Auth check #${checkCount}:`, { 
-        session: sessionExists, 
-        user: !!auth.user,
-        isOpen 
-      });
-      
-      // Stop checking if authenticated or exceeded max checks
-      if (sessionExists || auth.user || checkCount >= MAX_CHECKS) {
-        if (sessionExists || auth.user) {
-          console.log('[LoginModal] Detected authentication, closing modal');
-          onClose();
-        }
-        if (interval) {
-          console.log('[LoginModal] Stopping auth check interval');
-          clearInterval(interval);
-          interval = null;
-        }
-      }
-    };
-    
-    // Only start the interval if the modal is open
-    if (isOpen) {
-      // Check immediately
-      checkAndCleanup();
-      
-      // Then check periodically
-      interval = setInterval(() => {
-        checkAndCleanup();
-      }, 1000);
-    }
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [isOpen, auth.user, onClose]);
 
   // Listen for global auth state changes
   useEffect(() => {
@@ -193,7 +136,7 @@ const LoginModal = ({
     };
   }, [isOpen, onClose]);
 
-  // Force close the modal on route change or on component mount if already authenticated
+  // Force close the modal on component mount if already authenticated
   useEffect(() => {
     // Direct DOM-based solution that will forcibly close the modal
     const forceCloseModal = () => {
@@ -201,51 +144,13 @@ const LoginModal = ({
       
       // First try using the onClose prop
       onClose();
-      
-      // As a fallback, find and click any close button in the modal
-      setTimeout(() => {
-        try {
-          // Try clicking the close button
-          const closeButton = document.querySelector('[data-dialog-close="true"]');
-          if (closeButton) {
-            console.log('[LoginModal] Found close button, clicking it');
-            (closeButton as HTMLElement).click();
-          }
-          
-          // Try clicking the overlay as another fallback
-          const overlay = document.querySelector('[data-radix-dialog-overlay]');
-          if (overlay) {
-            console.log('[LoginModal] Found overlay, clicking it');
-            (overlay as HTMLElement).click();
-          }
-        } catch (e) {
-          console.error('[LoginModal] Error in force close:', e);
-        }
-      }, 100);
     };
 
-    // Check for auth tokens directly from localStorage as a backup method
-    const checkTokensDirectly = () => {
-      const hasToken = localStorage.getItem('supabase.auth.token') !== null;
-      return hasToken;
-    };
-    
-    const handleVisibilityChange = () => {
-      // When tab becomes visible again, check if user is authenticated
-      if (!document.hidden && (auth.session || checkTokensDirectly())) {
-        console.log('[LoginModal] Tab visible again & user authenticated, force closing');
-        forceCloseModal();
-      }
-    };
-    
     // Force close if already authenticated
-    if (auth.session || auth.user || checkTokensDirectly()) {
-      console.log('[LoginModal] Session or user or token detected, force closing modal');
+    if (auth.session || auth.user) {
+      console.log('[LoginModal] Session or user detected, force closing modal');
       forceCloseModal();
     }
-    
-    // Add visibility change listener to close modal when tab becomes visible
-    document.addEventListener('visibilitychange', handleVisibilityChange);
     
     // Directly listen for storage events to detect auth changes
     const handleStorageChange = (e: StorageEvent) => {
@@ -259,7 +164,6 @@ const LoginModal = ({
     
     // Cleanup
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [onClose, auth.session, auth.user]);
@@ -281,6 +185,7 @@ const LoginModal = ({
       // Set a flag in localStorage to indicate we're in the middle of login
       localStorage.setItem("akii-login-in-progress", "true");
       localStorage.setItem("akii-login-time", Date.now().toString());
+      localStorage.setItem("akii-login-email", data.email);
       
       // Attempt the sign-in
       const response = await auth.signIn(data.email, data.password);
@@ -288,10 +193,38 @@ const LoginModal = ({
       if (response.error) {
         setError(response.error.message);
         console.error("[Login Modal] Sign-in error:", response.error);
+        localStorage.removeItem("akii-login-in-progress");
+        localStorage.removeItem("akii-login-time");
+        localStorage.removeItem("akii-login-email");
         return;
       }
 
-      console.log("[Login Modal] Sign-in successful, triggering immediate redirect");
+      console.log("[Login Modal] Sign-in successful, checking session");
+      
+      // Verify session is available and set emergency auth flag 
+      try {
+        const { data: session } = await supabase.auth.getSession();
+        if (session?.session) {
+          console.log("[Login Modal] Valid session confirmed");
+          
+          // Set emergency auth flag as backup
+          localStorage.setItem("akii-auth-emergency", "true");
+          localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
+          localStorage.setItem("akii-auth-emergency-email", data.email);
+        } else {
+          console.warn("[Login Modal] No session found after successful login, using emergency auth");
+          // Force emergency auth flag
+          localStorage.setItem("akii-auth-emergency", "true");
+          localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
+          localStorage.setItem("akii-auth-emergency-email", data.email);
+        }
+      } catch (e) {
+        console.error("[Login Modal] Error verifying session:", e);
+        // Still set emergency auth as fallback
+        localStorage.setItem("akii-auth-emergency", "true");
+        localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
+        localStorage.setItem("akii-auth-emergency-email", data.email);
+      }
       
       // Use our aggressive redirect function
       forceRedirectToDashboard();
@@ -323,11 +256,20 @@ const LoginModal = ({
           // Only force redirect if login started less than 10 seconds ago
           if (Date.now() - loginTime < 10000) {
             console.log("[Login Modal] Login in progress flag still set, forcing redirect");
+            // Ensure emergency auth is set before redirecting
+            if (!localStorage.getItem("akii-auth-emergency")) {
+              const email = localStorage.getItem("akii-login-email");
+              if (email) {
+                localStorage.setItem("akii-auth-emergency", "true");
+                localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
+                localStorage.setItem("akii-auth-emergency-email", email);
+              }
+            }
             forceRedirectToDashboard();
             localStorage.removeItem("akii-login-in-progress");
           }
         }
-      }, 1000); // 1 second fallback timeout
+      }, 1500); // 1.5 second fallback timeout
     }
   };
 
@@ -476,6 +418,51 @@ const LoginModal = ({
           </Button>
         </form>
 
+        {import.meta.env.DEV && (
+          <div className="mt-4 rounded border border-gray-200 p-3 text-xs">
+            <div className="font-semibold">Auth Debug Info:</div>
+            <div className="mt-1 grid grid-cols-2 gap-1">
+              <div>Has User:</div>
+              <div>{Boolean(auth.user) ? "✅" : "❌"}</div>
+              
+              <div>Has Session:</div>
+              <div>{Boolean(auth.session) ? "✅" : "❌"}</div>
+              
+              <div>Is Loading:</div>
+              <div>{auth.isLoading ? "✅" : "❌"}</div>
+              
+              <div>User ID:</div>
+              <div className="truncate">{auth.user?.id || "none"}</div>
+              
+              <div>User Email:</div>
+              <div className="truncate">{auth.user?.email || "none"}</div>
+            </div>
+            <div className="mt-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  console.log("Debug auth state:", auth);
+                  // Use appropriate refresh method instead of dispatching event
+                  if (auth.refreshAuthState) {
+                    auth.refreshAuthState();
+                  } else {
+                    // Force a direct session check if no refresh method available
+                    supabase.auth.getSession().then(result => {
+                      console.log("Manual session check:", result);
+                    }).catch(err => {
+                      console.error("Error checking session:", err);
+                    });
+                  }
+                }}
+              >
+                Refresh & Force Update
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <Separator className="w-full" />
@@ -514,18 +501,25 @@ const LoginModal = ({
           </Button>
         </div>
 
-        <DialogFooter className="flex flex-col sm:flex-row sm:justify-center sm:space-x-0">
-          <div className="text-center text-sm">
-            Don't have an account?{" "}
-            <Button
-              variant="link"
-              className="px-0 font-normal"
-              onClick={handleOpenJoin}
-              disabled={isLoading}
-            >
-              Sign up
-            </Button>
-          </div>
+        <DialogFooter className="flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0 sm:space-x-2">
+          <Button
+            variant="ghost"
+            onClick={handleOpenJoin}
+            className="w-full sm:w-auto"
+            disabled={isLoading}
+            type="button"
+          >
+            Don't have an account? Sign up
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleOpenPasswordReset}
+            className="w-full sm:w-auto"
+            disabled={isLoading}
+            type="button"
+          >
+            Forgot password?
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

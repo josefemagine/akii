@@ -40,7 +40,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
-import { getAllUsers, setUserRole as updateDbUserRole, setUserAsAdmin, debugAdminStatus } from "@/lib/supabase-admin";
+import { getAllUsers, setUserRole as updateDbUserRole, setUserAsAdmin, debugAdminStatus, createUserProfile } from "@/lib/supabase-admin";
 import {
   Dialog,
   DialogContent,
@@ -51,7 +51,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { getAdminClient } from "@/lib/supabase-singleton";
-import { supabase } from "@/lib/supabase-singleton";
+import { supabase } from "@/lib/supabase";
+import { useNavigate } from "react-router-dom";
 
 interface User {
   id: string;
@@ -67,74 +68,6 @@ interface User {
   messageLimit: number;
   company_name?: string;
 }
-
-const mockUsers: User[] = [
-  {
-    id: "user-1",
-    name: "John Doe",
-    email: "john.doe@example.com",
-    role: "admin",
-    status: "active",
-    plan: "enterprise",
-    createdAt: "2023-05-10",
-    lastLogin: "2023-06-28",
-    agents: 12,
-    messagesUsed: 8750,
-    messageLimit: 50000,
-  },
-  {
-    id: "user-2",
-    name: "Jane Smith",
-    email: "jane.smith@example.com",
-    role: "user",
-    status: "active",
-    plan: "professional",
-    createdAt: "2023-05-15",
-    lastLogin: "2023-06-27",
-    agents: 5,
-    messagesUsed: 3240,
-    messageLimit: 5000,
-  },
-  {
-    id: "user-3",
-    name: "Robert Johnson",
-    email: "robert.johnson@example.com",
-    role: "team_member",
-    status: "active",
-    plan: "professional",
-    createdAt: "2023-05-20",
-    lastLogin: "2023-06-25",
-    agents: 3,
-    messagesUsed: 1890,
-    messageLimit: 5000,
-  },
-  {
-    id: "user-4",
-    name: "Emily Davis",
-    email: "emily.davis@example.com",
-    role: "user",
-    status: "inactive",
-    plan: "starter",
-    createdAt: "2023-06-01",
-    lastLogin: "2023-06-15",
-    agents: 2,
-    messagesUsed: 850,
-    messageLimit: 2000,
-  },
-  {
-    id: "user-5",
-    name: "Michael Wilson",
-    email: "michael.wilson@example.com",
-    role: "user",
-    status: "pending",
-    plan: "free",
-    createdAt: "2023-06-20",
-    lastLogin: "-",
-    agents: 0,
-    messagesUsed: 0,
-    messageLimit: 1000,
-  },
-];
 
 const getRoleBadge = (role: User["role"]) => {
   switch (role) {
@@ -221,6 +154,7 @@ const UsersPage = () => {
     role: "",
     status: "",
   });
+  const navigate = useNavigate();
 
   // Fetch all users from the database
   useEffect(() => {
@@ -228,6 +162,24 @@ const UsersPage = () => {
       setLoading(true);
       try {
         console.log("Fetching all users from profiles table...");
+        
+        // First, try to get auth users using admin client
+        const adminClient = getAdminClient();
+        let authUsers = [];
+        
+        if (adminClient) {
+          try {
+            const { data: authData, error: authError } = await adminClient.auth.admin.listUsers();
+            if (authError) {
+              console.error("Error fetching auth users:", authError);
+            } else if (authData) {
+              console.log(`Successfully loaded ${authData.users.length} auth users`);
+              authUsers = authData.users;
+            }
+          } catch (authErr) {
+            console.error("Error accessing admin auth API:", authErr);
+          }
+        }
         
         // Use the standard client to fetch all profiles without any filters
         const { data: profileData, error: profileError } = await supabase
@@ -237,21 +189,61 @@ const UsersPage = () => {
         if (profileError) {
           console.error("Error fetching profiles:", profileError);
           setError(profileError.message || "Failed to fetch users");
-          // Don't immediately fall back to mock data to ensure we understand the error
           toast({
             title: "Error loading users",
             description: profileError.message,
             variant: "destructive",
           });
-          setUsers(mockUsers);
+          setUsers([]);
           return;
         }
 
-        if (profileData && profileData.length > 0) {
-          console.log(`Successfully loaded ${profileData.length} profiles`);
+        // Create a map of profiles by ID for quick lookup
+        const profilesMap = new Map();
+        if (profileData) {
+          profileData.forEach(profile => {
+            profilesMap.set(profile.id, profile);
+          });
+        }
+        
+        // Create profiles for auth users that don't have profiles
+        const profilesToCreate = [];
+        for (const authUser of authUsers) {
+          if (!profilesMap.has(authUser.id)) {
+            profilesToCreate.push(authUser);
+          }
+        }
+        
+        // Create missing profiles
+        if (profilesToCreate.length > 0) {
+          console.log(`Creating profiles for ${profilesToCreate.length} users without profiles`);
+          
+          for (const authUser of profilesToCreate) {
+            try {
+              const { success, data } = await createUserProfile(authUser);
+              if (success && data) {
+                profilesMap.set(data.id, data);
+              }
+            } catch (err) {
+              console.error(`Error creating profile for user ${authUser.id}:`, err);
+            }
+          }
+        }
+
+        if (profilesMap.size > 0) {
+          console.log(`Successfully processed ${profilesMap.size} profiles`);
+          
+          // Create a map of auth users by ID for quick lookup
+          const authUsersMap = new Map();
+          authUsers.forEach(user => {
+            authUsersMap.set(user.id, user);
+          });
           
           // Map profiles to our User interface
-          const mappedUsers: User[] = profileData.map(profile => {
+          const mappedUsers: User[] = Array.from(profilesMap.values()).map(profile => {
+            // Get auth user data if available
+            const authUser = authUsersMap.get(profile.id);
+            
             // Determine status from either status field or active field
             let userStatus: User['status'] = 'inactive';
             if (profile.status === 'active') {
@@ -260,17 +252,35 @@ const UsersPage = () => {
               userStatus = 'pending';
             } else if (profile.active === true) {
               userStatus = 'active';
+            } else if (authUser?.confirmed_at) {
+              userStatus = 'active';
+            } else if (authUser?.email_confirmed_at) {
+              userStatus = 'active';
             }
             
+            // Get the last login time from auth data if available
+            let lastLogin = '-';
+            if (profile.last_sign_in_at) {
+              lastLogin = new Date(profile.last_sign_in_at).toISOString().split('T')[0];
+            } else if (authUser?.last_sign_in_at) {
+              lastLogin = new Date(authUser.last_sign_in_at).toISOString().split('T')[0];
+            }
+            
+            // Default to safer values when fields are missing
             return {
               id: profile.id || `profile-${Math.random()}`,
-              name: profile.full_name || profile.first_name || profile.email?.split('@')[0] || 'Unknown User',
-              email: profile.email || 'unknown@example.com',
+              name: profile.full_name || 
+                    `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 
+                    profile.email?.split('@')[0] || 
+                    'Unknown User',
+              email: profile.email || authUser?.email || 'unknown@example.com',
               role: profile.role || 'user',
               status: userStatus,
               plan: profile.subscription_tier || 'free',
-              createdAt: profile.created_at ? new Date(profile.created_at).toISOString().split('T')[0] : 'Unknown',
-              lastLogin: profile.last_sign_in_at ? new Date(profile.last_sign_in_at).toISOString().split('T')[0] : '-',
+              createdAt: profile.created_at ? new Date(profile.created_at).toISOString().split('T')[0] : 
+                        authUser?.created_at ? new Date(authUser.created_at).toISOString().split('T')[0] : 
+                        'Unknown',
+              lastLogin,
               agents: profile.agents_count || 0,
               messagesUsed: profile.messages_used || 0,
               messageLimit: profile.message_limit || 1000,
@@ -281,13 +291,22 @@ const UsersPage = () => {
           setUsers(mappedUsers);
           console.log("Loaded users from database:", mappedUsers.length);
         } else {
-          console.log("No users found in profiles table, using mock data");
-          setUsers(mockUsers);
+          console.log("No users found in profiles table");
+          setUsers([]);
+          toast({
+            title: "No users found",
+            description: "No user profiles were found in the database.",
+          });
         }
       } catch (err) {
         console.error("Unexpected error fetching users:", err);
         setError(err instanceof Error ? err.message : String(err));
-        setUsers(mockUsers);
+        setUsers([]);
+        toast({
+          title: "Error loading users",
+          description: "Failed to fetch user data from Supabase.",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
@@ -660,12 +679,16 @@ const UsersPage = () => {
                   </TableRow>
                 ) : (
                   filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
+                  <TableRow 
+                    key={user.id}
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                    onClick={() => navigate(`/admin/user-detail/${user.id}`)}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar>
                           <AvatarImage
-                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`}
+                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email)}`}
                           />
                           <AvatarFallback>
                             {user.name.substring(0, 2).toUpperCase()}
@@ -708,34 +731,50 @@ const UsersPage = () => {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={(e) => e.stopPropagation()}  
+                          >
                             <MoreVertical className="h-4 w-4" />
                             <span className="sr-only">Menu</span>
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEditUser(user)}>
+                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditUser(user);
+                            }}>
                             <Edit className="h-4 w-4 mr-2" /> Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
                             <Mail className="h-4 w-4 mr-2" /> Email
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
                             <Lock className="h-4 w-4 mr-2" /> Reset Password
                           </DropdownMenuItem>
                             <DropdownMenuItem 
-                              onClick={() => updateUserRole(user.id, user.email, 'admin')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateUserRole(user.id, user.email, 'admin');
+                              }}
                               disabled={user.role === 'admin'}
                             >
                               Set as Admin
                             </DropdownMenuItem>
                             <DropdownMenuItem 
-                              onClick={() => updateUserRole(user.id, user.email, 'user')}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateUserRole(user.id, user.email, 'user');
+                              }}
                               disabled={user.role === 'user'}
                             >
                               Set as User
                             </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive focus:text-destructive">
+                          <DropdownMenuItem 
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <Trash2 className="h-4 w-4 mr-2" /> Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>

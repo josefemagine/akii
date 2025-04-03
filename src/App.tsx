@@ -19,8 +19,105 @@ import { EnvWarning } from "@/components/ui/env-warning";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { Toaster } from "./components/ui/toaster";
 import MainLayout from "./components/layout/MainLayout";
-// Import DashboardLayout directly instead of lazy loading
-import DashboardLayout from "./components/layout/DashboardLayout";
+// Import our consolidated DashboardLayout
+import DashboardLayout from "./components/dashboard/DashboardLayout";
+import { UserDetailPage } from "./pages/admin/UserDetail";
+// Import our GlobalErrorHandler component
+import GlobalErrorHandler from "./components/GlobalErrorHandler";
+import { supabase } from "@/lib/supabase";
+import { toast } from "@/components/ui/use-toast";
+import { emergencySessionReset, forceSessionCheck } from "@/lib/auth-lock-fix";
+// Import StandardAuthContext and PrivateRoute
+import { AuthProvider as StandardAuthProvider } from "./contexts/StandardAuthContext";
+import { PrivateRoute } from "./components/PrivateRoute";
+import BillingComponent from './components/Billing';
+
+// Setup network interceptors for auth error handling
+const setupNetworkInterceptors = () => {
+  // Store the original fetch function
+  const originalFetch = window.fetch;
+  let lastAuthErrorTime = 0;
+  let authErrorCount = 0;
+  
+  // Override the fetch function to intercept all network requests
+  window.fetch = async function(input, init) {
+    try {
+      // Make the original request
+      const response = await originalFetch(input, init);
+      
+      // Check for auth-related error responses (401, 403)
+      if (response.status === 401 || response.status === 403) {
+        const now = Date.now();
+        
+        // Get URL from input
+        let requestUrl = '';
+        if (typeof input === 'string') {
+          requestUrl = input;
+        } else if (input instanceof Request) {
+          requestUrl = input.url;
+        } else if (input instanceof URL) {
+          requestUrl = input.toString();
+        }
+        
+        // Avoid showing too many errors for the same issue
+        if (now - lastAuthErrorTime > 10000) {
+          console.warn(`Auth error on fetch to ${requestUrl}: ${response.status}`);
+          lastAuthErrorTime = now;
+          authErrorCount++;
+          
+          // Dispatch a global auth error event that GlobalErrorHandler can listen for
+          window.dispatchEvent(new CustomEvent('akii:auth:error', { 
+            detail: { 
+              status: response.status,
+              url: requestUrl,
+              errorCount: authErrorCount
+            }
+          }));
+          
+          // If we're seeing persistent auth errors, attempt recovery
+          if (authErrorCount > 2) {
+            // Force a session check
+            try {
+              const sessionResult = await forceSessionCheck();
+              
+              // If no session exists after multiple auth errors, try emergency reset
+              if (!sessionResult.data?.session && authErrorCount > 3) {
+                console.warn('Multiple auth errors detected with no valid session, performing emergency reset');
+                emergencySessionReset();
+                window.dispatchEvent(new Event('akii:auth:reset'));
+                
+                // Show a toast notification to the user
+                toast({
+                  title: "Authentication Issue",
+                  description: "Please try again or refresh the page.",
+                  variant: "destructive"
+                });
+                
+                // Reset the error count
+                authErrorCount = 0;
+              }
+            } catch (e) {
+              console.error('Error checking session during fetch interceptor:', e);
+            }
+          }
+        } else if (response.ok) {
+          // Reset error count on successful requests
+          authErrorCount = 0;
+        }
+      }
+      
+      return response;
+    } catch (error) {
+      // Handle network errors
+      console.error('Network error in fetch interceptor:', error);
+      
+      // Pass the error through
+      throw error;
+    }
+  };
+  
+  console.log('Network interceptors set up for auth error detection');
+};
 
 // Lazy load pages with better chunking
 const Dashboard = lazy(() => import("./pages/dashboard/Dashboard"));
@@ -64,9 +161,14 @@ const AuthCallback = lazy(() => import("./pages/auth/callback"));
 const ResetPassword = lazy(() => import("./pages/auth/reset-password"));
 const TokenHandler = lazy(() => import("./pages/auth/TokenHandler"));
 
-// Dashboard web chat
+// Dashboard app pages
 const WebChat = lazy(() => import("./pages/dashboard/WebChat"));
+const MobileChat = lazy(() => import("./pages/dashboard/MobileChat"));
+const WhatsAppChat = lazy(() => import("./pages/dashboard/WhatsAppChat"));
+const TelegramChat = lazy(() => import("./pages/dashboard/TelegramChat"));
 const ShopifyChat = lazy(() => import("./pages/dashboard/ShopifyChat"));
+const WordPressChat = lazy(() => import("./pages/dashboard/WordPressChat"));
+const PrivateAI = lazy(() => import("./pages/dashboard/PrivateAI"));
 
 // Lazy load additional dashboard pages
 const AgentSetup = lazy(() => import("./pages/dashboard/AgentSetup"));
@@ -85,53 +187,17 @@ const AdminCompliance = lazy(() => import("./pages/admin/Compliance"));
 const RunMigration = lazy(() => import("./pages/admin/RunMigration"));
 const AdminN8nWorkflows = lazy(() => import("./pages/admin/n8nWorkflows"));
 const Moderation = lazy(() => import("./pages/admin/Moderation"));
-const DatabaseSchemaPage = lazy(() => import("@/pages/admin/DatabaseSchema"));
-const UserSyncPage = lazy(() => import("@/pages/admin/UserSync"));
-const UserStatusMigration = lazy(
-  () => import("@/pages/admin/UserStatusMigration"),
-);
-const UserProfileMigration = lazy(
-  () => import("@/pages/admin/UserProfileMigration"),
-);
-const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
-const Workflows = lazy(() => import("@/pages/admin/Workflows"));
+const DatabaseSchemaPage = lazy(() => import("./pages/admin/DatabaseSchema"));
+const UserStatusMigration = lazy(() => import("./pages/admin/UserStatusMigration"));
+const UserProfileMigration = lazy(() => import("./pages/admin/UserProfileMigration"));
+const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const Workflows = lazy(() => import("./pages/admin/Workflows"));
 
 // Add these missing imports at the top with your other lazy imports
 const HomePage = lazy(() => import("@/pages/HomePage"));
 const UsersPage = lazy(() => import("@/pages/admin/Users"));
 
-// Import our new StandardAuthContext
-import { AuthProvider as StandardAuthProvider } from "./contexts/StandardAuthContext";
-import { PrivateRoute } from "./components/PrivateRoute";
-
-// Add this function to directly bypass auth checks for dashboard access
-function allowDashboardAccess() {
-  // Check if we have admin override
-  if (localStorage.getItem('akii_admin_override') === 'true' ||
-      localStorage.getItem('admin_override') === 'true') {
-    console.log("Using admin override to bypass auth checks");
-    return true;
-  }
-  
-  // Check for any auth tokens
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && (
-      key.includes('supabase.auth.token') || 
-      key.includes('sb-') ||
-      key.includes('akii-auth') ||
-      key.includes('force-auth-login') ||
-      key.includes('token')
-    )) {
-      console.log("Found auth token, allowing dashboard access:", key);
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-// Loading fallback
+// Loading fallback component
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-screen bg-background">
     <div className="text-center space-y-4">
@@ -145,35 +211,6 @@ const LoadingFallback = () => (
 const RouteRedirect = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [hasAuth, setHasAuth] = useState(false);
-
-  // Added localStorage-based authentication check
-  useEffect(() => {
-    // Check localStorage for auth tokens
-    const checkLocalStorageAuth = () => {
-      try {
-        // Look for Supabase tokens or custom auth markers in localStorage
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (
-            key.includes('supabase.auth.token') || 
-            key.includes('sb-') ||
-            key.includes('akii-auth') ||
-            key === 'force-auth-login'
-          )) {
-            console.log("RouteRedirect: Found auth token in localStorage:", key);
-            setHasAuth(true);
-            return true;
-          }
-        }
-      } catch (e) {
-        console.error("RouteRedirect: Error checking localStorage auth:", e);
-      }
-      return false;
-    };
-    
-    checkLocalStorageAuth();
-  }, []);
 
   useEffect(() => {
     // Scan localStorage for any problematic redirects
@@ -189,19 +226,20 @@ const RouteRedirect = () => {
       }
     }
 
-    // Don't redirect if found auth tokens
-    if (hasAuth) {
-      console.log("RouteRedirect: Authentication detected in localStorage, allowing access to dashboard");
-      return;
-    }
-
     // Check if we're trying to access dashboard routes
     if (location.pathname.startsWith("/dashboard")) {
       // Don't redirect specific dashboard routes that we know exist
       if (
         location.pathname === "/dashboard" ||
-        location.pathname === "/dashboard/agents" ||
-        location.pathname === "/dashboard/settings"
+        location.pathname === "/dashboard/ai-instances" ||
+        location.pathname === "/dashboard/settings" ||
+        location.pathname === "/dashboard/web-chat" ||
+        location.pathname === "/dashboard/mobile-chat" ||
+        location.pathname === "/dashboard/whatsapp-chat" ||
+        location.pathname === "/dashboard/telegram-chat" ||
+        location.pathname === "/dashboard/shopify-chat" ||
+        location.pathname === "/dashboard/wordpress-chat" ||
+        location.pathname === "/dashboard/private-ai"
       ) {
         console.log("Accessing known dashboard route, not redirecting:", location.pathname);
         return;
@@ -215,69 +253,44 @@ const RouteRedirect = () => {
       console.log("Correcting typo in dashboard URL");
       navigate("/dashboard", { replace: true });
     }
-  }, [location, navigate, hasAuth]);
+  }, [location, navigate]);
 
   return <LoadingScreen />;
 };
 
-// Global error handler component
-const GlobalErrorHandler = () => {
-  useEffect(() => {
-    // Save original error handlers
-    const originalOnError = window.onerror;
-    const originalConsoleError = console.error;
-    
-    // Override window.onerror to catch and handle global errors
-    window.onerror = function(message, source, lineno, colno, error) {
-      // Specifically catch and suppress Chrome extension connection errors
-      if (message && message.toString().includes("Could not establish connection")) {
-        console.log("[GlobalErrorHandler] Suppressed connection error:", message);
-        return true; // Prevents the error from propagating
-      }
-      
-      // For other errors, use the original handler
-      if (originalOnError) {
-        return originalOnError(message, source, lineno, colno, error);
-      }
-      return false;
-    };
-    
-    // Also override console.error for errors that might only appear there
-    console.error = function(...args) {
-      // Check for connection error in console errors
-      if (args[0] && typeof args[0] === 'string' && 
-          args[0].includes("Unchecked runtime.lastError: Could not establish connection")) {
-        console.log("[GlobalErrorHandler] Suppressed console error:", args[0]);
-        return;
-      }
-      
-      // Also check for GoTrueClient warning - no longer run cleanup, just log it
-      if (args[0] && typeof args[0] === 'string' && 
-          args[0].includes("Multiple GoTrueClient instances detected")) {
-        console.log("[GlobalErrorHandler] Detected GoTrueClient warning - using standard Supabase auth");
-        return;
-      }
-      
-      // Call original for other errors
-      return originalConsoleError.apply(console, args);
-    };
-    
-    return () => {
-      // Restore original handlers on cleanup
-      window.onerror = originalOnError;
-      console.error = originalConsoleError;
-    };
-  }, []);
-  
-  return null; // This component doesn't render anything
-};
+// Authentication state initializer
+const AuthInitializer = () => {
+  const location = useLocation();
+  const [initialized, setInitialized] = useState(false);
 
-// Replace the AuthCleanupHandler component
-const AuthCleanupHandler = () => {
   useEffect(() => {
-    // No longer need to run cleanup, just log that we're using standard auth
-    console.log("Using standard Supabase authentication - no cleanup needed");
-  }, []);
+    // Skip initialization if already done
+    if (initialized) return;
+
+    const initializeAuth = async () => {
+      try {
+        // Add detection of auth code in URL for PKCE flow
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get('code');
+        
+        if (code) {
+          console.log("[AuthInitializer] Found auth code in URL, PKCE flow will be handled by main.tsx");
+          // The code is handled by main.tsx, we just log here for tracking
+        } else {
+          console.log("[AuthInitializer] No auth code in URL, checking for existing session");
+        }
+        
+        // Mark as initialized to avoid repeated checks
+        setInitialized(true);
+      } catch (error) {
+        console.error("[AuthInitializer] Error:", error);
+        // Still mark as initialized even on error to avoid repeated failures
+        setInitialized(true);
+      }
+    };
+
+    initializeAuth();
+  }, [location.pathname, initialized]);
   
   return null;
 };
@@ -287,12 +300,15 @@ function AppContent() {
   const location = useLocation();
   const tempoRoutes = import.meta.env.VITE_TEMPO ? useRoutes(routes) : null;
   
+  // Initialize network interceptors on mount
+  useEffect(() => {
+    setupNetworkInterceptors();
+  }, []);
+  
   return (
     <>
       {/* Add GlobalErrorHandler before anything else */}
       <GlobalErrorHandler />
-      {/* Add AuthCleanupHandler to fix auth issues on startup */}
-      <AuthCleanupHandler />
       
       <EnvWarning />
       
@@ -348,7 +364,7 @@ function AppContent() {
           }
         />
         <Route
-          path="/dashboard/agents"
+          path="/dashboard/ai-instances"
           element={
             <PrivateRoute>
               <DashboardLayout>
@@ -367,7 +383,78 @@ function AppContent() {
             </PrivateRoute>
           }
         />
-        {/* ... all the other dashboard routes ... */}
+        
+        {/* Dashboard app routes */}
+        <Route
+          path="/dashboard/web-chat"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <WebChat />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/mobile-chat"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <MobileChat />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/whatsapp-chat"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <WhatsAppChat />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/telegram-chat"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <TelegramChat />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/shopify-chat"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <ShopifyChat />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/wordpress-chat"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <WordPressChat />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/private-ai"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <PrivateAI />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
         
         {/* Dashboard redirect for any unmatched dashboard routes */}
         <Route path="/dashboard/*" element={<RouteRedirect />} />
@@ -376,7 +463,7 @@ function AppContent() {
         <Route
           path="/admin/dashboard"
           element={
-            <PrivateRoute adminOnly={false}> {/* Set to true in production */}
+            <PrivateRoute adminOnly={true}>
               <DashboardLayout isAdmin={true}>
                 <Suspense fallback={<LoadingFallback />}>
                   <AdminDashboard />
@@ -388,7 +475,7 @@ function AppContent() {
         <Route
           path="/admin/*"
           element={
-            <PrivateRoute adminOnly={false}> {/* Set to true in production */}
+            <PrivateRoute adminOnly={true}>
               <DashboardLayout isAdmin={true}>
                 <Suspense fallback={<LoadingFallback />}>
                   <Outlet />
@@ -410,11 +497,11 @@ function AppContent() {
           <Route path="n8n-workflows" element={<AdminN8nWorkflows />} />
           <Route path="moderation" element={<Moderation />} />
           <Route path="database-schema" element={<DatabaseSchemaPage />} />
-          <Route path="user-sync" element={<UserSyncPage />} />
           <Route path="user-status-migration" element={<UserStatusMigration />} />
           <Route path="user-profile-migration" element={<UserProfileMigration />} />
           <Route path="workflows" element={<Workflows />} />
-          <Route path="billing" element={<Billing />} />
+          <Route path="billing" element={<BillingComponent />} />
+          <Route path="user-detail/:userId" element={<UserDetailPage />} />
         </Route>
 
         {/* Fallback route */}
@@ -429,10 +516,43 @@ function AppContent() {
 
 // The main App component - export this directly, without any router wrapping
 function App() {
+  // Run early initialization to ensure clean auth state
+  useEffect(() => {
+    const earlyInit = async () => {
+      try {
+        // Check if we've already initialized
+        if ((window as any).__AKII_APP_INITIALIZED) return;
+        
+        console.log('[App] Running early initialization checks');
+        
+        // Ensure all auth locks are cleared
+        try {
+          const lockStatus = (window as any).__AUTH_LOCK_STATUS?.();
+          if (lockStatus?.isOperationInProgress) {
+            console.warn('[App] Found stale auth locks during initialization, clearing');
+            // @ts-ignore - Accessing global emergency methods
+            (window as any).__EMERGENCY_RESET?.();
+          }
+        } catch (e) {
+          console.error('[App] Error checking auth locks:', e);
+        }
+        
+        // Mark as initialized
+        (window as any).__AKII_APP_INITIALIZED = true;
+      } catch (e) {
+        console.error('[App] Error during early initialization:', e);
+      }
+    };
+    
+    earlyInit();
+  }, []);
+  
   return (
     <Suspense fallback={<LoadingScreen />}>
       <StandardAuthProvider>
         <SearchProvider>
+          <GlobalErrorHandler />
+          <AuthInitializer />
           <AppContent />
           <Toaster />
         </SearchProvider>

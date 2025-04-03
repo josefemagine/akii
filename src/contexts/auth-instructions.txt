@@ -1,0 +1,544 @@
+Prompt for Tempo AI: Completely Rebuild Supabase Authentication System from Scratch
+
+Task Overview:
+Your task is to completely remove the existing authentication system and rebuild it from scratch using Supabase Auth, strictly following Supabase's best practices and official documentation.
+
+Step 1: Remove Existing Auth System
+Delete all existing authentication-related files, utilities, hooks, API handlers, and components.
+
+Remove any outdated logic for sign-in, sign-up, session handling, or identity management.
+
+Clean up any related Supabase client code that is no longer relevant.
+
+Ensure no legacy auth state management (like in Redux, Zustand, or React Context) remains in the codebase.
+
+Wipe any obsolete session persistence logic.
+
+💡 Confirm the codebase is auth-free before proceeding to the new implementation.
+
+Step 2: Implement Supabase Auth From Scratch (Best Practices)
+✅ User States: Anonymous vs. Permanent
+Anonymous User = Signed Out State
+
+Support sessions for users who have not signed in yet (treated as anonymous users).
+
+These users should still have a valid session and can later upgrade to permanent by signing in or linking an identity.
+
+Permanent User = Signed In State
+
+As soon as the user signs in (email, phone, OAuth), their session becomes permanent.
+
+Their user_metadata and app_metadata should persist across sessions and devices.
+
+Core Features to Implement:
+🔐 1. User Management
+Use supabase.auth.getUser() to fetch the active user.
+
+Track user.id, email, phone, app_metadata, and user_metadata.
+
+Handle edge cases (e.g., deleted accounts, unverified emails).
+
+🧠 2. Identity Linking
+Enable users to link multiple identity types (email, OAuth, phone, etc.).
+
+Implement automatic linking for identities with matching verified emails.
+
+Enable manual linking with supabase.auth.linkIdentity().
+
+Ensure “Enable manual linking” is toggled ON in Supabase dashboard.
+
+Follow correct redirect flow and token handling to link identities securely.
+
+🔐 3. PKCE Flow for Session Handling
+Configure the Supabase client for flowType: 'pkce'.
+
+Implement code verifier/challenge logic and handle redirect back from Supabase.
+
+Use supabase.auth.exchangeCodeForSession() to establish the session.
+
+If localStorage is unavailable (e.g. mobile), use a custom session storage adapter.
+
+🔓 4. Sign-Out Functionality
+Support all signOut() scopes:
+
+local – Sign out current session.
+
+global – Sign out all user sessions.
+
+others – Sign out all except current session.
+
+Use supabase.auth.signOut({ scope }) accordingly.
+
+Confirm session tokens and data are removed securely after logout.
+
+🧯 5. Error Handling
+Handle all major Supabase Auth error codes using the official Error Codes Guide:
+
+Examples: token_expired, bad_jwt, invalid_email, user_already_registered, etc.
+
+Support HTTP status-based fallbacks:
+
+403, 422, 429, 500, etc.
+
+Show helpful errors to the user and devs (consider Toasts or DevTools logs).
+
+Retry gracefully when rate-limited or failing from network errors.
+
+Deliverables:
+Fully rebuilt authentication system integrated with Supabase.
+
+Support for:
+
+Anonymous + permanent users
+
+PKCE flow
+
+Identity linking
+
+Multi-session sign-out
+
+Error-resilient session handling
+
+Clean, modular, well-documented code using Supabase JS SDK.
+
+A README or comment doc that outlines the overall architecture and how to extend it.
+
+Auth
+
+
+Concepts
+
+
+Users
+Users
+
+A user in Supabase Auth is someone with a user ID, stored in the Auth schema. Once someone is a user, they can be issued an Access Token, which can be used to access Supabase endpoints. The token is tied to the user, so you can restrict access to resources via RLS policies.
+Permanent and anonymous users#
+Supabase distinguishes between permanent and anonymous users.
+Permanent users are tied to a piece of Personally Identifiable Information (PII), such as an email address, a phone number, or a third-party identity. They can use these identities to sign back into their account after signing out.
+Anonymous users aren't tied to any identities. They have a user ID and a personalized Access Token, but they have no way of signing back in as the same user if they are signed out.
+Anonymous users are useful for:
+E-commerce applications, to create shopping carts before checkout
+Full-feature demos without collecting personal information
+Temporary or throw-away accounts
+See the Anonymous Signins guide to learn more about anonymous users.
+Anonymous users do not use the anon role
+Just like permanent users, anonymous users use the authenticated role for database access.
+The anon role is for those who aren't signed in at all and are not tied to any user ID. We refer to these as unauthenticated or public users.
+The user object#
+The user object stores all the information related to a user in your application. The user object can be retrieved using one of these methods:
+supabase.auth.getUser()
+Retrieve a user object as an admin using supabase.auth.admin.getUserById()
+A user can sign in with one of the following methods:
+Password-based method (with email or phone)
+Passwordless method (with email or phone)
+OAuth
+SAML SSO
+An identity describes the authentication method that a user can use to sign in. A user can have multiple identities. These are the types of identities supported:
+Email
+Phone
+OAuth
+SAML
+A user with an email or phone identity will be able to sign in with either a password or passwordless method (e.g. use a one-time password (OTP) or magic link). By default, a user with an unverified email or phone number will not be able to sign in.
+The user object contains the following attributes:
+Attributes
+Type
+Description
+id
+string
+The unique id of the identity of the user.
+aud
+string
+The audience claim.
+role
+string
+The role claim used by Postgres to perform Row Level Security (RLS) checks.
+email
+string
+The user's email address.
+email_confirmed_at
+string
+The timestamp that the user's email was confirmed. If null, it means that the user's email is not confirmed.
+phone
+string
+The user's phone number.
+phone_confirmed_at
+string
+The timestamp that the user's phone was confirmed. If null, it means that the user's phone is not confirmed.
+confirmed_at
+string
+The timestamp that either the user's email or phone was confirmed. If null, it means that the user does not have a confirmed email address and phone number.
+last_sign_in_at
+string
+The timestamp that the user last signed in.
+app_metadata
+object
+The provider attribute indicates the first provider that the user used to sign up with. The providers attribute indicates the list of providers that the user can use to login with.
+user_metadata
+object
+Defaults to the first provider's identity data but can contain additional custom user metadata if specified. Refer to User Identity for more information about the identity object.
+identities
+UserIdentity[]
+Contains an object array of identities linked to the user.
+created_at
+string
+The timestamp that the user was created.
+updated_at
+string
+The timestamp that the user was last updated.
+is_anonymous
+boolean
+Is true if the user is an anonymous user.
+
+Resources#
+User Management guide
+Auth
+
+
+Concepts
+
+
+Identities
+Identities
+
+An identity is an authentication method associated with a user. Supabase Auth supports the following types of identity:
+Email
+Phone
+OAuth
+SAML
+A user can have more than one identity. Anonymous users have no identity until they link an identity to their user.
+The user identity object#
+The user identity object contains the following attributes:
+Attributes
+Type
+Description
+provider_id
+string
+The provider id returned by the provider. If the provider is an OAuth provider, the id refers to the user's account with the OAuth provider. If the provider is email or phone, the id is the user's id from the auth.users table.
+user_id
+string
+The user's id that the identity is linked to.
+identity_data
+object
+The identity metadata. For OAuth and SAML identities, this contains information about the user from the provider.
+id
+string
+The unique id of the identity.
+provider
+string
+The provider name.
+email
+string
+The email is a generated column that references the optional email property in the identity_data
+created_at
+string
+The timestamp that the identity was created.
+last_sign_in_at
+string
+The timestamp that the identity was last used to sign in.
+updated_at
+string
+The timestamp that the identity was last updated.
+
+Auth
+
+
+More
+
+
+Sessions
+
+
+PKCE flow
+PKCE flow
+About authenticating with PKCE flow.
+
+The Proof Key for Code Exchange (PKCE) flow is one of two ways that a user can authenticate and your app can receive the necessary access and refresh tokens.
+The flow is an implementation detail handled for you by Supabase Auth, but understanding the difference between PKCE and implicit flow is important for understanding the difference between client-only and server-side auth.
+How it works#
+After a successful verification, the user is redirected to your app with a URL that looks like this:
+
+1
+https://yourapp.com/...?code=<...>
+The code parameter is commonly known as the Auth Code and can be exchanged for an access token by calling exchangeCodeForSession(code).
+For security purposes, the code has a validity of 5 minutes and can only be exchanged for an access token once. You will need to restart the authentication flow from scratch if you wish to obtain a new access token.
+As the flow is run server side, localStorage may not be available. You may configure the client library to use a custom storage adapter and an alternate backing storage such as cookies by setting the storage option to an object with the following methods:
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+const customStorageAdapter: SupportedStorage = {
+   getItem: (key) => {
+   if (!supportsLocalStorage()) {
+       // Configure alternate storage
+       return null
+   }
+   return globalThis.localStorage.getItem(key)
+   },
+   setItem: (key, value) => {
+   if (!supportsLocalStorage()) {
+       // Configure alternate storage here
+       return
+   }
+   globalThis.localStorage.setItem(key, value)
+   },
+   removeItem: (key) => {
+   if (!supportsLocalStorage()) {
+       // Configure alternate storage here
+       return
+   }
+   globalThis.localStorage.removeItem(key)
+   },
+}
+You may also configure the client library to automatically exchange it for a session after a successful redirect. This can be done by setting the detectSessionInUrl option to true.
+Putting it all together, your client library initialization may look like this:
+
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+const supabase = createClient(
+       'https://xyzcompany.supabase.co',
+       'public-anon-key',
+       {
+       ...
+       auth: {
+           ...
+           detectSessionInUrl: true,
+           flowType: 'pkce',
+           storage: customStorageAdapter,
+       }
+       ...
+       }
+)
+Limitations#
+Behind the scenes, the code exchange requires a code verifier. Both the code in the URL and the code verifier are sent back to the Auth server for a successful exchange.
+The code verifier is created and stored locally when the Auth flow is first initiated. That means the code exchange must be initiated on the same browser and device where the flow was started.
+Resources#
+OAuth 2.0 guide to PKCE flow
+Auth
+
+
+Flows (How-tos)
+
+
+Signout
+Signing out
+Signing out a user
+
+Signing out a user works the same way no matter what method they used to sign in.
+Call the sign out method from the client library. It removes the active session and clears Auth data from the storage medium.
+JavaScript
+Dart
+Swift
+Kotlin
+Python
+
+
+1
+2
+3
+async function signOut() {
+ const { error } = await supabase.auth.signOut()
+}
+Sign out and scopes#
+Supabase Auth allows you to specify three different scopes for when a user invokes the sign out API in your application:
+global (default) when all sessions active for the user are terminated.
+local which only terminates the current session for the user but keep sessions on other devices or browsers active.
+others to terminate all but the current session for the user.
+You can invoke these by providing the scope option:
+JavaScript
+Dart
+Kotlin
+
+
+1
+2
+3
+4
+5
+// defaults to the global scope
+await supabase.auth.signOut()
+// sign out from the current session only
+await supabase.auth.signOut({ scope: 'local' })
+Upon sign out, all refresh tokens and potentially other database objects related to the affected sessions are destroyed and the client library removes the session stored in the local storage medium.
+Access Tokens of revoked sessions remain valid until their expiry time, encoded in the exp claim. The user won't be immediately logged out and will only be logged out when the Access Token expires.
+
+Auth
+
+
+Debugging
+
+
+Error Codes
+Error Codes
+Learn about the Auth error codes and how to resolve them
+
+Auth error codes#
+Supabase Auth can return various errors when using its API. This guide explains how to handle these errors effectively across different programming languages.
+Error types#
+Supabase Auth errors are generally categorized into two main types:
+API Errors: Originate from the Supabase Auth API.
+Client Errors: Originate from the client library's state.
+Client errors differ by language so do refer to the appropriate section below:
+JavaScript
+Dart
+Swift
+Python
+Kotlin
+All errors originating from the supabase.auth namespace of the client library will be wrapped by the AuthError class.
+Error objects are split in a few classes:
+AuthApiError -- errors which originate from the Supabase Auth API.
+Use isAuthApiError instead of instanceof checks to see if an error you caught is of this type.
+CustomAuthError -- errors which generally originate from state in the client library.
+Use the name property on the error to identify the class of error received.
+Errors originating from the server API classed as AuthApiError always have a code property that can be used to identify the error returned by the server. The status property is also present, encoding the HTTP status code received in the response.
+HTTP status codes#
+Below are the most common HTTP status codes you might encounter, along with their meanings in the context of Supabase Auth:
+403 Forbidden#
+Sent out in rare situations where a certain Auth feature is not available for the user, and you as the developer are not checking a precondition whether that API is available for the user.
+422 Unprocessable Entity#
+Sent out when the API request is accepted, but cannot be processed because the user or Auth server is in a state where it cannot satisfy the request.
+429 Too Many Requests#
+Sent out when rate-limits are breached for an API. You should handle this status code often, especially in functions that authenticate a user.
+500 Internal Server Error#
+Indicate that the Auth server's service is degraded. Most often it points to issues in your database setup such as a misbehaving trigger on a schema, function, view or other database object.
+501 Not Implemented#
+Sent out when a feature is not enabled on the Auth server, and you are trying to use an API which requires it.
+Auth error codes table#
+The following table provides a comprehensive list of error codes you may encounter when working with Supabase Auth. Each error code is associated with a specific issue and includes a description to help you understand and resolve the problem efficiently.
+To supplement HTTP status codes, Supabase Auth returns a string error code which gives you more insight into what went wrong. These codes are stable and can be used to present an internationalized message to your users.
+Code
+Description
+anonymous_provider_disabled
+Anonymous sign-ins are disabled.
+bad_code_verifier
+Returned from the PKCE flow where the provided code verifier does not match the expected one. Indicates a bug in the implementation of the client library.
+bad_json
+Usually used when the HTTP body of the request is not valid JSON.
+bad_jwt
+JWT sent in the Authorization header is not valid.
+bad_oauth_callback
+OAuth callback from provider to Auth does not have all the required attributes (state). Indicates an issue with the OAuth provider or client library implementation.
+bad_oauth_state
+OAuth state (data echoed back by the OAuth provider to Supabase Auth) is not in the correct format. Indicates an issue with the OAuth provider integration.
+captcha_failed
+CAPTCHA challenge could not be verified with the CAPTCHA provider. Check your CAPTCHA integration.
+conflict
+General database conflict, such as concurrent requests on resources that should not be modified concurrently. Can often occur when you have too many session refresh requests firing off at the same time for a user. Check your app for concurrency issues, and if detected, back off exponentially.
+email_address_invalid
+Example and test domains are currently not supported. Use a different email address.
+email_address_not_authorized
+Email sending is not allowed for this address as your project is using the default SMTP service. Emails can only be sent to members in your Supabase organization. If you want to send emails to others, set up a custom SMTP provider.
+email_conflict_identity_not_deletable
+Unlinking this identity causes the user's account to change to an email address which is already used by another user account. Indicates an issue where the user has two different accounts using different primary email addresses. You may need to migrate user data to one of their accounts in this case.
+email_exists
+Email address already exists in the system.
+email_not_confirmed
+Signing in is not allowed for this user as the email address is not confirmed.
+email_provider_disabled
+Signups are disabled for email and password.
+flow_state_expired
+PKCE flow state to which the API request relates has expired. Ask the user to sign in again.
+flow_state_not_found
+PKCE flow state to which the API request relates no longer exists. Flow states expire after a while and are progressively cleaned up, which can cause this error. Retried requests can cause this error, as the previous request likely destroyed the flow state. Ask the user to sign in again.
+hook_payload_invalid_content_type
+Payload from Auth does not have a valid Content-Type header.
+hook_payload_over_size_limit
+Payload from Auth exceeds maximum size limit.
+hook_timeout
+Unable to reach hook within maximum time allocated.
+hook_timeout_after_retry
+Unable to reach hook after maximum number of retries.
+identity_already_exists
+The identity to which the API relates is already linked to a user.
+identity_not_found
+Identity to which the API call relates does not exist, such as when an identity is unlinked or deleted.
+insufficient_aal
+To call this API, the user must have a higher Authenticator Assurance Level. To resolve, ask the user to solve an MFA challenge.
+invite_not_found
+Invite is expired or already used.
+invalid_credentials
+Login credentials or grant type not recognized.
+manual_linking_disabled
+Calling the supabase.auth.linkUser() and related APIs is not enabled on the Auth server.
+mfa_challenge_expired
+Responding to an MFA challenge should happen within a fixed time period. Request a new challenge when encountering this error.
+mfa_factor_name_conflict
+MFA factors for a single user should not have the same friendly name.
+mfa_factor_not_found
+MFA factor no longer exists.
+mfa_ip_address_mismatch
+The enrollment process for MFA factors must begin and end with the same IP address.
+mfa_phone_enroll_not_enabled
+Enrollment of MFA Phone factors is disabled.
+mfa_phone_verify_not_enabled
+Login via Phone factors and verification of new Phone factors is disabled.
+mfa_totp_enroll_not_enabled
+Enrollment of MFA TOTP factors is disabled.
+mfa_totp_verify_not_enabled
+Login via TOTP factors and verification of new TOTP factors is disabled.
+mfa_verification_failed
+MFA challenge could not be verified -- wrong TOTP code.
+mfa_verification_rejected
+Further MFA verification is rejected. Only returned if the MFA verification attempt hook returns a reject decision.
+mfa_verified_factor_exists
+Verified phone factor already exists for a user. Unenroll existing verified phone factor to continue.
+mfa_web_authn_enroll_not_enabled
+Enrollment of MFA Web Authn factors is disabled.
+mfa_web_authn_verify_not_enabled
+Login via WebAuthn factors and verification of new WebAuthn factors is disabled.
+no_authorization
+This HTTP request requires an Authorization header, which is not provided.
+not_admin
+User accessing the API is not admin, i.e. the JWT does not contain a role claim that identifies them as an admin of the Auth server.
+oauth_provider_not_supported
+Using an OAuth provider which is disabled on the Auth server.
+otp_disabled
+Sign in with OTPs (magic link, email OTP) is disabled. Check your sever's configuration.
+otp_expired
+OTP code for this sign-in has expired. Ask the user to sign in again.
+over_email_send_rate_limit
+Too many emails have been sent to this email address. Ask the user to wait a while before trying again.
+over_request_rate_limit
+Too many requests have been sent by this client (IP address). Ask the user to try again in a few minutes. Sometimes can indicate a bug in your application that mistakenly sends out too many requests (such as a badly written useEffect React hook).
+over_sms_send_rate_limit
+Too many SMS messages have been sent to this phone number. Ask the user to wait a while before trying again.
+phone_exists
+Phone number already exists in the system.
+phone_not_confirmed
+Signing in is not allowed for this user as the phone number is not confirmed.
+phone_provider_disabled
+Signups are disabled for phone and password.
+
+

@@ -4,12 +4,25 @@
  */
 
 import { supabase } from './supabase-singleton';
+import type { User, Session } from '@supabase/supabase-js';
+import { 
+  withAuthLock, 
+  getSessionSafely, 
+  getUserSafely, 
+  signOutSafely,
+  signInWithEmailSafely,
+  signUpSafely
+} from './auth-lock-fix';
 
 // Define types needed for the response format
 export type AuthResponse<T> = {
   data: T | null;
   error: Error | null;
 };
+
+// Supabase response types
+type SupabaseSignInResponse = { data: { user: User | null; session: Session | null }, error: Error | null };
+type SupabaseSignUpResponse = { data: { user: User | null; session: Session | null }, error: Error | null };
 
 // User profile related types
 export type UserRole = 'user' | 'admin' | 'moderator';
@@ -27,21 +40,56 @@ export interface UserProfile {
   updated_at?: string;
 }
 
+// Error handling for auth errors
+function handleAuthError(error: any): Error {
+  if (!error) return new Error('Unknown error');
+  
+  // Extract the error message from various formats
+  const errorMessage = typeof error === 'string' 
+    ? error 
+    : error.message || error.error_description || JSON.stringify(error);
+  
+  console.error(`Auth error: ${errorMessage}`);
+  
+  // Check for specific error types
+  if (typeof errorMessage === 'string') {
+    if (errorMessage.includes('Email not confirmed')) {
+      return new Error('Please check your email to confirm your account before signing in.');
+    }
+    
+    if (errorMessage.includes('Invalid login credentials')) {
+      return new Error('Invalid email or password. Please try again.');
+    }
+    
+    if (errorMessage.includes('User already registered')) {
+      return new Error('An account with this email already exists. Please sign in instead.');
+    }
+    
+    if (errorMessage.includes('flow_state_not_found') || errorMessage.includes('PKCE flow')) {
+      return new Error('Authentication flow expired. Please try signing in again.');
+    }
+    
+    if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+      return new Error('Too many attempts. Please wait a moment and try again.');
+    }
+  }
+  
+  // Return the original error or a generic message
+  return error instanceof Error ? error : new Error(errorMessage || 'Authentication error');
+}
+
 /**
  * Sign in with email and password
  */
 export async function signIn(email: string, password: string) {
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    const result = await signInWithEmailSafely(email, password) as SupabaseSignInResponse;
 
-    if (error) throw error;
-    return { data, error: null };
+    if (result.error) throw result.error;
+    return { data: result.data, error: null };
   } catch (error) {
     console.error('Sign in error:', error);
-    return { data: null, error };
+    return { data: null, error: handleAuthError(error) };
   }
 }
 
@@ -50,33 +98,46 @@ export async function signIn(email: string, password: string) {
  */
 export async function signUp(email: string, password: string, metadata?: Record<string, any>) {
   try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: metadata
-      }
-    });
+    const result = await signUpSafely(email, password, metadata) as SupabaseSignUpResponse;
 
-    if (error) throw error;
-    return { data, error: null };
+    if (result.error) throw result.error;
+    return { data: result.data, error: null };
   } catch (error) {
     console.error('Sign up error:', error);
-    return { data: null, error };
+    return { data: null, error: handleAuthError(error) };
   }
 }
 
 /**
  * Sign out the current user
+ * Supports different scopes:
+ * - global (default): terminates all sessions for the user
+ * - local: terminates only the current session
+ * - others: terminates all sessions except the current one
  */
-export async function signOut() {
+export async function signOut(scope: 'global' | 'local' | 'others' = 'global') {
   try {
-    const { error } = await supabase.auth.signOut();
+    // First try to clear token from browser storage for immediate UI feedback
+    try {
+      // Find tokens in localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('supabase.auth.token') || key.includes('sb-'))) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch (e) {
+      console.warn('Error clearing local tokens:', e);
+    }
+    
+    // Call the official signOut method with the specified scope
+    const { error } = await signOutSafely({ scope });
+    
     if (error) throw error;
     return { error: null };
   } catch (error) {
-    console.error('Sign out error:', error);
-    return { error };
+    console.error(`Sign out error (scope: ${scope}):`, error);
+    return { error: handleAuthError(error) };
   }
 }
 
@@ -85,12 +146,12 @@ export async function signOut() {
  */
 export async function getCurrentSession() {
   try {
-    const { data, error } = await supabase.auth.getSession();
+    const { data, error } = await getSessionSafely();
     if (error) throw error;
     return { data: data.session, error: null };
   } catch (error) {
     console.error('Get session error:', error);
-    return { data: null, error };
+    return { data: null, error: handleAuthError(error) };
   }
 }
 
@@ -99,12 +160,32 @@ export async function getCurrentSession() {
  */
 export async function getCurrentUser() {
   try {
-    const { data, error } = await supabase.auth.getUser();
+    const { data, error } = await getUserSafely();
     if (error) throw error;
     return { data: data.user, error: null };
   } catch (error) {
     console.error('Get user error:', error);
-    return { data: null, error };
+    return { data: null, error: handleAuthError(error) };
+  }
+}
+
+/**
+ * Exchange auth code for session in PKCE flow
+ */
+export async function exchangeCodeForSession(code: string) {
+  try {
+    type CodeExchangeResponse = { data: { session: Session }, error: Error | null };
+    
+    const result = await withAuthLock(
+      () => supabase.auth.exchangeCodeForSession(code),
+      'exchangeCodeForSession'
+    ) as CodeExchangeResponse;
+    
+    if (result.error) throw result.error;
+    return { data: result.data, error: null };
+  } catch (error) {
+    console.error('Exchange code error:', error);
+    return { data: null, error: handleAuthError(error) };
   }
 }
 
@@ -113,15 +194,20 @@ export async function getCurrentUser() {
  */
 export async function resetPasswordForEmail(email: string) {
   try {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`
-    });
+    type ResetPasswordResponse = { data: any, error: Error | null };
+    
+    const result = await withAuthLock(
+      () => supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/update-password`
+      }),
+      'resetPassword'
+    ) as ResetPasswordResponse;
 
-    if (error) throw error;
-    return { data, error: null };
+    if (result.error) throw result.error;
+    return { data: result.data, error: null };
   } catch (error) {
     console.error('Reset password error:', error);
-    return { data: null, error };
+    return { data: null, error: handleAuthError(error) };
   }
 }
 
@@ -130,12 +216,18 @@ export async function resetPasswordForEmail(email: string) {
  */
 export async function updatePassword(password: string) {
   try {
-    const { data, error } = await supabase.auth.updateUser({ password });
-    if (error) throw error;
-    return { data, error: null };
+    type UpdatePasswordResponse = { data: { user: User }, error: Error | null };
+    
+    const result = await withAuthLock(
+      () => supabase.auth.updateUser({ password }),
+      'updatePassword'
+    ) as UpdatePasswordResponse;
+    
+    if (result.error) throw result.error;
+    return { data: result.data, error: null };
   } catch (error) {
     console.error('Update password error:', error);
-    return { data: null, error };
+    return { data: null, error: handleAuthError(error) };
   }
 }
 

@@ -149,7 +149,7 @@ export default function JoinModal({
     onOpenLogin();
   };
 
-  // Force close the modal on route change or on component mount if already authenticated
+  // Force close the modal on component mount if already authenticated
   useEffect(() => {
     // Direct DOM-based solution that will forcibly close the modal
     const forceCloseModal = () => {
@@ -180,15 +180,9 @@ export default function JoinModal({
       }, 100);
     };
 
-    // Check for auth tokens directly from localStorage as a backup method
-    const checkTokensDirectly = () => {
-      const hasToken = localStorage.getItem('supabase.auth.token') !== null;
-      return hasToken;
-    };
-    
     // Force close if already authenticated
-    if (user || checkTokensDirectly()) {
-      console.log('[JoinModal] User or token detected, force closing modal');
+    if (user) {
+      console.log('[JoinModal] User detected, force closing modal');
       forceCloseModal();
     }
     
@@ -207,55 +201,6 @@ export default function JoinModal({
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [onClose, user]);
-  
-  // Modify the periodic auth check to stop after detecting authentication
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    let checkCount = 0;
-    const MAX_CHECKS = 10; // Limit the number of checks to prevent infinite loops
-    
-    const checkAndCleanup = async () => {
-      checkCount++;
-      const { data } = await supabase.auth.getSession();
-      const sessionExists = !!data?.session;
-      
-      console.log(`[JoinModal] Auth check #${checkCount}:`, { 
-        session: sessionExists, 
-        user: !!user,
-        isOpen 
-      });
-      
-      // Stop checking if authenticated or exceeded max checks
-      if (sessionExists || user || checkCount >= MAX_CHECKS) {
-        if (sessionExists || user) {
-          console.log('[JoinModal] Detected authentication, closing modal');
-          onClose();
-        }
-        if (interval) {
-          console.log('[JoinModal] Stopping auth check interval');
-          clearInterval(interval);
-          interval = null;
-        }
-      }
-    };
-    
-    // Only start the interval if the modal is open
-    if (isOpen) {
-      // Check immediately
-      checkAndCleanup();
-      
-      // Then check periodically
-      interval = setInterval(() => {
-        checkAndCleanup();
-      }, 1000);
-    }
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [isOpen, user, onClose]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

@@ -25,7 +25,6 @@ const SettingsPage = lazy(() => import("@/pages/Settings"));
 
 // Admin pages
 const UsersPage = lazy(() => import("@/pages/admin/Users"));
-const UserSyncPage = lazy(() => import("@/pages/admin/UserSync"));
 const ModerationPage = lazy(() => import("@/pages/admin/Moderation"));
 const EmailTemplatesPage = lazy(() => import("@/pages/admin/EmailTemplates"));
 const BillingPage = lazy(() => import("@/pages/admin/Billing"));
@@ -80,10 +79,6 @@ export const routes = [
   {
     path: "/admin/users",
     element: <UsersPage />,
-  },
-  {
-    path: "/admin/user-sync",
-    element: <UserSyncPage />,
   },
   {
     path: "/admin/moderation",
@@ -165,12 +160,6 @@ export const navigationConfig = {
       component: UsersPage,
       name: "Users",
       icon: Users,
-    },
-    {
-      path: "/admin/user-sync",
-      component: UserSyncPage,
-      name: "User Sync",
-      icon: UserCheck,
     },
     {
       path: "/admin/moderation",

@@ -133,7 +133,7 @@ export default function WebChatPreview({
           className={`absolute ${positionClasses[position]} w-80 sm:w-96 rounded-lg shadow-xl overflow-hidden transition-all`}
           style={{ height: isMinimized ? "48px" : "400px" }}
         >
-          <Card className="h-full flex flex-col">
+          <Card className="h-full flex flex-col dark:border-gray-700">
             {/* Chat header */}
             <div
               className="p-3 flex items-center justify-between cursor-pointer"
@@ -167,7 +167,7 @@ export default function WebChatPreview({
 
             {/* Chat content */}
             {!isMinimized && (
-              <CardContent className="flex-1 p-0 flex flex-col">
+              <CardContent className="flex-1 p-0 flex flex-col dark:bg-gray-800">
                 <ScrollArea className="flex-1 p-3">
                   <div className="space-y-4">
                     {messages.map((message) => (
@@ -179,13 +179,13 @@ export default function WebChatPreview({
                           {message.sender === "bot" && (
                             <Avatar className="h-8 w-8 mr-2">
                               <AvatarImage src={agentAvatar} />
-                              <AvatarFallback className="text-xs">
+                              <AvatarFallback className="text-xs dark:bg-gray-700">
                                 {agentName.substring(0, 2).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
                           )}
                           <div
-                            className={`max-w-xs rounded-lg px-3 py-2 text-sm ${message.sender === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+                            className={`max-w-xs rounded-lg px-3 py-2 text-sm ${message.sender === "user" ? "bg-primary text-primary-foreground" : "bg-muted dark:bg-gray-700"}`}
                             style={{
                               backgroundColor:
                                 message.sender === "user"
@@ -206,7 +206,7 @@ export default function WebChatPreview({
                   </div>
                 </ScrollArea>
 
-                <div className="p-3 border-t">
+                <div className="p-3 border-t dark:border-gray-700">
                   <div className="flex items-center">
                     <Button
                       variant="ghost"

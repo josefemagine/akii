@@ -325,6 +325,9 @@ const SimpleSidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps)
       )}
     >
       <div className="flex h-full flex-col gap-4 p-4">
+        {/* Empty space at top */}
+        <div className="h-[80px]"></div>
+        
         <nav className="flex flex-1 flex-col gap-1">
           {sidebarItems.map((item, index) => (
             <SidebarItem
@@ -344,7 +347,7 @@ const SimpleSidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps)
           {!collapsed && (
             <div className="px-3 py-2">
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Admin
+                More
               </h2>
             </div>
           )}

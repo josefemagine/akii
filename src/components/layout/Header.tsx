@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Circle, ChevronDown } from "lucide-react";
@@ -10,12 +10,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import MobileNavigation from "./MobileNavigation";
-import { useAuth } from "@/contexts/StandardAuthContext";
+import { useAuth } from "@/contexts/auth-compatibility";
 import LoginModal from "@/components/auth/LoginModal";
 import JoinModal from "@/components/auth/JoinModal";
 import PasswordReset from "@/components/auth/PasswordReset";
-import { extractUserProfileData } from "@/lib/auth-core";
-import { supabase } from "@/lib/supabase-auth";
+import { supabase } from "@/lib/supabase";
 
 interface NavLinkProps {
   href: string;
@@ -44,140 +43,206 @@ const NavLink = ({ href, children, className }: NavLinkProps) => {
 interface HeaderProps {}
 
 const Header = ({}: HeaderProps) => {
-  // Use auth context directly
-  let user = null;
-  let signOut: () => Promise<any> = async () => { console.log("Auth not available"); return { error: null }; };
-  
-  try {
-    const auth = useAuth();
-    user = auth.user;
-    signOut = auth.signOut;
-    
-    // Debug auth state more clearly
-    console.log("Header auth state from context:", { 
-      hasUser: !!auth.user, 
-      userId: auth.user?.id,
-      session: !!auth.session,
-      isAdmin: auth.isAdmin,
-      isLoading: auth.isLoading
-    });
-  } catch (error) {
-    console.error("Error using auth in Header:", error);
-  }
-  
+  // UI state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [joinModalOpen, setJoinModalOpen] = useState(false);
   const [passwordResetOpen, setPasswordResetOpen] = useState(false);
-  const [forceRefresh, setForceRefresh] = useState(0);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  // Enhanced auth state detection
+  
+  // Auth context
+  const auth = useAuth();
+  const navigate = useNavigate();
+  
+  // Track authenticated status in local state for more reliable UI updates
+  // Default to undefined to avoid initial flash
+  const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState<boolean | undefined>(undefined);
+  
+  // Use a ref to track if session check is in progress
+  const sessionCheckInProgress = useRef(false);
+  const lastSessionCheckTime = useRef(0);
+  
+  // One-time direct check on mount
   useEffect(() => {
-    console.log("Header auth state check:", { 
-      hasUser: !!user, 
-      userId: user?.id,
-      isAuthenticated
-    });
-    
-    // First check if user is available directly from context
-    if (user) {
-      console.log("Header: User found in auth context, setting isAuthenticated to true");
-      setIsAuthenticated(true);
-      return;
-    }
-    
-    // Check localStorage for auth tokens as a fallback
-    const checkLocalStorageAuth = () => {
+    const checkAuthState = async () => {
+      // Avoid duplicate checks
+      if (sessionCheckInProgress.current) return;
+      
+      // Throttle checks to once per second
+      const now = Date.now();
+      if (now - lastSessionCheckTime.current < 1000) return;
+      
       try {
-        // Check all localStorage items
-        console.log("Header: Checking localStorage for auth tokens");
-        for (const key in localStorage) {
-          if (key && typeof key === 'string') {
-            console.log(`Header: Checking localStorage key: ${key}`);
-            if (
-              key.includes('supabase.auth.token') || 
-              key.includes('sb-') ||
-              key.includes('akii-auth') ||
-              key === 'force-auth-login'
-            ) {
-              console.log("Header: Found auth token in localStorage:", key);
-              setIsAuthenticated(true);
-              return true;
+        sessionCheckInProgress.current = true;
+        lastSessionCheckTime.current = now;
+        
+        // Check localStorage first for quick feedback
+        let hasToken = false;
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.includes('supabase.auth.token') || key.includes('sb-'))) {
+              hasToken = true;
+              break;
             }
           }
+        } catch (e) {
+          console.error("Error checking localStorage:", e);
         }
         
-        // Direct check for Supabase auth data
-        const sbAuthKey = Object.keys(localStorage).find(key => key.startsWith('sb-'));
-        if (sbAuthKey) {
-          try {
-            console.log(`Header: Found Supabase key: ${sbAuthKey}, parsing contents`);
-            const authData = JSON.parse(localStorage.getItem(sbAuthKey) || '{}');
-            console.log("Header: Parsed auth data:", authData);
-            if (authData?.access_token || authData?.expires_at || authData?.refresh_token) {
-              console.log("Header: Found Supabase auth data in localStorage");
-              setIsAuthenticated(true);
-              return true;
-            }
-          } catch (e) {
-            console.error("Error parsing Supabase auth data:", e);
-          }
+        // If we found a token, immediately set auth to avoid UI flash
+        if (hasToken && isAuthenticatedLocal === undefined) {
+          setIsAuthenticatedLocal(true);
+        }
+        
+        // Then verify with an actual session check
+        const { data } = await supabase.auth.getSession();
+        const hasSession = !!data.session;
+        
+        // Only log if there's a meaningful change to report
+        if (hasSession !== isAuthenticatedLocal) {
+          console.log("[Header] Direct session check:", { 
+            hasSession, 
+            sessionExpires: data.session?.expires_at,
+            previousState: isAuthenticatedLocal 
+          });
+        }
+        
+        // Update state if it's different
+        if (hasSession !== isAuthenticatedLocal) {
+          setIsAuthenticatedLocal(hasSession);
         }
       } catch (e) {
-        console.error("Error checking localStorage auth:", e);
+        console.error("Error in session check:", e);
+      } finally {
+        sessionCheckInProgress.current = false;
       }
-      return false;
     };
     
-    const hasLocalStorageAuth = checkLocalStorageAuth();
-    if (!hasLocalStorageAuth) {
-      console.log("Header: No auth found in localStorage");
-    }
+    checkAuthState();
+  }, [isAuthenticatedLocal]);
+  
+  // Update local auth state whenever auth context changes - with reduced logging
+  useEffect(() => {
+    const contextAuthState = Boolean(auth.user) || Boolean(auth.session);
     
-    // Add a force check by directly checking with Supabase
-    const checkSupabaseAuth = async () => {
-      try {
-        console.log("Header: Checking Supabase session directly");
-        if (typeof supabase !== 'undefined' && supabase?.auth) {
+    // Only update and log if there's an actual change
+    if (contextAuthState !== isAuthenticatedLocal) {
+      console.log("[Header] Auth state updated from context:", { 
+        hasUser: Boolean(auth.user),
+        userId: auth.user?.id,
+        hasSession: Boolean(auth.session),
+        previousState: isAuthenticatedLocal
+      });
+      
+      setIsAuthenticatedLocal(contextAuthState);
+    }
+  }, [auth.user, auth.session, isAuthenticatedLocal]);
+  
+  // Listen for auth state changes
+  useEffect(() => {
+    const handleAuthStateChange = async (event: any) => {
+      // Only log important events to reduce console noise
+      if (event.type === 'SIGNED_IN' || event.type === 'SIGNED_OUT') {
+        console.log("Auth state changed event received in Header", event.type || 'unknown');
+      }
+      
+      // Deduplicate session checks using a ref
+      if (sessionCheckInProgress.current) return;
+      
+      // Check for Auth reset events separately
+      if (event.type === 'akii:auth:reset') {
+        console.log("[Header] Auth reset event received, clearing local state");
+        setIsAuthenticatedLocal(undefined);
+        return;
+      }
+      
+      // Only perform direct session check for important auth events
+      if (event.type === 'SIGNED_IN' || event.type === 'SIGNED_OUT' || event.type === 'TOKEN_REFRESHED') {
+        try {
+          // Debounce session checks
+          const now = Date.now();
+          if (now - lastSessionCheckTime.current < 1000) return;
+          
+          sessionCheckInProgress.current = true;
+          lastSessionCheckTime.current = now;
+          
           const { data } = await supabase.auth.getSession();
-          console.log("Header: Direct Supabase session check result:", data);
-          if (data?.session) {
-            console.log("Header: Found active Supabase session");
-            setIsAuthenticated(true);
-            return true;
+          const hasDirectSession = !!data.session;
+          
+          // Update authentication state based on direct session check
+          if (event.type === 'SIGNED_IN' || hasDirectSession) {
+            setIsAuthenticatedLocal(true);
+          } else if (event.type === 'SIGNED_OUT') {
+            setIsAuthenticatedLocal(false);
           }
+        } catch (e) {
+          console.error("Error checking session after event:", e);
+        } finally {
+          sessionCheckInProgress.current = false;
         }
-      } catch (e) {
-        console.error("Error checking Supabase auth:", e);
       }
-      return false;
     };
     
-    // Check Supabase if we still don't have auth
-    if (!hasLocalStorageAuth) {
-      checkSupabaseAuth();
+    // Register a direct listener on Supabase auth
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      // Create a unified event object to handle both direct and custom events
+      handleAuthStateChange({ type: event, session });
+    });
+    
+    // Listen for our custom auth reset event
+    const handleAuthReset = () => handleAuthStateChange({ type: 'akii:auth:reset' });
+    window.addEventListener('akii:auth:reset', handleAuthReset);
+    
+    return () => {
+      // Clean up all listeners
+      authListener?.subscription.unsubscribe();
+      window.removeEventListener('akii:auth:reset', handleAuthReset);
+    };
+  }, []);
+  
+  // Handle sign out with better cleanup
+  const handleSignOut = async (scope: 'global' | 'local' | 'others' = 'global') => {
+    // Immediately set local state to unauthenticated for fast UI feedback
+    setIsAuthenticatedLocal(false);
+    
+    // Manually clear tokens for immediate UI feedback
+    try {
+      const authKeys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.includes('supabase') || 
+          key.includes('sb-') || 
+          key.includes('akii-auth') ||
+          key.includes('token')
+        )) {
+          authKeys.push(key);
+        }
+      }
+      
+      if (authKeys.length > 0) {
+        authKeys.forEach(key => localStorage.removeItem(key));
+        console.log(`[Header] Cleared ${authKeys.length} auth tokens from localStorage`);
+      }
+    } catch (e) {
+      console.error("Error clearing localStorage:", e);
     }
     
-    // Do a single delayed check if needed, but don't continuously refresh
-    if (!user && !hasLocalStorageAuth && forceRefresh === 0) {
-      console.log("Header: Scheduling delayed auth check");
-      setTimeout(() => {
-        setForceRefresh(1); // Only increment once to avoid infinite loops
-        checkSupabaseAuth(); // Also try Supabase directly after a delay
-      }, 1000);
-    }
-  }, [user, forceRefresh]);
+    // Call auth context signOut
+    auth.signOut(scope).catch(error => {
+      console.error("Error during logout:", error);
+    });
+    
+    // Force navigation to home page
+    navigate('/', { replace: true });
+  };
 
+  // UI handlers
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   const openLoginModal = () => {
-    // Don't redirect if already logged in, just do nothing
-    if (user || isAuthenticated) {
-      console.log("User already logged in");
-      return;
-    }
+    if (isAuthenticatedLocal) return;
     setLoginModalOpen(true);
     closeMobileMenu();
   };
@@ -190,18 +255,6 @@ const Header = ({}: HeaderProps) => {
   const openPasswordReset = () => {
     setPasswordResetOpen(true);
     closeMobileMenu();
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      closeMobileMenu();
-      
-      // Navigate to home page after sign out
-      window.location.href = "/";
-    } catch (error) {
-      console.error("Error during logout:", error);
-    }
   };
 
   return (
@@ -261,7 +314,7 @@ const Header = ({}: HeaderProps) => {
         </nav>
 
         <div className="flex items-center gap-2">
-          {(user || isAuthenticated) ? (
+          {isAuthenticatedLocal ? (
             <div className="flex items-center gap-2">
               <Button
                 variant="default"
@@ -272,13 +325,27 @@ const Header = ({}: HeaderProps) => {
                   Dashboard
                 </Link>
               </Button>
-              <Button
-                variant="outline"
-                className="hidden md:flex items-center gap-2 border-red-500 text-red-500 hover:bg-red-50"
-                onClick={handleSignOut}
-              >
-                Logout
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="hidden md:flex items-center gap-1"
+                  >
+                    Log Out <ChevronDown className="h-4 w-4 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleSignOut('local')}>
+                    This Device Only
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSignOut('others')}>
+                    Other Devices Only
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSignOut('global')}>
+                    All Devices
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ) : (
             <>
@@ -314,10 +381,10 @@ const Header = ({}: HeaderProps) => {
       <MobileNavigation
         isOpen={mobileMenuOpen}
         onClose={closeMobileMenu}
-        isAuthenticated={user !== null || isAuthenticated}
+        isAuthenticated={isAuthenticatedLocal}
         onLogin={openLoginModal}
         onJoin={openJoinModal}
-        onLogout={handleSignOut}
+        onLogout={() => handleSignOut('global')}
       />
 
       {/* Auth Modals */}
@@ -356,3 +423,5 @@ const Header = ({}: HeaderProps) => {
 };
 
 export default Header;
+
+

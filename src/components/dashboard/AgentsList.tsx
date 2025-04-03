@@ -133,7 +133,7 @@ const AgentsList = ({
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-xl font-bold">AI Agents</CardTitle>
         <Button size="sm" className="bg-primary hover:bg-primary/90" asChild>
-          <Link to="/dashboard/agents/new">
+          <Link to="/dashboard/ai-instances/new">
             <Plus className="mr-2 h-4 w-4" /> Create New Agent
           </Link>
         </Button>

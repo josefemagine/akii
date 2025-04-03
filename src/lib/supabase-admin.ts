@@ -226,3 +226,83 @@ export async function setUserRole(userId: string, role: string) {
     };
   }
 }
+
+/**
+ * Create user profile for a real Supabase user
+ * This functions creates a profile record in the profiles table for an existing Supabase user
+ */
+export async function createUserProfile(authUser: any): Promise<{success: boolean, data: any, error: any}> {
+  try {
+    const adminClient = getAdminClient();
+    if (!adminClient) {
+      throw new Error("Admin client not available");
+    }
+
+    if (!authUser || !authUser.id) {
+      throw new Error("Valid user data is required");
+    }
+
+    // Check if profile already exists
+    const { data: existingProfile, error: checkError } = await adminClient
+      .from("profiles")
+      .select("*")
+      .eq("id", authUser.id)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error("Error checking for existing profile:", checkError);
+    }
+    
+    // If profile exists, return it
+    if (existingProfile) {
+      console.log("Profile already exists for user:", authUser.id);
+      return { 
+        success: true, 
+        data: existingProfile, 
+        error: null 
+      };
+    }
+    
+    // Create new profile from auth user data
+    const userMetadata = authUser.user_metadata || {};
+    const newProfile = {
+      id: authUser.id,
+      email: authUser.email,
+      full_name: userMetadata.full_name || userMetadata.name || '',
+      first_name: userMetadata.first_name || '',
+      last_name: userMetadata.last_name || '',
+      avatar_url: userMetadata.avatar_url || userMetadata.picture || '',
+      role: 'user',
+      status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    console.log("Creating new profile for user:", authUser.id);
+    
+    const { data, error } = await adminClient
+      .from("profiles")
+      .insert(newProfile)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating user profile:", error);
+      throw error;
+    }
+
+    return { 
+      success: true, 
+      data, 
+      error: null 
+    };
+  } catch (error) {
+    console.error("Error in createUserProfile:", error);
+    return { 
+      success: false, 
+      data: null, 
+      error 
+    };
+  }
+}
+

@@ -1,4 +1,4 @@
-import { debugSupabaseInstances } from "@/lib/supabase-singleton";
+import { debugSupabaseInstances } from "@/lib/supabase";
 
 const SupabaseDebugButton = () => {
   const handleDebugClick = () => {

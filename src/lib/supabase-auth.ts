@@ -1,13 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
-
-// Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from '@/lib/supabase-singleton';
+import type { User, Session } from '@supabase/supabase-js';
+import { getSessionSafely } from '@/lib/auth-lock-fix';
 
 // Types
-export type { User, Session } from '@supabase/supabase-js';
+export { User, Session };
 
 export interface UserProfile {
   id: string;
@@ -117,7 +113,7 @@ export async function updatePassword(password: string) {
 // Session management
 export async function getCurrentSession() {
   try {
-    const { data, error } = await supabase.auth.getSession();
+    const { data, error } = await getSessionSafely();
     if (error) throw error;
     return { data: data.session, error: null };
   } catch (error) {

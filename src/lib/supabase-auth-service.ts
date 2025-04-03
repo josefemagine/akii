@@ -7,6 +7,7 @@
 
 import { supabase } from './supabase-singleton';
 import type { User } from '@supabase/supabase-js';
+import { getSessionSafely } from '@/lib/auth-lock-fix';
 
 // Standard interface for user profiles
 export interface UserProfile {
@@ -32,19 +33,19 @@ let _currentProfile: UserProfile | null = null;
 export async function getCurrentUserWithProfile(): Promise<{ user: User | null, profile: UserProfile | null }> {
   try {
     // First get the current session - proper way to check auth
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const { data, error: sessionError } = await getSessionSafely();
     
     if (sessionError) {
       console.error('Error getting session:', sessionError);
       return { user: null, profile: null };
     }
     
-    if (!session) {
+    if (!data.session) {
       console.log('No active session found');
       return { user: null, profile: null };
     }
     
-    const user = session.user;
+    const user = data.session.user;
     _currentUser = user;
     
     // If we have a user, fetch their profile
@@ -207,7 +208,8 @@ export function onAuthStateChange(callback: (event: string, session: any) => voi
 export async function initializeAuthService() {
   try {
     // Get session to check if user is already logged in
-    const { data, error } = await supabase.auth.getSession();
+    // Use getSessionSafely to avoid lock issues
+    const { data, error } = await getSessionSafely();
     
     if (error) {
       console.error('Error initializing auth service:', error);

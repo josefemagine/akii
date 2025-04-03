@@ -351,6 +351,33 @@ export default function RunMigration() {
           </Button>
         </CardFooter>
       </Card>
+
+      <Card className="my-4">
+        <CardHeader>
+          <CardTitle>Available Migrations</CardTitle>
+          <CardDescription>Select a migration to run</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="border p-4 rounded-md hover:bg-gray-50 cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium">Subscription Tables</h3>
+                  <p className="text-sm text-gray-500">
+                    Create tables for subscriptions, plans, payment methods, and invoices
+                  </p>
+                </div>
+                <Button 
+                  onClick={() => runMigration('20230501000000_create_subscription_tables.sql')}
+                  variant="outline"
+                >
+                  Run Migration
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

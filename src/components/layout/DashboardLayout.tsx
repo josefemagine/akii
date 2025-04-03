@@ -57,7 +57,7 @@ import "@/styles/dashboard.css";
 import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import SimpleSidebar from './Sidebar';
-import { supabase, getCurrentUser, getUserProfile, signOut as supabaseSignOut } from '@/lib/supabase-auth';
+import { supabase } from '@/lib/supabase';
 
 interface SidebarItemProps {
   icon: React.ReactNode;
@@ -480,31 +480,182 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
       try {
         setLoading(true);
         // Get current user from Supabase
-        const { data: currentUser, error: userError } = await getCurrentUser();
+        const { data: currentUser, error: userError } = await supabase.auth.getUser();
         
-        if (userError || !currentUser) {
+        if (userError) {
           console.error('Error getting current user:', userError);
-          setLoading(false);
-          return;
-        }
-        
-        setUser(currentUser);
-        
-        // Get user profile
-        if (currentUser.id) {
-          const { data: userProfile, error: profileError } = await getUserProfile(currentUser.id);
+          // Don't return, try to recover from error by checking localStorage and emergency auth
+          tryToRecoverAuth();
+        } else if (currentUser?.user) {
+          console.log('User found from Supabase auth:', currentUser.user.id);
+          setUser(currentUser);
           
-          if (profileError) {
-            console.error('Error getting user profile:', profileError);
-          } else if (userProfile) {
-            setProfile(userProfile);
+          // Get user profile
+          if (currentUser.user.id) {
+            const { data: userProfile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', currentUser.user.id)
+              .single();
+            
+            if (profileError) {
+              console.error('Error getting user profile:', profileError);
+            } else if (userProfile) {
+              console.log('Profile found for user:', userProfile.id);
+              setProfile(userProfile);
+            }
+          }
+        } else {
+          // No user from getUser, check session directly
+          console.log('No user found from getUser, checking session');
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            console.error('Error getting session:', sessionError);
+          } else if (sessionData?.session) {
+            console.log('Session found but no user, setting user from session');
+            setUser({ user: sessionData.session.user });
+            
+            // Get user profile from session
+            if (sessionData.session.user.id) {
+              const { data: userProfile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', sessionData.session.user.id)
+                .single();
+              
+              if (profileError) {
+                console.error('Error getting user profile from session:', profileError);
+              } else if (userProfile) {
+                console.log('Profile found for session user:', userProfile.id);
+                setProfile(userProfile);
+              }
+            }
+          } else {
+            // No session either, try emergency auth
+            tryToRecoverAuth();
           }
         }
       } catch (error) {
         console.error('Exception loading user data:', error);
+        // Try to recover using localStorage
+        tryToRecoverAuth();
       } finally {
         setLoading(false);
       }
+    }
+    
+    // Helper to try to recover auth state from localStorage
+    function tryToRecoverAuth() {
+      console.log('Attempting to recover auth state from localStorage');
+      
+      // Check for emergency auth flag
+      const hasEmergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
+      const emergencyEmail = localStorage.getItem('akii-auth-emergency-email');
+      const emergencyTime = parseInt(localStorage.getItem('akii-auth-emergency-time') || '0');
+      
+      // Only use emergency auth if set within the last 30 minutes
+      if (hasEmergencyAuth && emergencyEmail && Date.now() - emergencyTime < 30 * 60 * 1000) {
+        console.log('Using emergency auth with email:', emergencyEmail);
+        
+        // Create minimal user object from emergency data
+        const emergencyUser = {
+          user: {
+            id: 'emergency-auth-user',
+            email: emergencyEmail,
+            user_metadata: {
+              email: emergencyEmail,
+              first_name: 'Emergency',
+              last_name: 'User'
+            }
+          }
+        };
+        
+        setUser(emergencyUser);
+        
+        // Create minimal profile
+        const emergencyProfile = {
+          id: 'emergency-auth-user',
+          email: emergencyEmail,
+          first_name: 'Emergency',
+          last_name: 'User',
+          role: 'user'
+        };
+        
+        setProfile(emergencyProfile);
+        return true;
+      }
+      
+      // Look for fallback user data
+      const fallbackUserStr = localStorage.getItem('akii-auth-fallback-user');
+      if (fallbackUserStr) {
+        try {
+          const fallbackData = JSON.parse(fallbackUserStr);
+          console.log('Using fallback user data:', fallbackData);
+          
+          const fallbackUser = {
+            user: {
+              id: fallbackData.id || 'fallback-user',
+              email: fallbackData.email,
+              user_metadata: {
+                email: fallbackData.email,
+                first_name: fallbackData.first_name || 'User',
+                last_name: fallbackData.last_name || ''
+              }
+            }
+          };
+          
+          setUser(fallbackUser);
+          
+          // Create profile from fallback data
+          const fallbackProfile = {
+            id: fallbackData.id || 'fallback-user',
+            email: fallbackData.email,
+            first_name: fallbackData.first_name || 'User',
+            last_name: fallbackData.last_name || '',
+            role: fallbackData.role || 'user'
+          };
+          
+          setProfile(fallbackProfile);
+          return true;
+        } catch (e) {
+          console.error('Error parsing fallback user data:', e);
+        }
+      }
+      
+      // Check for any auth tokens as last resort
+      const hasAuthTokens = forceCheckLocalStorageAuth();
+      if (hasAuthTokens) {
+        console.log('Found auth tokens but no user data, using minimal placeholder');
+        
+        const placeholderUser = {
+          user: {
+            id: 'auth-token-user',
+            email: 'authenticated_user@akii.ai',
+            user_metadata: {
+              email: 'authenticated_user@akii.ai',
+              first_name: 'Authenticated',
+              last_name: 'User'
+            }
+          }
+        };
+        
+        setUser(placeholderUser);
+        
+        // Create minimal profile
+        const placeholderProfile = {
+          id: 'auth-token-user',
+          email: 'authenticated_user@akii.ai',
+          first_name: 'Authenticated',
+          last_name: 'User',
+          role: 'user'
+        };
+        
+        setProfile(placeholderProfile);
+        return true;
+      }
+      
+      return false;
     }
     
     loadUserData();
@@ -512,11 +663,14 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
     // Subscribe to auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log(`Auth state changed in DashboardLayout: ${event}`);
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           loadUserData();
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setProfile(null);
+          // Navigate away from dashboard on sign out
+          window.location.href = '/';
         }
       }
     );
@@ -896,13 +1050,23 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
   // Add a function to create the user profile if it doesn't exist
   useEffect(() => {
     // Only run this if we have a user but no profile
+    if (typedUser && !typedUser.id) {
+      console.error("Invalid user object - missing ID");
+      return;
+    }
+    
     if (typedUser && !profile && !loading) {
       console.log("User exists but profile is missing - attempting to create profile");
       
+      let retryCount = 0;
+      const MAX_RETRIES = 3;
+      
       const createUserProfile = async () => {
         try {
-          // Import the needed functions
-          const { supabase } = await import('@/lib/supabase');
+          if (retryCount > MAX_RETRIES) {
+            console.error(`Failed to create profile after ${MAX_RETRIES} attempts`);
+            return;
+          }
           
           // Extract basic user info
           const userId = typedUser.id;
@@ -913,8 +1077,9 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
             return;
           }
           
-          console.log("Checking if profile exists for user:", userId);
+          console.log(`Checking if profile exists for user: ${userId} (attempt ${retryCount + 1})`);
           
+          // Important: Use the imported supabase client to ensure we're using the singleton
           // First check if profile exists but wasn't loaded
           const { data: existingProfile, error: checkError } = await supabase
             .from('profiles')
@@ -924,12 +1089,21 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
             
           if (checkError) {
             console.error("Error checking for existing profile:", checkError);
+            
+            // Retry with exponential backoff on certain errors
+            if (checkError.code === 'PGRST116' || checkError.message?.includes('timeout') || checkError.message?.includes('connection')) {
+              retryCount++;
+              const delay = Math.min(1000 * (2 ** retryCount), 10000); // Exponential backoff with max 10s
+              console.log(`Retrying profile check in ${delay}ms...`);
+              setTimeout(createUserProfile, delay);
+            }
             return;
           }
           
           // If profile exists, don't create a new one
           if (existingProfile) {
             console.log("Profile exists but wasn't loaded in state:", existingProfile);
+            setProfile(existingProfile);
             // Force a component update to refresh profile data
             setForceUpdateCounter(prev => prev + 1);
             return;
@@ -937,11 +1111,30 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
           
           // Extract user metadata
           const userMeta = typedUser.user_metadata || {};
-          const rawMeta = (typedUser._rawData?.raw_user_meta_data || typedUser.raw_user_meta_data || {});
+          const rawMeta: Record<string, any> = typedUser._rawData?.raw_user_meta_data || 
+                          typedUser._rawData?.user_metadata || 
+                          typedUser.raw_user_meta_data || 
+                          {};
           
-          const firstName = userMeta.first_name || rawMeta.first_name || '';
-          const lastName = userMeta.last_name || rawMeta.last_name || '';
-          const avatarUrl = userMeta.avatar_url || '';
+          // Try all possible sources for user name
+          const firstName = userMeta.first_name || 
+                          rawMeta.first_name || 
+                          userMeta.given_name ||
+                          rawMeta.given_name ||
+                          '';
+                          
+          const lastName = userMeta.last_name || 
+                         rawMeta.last_name || 
+                         userMeta.family_name ||
+                         rawMeta.family_name ||
+                         '';
+                         
+          // Get avatar either directly from metadata or from Google/OAuth providers
+          const avatarUrl = userMeta.avatar_url || 
+                          userMeta.picture || 
+                          rawMeta.avatar_url || 
+                          rawMeta.picture || 
+                          '';
           
           // Create profile record
           const profileData = {
@@ -958,21 +1151,46 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
           
           console.log("Creating new profile:", profileData);
           
+          // Insert the profile
           const { error: insertError } = await supabase
             .from('profiles')
             .insert(profileData);
             
           if (insertError) {
             console.error("Error creating user profile:", insertError);
+            
+            // Retry on certain errors
+            if (insertError.code === 'PGRST116' || insertError.message?.includes('timeout') || insertError.message?.includes('connection')) {
+              retryCount++;
+              const delay = Math.min(1000 * (2 ** retryCount), 10000);
+              console.log(`Retrying profile creation in ${delay}ms...`);
+              setTimeout(createUserProfile, delay);
+            }
             return;
           }
           
           console.log("Profile created successfully");
+          setProfile(profileData);
           // Force update to refresh the UI
           setForceUpdateCounter(prev => prev + 1);
           
+          // Also save a backup in localStorage for emergency fallback
+          try {
+            localStorage.setItem('akii-user-profile', JSON.stringify(profileData));
+          } catch (e) {
+            console.error("Error saving profile to localStorage:", e);
+          }
+          
         } catch (e) {
           console.error("Error in profile creation:", e);
+          
+          // Retry on connection errors
+          if (e instanceof Error && (e.message.includes('timeout') || e.message.includes('connection'))) {
+            retryCount++;
+            const delay = Math.min(1000 * (2 ** retryCount), 10000);
+            console.log(`Retrying after error in ${delay}ms...`);
+            setTimeout(createUserProfile, delay);
+          }
         }
       };
       
@@ -995,12 +1213,58 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = async (scope: 'global' | 'local' | 'others' = 'global') => {
     try {
-      await supabaseSignOut();
-      // Additional signout handling here if needed
+      console.log(`Signing out with scope: ${scope}`);
+      
+      // First, import the signOut function directly to ensure consistency
+      const { signOut: authSignOut, clearAuthTokens } = await import('@/lib/supabase-auth');
+      
+      // Call the enhanced signOut function with scope
+      const { error } = await authSignOut(scope);
+      
+      if (error) {
+        console.error("Error signing out:", error);
+      }
+      
+      // Clear local state
+      setUser(null);
+      setProfile(null);
+      
+      // Perform additional token cleanup as fallback
+      try {
+        clearAuthTokens();
+        
+        // Double check with any additional token clearing code needed
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('supabase') || 
+              key.includes('sb-') || 
+              key.includes('akii-auth') || 
+              key.includes('token') || 
+              key.includes('auth') ||
+              key.startsWith('auth-')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch (e) {
+        console.error("Error during token cleanup:", e);
+      }
+      
+      // Force reload the page to ensure a clean state
+      window.location.href = "/?force_logout=true";
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.error("Exception during logout:", error);
+      
+      // Fallback - try to remove tokens and redirect even if there's an error
+      try {
+        const { clearAuthTokens } = await import('@/lib/supabase-auth');
+        clearAuthTokens();
+      } catch (e) {
+        console.error("Error in fallback token cleanup:", e);
+      }
+      
+      // Redirect to home page with force logout parameter
+      window.location.href = "/?force_logout=true";
     }
   };
 
@@ -1027,32 +1291,118 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
     
     // If no profile but we have a user
     if (typedUser) {
-      // Gather data from user metadata
+      // Try to get data from all possible locations in user object
       const userMeta = typedUser.user_metadata || {};
-      const rawMeta = (typedUser._rawData?.raw_user_meta_data || typedUser.raw_user_meta_data || {});
+      const rawMeta: Record<string, any> = typedUser._rawData?.raw_user_meta_data || 
+                      typedUser._rawData?.user_metadata || 
+                      typedUser.raw_user_meta_data || 
+                      {};
       
-      userData.firstName = userMeta.first_name || rawMeta.first_name || null;
-      userData.lastName = userMeta.last_name || rawMeta.last_name || null;
-      userData.email = typedUser.email || null;
-      userData.avatarUrl = userMeta.avatar_url || null;
+      // OAuth providers often store name in different places
+      const identities = typedUser.identities || [];
+      let identityData: Record<string, any> = {};
+      
+      if (identities.length > 0) {
+        identityData = identities[0]?.identity_data || {};
+      }
+      
+      userData.firstName = userMeta.first_name || 
+                          rawMeta.first_name || 
+                          identityData?.given_name ||
+                          (identityData?.name ? identityData.name.split(' ')[0] : null) ||
+                          (identityData?.full_name ? identityData.full_name.split(' ')[0] : null) ||
+                          null;
+                          
+      userData.lastName = userMeta.last_name || 
+                         rawMeta.last_name || 
+                         identityData?.family_name ||
+                         (identityData?.name ? identityData.name.split(' ').slice(1).join(' ') : null) ||
+                         (identityData?.full_name ? identityData.full_name.split(' ').slice(1).join(' ') : null) ||
+                         null;
+                         
+      userData.email = typedUser.email || userMeta.email || rawMeta.email || null;
+      userData.avatarUrl = userMeta.avatar_url || userMeta.picture || rawMeta.avatar_url || identityData?.avatar_url || null;
       userData.isAuthenticated = true;
+      
       return userData;
     }
     
     // Try to get data from localStorage
     if (hasStorageAuth) {
       try {
-        const fallbackUserStr = localStorage.getItem("akii-auth-fallback-user");
-        if (fallbackUserStr) {
-          const fallbackData = JSON.parse(fallbackUserStr);
-          userData.firstName = fallbackData.first_name || null;
-          userData.lastName = fallbackData.last_name || null;
-          userData.email = fallbackData.email || null;
+        // Look for various places where user data might be stored
+        const possibleKeys = [
+          "akii-auth-fallback-user",
+          "akii-user-profile",
+          "akii-auth-user-data", 
+          "sb-user-data"
+        ];
+        
+        for (const key of possibleKeys) {
+          const dataStr = localStorage.getItem(key);
+          if (dataStr) {
+            try {
+              const data = JSON.parse(dataStr);
+              if (data) {
+                userData.firstName = data.first_name || data.firstName || data.given_name || null;
+                userData.lastName = data.last_name || data.lastName || data.family_name || null;
+                userData.email = data.email || null;
+                userData.avatarUrl = data.avatar_url || data.avatarUrl || data.picture || null;
+                userData.isAuthenticated = true;
+                return userData;
+              }
+            } catch (e) {
+              console.error(`Error parsing ${key}:`, e);
+            }
+          }
+        }
+        
+        // If we couldn't get user data from the standard sources,
+        // try to extract email from auth-related localStorage keys
+        const emailKeys = [
+          'akii-auth-user-email',
+          'akii-auth-robust-email',
+          'akii_admin_override_email'
+        ];
+        
+        for (const key of emailKeys) {
+          const email = localStorage.getItem(key);
+          if (email) {
+            console.log(`Found email in localStorage key ${key}: ${email}`);
+            userData.email = email;
+            userData.isAuthenticated = true;
+            
+            // Extract a name from the email if possible
+            if (email.includes('@')) {
+              const username = email.split('@')[0];
+              // Convert username to a name format (e.g., "john.doe" -> "John")
+              const formattedName = username
+                .split(/[._-]/) // Split by common username separators
+                .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+                .join(' ');
+              
+              userData.firstName = formattedName;
+            }
+            
+            return userData;
+          }
+        }
+        
+        // As a last resort, generate placeholder data if we have tokens but no user info
+        if (Object.keys(localStorage).some(key => 
+          key.includes('token') || 
+          key.includes('supabase') || 
+          key.includes('auth') || 
+          key.includes('sb-')
+        )) {
+          console.log("Found auth tokens but no user data - creating placeholder");
+          userData.firstName = "Account";
+          userData.email = "authenticated_user@akii.ai";
           userData.isAuthenticated = true;
           return userData;
         }
       } catch (e) {
-        console.error("Error parsing fallback user data:", e);
+        console.error("Error looking for user data in localStorage:", e);
       }
     }
     
@@ -1171,10 +1521,15 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
                     className="flex items-center gap-2 rounded-full overflow-hidden"
                   >
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src="" alt="User's profile picture" />
-                      <AvatarFallback>
-                        <UserIcon className="h-5 w-5" />
-                      </AvatarFallback>
+                      {userDisplayData.avatarUrl ? (
+                        <AvatarImage src={userDisplayData.avatarUrl} alt="User's profile picture" />
+                      ) : (
+                        <AvatarFallback>
+                          {userDisplayData.firstName?.charAt(0) || 
+                           userDisplayData.email?.charAt(0)?.toUpperCase() || 
+                           <UserIcon className="h-5 w-5" />}
+                        </AvatarFallback>
+                      )}
                     </Avatar>
                     <span className="font-medium ml-1 hidden md:inline-block">
                       {userDisplayData.firstName || userDisplayData.email?.split('@')[0] || 'User'}
@@ -1182,11 +1537,24 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>Profile</DropdownMenuItem>
-                  <DropdownMenuItem>Settings</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/settings')}>
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/settings')}>
+                    Settings
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    Sign Out
+                  <DropdownMenuItem onClick={() => handleSignOut('local')}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out (This Device)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSignOut('others')}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out (Other Devices)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSignOut('global')}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out (All Devices)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

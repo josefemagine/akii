@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { supabase } from "@/lib/supabase-singleton";
+import { supabase } from "@/lib/supabase";
 import { toast } from "@/components/ui/use-toast";
 import {
   AlertCircle,

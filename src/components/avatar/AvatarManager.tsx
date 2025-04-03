@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CheckCircle, X, Upload, Loader2 } from 'lucide-react';
-import { supabase, getSupabaseClient } from "@/lib/supabase-singleton";
+import { supabase, getSupabaseClient } from "@/lib/supabase";
 
 export interface AvatarManagerProps {
   userId?: string;
@@ -99,27 +99,19 @@ export const AvatarManager: React.FC<AvatarManagerProps> = ({
       setUploadStatus('uploading');
       setUploadProgress(0);
       
-      // Create unique filename
+      // Create unique filename - IMPORTANT: Format should follow what RLS policy expects
+      // The RLS policy expects: bucket_id = 'avatars' AND auth.uid() = (storage.foldername(name))[1]::uuid
       const fileExt = file.name.split('.').pop();
-      const fileName = `avatar-${userId}-${Date.now()}.${fileExt}`;
+      // Format: userId/avatar-timestamp.ext - this allows the RLS policy to extract the userId from the path
+      const fileName = `${userId}/avatar-${Date.now()}.${fileExt}`;
       const bucketName = 'avatars';
       
       console.log(`Starting avatar upload to ${bucketName}/${fileName}`);
       
-      // First, check if the bucket exists
-      const { data: buckets } = await getSupabaseClient().storage.listBuckets();
-      
-      if (!buckets || !buckets.some(b => b.name === bucketName)) {
-        // If bucket doesn't exist, try to create it
-        console.log(`Bucket ${bucketName} not found, creating...`);
-        try {
-          await getSupabaseClient().storage.createBucket(bucketName, {
-            public: true
-          });
-        } catch (createError) {
-          console.error(`Failed to create bucket: ${bucketName}`, createError);
-          throw new Error(`Storage bucket "${bucketName}" not available`);
-        }
+      // Get the current user's auth session to ensure we're authenticated
+      const { data: session } = await getSupabaseClient().auth.getSession();
+      if (!session?.session) {
+        throw new Error('User authentication required for uploading avatar');
       }
       
       // Upload with progress tracking
@@ -131,6 +123,11 @@ export const AvatarManager: React.FC<AvatarManagerProps> = ({
         });
         
       if (error) {
+        console.error('Avatar upload error:', error);
+        // If the error is related to the bucket not existing, provide a clear message
+        if (error.message?.includes('bucket')) {
+          throw new Error(`Storage bucket "${bucketName}" not found. Please contact your administrator.`);
+        }
         throw error;
       }
       

@@ -1,5 +1,5 @@
 import React from 'react';
-import { debugSupabaseInstances } from "@/lib/supabase-singleton";
+import { debugSupabaseInstances } from "@/lib/supabase";
 
 export default function HomePage() {
   const handleDebugClick = () => {

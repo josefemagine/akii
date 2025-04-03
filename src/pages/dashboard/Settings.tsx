@@ -5,25 +5,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import AvatarManager from "@/components/avatar/AvatarManager";
-import { supabase } from "@/lib/supabase-singleton";
+import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { Loader2, LogIn, RefreshCw } from "lucide-react";
-
-// Import the useAuth hook conditionally to prevent errors
-let useAuth: any = () => ({ user: null });
-try {
-  // Try to import from StandardAuthContext first (new implementation)
-  useAuth = require("@/contexts/StandardAuthContext").useAuth;
-} catch (e) {
-  console.warn("Failed to import useAuth from StandardAuthContext, using fallback");
-  try {
-    // Try AuthContext as fallback
-    useAuth = require("@/contexts/AuthContext").useAuth;
-  } catch (e2) {
-    console.warn("Failed to import useAuth from any context, using dummy implementation");
-    // Keep the dummy implementation
-  }
-}
+import { useAuth } from "@/contexts/auth-compatibility";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import BillingPage from "./Billing";
 
 // Define Profile types
 interface UserProfile {
@@ -53,6 +40,153 @@ interface AuthDebugState {
   timestamp: string;
 }
 
+// Profile Settings Component
+const ProfileSettings = ({
+  profile,
+  isLoading,
+  error,
+  isSaving,
+  authState,
+  handleProfileUpdate,
+  handleRefresh,
+  handleSignIn,
+  setProfile
+}) => {
+  return (
+    <div className="space-y-6">
+      {/* Profile Information */}
+      {isLoading ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Loading Profile</CardTitle>
+            <CardDescription>Please wait while we load your profile...</CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center py-6">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </CardContent>
+        </Card>
+      ) : error && !profile ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Error Loading Profile</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleSignIn} className="mr-2">
+              <LogIn className="mr-2 h-4 w-4" /> Sign In Again
+            </Button>
+            <Button onClick={handleRefresh} variant="outline">
+              <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+            </Button>
+          </CardContent>
+        </Card>
+      ) : profile?.needsRefresh ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile Needs Refresh</CardTitle>
+            <CardDescription>There was a problem loading your complete profile data.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4">Basic Info: {profile.email} (ID: {profile.id})</p>
+            <Button onClick={handleRefresh}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Refresh Profile
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <form onSubmit={handleProfileUpdate}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile Settings</CardTitle>
+              <CardDescription>Update your personal information</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Avatar */}
+              <div className="flex justify-center mb-6">
+                <AvatarManager
+                  initialAvatarUrl={profile?.avatar_url || ''}
+                  userId={profile?.id || ''}
+                  onAvatarChange={(url) => setProfile({...profile, avatar_url: url})}
+                  size="xl"
+                />
+              </div>
+              
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  value={profile?.email || ''}
+                  disabled
+                  type="email"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your email cannot be changed. Contact support if you need to update your email.
+                </p>
+              </div>
+
+              {/* First Name */}
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  value={profile?.first_name || ''}
+                  onChange={(e) => setProfile({...profile, first_name: e.target.value})}
+                  placeholder="Enter your first name"
+                />
+              </div>
+
+              {/* Last Name */}
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  value={profile?.last_name || ''}
+                  onChange={(e) => setProfile({...profile, last_name: e.target.value})}
+                  placeholder="Enter your last name"
+                />
+              </div>
+
+              {/* Company */}
+              <div className="space-y-2">
+                <Label htmlFor="company">Company</Label>
+                <Input
+                  id="company"
+                  value={profile?.company || ''}
+                  onChange={(e) => setProfile({...profile, company: e.target.value})}
+                  placeholder="Enter your company name"
+                />
+              </div>
+
+              {/* Account Status */}
+              <div className="space-y-2">
+                <Label htmlFor="status">Account Status</Label>
+                <div className="flex items-center space-x-2">
+                  <span className={`h-2.5 w-2.5 rounded-full ${
+                    profile?.status === 'active' ? 'bg-green-500' : 
+                    profile?.status === 'pending' ? 'bg-amber-500' : 'bg-gray-300'
+                  }`}></span>
+                  <span className="capitalize">{profile?.status || 'Unknown'}</span>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <Button type="submit" className="w-full" disabled={isSaving}>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : "Save Changes"}
+              </Button>
+            </CardContent>
+          </Card>
+        </form>
+      )}
+    </div>
+  );
+};
+
 const Settings = () => {
   // State
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -60,6 +194,7 @@ const Settings = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [authState, setAuthState] = useState<AuthDebugState | null>(null);
+  const [activeTab, setActiveTab] = useState("profile");
   
   // Navigation
   const navigate = useNavigate();
@@ -81,42 +216,74 @@ const Settings = () => {
         console.log("Settings: Checking auth state...");
         setIsLoading(true);
         
-        // Try to get session directly from Supabase
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        // Import necessary functions
+        const { getCurrentSession, getCurrentUser, ensureUserProfile } = await import('@/lib/supabase-auth');
         
-        // Get stored email/ID from localStorage as fallback
-        const storedEmail = localStorage.getItem("akii-auth-user-email");
-        const storedUserId = localStorage.getItem("akii-auth-user-id");
+        // Try to get session from Supabase
+        const { data: session, error: sessionError } = await getCurrentSession();
         
-        // Collect auth state for debugging
+        if (sessionError) {
+          console.error("Settings: Session error:", sessionError);
+          setError("Authentication error. Please try signing in again.");
+          setIsLoading(false);
+          return;
+        }
+        
+        if (!session) {
+          console.log("Settings: No active session found");
+          setError("You are not logged in. Please sign in to access settings.");
+          setIsLoading(false);
+          return;
+        }
+        
+        // Get the current user
+        const { data: user, error: userError } = await getCurrentUser();
+        
+        if (userError || !user) {
+          console.error("Settings: User error:", userError);
+          setError("Could not retrieve user information. Please try signing in again.");
+          setIsLoading(false);
+          return;
+        }
+        
+        // Store user information in auth state for debugging
         const authStateInfo: AuthDebugState = {
-          hasAuthUser: !!authUser,
-          authUserId: authUser?.id,
-          authUserEmail: authUser?.email,
-          hasSession: !!sessionData?.session,
-          sessionUserId: sessionData?.session?.user?.id,
-          sessionUserEmail: sessionData?.session?.user?.email,
+          hasAuthUser: !!user,
+          authUserId: user?.id,
+          authUserEmail: user?.email,
+          hasSession: !!session,
+          sessionUserId: session?.user?.id,
+          sessionUserEmail: session?.user?.email,
           sessionError: sessionError?.message,
-          storedEmail,
-          storedUserId,
+          storedEmail: localStorage.getItem("akii-auth-user-email"),
+          storedUserId: localStorage.getItem("akii-auth-user-id"),
           timestamp: new Date().toISOString()
         };
         
         console.log("Settings: Auth state info:", authStateInfo);
         setAuthState(authStateInfo);
         
-        // Check if we have any valid user ID
-        const userId = authUser?.id || sessionData?.session?.user?.id || storedUserId;
+        // Ensure the user has a profile (this will create one if it doesn't exist)
+        const { data: profileData, error: profileError } = await ensureUserProfile(user);
         
-        if (!userId) {
-          console.error("Settings: No authenticated user ID found");
-          setError("You are not logged in. Please sign in to access settings.");
+        if (profileError) {
+          console.error("Settings: Profile error:", profileError);
+          setError(`Error loading your profile: ${profileError.message}. Please try refreshing the page.`);
           setIsLoading(false);
           return;
         }
         
-        // We have a user ID, try to load the profile
-        await loadUserProfile(userId);
+        if (!profileData) {
+          console.error("Settings: No profile data returned");
+          // Try direct profile lookup as a fallback
+          await loadUserProfile(user.id);
+          return;
+        }
+        
+        // Successfully got profile
+        console.log("Settings: Profile loaded:", profileData);
+        setProfile(profileData);
+        setIsLoading(false);
       } catch (error) {
         console.error("Settings: Error checking auth state:", error);
         setError("Error checking authentication. Please try signing in again.");
@@ -125,7 +292,7 @@ const Settings = () => {
     }
     
     checkAuthState();
-  }, [authUser]);
+  }, []);
 
   // Load user profile
   async function loadUserProfile(userId: string) {
@@ -236,311 +403,83 @@ const Settings = () => {
       return;
     }
     
+    setIsSaving(true);
+    
     try {
-      setIsSaving(true);
-      
-      const form = e.target as HTMLFormElement;
-      const formData = new FormData(form);
-      
-      const firstName = formData.get('firstName') as string;
-      const lastName = formData.get('lastName') as string;
-      const company = formData.get('company') as string;
-      
-      console.log("Settings: Updating profile for user ID:", profile.id);
-      
-      // Check if this is a new profile or update
-      const isNewProfile = !profile.created_at;
-      
-      // Define the profile data with appropriate type
-      const profileData: {
-        id: string;
-        first_name: string;
-        last_name: string;
-        company: string;
-        email: string;
-        updated_at: string;
-        created_at?: string;
-        status?: string;
-        role?: string;
-      } = {
-        id: profile.id,
-        first_name: firstName,
-        last_name: lastName,
-        company,
-        email: profile.email,
-        updated_at: new Date().toISOString(),
-      };
-      
-      // Add created_at for new profiles
-      if (isNewProfile) {
-        profileData.created_at = new Date().toISOString();
-        profileData.status = 'active';
-        profileData.role = profile.email === 'josef@holm.com' ? 'admin' : 'user';
-      }
-      
-      // Update or insert profile in your database table
-      const { error: upsertError } = await supabase
+      // Update the profile in the database
+      const { error } = await supabase
         .from('profiles')
-        .upsert(profileData);
-        
-      if (upsertError) {
-        throw new Error(`Failed to save profile: ${upsertError.message}`);
+        .update({
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          company: profile.company,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', profile.id);
+      
+      if (error) {
+        throw error;
       }
       
-      // Update local state
-      setProfile(prev => ({
-        ...prev,
-        ...profileData
-      }));
-      
       toast({
-        title: isNewProfile ? "Profile Created" : "Profile Updated",
-        description: isNewProfile 
-          ? "Your profile has been created successfully."
-          : "Your profile information has been saved.",
+        title: "Success",
+        description: "Your profile has been updated.",
       });
-      
     } catch (error) {
-      console.error("Settings: Failed to save profile:", error);
+      console.error("Settings: Error updating profile:", error);
       toast({
-        title: "Save Failed",
-        description: error instanceof Error ? error.message : "Failed to save your profile",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update profile",
         variant: "destructive",
       });
     } finally {
       setIsSaving(false);
     }
   };
-
-  // Handle sign in redirect
+  
   const handleSignIn = () => {
     navigate("/login");
   };
-
-  // Handle refresh
+  
   const handleRefresh = () => {
     window.location.reload();
   };
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="container py-10 flex items-center justify-center min-h-[300px] flex-col">
-        <Loader2 className="h-8 w-8 text-primary animate-spin mb-4" />
-        <p className="text-primary font-medium">Loading your profile...</p>
-        <p className="text-sm text-muted-foreground mt-2">This may take a moment</p>
-        
-        {/* Add a refresh button that appears after 10 seconds */}
-        <div className="mt-6 opacity-0" style={{
-          animationDelay: '10s', 
-          animationFillMode: 'forwards',
-          animation: 'fadeIn 0.5s ease-in-out forwards'
-        }}>
-          <Button variant="outline" size="sm" onClick={handleRefresh} className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Not loading? Click to refresh
-          </Button>
-        </div>
-        
-        {/* Add keyframes for fadeIn animation */}
-        <style>
-          {`
-            @keyframes fadeIn {
-              from { opacity: 0; }
-              to { opacity: 1; }
-            }
-          `}
-        </style>
-      </div>
-    );
-  }
-
-  // Authentication error - need to sign in
-  if (error === "You are not logged in. Please sign in to access settings.") {
-    return (
-      <div className="container py-10 max-w-2xl">
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
-          <h3 className="text-lg font-medium text-amber-800 mb-2">Authentication Required</h3>
-          <p className="text-amber-700 mb-4">
-            You need to be signed in to view and edit your profile settings.
-          </p>
-          <div className="flex gap-3">
-            <Button onClick={handleSignIn}>
-              <LogIn className="mr-2 h-4 w-4" />
-              Sign In
-            </Button>
-            <Button variant="outline" onClick={handleRefresh}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
-            </Button>
-          </div>
-        </div>
-        
-        {/* Debug auth state */}
-        {authState && (
-          <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs font-mono">
-            <h4 className="font-medium mb-2 text-sm">Auth Debug Info</h4>
-            <pre className="overflow-auto whitespace-pre-wrap">
-              {JSON.stringify(authState, null, 2)}
-            </pre>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Add a special case for error states to render the retry UI
-  if (error && (!profile || profile.needsRefresh)) {
-    return (
-      <div className="container py-10 flex flex-col items-center justify-center min-h-[300px]">
-        <div className="bg-destructive/10 p-6 rounded-lg max-w-md mx-auto text-center mb-6">
-          <h2 className="text-xl font-semibold mb-2">Profile Loading Error</h2>
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <div className="flex gap-4 justify-center">
-            <Button onClick={handleRefresh} className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Refresh Page
-            </Button>
-            <Button variant="outline" onClick={handleSignIn} className="flex items-center gap-2">
-              <LogIn className="h-4 w-4" />
-              Sign In Again
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show profile form (whether creating new or editing existing)
   return (
-    <div className="container max-w-4xl py-10">
-      {/* Warning for new profile */}
-      {error === "Your profile hasn't been set up yet. Please complete the form below to create it." && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-          <h3 className="font-medium text-amber-800">Profile Setup Required</h3>
-          <p className="text-amber-700 text-sm">
-            Please fill out your profile information below to complete your account setup.
+    <div className="max-w-5xl mx-auto py-6">
+      <div className="flex flex-col space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
+          <p className="text-muted-foreground mt-2">
+            Manage your account settings and preferences
           </p>
         </div>
-      )}
-      
-      <h1 className="text-3xl font-bold mb-2">Settings</h1>
-      <p className="text-muted-foreground mb-6">Manage your account settings and preferences.</p>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile Information</CardTitle>
-          <CardDescription>
-            {profile?.created_at ? 
-              "Update your profile information and how others see you." : 
-              "Complete your profile information to set up your account."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleProfileUpdate} className="space-y-8">
-            <div className="flex flex-col md:flex-row gap-8">
-              <div className="flex flex-col items-center">
-                <AvatarManager 
-                  userId={profile?.id}
-                  userEmail={profile?.email}
-                  initialAvatarUrl={profile?.avatar_url}
-                  googleAvatarUrl={authUser?.user_metadata?.avatar_url}
-                  size="xl"
-                  onAvatarChange={(url) => {
-                    if (url && profile?.id) {
-                      // Update avatar in database
-                      supabase
-                        .from('profiles')
-                        .update({ avatar_url: url })
-                        .eq('id', profile.id)
-                        .then(({ error }) => {
-                          if (error) {
-                            console.error("Failed to save avatar:", error);
-                            toast({
-                              title: "Avatar Update Failed",
-                              description: "Could not save your avatar to the database",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-                          
-                          // Update local state
-                          setProfile(prev => ({ ...prev, avatar_url: url }));
-                          
-                          toast({
-                            title: "Avatar Updated",
-                            description: "Your profile picture has been updated successfully.",
-                          });
-                        });
-                    }
-                  }}
-                />
-                <p className="text-sm text-muted-foreground mt-4 text-center max-w-xs">
-                  Click or drag an image to upload. For best results, use a square image.
-                </p>
-              </div>
-              
-              <div className="space-y-4 flex-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input
-                      id="firstName"
-                      name="firstName"
-                      defaultValue={profile?.first_name || ''}
-                      placeholder="Your first name"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input
-                      id="lastName"
-                      name="lastName"
-                      defaultValue={profile?.last_name || ''}
-                      placeholder="Your last name"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={profile?.email || ''}
-                    readOnly
-                    disabled
-                    className="bg-muted"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="company">Company</Label>
-                  <Input
-                    id="company"
-                    name="company"
-                    defaultValue={profile?.company || ''}
-                    placeholder="Your company name"
-                  />
-                </div>
-                
-                <div className="pt-4">
-                  <Button type="submit" disabled={isSaving}>
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : profile?.created_at ? "Save Changes" : "Create Profile"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="profile" className="space-y-4">
+            <ProfileSettings 
+              profile={profile}
+              isLoading={isLoading}
+              error={error}
+              isSaving={isSaving}
+              authState={authState}
+              handleProfileUpdate={handleProfileUpdate}
+              handleRefresh={handleRefresh}
+              handleSignIn={handleSignIn}
+              setProfile={setProfile}
+            />
+          </TabsContent>
+          
+          <TabsContent value="billing" className="space-y-4">
+            <BillingPage />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };

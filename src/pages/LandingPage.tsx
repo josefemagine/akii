@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import WebChatAnimation from "@/components/animations/WebChatAnimation";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AnimatedText from "@/components/animations/AnimatedText";
-import LeadMagnetButton from "@/components/marketing/LeadMagnetButton";
+import DataFlowAnimation from "@/components/animations/DataFlowAnimation";
 import { useAuth } from "@/contexts/auth-compatibility";
 import {
   Zap,
@@ -18,6 +19,22 @@ import {
   BarChart,
   Users,
   Globe,
+  Lock,
+  Shield,
+  Database,
+  ShieldCheck,
+  UserCog,
+  Network,
+  Building,
+  User,
+  Headphones,
+  PieChart,
+  Server,
+  BookOpen,
+  FileText,
+  BriefcaseBusiness,
+  CreditCard,
+  Monitor,
 } from "lucide-react";
 
 // Add interfaces for the section props
@@ -26,70 +43,89 @@ interface SectionWithUserProps {
 }
 
 const HeroSection = ({ user }: SectionWithUserProps) => {
+  const [typedText1, setTypedText1] = React.useState("");
+  const [typedText2, setTypedText2] = React.useState("");
+  const [typedText3, setTypedText3] = React.useState("");
+  const fullText1 = "Your AI.";
+  const fullText2 = "Your Data.";
+  const fullText3 = "No Leaks.";
+  
+  React.useEffect(() => {
+    // Animate first line
+    let i = 0;
+    const typeTimer1 = setInterval(() => {
+      if (i < fullText1.length) {
+        setTypedText1(fullText1.substring(0, i + 1));
+        i++;
+      } else {
+        clearInterval(typeTimer1);
+        
+        // Start animating second line
+        let j = 0;
+        const typeTimer2 = setInterval(() => {
+          if (j < fullText2.length) {
+            setTypedText2(fullText2.substring(0, j + 1));
+            j++;
+          } else {
+            clearInterval(typeTimer2);
+            
+            // Start animating third line
+            let k = 0;
+            const typeTimer3 = setInterval(() => {
+              if (k < fullText3.length) {
+                setTypedText3(fullText3.substring(0, k + 1));
+                k++;
+              } else {
+                clearInterval(typeTimer3);
+              }
+            }, 100);
+          }
+        }, 100);
+      }
+    }, 100);
+    
+    return () => {
+      // Cleanup timers
+      clearInterval(typeTimer1);
+    };
+  }, []);
+  
   return (
-    <section className="py-20 md:py-28 bg-gradient-to-b from-background to-muted/30">
-      <div className="container px-4 md:px-6">
-        <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
-          <div className="flex flex-col justify-center space-y-4">
-            <div className="space-y-2">
-              <h1 className="text-3xl font-bold tracking-wide sm:text-5xl xl:text-6xl/none">
-                Your Company's Own AI{" "}
-                <span className="text-akii">
-                  <AnimatedText
-                    words={[
-                      "Assistant",
-                      "Sales Support",
-                      "Researcher",
-                      "Data Analyst",
-                      "Customer Support",
-                      "Compliance Analyst",
-                      "Order Fulfillment",
-                      "Technical Support",
-                      "Internal IT Support",
-                      "Helpdesk Agent",
-                      "Inventory Manager",
-                      "HR Coordinator",
-                      "Customer Onboarding",
-                      "Live Chat Agent",
-                      "Billing Support",
-                      "Account Executive",
-                      "Data Entry Clerk",
-                      "Lead Qualification",
-                      "Survey & Feedback",
-                    ]}
-                    interval={1000}
-                  />
-                </span>
+    <section className="py-20 md:py-28 bg-gradient-to-b from-background to-muted/30 relative overflow-hidden">
+      <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none"></div>
+      <div className="container px-4 md:px-6 relative z-10">
+        <div className="grid gap-6 lg:grid-cols-[1fr_500px] lg:gap-12 xl:grid-cols-[1fr_600px]">
+          <div className="flex flex-col justify-center space-y-6">
+            <div className="space-y-4">
+              <h1 className="text-5xl font-bold tracking-tight sm:text-6xl xl:text-7xl/none flex flex-col space-y-2">
+                <span>{typedText1}<span className={typedText1.length === fullText1.length || typedText1.length === 0 ? "opacity-0" : "animate-blink"}>|</span></span>
+                <span>{typedText2}<span className={typedText2.length === fullText2.length || typedText2.length === 0 ? "opacity-0" : "animate-blink"}>|</span></span>
+                <span className="text-primary">{typedText3}<span className={typedText3.length === fullText3.length || typedText3.length === 0 ? "opacity-0" : "animate-blink"}>|</span></span>
               </h1>
-              <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                Train it. Own it. Build on top of it. Deploy your own private AI
-                instance for sales, support, operations, compliance, HR, and
-                analytics. Secure, scalable, private, and easy to use.
+              <p className="max-w-[600px] text-muted-foreground text-xl">
+                Launch your own private AI instance, fully isolated and trained on your data — not anyone else's.
               </p>
             </div>
-            <div className="flex flex-col gap-2 min-[400px]:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row">
               {user ? (
-                <Button size="lg" className="bg-green-500 hover:bg-green-600" asChild>
-                  <Link to="/dashboard">Go to Dashboard</Link>
+                <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg py-6" asChild>
+                  <Link to="/dashboard">YOUR AI IN 5 MINUTES</Link>
                 </Button>
               ) : (
                 <>
-                  <Button size="lg" asChild>
-                    <Link to="/signup">Get Started</Link>
+                  <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg py-6" asChild>
+                    <Link to="/signup">YOUR AI IN 5 MINUTES</Link>
                   </Button>
                   <Button size="lg" variant="outline" asChild>
-                    <Link to="/demo">Request Demo</Link>
+                    <Link to="/pricing">See Pricing</Link>
                   </Button>
                 </>
               )}
             </div>
           </div>
           <div className="flex items-center justify-center">
-            <div className="relative w-full max-w-[500px] aspect-square">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-full blur-3xl" />
-              <div className="relative z-10 w-full h-full rounded-lg shadow-xl overflow-hidden">
-                <WebChatAnimation />
-              </div>
+            <div className="relative w-full max-w-[500px] h-[380px] sm:h-[410px] md:h-[430px] rounded-lg shadow-xl overflow-hidden bg-transparent">
+              <DataFlowAnimation />
             </div>
           </div>
         </div>
@@ -98,229 +134,132 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
   );
 };
 
-const ProductsSection = () => {
-  const products = [
-    {
-      icon: <Code className="h-10 w-10 text-primary" />,
-      title: "Private AI API",
-      description:
-        "Deploy, train, and scale your own private AI instance. Build anything on top of it with our powerful API platform.",
-      link: "/products/private-ai-api",
-      featured: true,
-    },
-    {
-      icon: <MessageSquare className="h-10 w-10 text-primary" />,
-      title: "Web Chat Agent",
-      description:
-        "Integrate AI chat agents directly into your website to engage visitors 24/7.",
-      link: "/products/web-chat-agent",
-    },
-    {
-      icon: <Smartphone className="h-10 w-10 text-primary" />,
-      title: "Mobile Chat Agent",
-      description:
-        "Native mobile SDK for iOS and Android to provide AI support in your apps.",
-      link: "/products/mobile-chat-agent",
-    },
-    {
-      icon: <Share2 className="h-10 w-10 text-primary" />,
-      title: "WhatsApp Chat Agent",
-      description:
-        "Connect your AI agents to WhatsApp for seamless customer interactions.",
-      link: "/products/whatsapp-chat-agent",
-    },
-    {
-      icon: <Share2 className="h-10 w-10 text-primary" />,
-      title: "Telegram Chat Agent",
-      description:
-        "Deploy AI agents on Telegram to reach customers on their preferred platform.",
-      link: "/products/telegram-chat-agent",
-    },
-    {
-      icon: <ShoppingCart className="h-10 w-10 text-primary" />,
-      title: "Shopify Chat Agent",
-      description:
-        "Boost sales with AI agents specifically designed for Shopify stores.",
-      link: "/products/shopify-chat-agent",
-    },
-    {
-      icon: <Code className="h-10 w-10 text-primary" />,
-      title: "WordPress Chat Agent",
-      description:
-        "Easy-to-install WordPress plugin for adding AI agents to your site.",
-      link: "/products/wordpress-chat-agent",
-    },
-  ];
-
+const DataPrivacySection = () => {
   return (
-    <section className="py-16 md:py-24 bg-background">
+    <section className="py-16 md:py-24 bg-muted/20">
       <div className="container px-4 md:px-6">
-        <div className="flex flex-col items-center justify-center space-y-4 text-center">
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-              Our AI Agent Solutions
+        <div className="flex flex-col items-center justify-center space-y-4 text-center mb-10">
+          <div className="space-y-2 max-w-3xl">
+            <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">
+              Data Privacy You Can Trust
             </h2>
-            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
-              Integrate AI agents across multiple platforms to provide seamless
-              customer experiences.
+            <p className="text-muted-foreground text-lg">
+              Enterprise-grade security and isolation, ensuring your data remains yours alone.
             </p>
           </div>
         </div>
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 mt-12">
-          {products.map((product, index) => (
-            <Card
-              key={index}
-              className={`flex flex-col h-full ${product.featured ? "border-primary/50 shadow-lg" : ""}`}
-            >
-              <CardContent className="flex flex-col items-start space-y-4 p-6">
-                <div
-                  className={`p-2 ${product.featured ? "bg-primary/20" : "bg-primary/10"} rounded-lg`}
-                >
-                  {product.icon}
-                </div>
-                <div className="space-y-2">
-                  <h3
-                    className={`font-bold ${product.featured ? "text-lg text-primary" : ""}`}
-                  >
-                    {product.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {product.description}
-                  </p>
-                </div>
-                <div className="mt-auto pt-4">
-                  <Link
-                    to={product.link}
-                    className={`inline-flex items-center text-sm font-medium ${product.featured ? "text-primary" : "text-primary"}`}
-                  >
-                    Learn more <ArrowRight className="ml-1 h-4 w-4" />
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
-
-const ResearchSection = () => {
-  return (
-    <section className="py-16 md:py-24 bg-muted/30">
-      <div className="container px-4 md:px-6">
-        <div className="grid gap-6 lg:grid-cols-2 lg:gap-12">
-          <div className="flex flex-col justify-center space-y-4">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-                Proven Results with AI Agents
-              </h2>
-              <p className="text-muted-foreground md:text-xl">
-                Recent research shows that companies using AI agents on their
-                websites see remarkable improvements in key metrics.
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Card className="bg-card hover:shadow-md transition-shadow">
+            <CardContent className="pt-6">
+              <ShieldCheck className="h-10 w-10 text-primary mb-4" />
+              <h3 className="text-xl font-semibold mb-2">No AI Data Leaks</h3>
+              <p className="text-muted-foreground">
+                Your prompts are never stored or used to train public models. What happens in your AI, stays in your AI.
               </p>
-            </div>
-            <ul className="grid gap-4">
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <p className="font-medium">67% Increase in Sales</p>
-                  <p className="text-sm text-muted-foreground">
-                    Companies reported an average 67% increase in conversion
-                    rates after implementing AI chat agents.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <p className="font-medium">30% Reduction in HR Costs</p>
-                  <p className="text-sm text-muted-foreground">
-                    Businesses reduced customer support staffing costs by an
-                    average of 30% while maintaining or improving service
-                    quality.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <p className="font-medium">24/7 Customer Support</p>
-                  <p className="text-sm text-muted-foreground">
-                    AI agents provide round-the-clock support, answering 92% of
-                    common customer questions without human intervention.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <p className="font-medium">5x Faster Response Times</p>
-                  <p className="text-sm text-muted-foreground">
-                    Customer inquiries are addressed 5 times faster on average,
-                    leading to higher satisfaction rates.
-                  </p>
-                </div>
-              </li>
-            </ul>
-            <div className="flex flex-col gap-2 min-[400px]:flex-row">
-              <Button asChild>
-                <Link to="/case-studies">View Case Studies</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link to="/research">Read Full Research</Link>
-              </Button>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-card hover:shadow-md transition-shadow">
+            <CardContent className="pt-6">
+              <Server className="h-10 w-10 text-primary mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Private AI Instances</h3>
+              <p className="text-muted-foreground">
+                Every customer gets a logically isolated AI instance with its own data, vector memory, and model configuration.
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-card hover:shadow-md transition-shadow">
+            <CardContent className="pt-6">
+              <Database className="h-10 w-10 text-primary mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Zero Data Retention</h3>
+              <p className="text-muted-foreground">
+                We enforce zero data retention policies with model providers. Your data is purged after processing.
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-card hover:shadow-md transition-shadow">
+            <CardContent className="pt-6">
+              <Lock className="h-10 w-10 text-primary mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Isolated Storage</h3>
+              <p className="text-muted-foreground">
+                Dedicated storage with strict access controls and comprehensive audit logs for all data operations.
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-card hover:shadow-md transition-shadow">
+            <CardContent className="pt-6">
+              <UserCog className="h-10 w-10 text-primary mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Team Access</h3>
+              <p className="text-muted-foreground">
+                Manage access with precision. Easily invite team members and control who can view, train, or interact with each AI instance.
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-card hover:shadow-md transition-shadow">
+            <CardContent className="pt-6">
+              <FileText className="h-10 w-10 text-primary mb-4" />
+              <h3 className="text-xl font-semibold mb-2">GDPR-Ready</h3>
+              <p className="text-muted-foreground">
+                Built with compliance in mind. Enterprise-safe with data residency options and compliance features.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const WhatIsAkiiSection = () => {
+  return (
+    <section className="py-16 md:py-24 bg-background">
+      <div className="container px-4 md:px-6">
+        <div className="grid gap-10 lg:grid-cols-2">
           <div className="flex items-center justify-center">
-            <div className="relative w-full max-w-[500px]">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-lg blur-3xl" />
-              <div className="relative z-10 overflow-hidden rounded-lg border bg-background shadow-xl">
-                <div className="p-6">
-                  <div className="flex items-center justify-between border-b pb-4">
-                    <div className="space-y-1">
-                      <h3 className="font-semibold">Sales Performance</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Monthly comparison
-                      </p>
-                    </div>
-                    <BarChart className="h-4 w-4 text-muted-foreground" />
+            <div className="relative w-full max-w-[500px] h-[400px] rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+              <div className="absolute w-32 h-32 rounded-full bg-primary/20 animate-pulse top-20 left-20"></div>
+              <div className="absolute w-24 h-24 rounded-full bg-primary/15 animate-pulse bottom-20 right-20"></div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-xs relative z-10">
+                <h3 className="font-bold text-xl mb-2">Akii AI Platform</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-primary" />
+                    <span className="text-sm">Private AI Instances</span>
                   </div>
-                  <div className="pt-4 grid gap-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">
-                          Before AI Implementation
-                        </p>
-                        <p className="text-2xl font-bold">$24,500</p>
-                        <div className="flex items-center text-xs text-red-500">
-                          <span>↓ 2.3%</span>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">
-                          After AI Implementation
-                        </p>
-                        <p className="text-2xl font-bold">$41,200</p>
-                        <div className="flex items-center text-xs text-green-500">
-                          <span>↑ 67.1%</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="h-[200px] w-full bg-gradient-to-b from-primary/20 to-transparent rounded-lg flex items-end p-4">
-                      <div className="w-full flex items-end justify-between gap-2">
-                        <div className="w-8 bg-muted-foreground/30 rounded-t h-[40px]"></div>
-                        <div className="w-8 bg-muted-foreground/30 rounded-t h-[60px]"></div>
-                        <div className="w-8 bg-muted-foreground/30 rounded-t h-[90px]"></div>
-                        <div className="w-8 bg-muted-foreground/30 rounded-t h-[70px]"></div>
-                        <div className="w-8 bg-muted-foreground/30 rounded-t h-[100px]"></div>
-                        <div className="w-8 bg-primary rounded-t h-[120px]"></div>
-                        <div className="w-8 bg-primary rounded-t h-[170px]"></div>
-                      </div>
-                    </div>
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-primary" />
+                    <span className="text-sm">Secure Data Training</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-primary" />
+                    <span className="text-sm">Multi-channel Deployment</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-5 w-5 text-primary" />
+                    <span className="text-sm">Isolated Infrastructure</span>
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+          
+          <div className="flex flex-col justify-center space-y-4">
+            <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">What is Akii?</h2>
+            <p className="text-lg text-muted-foreground">
+              Akii is a platform where companies launch their own AI, train it on internal or customer data, and deploy it securely across multiple touchpoints. No shared models. No open training. Just your data and your AI.
+            </p>
+            <p className="text-lg text-muted-foreground">
+              We've built Akii to ensure maximum data privacy and security while delivering powerful AI capabilities that integrate seamlessly with your existing systems and customer touchpoints.
+            </p>
+            <div className="flex items-center pt-4">
+              <Button variant="outline" className="mr-4" asChild>
+                <Link to="/about">Learn More <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
             </div>
           </div>
         </div>
@@ -329,72 +268,335 @@ const ResearchSection = () => {
   );
 };
 
-const TestimonialsSection = () => {
-  const testimonials = [
+const CoreFeaturesSection = () => {
+  const features = [
     {
-      quote:
-        "Implementing Akii's AI agents on our website increased our conversion rate by 58% in just two months. The ROI has been incredible.",
-      author: "Sarah Johnson",
-      role: "CMO, TechSolutions Inc.",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sarah",
+      icon: <Shield className="h-8 w-8 text-primary" />,
+      title: "Private by Design",
+      description: "Every AI instance is logically isolated, with zero data retention and no cross-customer access. Dedicated infrastructure is available on Enterprise plans."
     },
     {
-      quote:
-        "Our customer satisfaction scores improved by 42% after deploying Akii's WhatsApp integration. Our customers love getting instant responses 24/7.",
-      author: "Michael Chen",
-      role: "Customer Success Director, Retail Connect",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=michael",
+      icon: <Database className="h-8 w-8 text-primary" />,
+      title: "Secure Data Ingestion",
+      description: "Upload your data or connect via secure integrations with your existing systems."
     },
     {
-      quote:
-        "The WordPress integration was seamless. We were up and running in less than a day, and now our support team can focus on complex issues while the AI handles routine questions.",
-      author: "Jessica Miller",
-      role: "CTO, ContentFirst",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=jessica",
+      icon: <Network className="h-8 w-8 text-primary" />,
+      title: "Multi-platform Deployment",
+      description: "Deploy your AI across Web, Mobile, WhatsApp, Telegram, Shopify, WordPress, and API."
     },
+    {
+      icon: <BookOpen className="h-8 w-8 text-primary" />,
+      title: "RAG & Fine-tuning",
+      description: "RAG-based training for all plans with full model fine-tuning available on Enterprise tier."
+    },
+    {
+      icon: <UserCog className="h-8 w-8 text-primary" />,
+      title: "Team Access",
+      description: "Manage access with precision. Easily invite team members and control who can view, train, or interact with each AI instance."
+    },
+    {
+      icon: <BarChart className="h-8 w-8 text-primary" />,
+      title: "Analytics & Insights",
+      description: "Detailed reports on AI performance, usage patterns, and customer satisfaction."
+    }
+  ];
+
+  // App deployment tiles to showcase different channels
+  const deploymentApps = [
+    { icon: <Monitor className="h-6 w-6 text-primary" />, name: "Web Chat" },
+    { icon: <Smartphone className="h-6 w-6 text-primary" />, name: "Mobile" },
+    { icon: <MessageSquare className="h-6 w-6 text-primary" />, name: "WhatsApp" },
+    { icon: <Share2 className="h-6 w-6 text-primary" />, name: "Telegram" },
+    { icon: <ShoppingCart className="h-6 w-6 text-primary" />, name: "Shopify" },
+    { icon: <Globe className="h-6 w-6 text-primary" />, name: "WordPress" },
+    { icon: <Code className="h-6 w-6 text-primary" />, name: "API" }
+  ];
+
+  return (
+    <section className="py-16 md:py-24 bg-muted/10">
+      <div className="container px-4 md:px-6">
+        <div className="flex flex-col items-center justify-center space-y-4 text-center mb-10">
+          <Badge variant="outline" className="border-primary/20 text-primary px-3 py-1">Features</Badge>
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">
+            Core Platform Capabilities
+          </h2>
+          <p className="text-muted-foreground text-lg max-w-3xl">
+            Everything you need to create, deploy, and maintain private AI instances trained on your data.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {features.map((feature, index) => (
+            <Card key={index} className="bg-card border-muted hover:border-primary/20 transition-colors">
+              <CardContent className="pt-6">
+                <div className="bg-primary/10 rounded-full w-14 h-14 flex items-center justify-center mb-4">
+                  {feature.icon}
+                </div>
+                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                <p className="text-muted-foreground">{feature.description}</p>
+
+                {/* Add deployment app tiles only for the Multi-platform Deployment feature */}
+                {feature.title === "Multi-platform Deployment" && (
+                  <div className="mt-4 overflow-hidden relative">
+                    <div className="animate-scroll flex py-2">
+                      {/* First set of icons - will be shown initially */}
+                      {deploymentApps.map((app, i) => (
+                        <div key={i} className="flex-shrink-0 flex flex-col items-center justify-center mx-4 first:ml-0">
+                          <div className="bg-muted/20 p-2 rounded-lg w-10 h-10 flex items-center justify-center">
+                            {app.icon}
+                          </div>
+                          <span className="text-xs mt-1 text-center whitespace-nowrap">{app.name}</span>
+                        </div>
+                      ))}
+                      {/* Duplicate icons twice to ensure smooth looping */}
+                      {[...Array(2)].map((_, dupIndex) => (
+                        deploymentApps.map((app, i) => (
+                          <div key={`dup-${dupIndex}-${i}`} className="flex-shrink-0 flex flex-col items-center justify-center mx-4">
+                            <div className="bg-muted/20 p-2 rounded-lg w-10 h-10 flex items-center justify-center">
+                              {app.icon}
+                            </div>
+                            <span className="text-xs mt-1 text-center whitespace-nowrap">{app.name}</span>
+                          </div>
+                        ))
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// New "Why Akii?" section with security badges
+const WhyAkiiSection = () => {
+  const securityBadges = [
+    { icon: <Shield className="h-5 w-5 text-primary" />, label: "SOC 2 compliance in progress" },
+    { icon: <Database className="h-5 w-5 text-primary" />, label: "Powered by AWS Bedrock" },
+    { icon: <Lock className="h-5 w-5 text-primary" />, label: "GDPR-ready infrastructure" }
+  ];
+
+  return (
+    <section className="py-12 bg-gradient-to-r from-primary/5 to-primary/10">
+      <div className="container px-4 md:px-6">
+        <div className="flex flex-col items-center text-center">
+          <h2 className="text-3xl font-bold mb-8">Why Akii?</h2>
+          
+          <p className="text-xl font-medium max-w-3xl mb-8">
+            "Akii is the only AI platform built with privacy-first architecture from day one."
+          </p>
+          
+          <div className="flex flex-wrap justify-center gap-4 mt-4">
+            {securityBadges.map((badge, index) => (
+              <div 
+                key={index} 
+                className="flex items-center space-x-2 bg-background px-4 py-2 rounded-full border border-border"
+              >
+                {badge.icon}
+                <span className="text-sm font-medium">{badge.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const PricingSection = () => {
+  const pricingTiers = [
+    {
+      name: "Starter",
+      price: "$99",
+      period: "per month",
+      description: "For small businesses getting started with AI",
+      features: [
+        "1 Private AI Instance",
+        "10GB Data Storage",
+        "5,000 Chat Messages/month",
+        "Web Chat Integration",
+        "RAG-based Training",
+        "Email Support",
+        "Data Privacy Included"
+      ],
+      mostPopular: false,
+      ctaText: "Get Started"
+    },
+    {
+      name: "Pro",
+      price: "$299",
+      period: "per month",
+      description: "For growing businesses with moderate AI needs",
+      features: [
+        "3 Private AI Instances",
+        "50GB Data Storage",
+        "25,000 Chat Messages/month",
+        "Web, Mobile, WhatsApp Integration",
+        "RAG-based Training",
+        "Priority Support",
+        "Data Privacy Included",
+        "Advanced Analytics"
+      ],
+      mostPopular: true,
+      ctaText: "Get Started"
+    },
+    {
+      name: "Business",
+      price: "$699",
+      period: "per month",
+      description: "For larger organizations with advanced needs",
+      features: [
+        "10 Private AI Instances",
+        "200GB Data Storage",
+        "100,000 Chat Messages/month",
+        "All Integration Channels",
+        "RAG-based Training",
+        "24/7 Support",
+        "Data Privacy Included",
+        "Custom Training Schedule",
+        "Enterprise SSO"
+      ],
+      mostPopular: false,
+      ctaText: "Get Started"
+    },
+    {
+      name: "Enterprise",
+      price: "Custom",
+      period: "pricing",
+      description: "For organizations with specific security requirements",
+      features: [
+        "Unlimited AI Instances",
+        "Unlimited Storage",
+        "Unlimited Messages",
+        "All Integration Channels",
+        "Full Model Fine-tuning",
+        "Dedicated Support Manager",
+        "Data Privacy Included",
+        "Custom Security Controls",
+        "Dedicated Infrastructure",
+        "On-premises Option"
+      ],
+      mostPopular: false,
+      ctaText: "Contact Sales"
+    }
   ];
 
   return (
     <section className="py-16 md:py-24 bg-background">
       <div className="container px-4 md:px-6">
-        <div className="flex flex-col items-center justify-center space-y-4 text-center">
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-              What Our Customers Say
-            </h2>
-            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
-              Don't just take our word for it. Here's what businesses using Akii
-              have to say.
-            </p>
-          </div>
+        <div className="flex flex-col items-center justify-center space-y-4 text-center mb-10">
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">
+            Transparent, Simple Pricing
+          </h2>
+          <p className="text-muted-foreground text-lg max-w-3xl">
+            All plans include data privacy as standard. Choose the plan that works for your business needs.
+          </p>
         </div>
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-3 mt-12">
-          {testimonials.map((testimonial, index) => (
-            <Card key={index} className="overflow-hidden">
-              <CardContent className="p-6">
-                <div className="flex flex-col space-y-4">
-                  <div className="flex items-center space-x-4">
-                    <img
-                      src={testimonial.avatar}
-                      alt={testimonial.author}
-                      className="h-10 w-10 rounded-full"
-                    />
-                    <div>
-                      <p className="text-sm font-medium">
-                        {testimonial.author}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {testimonial.role}
-                      </p>
-                    </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {pricingTiers.map((tier, index) => (
+            <Card key={index} className={`flex flex-col ${tier.mostPopular ? 'border-primary shadow-md' : 'border-muted'}`}>
+              <CardHeader>
+                {tier.mostPopular && (
+                  <Badge className="self-start mb-2 bg-primary text-white">Most Popular</Badge>
+                )}
+                <CardTitle>{tier.name}</CardTitle>
+                <div className="mt-2">
+                  <span className="text-3xl font-bold">{tier.price}</span>
+                  <span className="text-muted-foreground text-sm ml-1">{tier.period}</span>
+                </div>
+                <CardDescription className="mt-2">{tier.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow">
+                <ul className="space-y-2">
+                  {tier.features.map((feature, i) => (
+                    <li key={i} className="flex items-center">
+                      <CheckCircle className="h-5 w-5 text-primary mr-2 flex-shrink-0" />
+                      <span className="text-sm">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+              <CardFooter>
+                <Button 
+                  variant={tier.mostPopular ? "default" : "outline"} 
+                  className={`w-full ${tier.mostPopular ? 'bg-primary hover:bg-primary/90' : ''}`}
+                  asChild
+                >
+                  <Link to={tier.name === "Enterprise" ? "/contact" : "/signup"}>{tier.ctaText}</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const UseCasesSection = () => {
+  const useCases = [
+    {
+      icon: <Globe className="h-8 w-8 text-primary" />,
+      title: "Website Support AI",
+      description: "Provide instant, accurate support to website visitors 24/7 without compromising data security."
+    },
+    {
+      icon: <Building className="h-8 w-8 text-primary" />,
+      title: "Internal Knowledge Bot",
+      description: "Help employees access company information securely with a private AI assistant trained on internal documentation."
+    },
+    {
+      icon: <User className="h-8 w-8 text-primary" />,
+      title: "Sales Chat Assistant",
+      description: "Qualify leads and answer product questions instantly while protecting sensitive customer information."
+    },
+    {
+      icon: <BriefcaseBusiness className="h-8 w-8 text-primary" />,
+      title: "White-labeled AI for Agencies",
+      description: "Agencies can offer private AI bots to clients with complete data isolation between accounts."
+    }
+  ];
+
+  return (
+    <section className="py-16 md:py-24 bg-muted/20">
+      <div className="container px-4 md:px-6">
+        <div className="flex flex-col items-center justify-center space-y-4 text-center mb-10">
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">
+            Use Cases & Applications
+          </h2>
+          <p className="text-muted-foreground text-lg max-w-3xl">
+            Discover how organizations are using Akii's private AI instances for secure, powerful solutions.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {useCases.map((useCase, index) => (
+            <Card key={index} className="bg-card hover:shadow-md transition-shadow">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex gap-4">
+                  <div className="bg-primary/10 rounded-full w-14 h-14 flex items-center justify-center flex-shrink-0">
+                    {useCase.icon}
                   </div>
-                  <p className="text-sm text-muted-foreground italic">
-                    "{testimonial.quote}"
-                  </p>
+                  <div>
+                    <h3 className="text-xl font-semibold mb-2">{useCase.title}</h3>
+                    <p className="text-muted-foreground">{useCase.description}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           ))}
+        </div>
+        
+        <div className="mt-10 text-center">
+          <p className="text-lg font-medium mb-6">All use cases feature AI trained on your data with no risk of leaks</p>
+          <Button asChild>
+            <Link to="/use-cases">Explore All Use Cases</Link>
+          </Button>
         </div>
       </div>
     </section>
@@ -403,127 +605,31 @@ const TestimonialsSection = () => {
 
 const CTASection = ({ user }: SectionWithUserProps) => {
   return (
-    <section className="py-16 md:py-24 bg-primary text-primary-foreground">
+    <section className="py-16 md:py-24 bg-primary/5">
       <div className="container px-4 md:px-6">
-        <div className="flex flex-col items-center justify-center space-y-4 text-center">
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-              Ready to Transform Your Business?
-            </h2>
-            <p className="mx-auto max-w-[700px] md:text-xl">
-              {user ? 'Access your AI dashboard to manage your agents and analytics.' : 'Join thousands of businesses already using Akii to boost sales and reduce costs.'}
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 min-[400px]:flex-row">
+        <div className="flex flex-col items-center text-center max-w-3xl mx-auto space-y-4">
+          <Lock className="h-12 w-12 text-primary mb-2" />
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">
+            Own Your AI — and Your Data
+          </h2>
+          <p className="text-lg text-muted-foreground">
+            Take control of your AI strategy with a secure, private platform that keeps your data completely isolated.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 mt-4">
             {user ? (
-              <Button size="lg" variant="secondary" asChild>
+              <Button size="lg" className="bg-primary hover:bg-primary/90" asChild>
                 <Link to="/dashboard">Go to Dashboard</Link>
               </Button>
             ) : (
               <>
-                <Button size="lg" variant="secondary" asChild>
-                  <Link to="/signup">Get Started Free</Link>
+                <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg py-6" asChild>
+                  <Link to="/signup">YOUR AI IN 5 MINUTES</Link>
                 </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="bg-transparent"
-                  asChild
-                >
-                  <Link to="/contact-sales">Contact Sales</Link>
+                <Button size="lg" variant="outline" asChild>
+                  <Link to="/security">Request a Security Walkthrough</Link>
                 </Button>
               </>
             )}
-          </div>
-          {!user && (
-            <div className="mt-6">
-              <LeadMagnetButton
-                variant="link"
-                className="text-primary-foreground underline underline-offset-4"
-                title="Boost Your Sales by 67% with AI Chat Agents"
-                description="Download our free guide with 10 proven strategies to increase your sales using AI chat agents."
-              >
-                Download our free guide: 10 steps to boost sales by 67% with AI
-              </LeadMagnetButton>
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-};
-
-const FeaturesSection = () => {
-  const features = [
-    {
-      icon: <Zap className="h-6 w-6" />,
-      title: "Easy Setup",
-      description:
-        "Get up and running in minutes with our no-code setup process.",
-    },
-    {
-      icon: <Globe className="h-6 w-6" />,
-      title: "Multi-platform",
-      description:
-        "Deploy your AI agents across web, mobile, WhatsApp, Telegram, and more.",
-    },
-    {
-      icon: <Users className="h-6 w-6" />,
-      title: "Team Collaboration",
-      description: "Manage your AI agents with role-based team access.",
-    },
-    {
-      icon: <BarChart className="h-6 w-6" />,
-      title: "Advanced Analytics",
-      description:
-        "Track performance and optimize your AI agents with detailed insights.",
-    },
-  ];
-
-  return (
-    <section className="py-16 md:py-24 bg-muted/30">
-      <div className="container px-4 md:px-6">
-        <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
-          <div className="flex items-center justify-center">
-            <div className="relative w-full max-w-[500px] aspect-square">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-full blur-3xl" />
-              <img
-                src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&q=80"
-                alt="AI Features"
-                className="relative z-10 w-full h-full object-cover rounded-lg shadow-xl"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col justify-center space-y-4">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-                Powerful Features for Your Business
-              </h2>
-              <p className="text-muted-foreground md:text-xl">
-                Akii provides everything you need to create, deploy, and manage
-                AI agents across multiple platforms.
-              </p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              {features.map((feature, index) => (
-                <div key={index} className="flex items-start gap-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    {feature.icon}
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="font-medium">{feature.title}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {feature.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-col gap-2 min-[400px]:flex-row">
-              <Button asChild>
-                <Link to="/features">Explore All Features</Link>
-              </Button>
-            </div>
           </div>
         </div>
       </div>
@@ -536,62 +642,94 @@ interface LandingPageProps {
 }
 
 const LandingPage = ({ searchValue }: LandingPageProps) => {
-  const { user, isLoading } = useAuth();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, isLoading, session } = useAuth();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const navigate = useNavigate();
   
-  // Add debug logging to check auth state
-  console.log("LandingPage auth state:", { 
-    user: user ? `User ID: ${user.id}` : "No user",
-    isLogged: !!user,
-    isLoading,
-    isAuthenticated
-  });
-
-  // Check if user is authenticated using multiple methods
+  // Listen for auth reset events from GlobalErrorHandler
   useEffect(() => {
-    // First check if user is already set in auth context
-    if (user) {
-      setIsAuthenticated(true);
-      return;
-    }
+    const handleAuthReset = () => {
+      console.log("LandingPage: Received auth reset event, refreshing state");
+      // Clear authentication state on reset
+      setIsAuthenticated(null);
+      // Force re-check on next render cycle
+      authCheckCompletedRef.current = false;
+    };
     
-    // If auth is still loading, wait for it
-    if (isLoading) {
-      return;
-    }
+    window.addEventListener('akii:auth:reset', handleAuthReset);
     
-    // DO NOT rely on localStorage for authentication - this causes redirect loops
-    // Only set authenticated true if we have a real user session
-    setIsAuthenticated(false);
-    
-    // Log for debugging
-    console.log("LandingPage: No valid user session found, treating as unauthenticated");
-    
-    return () => {}; // Cleanup
-  }, [user, isLoading]);
-
-  // Use either context user or our authenticated state with a safe default
-  const effectiveUserState = user 
-    ? { ...user, isAuthenticated: true } 
-    : { id: null, isAuthenticated: false };
+    return () => {
+      window.removeEventListener('akii:auth:reset', handleAuthReset);
+    };
+  }, []);
   
-  // Add simple redirect for authenticated users - only redirect when we have an actual user
+  // Reduce dependency in logging to only essential state changes
   useEffect(() => {
-    // Only redirect to dashboard if we have a real user
-    if (user && !isLoading) {
-      console.log('LandingPage: User is authenticated with real session, redirecting to dashboard');
-      navigate('/dashboard');
+    // Only log when loading completes and auth state has been determined
+    if (!isLoading && isAuthenticated !== null) {
+      // Limit frequency of logging to avoid console spam
+      console.log("LandingPage auth state:", { 
+        userId: user?.id,
+        isLogged: !!user,
+        isLoading,
+        isAuthenticated: isAuthenticated,
+        hasSession: !!session
+      });
+    }
+  }, [user?.id, isLoading, isAuthenticated, session]);
+
+  // Use a ref to track if we've completed an auth check to avoid multiple checks
+  const authCheckCompletedRef = useRef(false);
+  
+  // One-time auth check that only runs once auth loading is complete
+  useEffect(() => {
+    // Skip this check if we're still loading or have already set isAuthenticated
+    if (isLoading || authCheckCompletedRef.current) return;
+    
+    // Debounce the check to avoid rapid state changes
+    const timeoutId = setTimeout(() => {
+      const hasAuth = !!user || !!session;
+      setIsAuthenticated(hasAuth);
+      authCheckCompletedRef.current = true;
+      
+      if (!hasAuth) {
+        console.log("LandingPage: No valid user session found, treating as unauthenticated");
+      }
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [user, session, isLoading]);
+
+  // Memoize user state to prevent unnecessary re-renders
+  const effectiveUserState = useMemo(() => {
+    return user 
+      ? { ...user, isAuthenticated: true } 
+      : { id: null, isAuthenticated: false };
+  }, [user]);
+  
+  // Handle redirect after authentication - with debounce to avoid flash
+  useEffect(() => {
+    // Only redirect once loading is complete and we have a user
+    if (!isLoading && user) {
+      // Small delay to ensure all auth state is settled before redirect
+      const redirectTimer = setTimeout(() => {
+        console.log('LandingPage: User is authenticated with real session, redirecting to dashboard');
+        navigate('/dashboard');
+      }, 50);
+      
+      return () => clearTimeout(redirectTimer);
     }
   }, [user, isLoading, navigate]);
 
   return (
     <>
       <HeroSection user={effectiveUserState} />
-      <ProductsSection />
-      <FeaturesSection />
-      <ResearchSection />
-      <TestimonialsSection />
+      <DataPrivacySection />
+      <WhatIsAkiiSection />
+      <CoreFeaturesSection />
+      <WhyAkiiSection />
+      <PricingSection />
+      <UseCasesSection />
       <CTASection user={effectiveUserState} />
     </>
   );

@@ -1,13 +1,29 @@
 /**
- * Supabase client export
- * This file re-exports the centralized Supabase client
- * Instead of importing from supabase-singleton directly, import from here
+ * CENTRAL SUPABASE CLIENT EXPORT
+ * 
+ * This is the recommended way to import Supabase clients throughout the application.
+ * It re-exports the singleton instances from supabase-singleton.ts to ensure
+ * only one instance of each client exists application-wide.
+ * 
+ * ALWAYS IMPORT FROM THIS FILE, NOT DIRECTLY FROM supabase-singleton.ts
  */
 
-import { supabase, supabaseAdmin, auth } from "./supabase-singleton";
+import { 
+  supabase, 
+  supabaseAdmin, 
+  auth, 
+  debugSupabaseInstances, 
+  getSupabaseClient 
+} from "./supabase-singleton";
 
 // Export the clients and auth
-export { supabase, supabaseAdmin, auth };
+export { 
+  supabase, 
+  supabaseAdmin, 
+  auth, 
+  debugSupabaseInstances,
+  getSupabaseClient 
+};
 
 // Default export for convenience
 export default supabase;

@@ -59,17 +59,17 @@ export default function WebChat() {
               {chatStatus === "draft" && (
                 <Badge
                   variant="outline"
-                  className="bg-amber-100 text-amber-800 hover:bg-amber-100"
+                  className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 hover:bg-amber-100 hover:dark:bg-amber-900/30"
                 >
-                  Draft
+                  Not Deployed
                 </Badge>
               )}
               {chatStatus === "active" && (
                 <Badge
                   variant="outline"
-                  className="bg-green-100 text-green-800 hover:bg-green-100"
+                  className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 hover:bg-green-100 hover:dark:bg-green-900/30"
                 >
-                  Active
+                  Deployed
                 </Badge>
               )}
             </div>
@@ -114,7 +114,7 @@ export default function WebChat() {
               See how your web chat will appear on your website
             </CardDescription>
           </CardHeader>
-          <CardContent className="h-64 bg-gray-100 rounded-md relative overflow-hidden">
+          <CardContent className="h-64 bg-gray-100 dark:bg-gray-800 rounded-md relative overflow-hidden">
             <WebChatPreview
               chatName="Akii Support"
               welcomeMessage="Hello! I'm your AI assistant. How can I help you today?"
@@ -148,7 +148,7 @@ export default function WebChat() {
           <WebChatAnalytics />
         </TabsContent>
         <TabsContent value="code" className="mt-6">
-          <Card className="w-full bg-white shadow-sm">
+          <Card className="w-full shadow-sm">
             <CardHeader>
               <CardTitle className="text-xl font-bold">
                 Integration Code
@@ -230,7 +230,7 @@ export default function WebChat() {
                   </div>
                 </div>
 
-                <div className="rounded-md border p-4 bg-amber-50">
+                <div className="rounded-md border p-4 bg-amber-50 dark:bg-amber-900/30 dark:border-amber-700">
                   <div className="flex">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -242,17 +242,17 @@ export default function WebChat() {
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="text-amber-500 mr-2"
+                      className="text-amber-500 dark:text-amber-400 mr-2"
                     >
                       <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                       <line x1="12" x2="12" y1="9" y2="13" />
                       <line x1="12" x2="12.01" y1="17" y2="17" />
                     </svg>
                     <div>
-                      <h3 className="text-sm font-medium text-amber-800">
+                      <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">
                         Important Note
                       </h3>
-                      <p className="text-xs text-amber-700 mt-1">
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
                         Make sure to deploy your web chat before adding the code
                         to your website. The chat widget will not work until
                         it's deployed from the Setup tab.

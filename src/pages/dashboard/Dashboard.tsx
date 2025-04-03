@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -11,152 +11,39 @@ import type { AnalyticsData } from "@/lib/api";
 import { dashboardStyles } from "@/components/layout/DashboardPageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DashboardSection } from "@/components/layout/DashboardSection";
+import { useAuth } from "@/contexts/auth-compatibility";
 
-const Dashboard = () => {
-  console.log("Dashboard component rendering");
-  const [timePeriod, setTimePeriod] = useState("Last 7 days");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(
-    null,
-  );
-  const [renderAttempt, setRenderAttempt] = useState(0);
+// Memoized stats card to prevent re-rendering when parent re-renders
+const StatCard = React.memo(({ 
+  title, 
+  value, 
+  subtitle 
+}: { 
+  title: string; 
+  value: string | number; 
+  subtitle: string;
+}) => (
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-sm font-medium text-muted-foreground">
+        {title}
+      </CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold">{value}</div>
+      <p className="text-xs text-muted-foreground">{subtitle}</p>
+    </CardContent>
+  </Card>
+));
 
-  // Add a safety timeout to ensure we always render something
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (loading && renderAttempt < 2) {
-        console.log("Dashboard - Safety timeout triggered, forcing data load");
-        setRenderAttempt((prev) => prev + 1);
-        setLoading(false);
-
-        // Set default data if none exists
-        if (!analyticsData) {
-          setAnalyticsData({
-            totalMessages: 0,
-            activeAgents: 0,
-            totalConversations: 0,
-            averageRating: 0,
-          });
-        }
-      }
-    }, 500); // Reduced from 2000ms to 500ms for faster fallback
-
-    return () => clearTimeout(timer);
-  }, [loading, renderAttempt, analyticsData]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadData = async () => {
-      console.log("Dashboard - Fetching analytics data");
-      setLoading(true);
-      setError(null);
-
-      try {
-        // Set default data immediately to ensure we have something to render
-        setAnalyticsData({
-          totalMessages: 0,
-          activeAgents: 0,
-          totalConversations: 0,
-          averageRating: 0,
-        });
-
-        const data = await fetchAnalyticsData(timePeriod);
-        console.log("Dashboard - Analytics data fetched:", data);
-
-        // Only update state if component is still mounted
-        if (isMounted) {
-          setAnalyticsData(data);
-        }
-      } catch (error) {
-        console.error("Error loading analytics data:", error);
-        if (isMounted) {
-          setError("Failed to load analytics data.");
-          // Default data already set above
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadData();
-
-    // Cleanup function to prevent state updates on unmounted component
-    return () => {
-      isMounted = false;
-    };
-  }, [timePeriod, renderAttempt]);
-
-  // Show error state but with data
-  if (error && analyticsData) {
-    console.log("Dashboard - Rendering error state with fallback data");
-    return (
-      <div>
-        <div className={dashboardStyles.sectionSpacing}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Dashboard</CardTitle>
-              <CardDescription className="text-red-500">
-                {error}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p>
-                We're experiencing some technical difficulties. Showing limited
-                data.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-        {renderDashboardContent(analyticsData)}
-      </div>
-    );
-  }
-
-  // Show loading state
-  if (loading && renderAttempt < 2) {
-    console.log("Dashboard - Rendering loading state");
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-16rem)]">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-primary rounded-full"></div>
-          <p>Loading dashboard data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If no data after loading, show empty state
-  if (!analyticsData) {
-    console.log("Dashboard - No data available, showing empty state");
-    return (
-      <div>
-        <Card>
-          <CardHeader>
-            <CardTitle>Dashboard</CardTitle>
-            <CardDescription>No data available</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p>No analytics data is currently available.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  console.log("Dashboard - Rendering main content");
-  return renderDashboardContent(analyticsData);
-};
-
-// Extract dashboard content to a separate function to avoid duplication
-const renderDashboardContent = (analyticsData: AnalyticsData) => {
+// Memoized dashboard content to avoid re-renders when data doesn't change
+const DashboardContent = React.memo(({ analyticsData }: { analyticsData: AnalyticsData }) => {
   // Use safe defaults for analytics data
   const totalMessages = analyticsData.totalMessages || 0;
   const activeAgents = analyticsData.activeAgents || 0;
   const totalConversations = analyticsData.totalConversations || 0;
   const averageRating = analyticsData.averageRating || 0;
+  const { isAdmin } = useAuth();
 
   return (
     <div>
@@ -177,64 +64,26 @@ const renderDashboardContent = (analyticsData: AnalyticsData) => {
       {/* Stats Overview Cards */}
       <DashboardSection>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Messages
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {totalMessages.toLocaleString()}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                +12% from last period
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Active Agents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{activeAgents}</div>
-              <p className="text-xs text-muted-foreground">
-                {activeAgents > 0 ? "All running smoothly" : "No active agents"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Conversations
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {totalConversations.toLocaleString()}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                +5% from last period
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Average Rating
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {averageRating.toFixed(1)}/5.0
-              </div>
-              <p className="text-xs text-muted-foreground">
-                From {totalConversations} ratings
-              </p>
-            </CardContent>
-          </Card>
+          <StatCard 
+            title="Total Messages" 
+            value={totalMessages.toLocaleString()} 
+            subtitle="+12% from last period" 
+          />
+          <StatCard 
+            title="Active Agents" 
+            value={activeAgents} 
+            subtitle={activeAgents > 0 ? "All running smoothly" : "No active agents"} 
+          />
+          <StatCard 
+            title="Conversations" 
+            value={totalConversations.toLocaleString()} 
+            subtitle="+5% from last period" 
+          />
+          <StatCard 
+            title="Average Rating" 
+            value={averageRating.toLocaleString(undefined, {maximumFractionDigits: 1})} 
+            subtitle="Based on user feedback" 
+          />
         </div>
       </DashboardSection>
 
@@ -360,6 +209,157 @@ const renderDashboardContent = (analyticsData: AnalyticsData) => {
       </DashboardSection>
     </div>
   );
+});
+
+// Error state component
+const ErrorState = React.memo(({ error, analyticsData }: { error: string, analyticsData: AnalyticsData }) => (
+  <div>
+    <div className={dashboardStyles.sectionSpacing}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Dashboard</CardTitle>
+          <CardDescription className="text-red-500">
+            {error}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p>
+            We're experiencing some technical difficulties. Showing limited
+            data.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+    <DashboardContent analyticsData={analyticsData} />
+  </div>
+));
+
+// Loading state component
+const LoadingState = React.memo(() => (
+  <div className="flex items-center justify-center h-[calc(100vh-16rem)]">
+    <div className="flex flex-col items-center space-y-4">
+      <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-primary rounded-full"></div>
+      <p>Loading dashboard data...</p>
+    </div>
+  </div>
+));
+
+// Empty state component
+const EmptyState = React.memo(() => (
+  <div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Dashboard</CardTitle>
+        <CardDescription>No data available</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p>No analytics data is currently available.</p>
+      </CardContent>
+    </Card>
+  </div>
+));
+
+// Main Dashboard component with optimized rendering
+const Dashboard = () => {
+  // Only log on initial render, not on re-renders
+  const isFirstRender = React.useRef(true);
+  if (isFirstRender.current) {
+    console.log("Dashboard component initial render");
+    isFirstRender.current = false;
+  }
+  
+  const [timePeriod, setTimePeriod] = useState("Last 7 days");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [renderAttempt, setRenderAttempt] = useState(0);
+  const dataFetchedRef = React.useRef(false);
+
+  // Default data for fallback
+  const defaultData = useMemo(() => ({
+    totalMessages: 0,
+    activeAgents: 0,
+    totalConversations: 0,
+    averageRating: 0,
+  }), []);
+
+  // Handle data fetching logic
+  const fetchData = useCallback(async () => {
+    if (dataFetchedRef.current) return;
+    
+    console.log("Dashboard - Fetching analytics data for period:", timePeriod);
+    setLoading(true);
+    setError(null);
+    dataFetchedRef.current = true;
+
+    try {
+      // Set default data immediately to ensure we have something to render
+      setAnalyticsData(defaultData);
+
+      const data = await fetchAnalyticsData(timePeriod);
+      setAnalyticsData(data);
+    } catch (error) {
+      console.error("Error loading analytics data:", error);
+      setError("Failed to load analytics data.");
+    } finally {
+      setLoading(false);
+    }
+  }, [timePeriod, defaultData]);
+
+  // Add a safety timeout to ensure we always render something
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading && renderAttempt < 2) {
+        console.log("Dashboard - Safety timeout triggered, forcing data load");
+        setRenderAttempt((prev) => prev + 1);
+        setLoading(false);
+
+        // Set default data if none exists
+        if (!analyticsData) {
+          setAnalyticsData(defaultData);
+        }
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [loading, renderAttempt, analyticsData, defaultData]);
+
+  // Fetch data once on mount or when time period changes
+  useEffect(() => {
+    let isMounted = true;
+    dataFetchedRef.current = false;
+    
+    // Reset state when time period changes
+    if (timePeriod) {
+      fetchData();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [timePeriod, fetchData]);
+
+  // Determine which component to render based on current state
+  // Use conditional rendering instead of multiple returns for better performance
+  return useMemo(() => {
+    // Show error state but with data
+    if (error && analyticsData) {
+      return <ErrorState error={error} analyticsData={analyticsData} />;
+    }
+    
+    // Show loading state
+    if (loading && renderAttempt < 2) {
+      return <LoadingState />;
+    }
+    
+    // If no data after loading, show empty state
+    if (!analyticsData) {
+      return <EmptyState />;
+    }
+    
+    // Show main content
+    return <DashboardContent analyticsData={analyticsData} />;
+  }, [error, analyticsData, loading, renderAttempt]);
 };
 
 export default Dashboard;

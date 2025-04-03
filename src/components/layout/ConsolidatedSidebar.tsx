@@ -187,6 +187,7 @@ export const ConsolidatedSidebar: React.FC<ConsolidatedSidebarProps> = ({
     { to: "/dashboard/telegram-chat", icon: <Send className="h-5 w-5" />, label: "Telegram Chat" },
     { to: "/dashboard/shopify-chat", icon: <ShoppingBag className="h-5 w-5" />, label: "Shopify Chat" },
     { to: "/dashboard/wordpress-chat", icon: <Globe className="h-5 w-5" />, label: "WordPress Chat" },
+    { to: "/dashboard/private-ai", icon: <Server className="h-5 w-5" />, label: "Private AI API" },
   ];
 
   // Additional main links that come after the Apps section
@@ -244,7 +245,7 @@ export const ConsolidatedSidebar: React.FC<ConsolidatedSidebarProps> = ({
   // Add admin dashboard link to bottom links if user is admin
   if (isAdmin) {
     bottomLinks.unshift({
-      to: "/admin",
+      to: "/admin/dashboard",
       icon: <Shield className="h-5 w-5" />,
       label: "Admin Dashboard",
     });
@@ -358,15 +359,30 @@ export const ConsolidatedSidebar: React.FC<ConsolidatedSidebarProps> = ({
           ))}
         </nav>
 
-        {/* Admin Navigation - visible to all users */}
-        {!isCollapsed && (
-          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
-            <div className="px-3 mb-2">
-              <p className="text-xs font-semibold text-muted-foreground">
-                ADMIN
-              </p>
-            </div>
-            <nav className="space-y-1 pl-3">
+        {/* Admin Navigation - visible only to admin users */}
+        {isAdmin && (
+          <div className={cn(
+            "mt-6 pt-6 border-t border-gray-200 dark:border-gray-800",
+            isCollapsed ? "px-1" : ""
+          )}>
+            {!isCollapsed && (
+              <div className="px-3 mb-2">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  ADMIN
+                </p>
+              </div>
+            )}
+            {isCollapsed && (
+              <div className="flex justify-center mb-2">
+                <div 
+                  className="flex items-center justify-center w-6 h-6 rounded-full bg-red-600/20 border border-red-600/50"
+                  title="Admin Navigation"
+                >
+                  <Shield className="w-3 h-3 text-red-600" />
+                </div>
+              </div>
+            )}
+            <nav className={cn("space-y-1", isCollapsed ? "px-1" : "pl-3")}>
               {adminLinks.map((link) => (
                 <SidebarLink
                   key={link.to}

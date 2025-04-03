@@ -306,9 +306,74 @@ const Header = ({
   theme = "dark",
   onThemeChange,
 }: HeaderProps) => {
-  const { user, signOut, updateProfile } = useAuth();
+  const { user, signOut, updateProfile, profile } = useAuth();
   const { searchValue, setSearchValue } = useSearch();
   const navigate = useNavigate();
+
+  // Cache avatar URL in memory
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  
+  // Save Dicebear avatar to profile if not already set
+  useEffect(() => {
+    console.log("Avatar debug:", { 
+      hasUser: !!user, 
+      userEmail: user?.email, 
+      hasProfile: !!profile,
+      profileAvatar: profile?.avatar_url,
+      hasUpdateProfile: !!updateProfile
+    });
+    
+    // If there's a profile avatar, use that
+    if (profile?.avatar_url) {
+      console.log("Using existing profile avatar:", profile.avatar_url);
+      setAvatarUrl(profile.avatar_url);
+      return;
+    }
+    
+    // Otherwise generate the avatar URL using the same format as admin page
+    if (user?.email) {
+      const generatedAvatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email)}`;
+      setAvatarUrl(generatedAvatarUrl);
+      
+      // Save to profile if needed
+      if (updateProfile && profile && !profile.avatar_url) {
+        console.log("Saving avatar URL to profile:", generatedAvatarUrl);
+        
+        // Update user profile with avatar URL
+        updateProfile({ avatar_url: generatedAvatarUrl })
+          .then(() => console.log("Successfully saved avatar URL to profile"))
+          .catch(err => {
+            console.error("Failed to save avatar URL to profile:", err);
+          });
+      }
+    }
+  }, [user, updateProfile, profile]);
+
+  // Log avatar source URL for debugging
+  useEffect(() => {
+    if (profile?.avatar_url) {
+      // Debug the exact URL structure
+      console.log("🔍 AVATAR URL:", profile.avatar_url);
+      
+      // Check if URL starts with http or https
+      if (!profile.avatar_url.startsWith('http')) {
+        console.warn("Avatar URL doesn't have protocol, may need domain");
+      }
+      
+      try {
+        // Test if image can be loaded
+        const img = new Image();
+        img.onload = () => console.log("✅ Avatar image pre-loaded successfully");
+        img.onerror = () => console.error("❌ Avatar image failed to pre-load");
+        img.src = profile.avatar_url;
+      } catch (e) {
+        console.error("Error testing image:", e);
+      }
+      
+      // Always set the URL, even if it might not work
+      setAvatarUrl(profile.avatar_url);
+    }
+  }, [profile?.avatar_url]);
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
@@ -333,20 +398,44 @@ const Header = ({
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = async (scope: 'global' | 'local' | 'others' = 'global') => {
     try {
-      console.log("Logging out user:", user?.email);
-      await signOut();
+      console.log(`Logging out user: ${user?.email} with scope: ${scope}`);
       
-      // Navigate to home page after sign out
-      window.location.href = "/";
+      // Import signOut function to ensure we use the enhanced version
+      const { signOut: authSignOut, clearAuthTokens } = await import('@/lib/supabase-auth');
+      
+      // Call the enhanced signOut function with scope
+      const response = await authSignOut(scope);
+      
+      if (response.error) {
+        console.error("Error during logout:", response.error);
+        toast({
+          title: "Logout Error",
+          description: "There was an issue logging out.",
+          variant: "destructive",
+        });
+      }
+      
+      // Additional cleanup as fallback
+      try {
+        clearAuthTokens();
+      } catch (e) {
+        console.error("Error during token cleanup:", e);
+      }
+      
+      // Force reload the page to ensure a clean state
+      window.location.href = "/?force_logout=true";
     } catch (error) {
-      console.error("Error during logout:", error);
+      console.error("Exception during logout:", error);
       toast({
         title: "Logout Error",
         description: "There was an issue logging out.",
         variant: "destructive",
       });
+      
+      // Fallback - redirect anyway
+      window.location.href = "/?force_logout=true";
     }
   };
 
@@ -410,42 +499,62 @@ const Header = ({
               variant="ghost"
               className="flex items-center gap-2 rounded-full"
             >
-              <Avatar className="h-8 w-8">
-                <AvatarImage
-                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || "user"}`}
-                />
-                <AvatarFallback>
-                  {user?.email?.substring(0, 2).toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="hidden md:flex md:flex-col md:items-start md:leading-none">
-                <span className={`font-medium ${isAdmin ? "text-green-500" : ""}`}>
-                  {user?.email?.split("@")[0] || "User"}
-                </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {user?.email || ""}
-                </span>
+              <div 
+                className="h-8 w-8 rounded-full border-2 border-white overflow-hidden flex items-center justify-center"
+                style={{
+                  background: "#4338ca"
+                }}
+              >
+                {/* Force img with direct avatar URL */}
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="User avatar"
+                    className="w-full h-full"
+                    style={{ 
+                      objectFit: "cover",
+                      display: "block" 
+                    }}
+                    onLoad={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      console.log("✅ Avatar loaded successfully in header:", target.src);
+                    }}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      console.error("❌ Avatar failed to load in header:", target.src);
+                      // Add a key to force re-render
+                      target.setAttribute('key', Date.now().toString());
+                      // Try adding crossorigin attribute
+                      target.setAttribute('crossorigin', 'anonymous');
+                    }}
+                  />
+                ) : (
+                  <span className="text-white text-xs font-bold">
+                    {user?.email?.substring(0, 2).toUpperCase() || "U"}
+                  </span>
+                )}
               </div>
-              <ChevronDown className="hidden h-4 w-4 md:block" />
+              <span className="font-medium hidden md:inline-block">
+                {user?.email?.split("@")[0] || "User"}
+              </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              <span>Profile</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <HelpCircle className="mr-2 h-4 w-4" />
-              <span>Help</span>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => navigate("/dashboard/settings")}>
+              Profile Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
+            <DropdownMenuItem onClick={() => handleLogout('local')}>
               <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
+              Sign Out (This Device)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleLogout('others')}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out (Other Devices) 
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleLogout('global')}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out (All Devices)
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -454,95 +563,68 @@ const Header = ({
   );
 };
 
-interface DashboardLayoutProps {
-  children?: React.ReactNode;
-  onSearchChange?: (value: string) => void;
-}
-
-const DashboardLayout = ({
-  children = <div>Dashboard Content</div>,
-  onSearchChange,
-}: DashboardLayoutProps) => {
-  const [hasError, setHasError] = useState(false);
+const SimpleDashboardLayout = ({ children }: { children: React.ReactNode }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isAdmin } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, isAdmin } = useAuth();
+  
+  // Initialize theme state, defaulting to 'dark' instead of 'light'
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     return (localStorage.getItem("dashboard-theme") as "light" | "dark") || "dark";
   });
 
-  // Save theme to localStorage whenever it changes
+  // Add or update class on body element when theme changes
   useEffect(() => {
-    localStorage.setItem("dashboard-theme", theme);
+    const dashboardElement = document.getElementById("dashboard");
+    if (dashboardElement) {
+      dashboardElement.classList.toggle("dark", theme === "dark");
+      // Also update the class on the body to ensure proper theme application
+      document.body.classList.toggle("dark", theme === "dark");
+    }
   }, [theme]);
 
-  useEffect(() => {
-    const errorHandler = (event: ErrorEvent) => {
-      console.error("DashboardLayout caught error:", event.error);
-      setHasError(true);
-      event.preventDefault();
-    };
-
-    window.addEventListener("error", errorHandler);
-    return () => window.removeEventListener("error", errorHandler);
-  }, []);
+  const handleThemeChange = (newTheme: "light" | "dark") => {
+    setTheme(newTheme);
+  };
 
   const toggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+    setSidebarCollapsed((prev) => !prev);
   };
 
   return (
-    <div className={cn("dashboard flex h-screen w-full", theme === "dark" && "dark")}>
-      {/* Use the consolidated sidebar */}
-      <ConsolidatedSidebar isCollapsed={sidebarCollapsed} onToggle={toggleSidebar} />
-
-      {/* Mobile menu overlay */}
+    <div id="dashboard" className={`dashboard ${theme} flex h-screen`}>
+      <div className="hidden md:block">
+        <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+      </div>
       {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black bg-opacity-50"
-          onClick={() => setMobileMenuOpen(false)}
-        ></div>
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="relative bg-background w-full max-w-xs p-4">
+            <Sidebar />
+          </div>
+        </div>
       )}
-
-      {/* Mobile sidebar */}
-      <aside
+      <div
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 transform overflow-y-auto bg-white transition-transform duration-300 ease-in-out dark:bg-gray-950 lg:hidden",
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          "flex flex-1 flex-col transition-all",
+          sidebarCollapsed ? "md:ml-[70px]" : "md:ml-[280px]"
         )}
       >
-        {/* Use the consolidated sidebar for mobile */}
-        <ConsolidatedSidebar />
-      </aside>
-
-      <div className="flex flex-1 flex-col overflow-hidden">
         <Header
           onMenuClick={() => setMobileMenuOpen(true)}
-          onSearchChange={onSearchChange}
           isAdmin={isAdmin}
           theme={theme}
-          onThemeChange={setTheme}
+          onThemeChange={handleThemeChange}
         />
-        <main className="flex-1 overflow-auto p-4 md:p-6 bg-background text-foreground">
-          <div className="w-full">
-            {hasError ? (
-              <div className="p-8 text-center bg-red-900/20 rounded-lg border border-red-500/30">
-                <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
-                <p>
-                  There was an error loading this content. Please try refreshing
-                  the page.
-                </p>
-              </div>
-            ) : (
-              children || (
-                <div className="p-8 text-center">No content to display</div>
-              )
-            )}
-          </div>
-        </main>
+        <main className="flex-1 overflow-auto p-4">{children}</main>
       </div>
     </div>
   );
 };
 
-export default DashboardLayout;
+export default SimpleDashboardLayout;

@@ -78,6 +78,46 @@ export async function getUserProfile(userId: string): Promise<ApiResponse<UserPr
 }
 
 /**
+ * Get complete user data from Supabase
+ * This includes auth data, profile data, and other associated data
+ */
+export async function getCompleteUserData(userId: string): Promise<ApiResponse<any>> {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    // Use the admin client to get auth user data
+    const adminClient = getAdminClient();
+    
+    // Get user profile data
+    const { data: profileData, error: profileError } = await getClient()
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (profileError && profileError.code !== 'PGRST116') throw profileError;
+
+    // Get auth user data (this endpoint is available in admin API)
+    const { data: adminUserData, error: adminUserError } = await adminClient.auth.admin.getUserById(userId);
+    if (adminUserError) throw adminUserError;
+
+    // Combine data
+    return {
+      data: {
+        auth: adminUserData?.user || null,
+        profile: profileData || null
+      },
+      error: null
+    };
+  } catch (error) {
+    console.error("Get complete user data error:", error);
+    return { data: null, error: error as Error };
+  }
+}
+
+/**
  * Update a user's profile
  */
 export async function updateUserProfile(

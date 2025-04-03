@@ -126,7 +126,12 @@ const MobileNavigation = ({
                   Dashboard
                 </Link>
               </Button>
-              <Button onClick={handleLogout}>Sign Out</Button>
+              <Button variant="destructive" onClick={() => {
+                if (handleLogout) handleLogout();
+                onClose();
+              }}>
+                Log Out
+              </Button>
             </>
           ) : (
             <>

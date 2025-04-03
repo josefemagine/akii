@@ -1,0 +1,482 @@
+import React, { Suspense, lazy, useEffect, useState, useMemo } from "react";
+import {
+  Routes,
+  Route,
+  Navigate,
+  Outlet,
+  useRoutes,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
+import routes from "tempo-routes";
+// Import our auth compatibility layer instead of specific auth contexts
+import { 
+  CombinedAuthProvider 
+} from './contexts/auth-compatibility';
+import LandingPage from "./pages/LandingPage";
+import { SearchProvider } from "./contexts/SearchContext";
+import { EnvWarning } from "@/components/ui/env-warning";
+import { LoadingScreen } from "@/components/LoadingScreen";
+import { Toaster } from "./components/ui/toaster";
+import MainLayout from "./components/layout/MainLayout";
+// Import our consolidated DashboardLayout
+import DashboardLayout from "./components/dashboard/DashboardLayout";
+import { UserDetailPage } from "./pages/admin/UserDetail";
+// Import our GlobalErrorHandler component
+import GlobalErrorHandler from "./components/GlobalErrorHandler";
+import { supabase } from "@/lib/supabase";
+import { toast } from "@/components/ui/use-toast";
+import { emergencySessionReset, forceSessionCheck } from "@/lib/auth-lock-fix";
+// Import StandardAuthContext and PrivateRoute
+import { AuthProvider as StandardAuthProvider } from "./contexts/StandardAuthContext";
+import { PrivateRoute } from "./components/PrivateRoute";
+
+// Setup network interceptors for auth error handling
+const setupNetworkInterceptors = () => {
+  // Store the original fetch function
+  const originalFetch = window.fetch;
+  let lastAuthErrorTime = 0;
+  let authErrorCount = 0;
+  
+  // Override the fetch function to intercept all network requests
+  window.fetch = async function(input, init) {
+    try {
+      // Make the original request
+      const response = await originalFetch(input, init);
+      
+      // Check for auth-related error responses (401, 403)
+      if (response.status === 401 || response.status === 403) {
+        const now = Date.now();
+        
+        // Get URL from input
+        let requestUrl = '';
+        if (typeof input === 'string') {
+          requestUrl = input;
+        } else if (input instanceof Request) {
+          requestUrl = input.url;
+        } else if (input instanceof URL) {
+          requestUrl = input.toString();
+        }
+        
+        // Avoid showing too many errors for the same issue
+        if (now - lastAuthErrorTime > 10000) {
+          console.warn(`Auth error on fetch to ${requestUrl}: ${response.status}`);
+          lastAuthErrorTime = now;
+          authErrorCount++;
+          
+          // Dispatch a global auth error event that GlobalErrorHandler can listen for
+          window.dispatchEvent(new CustomEvent('akii:auth:error', { 
+            detail: { 
+              status: response.status,
+              url: requestUrl,
+              errorCount: authErrorCount
+            }
+          }));
+          
+          // If we're seeing persistent auth errors, attempt recovery
+          if (authErrorCount > 2) {
+            // Force a session check
+            try {
+              const sessionResult = await forceSessionCheck();
+              
+              // If no session exists after multiple auth errors, try emergency reset
+              if (!sessionResult.data?.session && authErrorCount > 3) {
+                console.warn('Multiple auth errors detected with no valid session, performing emergency reset');
+                emergencySessionReset();
+                window.dispatchEvent(new Event('akii:auth:reset'));
+                
+                // Show a toast notification to the user
+                toast({
+                  title: "Authentication Issue",
+                  description: "Please try again or refresh the page.",
+                  variant: "destructive"
+                });
+                
+                // Reset the error count
+                authErrorCount = 0;
+              }
+            } catch (e) {
+              console.error('Error checking session during fetch interceptor:', e);
+            }
+          }
+        } else if (response.ok) {
+          // Reset error count on successful requests
+          authErrorCount = 0;
+        }
+      }
+      
+      return response;
+    } catch (error) {
+      // Handle network errors
+      console.error('Network error in fetch interceptor:', error);
+      
+      // Pass the error through
+      throw error;
+    }
+  };
+  
+  console.log('Network interceptors set up for auth error detection');
+};
+
+// Lazy load pages with better chunking
+const Dashboard = lazy(() => import("./pages/dashboard/Dashboard"));
+const Settings = lazy(() => import("./pages/dashboard/Settings"));
+const Agents = lazy(() => import("./pages/dashboard/Agents"));
+const Conversations = lazy(() => import("./pages/dashboard/Conversations"));
+const Analytics = lazy(() => import("./pages/dashboard/Analytics"));
+const Billing = lazy(() => import("./pages/dashboard/Billing"));
+const APIKeys = lazy(() => import("./pages/dashboard/APIKeys"));
+const Documents = lazy(() => import("./pages/dashboard/Documents"));
+const Team = lazy(() => import("./pages/dashboard/Team"));
+const Integrations = lazy(() => import("./pages/dashboard/Integrations"));
+const N8nWorkflows = lazy(() => import("./pages/dashboard/n8nWorkflows"));
+const Blog = lazy(() => import("./pages/Blog"));
+const Contact = lazy(() => import("./pages/Contact"));
+const Pricing = lazy(() => import("./pages/Pricing"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const LeadMagnet = lazy(() => import("./pages/LeadMagnet"));
+const SupabaseTest = lazy(() => import("./pages/SupabaseTest"));
+
+// Lazy load product pages with better chunking
+const WebChatAgent = lazy(() => import("./pages/products/WebChatAgent"));
+const MobileChatAgent = lazy(() => import("./pages/products/MobileChatAgent"));
+const WhatsAppChatAgent = lazy(
+  () => import("./pages/products/WhatsAppChatAgent"),
+);
+const TelegramChatAgent = lazy(
+  () => import("./pages/products/TelegramChatAgent"),
+);
+const ShopifyChatAgent = lazy(
+  () => import("./pages/products/ShopifyChatAgent"),
+);
+const WordPressChatAgent = lazy(
+  () => import("./pages/products/WordPressChatAgent"),
+);
+const PrivateAIAPI = lazy(() => import("./pages/products/PrivateAIAPI"));
+
+// Auth pages
+const AuthCallback = lazy(() => import("./pages/auth/callback"));
+const ResetPassword = lazy(() => import("./pages/auth/reset-password"));
+const TokenHandler = lazy(() => import("./pages/auth/TokenHandler"));
+
+// Dashboard web chat
+const WebChat = lazy(() => import("./pages/dashboard/WebChat"));
+const ShopifyChat = lazy(() => import("./pages/dashboard/ShopifyChat"));
+
+// Lazy load additional dashboard pages
+const AgentSetup = lazy(() => import("./pages/dashboard/AgentSetup"));
+const Subscription = lazy(() => import("./pages/dashboard/Subscription"));
+
+// Admin pages (now under dashboard)
+const AdminUsers = lazy(() => import("./pages/admin/Users"));
+const AdminSettings = lazy(() => import("./pages/admin/Settings"));
+const AdminPackages = lazy(() => import("./pages/admin/Packages"));
+const AdminEmailTemplates = lazy(() => import("./pages/admin/EmailTemplates"));
+const AdminLeadMagnets = lazy(() => import("./pages/admin/LeadMagnets"));
+const AdminLandingPages = lazy(() => import("./pages/admin/LandingPages"));
+const AdminBlog = lazy(() => import("./pages/admin/Blog"));
+const AdminAffiliates = lazy(() => import("./pages/admin/Affiliates"));
+const AdminCompliance = lazy(() => import("./pages/admin/Compliance"));
+const RunMigration = lazy(() => import("./pages/admin/RunMigration"));
+const AdminN8nWorkflows = lazy(() => import("./pages/admin/n8nWorkflows"));
+const Moderation = lazy(() => import("./pages/admin/Moderation"));
+const DatabaseSchemaPage = lazy(() => import("./pages/admin/DatabaseSchema"));
+const UserSyncPage = lazy(() => import("./pages/admin/UserSync"));
+const UserStatusMigration = lazy(() => import("./pages/admin/UserStatusMigration"));
+const UserProfileMigration = lazy(() => import("./pages/admin/UserProfileMigration"));
+const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const Workflows = lazy(() => import("./pages/admin/Workflows"));
+
+// Add these missing imports at the top with your other lazy imports
+const HomePage = lazy(() => import("@/pages/HomePage"));
+const UsersPage = lazy(() => import("@/pages/admin/Users"));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center h-screen bg-background">
+    <div className="text-center space-y-4">
+      <div className="w-8 h-8 border-t-2 border-primary rounded-full animate-spin mx-auto"></div>
+      <p className="text-foreground">Loading...</p>
+    </div>
+  </div>
+);
+
+// Route redirection component
+const RouteRedirect = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Scan localStorage for any problematic redirects
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('redirect') || key.includes('auth') || key.includes('return'))) {
+        const value = localStorage.getItem(key);
+        if (value && value.includes('/ddashboard')) {
+          console.error(`[RouteRedirect] Found problematic redirect in localStorage: ${key}=${value}`);
+          localStorage.setItem(key, value.replace('/ddashboard', '/dashboard'));
+          console.log(`[RouteRedirect] Fixed localStorage value to: ${value.replace('/ddashboard', '/dashboard')}`);
+        }
+      }
+    }
+
+    // Check if we're trying to access dashboard routes
+    if (location.pathname.startsWith("/dashboard")) {
+      // Don't redirect specific dashboard routes that we know exist
+      if (
+        location.pathname === "/dashboard" ||
+        location.pathname === "/dashboard/ai-instances" ||
+        location.pathname === "/dashboard/settings"
+      ) {
+        console.log("Accessing known dashboard route, not redirecting:", location.pathname);
+        return;
+      }
+      
+      console.log("Redirecting from unknown dashboard route:", location.pathname);
+      // Force a navigation to the dashboard route - fix the original route
+      navigate("/dashboard", { replace: true });
+    } else if (location.pathname.startsWith("/ddashboard")) {
+      // Fix the typo if this occurs
+      console.log("Correcting typo in dashboard URL");
+      navigate("/dashboard", { replace: true });
+    }
+  }, [location, navigate]);
+
+  return <LoadingScreen />;
+};
+
+// Authentication state initializer
+const AuthInitializer = () => {
+  const location = useLocation();
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    // Skip initialization if already done
+    if (initialized) return;
+
+    const initializeAuth = async () => {
+      try {
+        // Add detection of auth code in URL for PKCE flow
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get('code');
+        
+        if (code) {
+          console.log("[AuthInitializer] Found auth code in URL, PKCE flow will be handled by main.tsx");
+          // The code is handled by main.tsx, we just log here for tracking
+        } else {
+          console.log("[AuthInitializer] No auth code in URL, checking for existing session");
+        }
+        
+        // Mark as initialized to avoid repeated checks
+        setInitialized(true);
+      } catch (error) {
+        console.error("[AuthInitializer] Error:", error);
+        // Still mark as initialized even on error to avoid repeated failures
+        setInitialized(true);
+      }
+    };
+
+    initializeAuth();
+  }, [location.pathname, initialized]);
+  
+  return null;
+};
+
+// Create an AppContent component that contains all the routes and content
+function AppContent() {
+  const location = useLocation();
+  const tempoRoutes = import.meta.env.VITE_TEMPO ? useRoutes(routes) : null;
+  
+  // Initialize network interceptors on mount
+  useEffect(() => {
+    setupNetworkInterceptors();
+  }, []);
+  
+  return (
+    <>
+      {/* Add GlobalErrorHandler before anything else */}
+      <GlobalErrorHandler />
+      
+      <EnvWarning />
+      
+      {/* Tempo routes */}
+      {tempoRoutes}
+      
+      <Routes>
+        {/* Public home routes */}
+        <Route
+          path="/"
+          element={
+            <MainLayout>
+              <Outlet />
+            </MainLayout>
+          }
+        >
+          <Route index element={<LandingPage />} />
+          <Route path="pricing" element={<Pricing />} />
+          <Route path="blog" element={<Blog />} />
+          <Route path="contact" element={<Contact />} />
+          <Route path="privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="terms-of-service" element={<TermsOfService />} />
+          <Route path="supabase-test" element={<SupabaseTest />} />
+        </Route>
+
+        {/* Auth routes */}
+        <Route path="/auth">
+          <Route path="callback" element={<AuthCallback />} />
+          <Route path="reset-password" element={<ResetPassword />} />
+        </Route>
+
+        {/* Token handler route for deep links with tokens */}
+        <Route path="/token/*" element={<TokenHandler />} />
+
+        {/* Product pages */}
+        <Route path="/products/web-chat-agent" element={<WebChatAgent />} />
+        <Route path="/products/mobile-chat-agent" element={<MobileChatAgent />} />
+        <Route path="/products/whatsapp-chat-agent" element={<WhatsAppChatAgent />} />
+        <Route path="/products/telegram-chat-agent" element={<TelegramChatAgent />} />
+        <Route path="/products/shopify-chat-agent" element={<ShopifyChatAgent />} />
+        <Route path="/products/wordpress-chat-agent" element={<WordPressChatAgent />} />
+        <Route path="/products/private-ai-api" element={<PrivateAIAPI />} />
+
+        {/* Dashboard routes - protected */}
+        <Route
+          path="/dashboard"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <Dashboard />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/ai-instances"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <Agents />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/settings"
+          element={
+            <PrivateRoute>
+              <DashboardLayout>
+                <Settings />
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+        
+        {/* Dashboard redirect for any unmatched dashboard routes */}
+        <Route path="/dashboard/*" element={<RouteRedirect />} />
+
+        {/* Admin routes */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <PrivateRoute adminOnly={true}>
+              <DashboardLayout isAdmin={true}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <AdminDashboard />
+                </Suspense>
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/*"
+          element={
+            <PrivateRoute adminOnly={true}>
+              <DashboardLayout isAdmin={true}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <Outlet />
+                </Suspense>
+              </DashboardLayout>
+            </PrivateRoute>
+          }
+        >
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="settings" element={<AdminSettings />} />
+          <Route path="packages" element={<AdminPackages />} />
+          <Route path="email-templates" element={<AdminEmailTemplates />} />
+          <Route path="lead-magnets" element={<AdminLeadMagnets />} />
+          <Route path="landing-pages" element={<AdminLandingPages />} />
+          <Route path="blog" element={<AdminBlog />} />
+          <Route path="affiliates" element={<AdminAffiliates />} />
+          <Route path="compliance" element={<AdminCompliance />} />
+          <Route path="run-migration" element={<RunMigration />} />
+          <Route path="n8n-workflows" element={<AdminN8nWorkflows />} />
+          <Route path="moderation" element={<Moderation />} />
+          <Route path="database-schema" element={<DatabaseSchemaPage />} />
+          <Route path="user-sync" element={<UserSyncPage />} />
+          <Route path="user-status-migration" element={<UserStatusMigration />} />
+          <Route path="user-profile-migration" element={<UserProfileMigration />} />
+          <Route path="workflows" element={<Workflows />} />
+          <Route path="billing" element={<Billing />} />
+          <Route path="user-detail/:userId" element={<UserDetailPage />} />
+        </Route>
+
+        {/* Fallback route */}
+        {/* Add this before the catchall route */}
+        {import.meta.env.VITE_TEMPO && <Route path="/tempobook/*" />}
+
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </>
+  );
+}
+
+// The main App component - export this directly, without any router wrapping
+function App() {
+  // Run early initialization to ensure clean auth state
+  useEffect(() => {
+    const earlyInit = async () => {
+      try {
+        // Check if we've already initialized
+        if ((window as any).__AKII_APP_INITIALIZED) return;
+        
+        console.log('[App] Running early initialization checks');
+        
+        // Ensure all auth locks are cleared
+        try {
+          const lockStatus = (window as any).__AUTH_LOCK_STATUS?.();
+          if (lockStatus?.isOperationInProgress) {
+            console.warn('[App] Found stale auth locks during initialization, clearing');
+            // @ts-ignore - Accessing global emergency methods
+            (window as any).__EMERGENCY_RESET?.();
+          }
+        } catch (e) {
+          console.error('[App] Error checking auth locks:', e);
+        }
+        
+        // Mark as initialized
+        (window as any).__AKII_APP_INITIALIZED = true;
+      } catch (e) {
+        console.error('[App] Error during early initialization:', e);
+      }
+    };
+    
+    earlyInit();
+  }, []);
+  
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <StandardAuthProvider>
+        <SearchProvider>
+          <GlobalErrorHandler />
+          <AuthInitializer />
+          <AppContent />
+          <Toaster />
+        </SearchProvider>
+      </StandardAuthProvider>
+    </Suspense>
+  );
+}
+
+// Export App directly - no wrapper with BrowserRouter
+export default App;

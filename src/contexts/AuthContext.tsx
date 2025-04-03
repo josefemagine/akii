@@ -41,7 +41,7 @@ import {
 } from "@/lib/auth-helpers";
 
 // Update imports to use the singleton
-import supabase, { auth, supabaseAdmin, debugSupabaseInstances } from "@/lib/supabase-singleton";
+import supabase, { auth, supabaseAdmin, debugSupabaseInstances } from "@/lib/supabase";
 
 interface AuthState {
   user: User | null;

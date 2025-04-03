@@ -1,26 +1,70 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
+import react from "@vitejs/plugin-react";
 import path from "path";
 import { tempo } from "tempo-devtools/dist/vite";
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), tempo()],
+  plugins: [react(), tempo(), tsconfigPaths()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
   build: {
+    // Increase the warning limit to suppress warnings about large chunks
+    // Our main bundle is around 1100kb so we set this higher
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       // Exclude unused/transitional files from build to prevent errors
-      // These files are part of the authentication refactoring
-      // and will be removed in a future update
       external: [
-        /ConsolidatedAuthContext\.tsx$/,
-        /AuthContext\.tsx\.new\.tsx$/,
+        /supabase\/auth-helpers-nextjs/,
         /SimpleAuthContext\.tsx$/
       ],
+      output: {
+        manualChunks: {
+          // Group React and related packages
+          'vendor-react': [
+            'react',
+            'react-dom',
+            'react-router-dom',
+            'framer-motion',
+          ],
+          // Group UI components
+          'vendor-ui': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-toast',
+            '@radix-ui/react-tooltip',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-select',
+            '@radix-ui/react-switch',
+            '@floating-ui/react',
+            '@radix-ui/react-avatar',
+            '@radix-ui/react-checkbox',
+            '@radix-ui/react-label',
+            '@radix-ui/react-separator'
+          ],
+          // Group utility libraries
+          'vendor-utils': [
+            'date-fns',
+            'recharts',
+            'zod',
+            'zustand',
+            'clsx',
+            'tailwind-merge',
+            'class-variance-authority',
+            'lucide-react'
+          ],
+          // Group Supabase related code
+          'vendor-supabase': [
+            '@supabase/supabase-js',
+            '@supabase/auth-helpers-react',
+            '@supabase/auth-helpers-shared'
+          ]
+        }
+      }
     },
   },
   server: {
