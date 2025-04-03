@@ -293,4 +293,32 @@ export async function ensureUserProfile(user: { id: string; email?: string }) {
     console.error('Ensure profile error:', error);
     return { data: null, error: error as Error };
   }
+}
+
+/**
+ * Check if a user is an admin by directly querying the profiles table
+ * This provides a reliable way to check admin status even when the profile object isn't available
+ */
+export async function checkIsAdmin(userId: string): Promise<boolean> {
+  try {
+    if (!userId) return false;
+    
+    // First try getting the profile from the database
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error('Error checking admin status:', error);
+      return false;
+    }
+    
+    // Check if the role field is 'admin'
+    return data?.role === 'admin';
+  } catch (e) {
+    console.error('Exception checking admin status:', e);
+    return false;
+  }
 } 

@@ -2,6 +2,17 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import type { User } from "@supabase/supabase-js";
+import { 
+  Monitor, 
+  Smartphone, 
+  MessageCircle, 
+  Send, 
+  ShoppingBag, 
+  Globe, 
+  Puzzle, 
+  Share, 
+  Workflow 
+} from "lucide-react";
 
 interface MobileNavigationProps {
   isOpen: boolean;
@@ -44,56 +55,70 @@ const MobileNavigation = ({
           Home
         </Link>
         <div className="py-2">
-          <div className="text-base font-medium mb-2">Products</div>
+          <div className="text-base font-medium mb-2">Apps & Integrations</div>
           <div className="pl-4 space-y-2">
             <Link
               to="/products/private-ai-api"
-              className="block py-1 text-sm text-muted-foreground font-medium"
+              className="block py-1 text-sm text-muted-foreground font-medium flex items-center gap-2"
               onClick={onClose}
             >
-              Private AI API
+              <Puzzle className="h-4 w-4" /> Private AI API
             </Link>
             <Link
-              to="/products/web-chat-agent"
-              className="block py-1 text-sm text-muted-foreground"
+              to="/products/web-chat"
+              className="block py-1 text-sm text-muted-foreground flex items-center gap-2"
               onClick={onClose}
             >
-              Web Chat Agent
+              <Monitor className="h-4 w-4" /> Web Chat
             </Link>
             <Link
-              to="/products/mobile-chat-agent"
-              className="block py-1 text-sm text-muted-foreground"
+              to="/products/mobile-chat"
+              className="block py-1 text-sm text-muted-foreground flex items-center gap-2"
               onClick={onClose}
             >
-              Mobile Chat Agent
+              <Smartphone className="h-4 w-4" /> Mobile Chat
             </Link>
             <Link
-              to="/products/whatsapp-chat-agent"
-              className="block py-1 text-sm text-muted-foreground"
+              to="/products/whatsapp-chat"
+              className="block py-1 text-sm text-muted-foreground flex items-center gap-2"
               onClick={onClose}
             >
-              WhatsApp Chat Agent
+              <MessageCircle className="h-4 w-4" /> WhatsApp Chat
             </Link>
             <Link
-              to="/products/telegram-chat-agent"
-              className="block py-1 text-sm text-muted-foreground"
+              to="/products/telegram-chat"
+              className="block py-1 text-sm text-muted-foreground flex items-center gap-2"
               onClick={onClose}
             >
-              Telegram Chat Agent
+              <Send className="h-4 w-4" /> Telegram Chat
             </Link>
             <Link
-              to="/products/shopify-chat-agent"
-              className="block py-1 text-sm text-muted-foreground"
+              to="/products/shopify-chat"
+              className="block py-1 text-sm text-muted-foreground flex items-center gap-2"
               onClick={onClose}
             >
-              Shopify Chat Agent
+              <ShoppingBag className="h-4 w-4" /> Shopify Chat
             </Link>
             <Link
-              to="/products/wordpress-chat-agent"
-              className="block py-1 text-sm text-muted-foreground"
+              to="/products/wordpress-chat"
+              className="block py-1 text-sm text-muted-foreground flex items-center gap-2"
               onClick={onClose}
             >
-              WordPress Chat Agent
+              <Globe className="h-4 w-4" /> WordPress Chat
+            </Link>
+            <Link
+              to="/products/integrations/zapier"
+              className="block py-1 text-sm text-muted-foreground flex items-center gap-2"
+              onClick={onClose}
+            >
+              <Share className="h-4 w-4" /> Zapier Integration
+            </Link>
+            <Link
+              to="/products/integrations/n8n"
+              className="block py-1 text-sm text-muted-foreground flex items-center gap-2"
+              onClick={onClose}
+            >
+              <Workflow className="h-4 w-4" /> n8n Integration
             </Link>
           </div>
         </div>

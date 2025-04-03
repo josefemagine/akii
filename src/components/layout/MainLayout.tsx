@@ -30,13 +30,12 @@ const MainLayout = ({ children }: MainLayoutProps) => {
                 <span className="text-xl font-bold">Akii</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Powerful AI agents for your business. Boost sales and reduce
-                costs with our cutting-edge AI solutions.
+                Your AI. Your Data. No Leaks.
               </p>
               <div className="flex space-x-4">
                 <Button variant="ghost" size="icon" asChild>
                   <a
-                    href="https://twitter.com"
+                    href="https://twitter.com/akii"
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -45,14 +44,14 @@ const MainLayout = ({ children }: MainLayoutProps) => {
                   </a>
                 </Button>
                 <Button variant="ghost" size="icon" asChild>
-                  <a href="https://github.com" target="_blank" rel="noreferrer">
+                  <a href="https://github.com/akii" target="_blank" rel="noreferrer">
                     <Github className="h-5 w-5" />
                     <span className="sr-only">GitHub</span>
                   </a>
                 </Button>
                 <Button variant="ghost" size="icon" asChild>
                   <a
-                    href="https://linkedin.com"
+                    href="https://linkedin.com/company/akii"
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -62,7 +61,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
                 </Button>
                 <Button variant="ghost" size="icon" asChild>
                   <a
-                    href="https://facebook.com"
+                    href="https://facebook.com/akiiAI"
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -74,54 +73,54 @@ const MainLayout = ({ children }: MainLayoutProps) => {
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">Products</h3>
+              <h3 className="text-sm font-medium">Apps & Integrations</h3>
               <ul className="space-y-2 text-sm">
                 <li>
                   <Link
-                    to="/products/web-chat-agent"
+                    to="/products/web-chat"
                     className="text-muted-foreground hover:text-foreground"
                   >
-                    Web Chat Agent
+                    Web Chat
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/products/mobile-chat-agent"
+                    to="/products/mobile-chat"
                     className="text-muted-foreground hover:text-foreground"
                   >
-                    Mobile Chat Agent
+                    Mobile Chat
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/products/whatsapp-chat-agent"
+                    to="/products/whatsapp-chat"
                     className="text-muted-foreground hover:text-foreground"
                   >
-                    WhatsApp Chat Agent
+                    WhatsApp Chat
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/products/telegram-chat-agent"
+                    to="/products/telegram-chat"
                     className="text-muted-foreground hover:text-foreground"
                   >
-                    Telegram Chat Agent
+                    Telegram Chat
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/products/shopify-chat-agent"
+                    to="/products/shopify-chat"
                     className="text-muted-foreground hover:text-foreground"
                   >
-                    Shopify Chat Agent
+                    Shopify Chat
                   </Link>
                 </li>
                 <li>
                   <Link
-                    to="/products/wordpress-chat-agent"
+                    to="/products/wordpress-chat"
                     className="text-muted-foreground hover:text-foreground"
                   >
-                    WordPress Chat Agent
+                    WordPress Chat
                   </Link>
                 </li>
                 <li>
@@ -130,6 +129,22 @@ const MainLayout = ({ children }: MainLayoutProps) => {
                     className="text-muted-foreground hover:text-foreground"
                   >
                     Private AI API
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/products/integrations/zapier"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    Zapier Integration
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/products/integrations/n8n"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    n8n Integration
                   </Link>
                 </li>
               </ul>

@@ -18,7 +18,12 @@ if (import.meta.env.DEV) {
 // Mount the application
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
       <App />
     </BrowserRouter>
   </React.StrictMode>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Circle, ChevronDown } from "lucide-react";
+import { Menu, X, Circle, ChevronDown, Monitor, Smartphone, MessageCircle, Send, ShoppingBag, Globe, Puzzle, Share, Workflow } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -272,39 +272,53 @@ const Header = ({}: HeaderProps) => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center gap-1">
-                Products <ChevronDown className="h-4 w-4" />
+                Apps & Integrations <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild>
-                <Link to="/products/private-ai-api" className="font-medium">
-                  Private AI API
+                <Link to="/products/private-ai-api" className="font-medium flex items-center gap-2">
+                  <Puzzle className="h-4 w-4" /> Private AI API
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/products/web-chat-agent">Web Chat Agent</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/products/mobile-chat-agent">Mobile Chat Agent</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/products/whatsapp-chat-agent">
-                  WhatsApp Chat Agent
+                <Link to="/products/web-chat" className="flex items-center gap-2">
+                  <Monitor className="h-4 w-4" /> Web Chat
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/products/telegram-chat-agent">
-                  Telegram Chat Agent
+                <Link to="/products/mobile-chat" className="flex items-center gap-2">
+                  <Smartphone className="h-4 w-4" /> Mobile Chat
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/products/shopify-chat-agent">
-                  Shopify Chat Agent
+                <Link to="/products/whatsapp-chat" className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4" /> WhatsApp Chat
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/products/wordpress-chat-agent">
-                  WordPress Chat Agent
+                <Link to="/products/telegram-chat" className="flex items-center gap-2">
+                  <Send className="h-4 w-4" /> Telegram Chat
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/products/shopify-chat" className="flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4" /> Shopify Chat
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/products/wordpress-chat" className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" /> WordPress Chat
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/products/integrations/zapier" className="flex items-center gap-2">
+                  <Share className="h-4 w-4" /> Zapier Integration
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/products/integrations/n8n" className="flex items-center gap-2">
+                  <Workflow className="h-4 w-4" /> n8n Integration
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>

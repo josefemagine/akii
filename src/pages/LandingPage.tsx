@@ -6,35 +6,44 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AnimatedText from "@/components/animations/AnimatedText";
 import DataFlowAnimation from "@/components/animations/DataFlowAnimation";
+import IntegrationSection from "@/components/marketing/IntegrationSection";
 import { useAuth } from "@/contexts/auth-compatibility";
+import LoginModal from "@/components/auth/LoginModal";
 import {
   Zap,
   MessageSquare,
+  PencilLine,
+  FileCheck,
+  Shield,
+  Users,
+  Monitor,
   Smartphone,
+  Database,
+  Lock,
+  File,
   Share2,
   ShoppingCart,
+  Cog,
+  CreditCard,
+  Gem,
+  Server,
   Code,
-  ArrowRight,
   CheckCircle,
   BarChart,
-  Users,
   Globe,
-  Lock,
-  Shield,
-  Database,
   ShieldCheck,
   UserCog,
-  Network,
+  CloudCog,
+  BadgeCheck,
   Building,
-  User,
-  Headphones,
-  PieChart,
-  Server,
-  BookOpen,
-  FileText,
+  Brain,
+  Bot,
   BriefcaseBusiness,
-  CreditCard,
-  Monitor,
+  FileText,
+  ArrowRight,
+  Network,
+  BookOpen,
+  User,
 } from "lucide-react";
 
 // Add interfaces for the section props
@@ -46,6 +55,7 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
   const [typedText1, setTypedText1] = React.useState("");
   const [typedText2, setTypedText2] = React.useState("");
   const [typedText3, setTypedText3] = React.useState("");
+  const [isLoginModalOpen, setIsLoginModalOpen] = React.useState(false);
   const fullText1 = "Your AI.";
   const fullText2 = "Your Data.";
   const fullText3 = "No Leaks.";
@@ -89,6 +99,14 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
       clearInterval(typeTimer1);
     };
   }, []);
+
+  const handleOpenLoginModal = () => {
+    setIsLoginModalOpen(true);
+  };
+
+  const handleCloseLoginModal = () => {
+    setIsLoginModalOpen(false);
+  };
   
   return (
     <section className="py-20 md:py-28 bg-gradient-to-b from-background to-muted/30 relative overflow-hidden">
@@ -106,15 +124,20 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
                 Launch your own private AI instance, fully isolated and trained on your data — not anyone else's.
               </p>
             </div>
+            
             <div className="flex flex-col gap-3 sm:flex-row">
               {user ? (
                 <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg py-6" asChild>
-                  <Link to="/dashboard">YOUR AI IN 5 MINUTES</Link>
+                  <Link to="/dashboard">YOUR PRIVATE AI IN 5 MINUTES</Link>
                 </Button>
               ) : (
                 <>
-                  <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg py-6" asChild>
-                    <Link to="/signup">YOUR AI IN 5 MINUTES</Link>
+                  <Button 
+                    size="lg" 
+                    className="bg-primary hover:bg-primary/90 text-lg py-6"
+                    onClick={handleOpenLoginModal}
+                  >
+                    YOUR PRIVATE AI IN 5 MINUTES
                   </Button>
                   <Button size="lg" variant="outline" asChild>
                     <Link to="/pricing">See Pricing</Link>
@@ -282,7 +305,7 @@ const CoreFeaturesSection = () => {
     },
     {
       icon: <Network className="h-8 w-8 text-primary" />,
-      title: "Multi-platform Deployment",
+      title: "Built-in Apps & Integrations Ready to Launch",
       description: "Deploy your AI across Web, Mobile, WhatsApp, Telegram, Shopify, WordPress, and API."
     },
     {
@@ -337,7 +360,7 @@ const CoreFeaturesSection = () => {
                 <p className="text-muted-foreground">{feature.description}</p>
 
                 {/* Add deployment app tiles only for the Multi-platform Deployment feature */}
-                {feature.title === "Multi-platform Deployment" && (
+                {feature.title === "Built-in Apps & Integrations Ready to Launch" && (
                   <div className="mt-4 overflow-hidden relative">
                     <div className="animate-scroll flex py-2">
                       {/* First set of icons - will be shown initially */}
@@ -372,7 +395,6 @@ const CoreFeaturesSection = () => {
   );
 };
 
-// New "Why Akii?" section with security badges
 const WhyAkiiSection = () => {
   const securityBadges = [
     { icon: <Shield className="h-5 w-5 text-primary" />, label: "SOC 2 compliance in progress" },
@@ -644,6 +666,7 @@ interface LandingPageProps {
 const LandingPage = ({ searchValue }: LandingPageProps) => {
   const { user, isLoading, session } = useAuth();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const navigate = useNavigate();
   
   // Listen for auth reset events from GlobalErrorHandler
@@ -660,6 +683,20 @@ const LandingPage = ({ searchValue }: LandingPageProps) => {
     
     return () => {
       window.removeEventListener('akii:auth:reset', handleAuthReset);
+    };
+  }, []);
+  
+  // Listen for login modal open events from components
+  useEffect(() => {
+    const handleOpenLogin = () => {
+      console.log("LandingPage: Received open login modal event");
+      setIsLoginModalOpen(true);
+    };
+    
+    window.addEventListener('akii:open:login', handleOpenLogin);
+    
+    return () => {
+      window.removeEventListener('akii:open:login', handleOpenLogin);
     };
   }, []);
   
@@ -727,10 +764,21 @@ const LandingPage = ({ searchValue }: LandingPageProps) => {
       <DataPrivacySection />
       <WhatIsAkiiSection />
       <CoreFeaturesSection />
+      <IntegrationSection />
       <WhyAkiiSection />
       <PricingSection />
       <UseCasesSection />
       <CTASection user={effectiveUserState} />
+      
+      {/* Login Modal */}
+      {isLoginModalOpen && (
+        <LoginModal 
+          isOpen={isLoginModalOpen} 
+          onClose={() => setIsLoginModalOpen(false)}
+          onOpenJoin={() => {/* Handle join modal */}}
+          onOpenPasswordReset={() => {/* Handle password reset */}}
+        />
+      )}
     </>
   );
 };

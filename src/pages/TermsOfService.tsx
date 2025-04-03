@@ -15,7 +15,7 @@ const TermsOfService = () => {
             <p className="text-muted-foreground mb-4">
               Welcome to Akii ("Company", "we", "our", "us"). These Terms of
               Service ("Terms", "Terms of Service") govern your use of our
-              website and AI agent platform (collectively, the "Service")
+              website and AI instance platform (collectively, the "Service")
               operated by Akii.
             </p>
             <p className="text-muted-foreground mb-4">
@@ -57,23 +57,34 @@ const TermsOfService = () => {
               automatically renew under the exact same conditions unless you
               cancel it or Akii cancels it. You may cancel your Subscription
               renewal either through your online account management page or by
-              contacting Akii customer support team.
+              contacting Akii customer support.
             </p>
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">4. AI Agent Usage</h2>
+            <h2 className="text-2xl font-semibold mb-4">4. AI Instance Usage</h2>
             <p className="text-muted-foreground mb-4">
-              Our Service provides AI agents that can be trained on your data
-              and deployed across various platforms. You retain all rights to
-              your data, but grant us a license to use this data to provide and
-              improve the Service.
+              Our Service allows you to launch and train private AI Instances using your 
+              proprietary data and deploy them across various supported platforms.
             </p>
             <p className="text-muted-foreground mb-4">
-              You are responsible for ensuring that any data you upload for
-              training your AI agents complies with all applicable laws and does
-              not infringe on any third-party rights. You must not use our AI
-              agents for any illegal or unauthorized purpose.
+              You retain full ownership of your training data and any content you provide. 
+              By uploading content, you grant Akii a non-exclusive, royalty-free license 
+              to use your data solely for the purpose of delivering and maintaining the 
+              Service on your behalf.
+            </p>
+            <p className="text-muted-foreground mb-4">
+              Akii integrates with Amazon Web Services (AWS), including Amazon Bedrock, 
+              to provide model inference, fine-tuning, and related AI capabilities. AWS 
+              does not retain or use any customer data for model training, and your AI 
+              usage is routed through stateless, ephemeral infrastructure with no long-term 
+              data retention.
+            </p>
+            <p className="text-muted-foreground mb-4">
+              You are solely responsible for ensuring that your uploaded data complies 
+              with applicable laws, including privacy, copyright, and intellectual property 
+              regulations. You must not use our Service to upload, generate, or distribute 
+              content that violates legal or ethical standards.
             </p>
           </section>
 
@@ -82,7 +93,7 @@ const TermsOfService = () => {
               5. Content Moderation
             </h2>
             <p className="text-muted-foreground mb-4">
-              We employ content moderation systems to prevent misuse of our
+              We employ automated and manual content moderation systems to prevent misuse of our
               Service. You agree not to use the Service to generate or
               distribute content that is illegal, harmful, threatening, abusive,
               harassing, tortious, defamatory, vulgar, obscene, invasive of
@@ -105,9 +116,13 @@ const TermsOfService = () => {
               The Service and its original content, features, and functionality
               are and will remain the exclusive property of Akii and its
               licensors. The Service is protected by copyright, trademark, and
-              other laws of both the United States and foreign countries. Our
-              trademarks and trade dress may not be used in connection with any
-              product or service without the prior written consent of Akii.
+              other laws of both the United States and foreign countries.
+            </p>
+            <p className="text-muted-foreground mb-4">
+              You may not copy, modify, distribute, sell, or lease any part of our 
+              Service, nor may you reverse engineer or attempt to extract the source 
+              code of any part of our platform, unless laws prohibit those restrictions 
+              or you have our written permission.
             </p>
           </section>
 
@@ -116,48 +131,76 @@ const TermsOfService = () => {
               7. Limitation of Liability
             </h2>
             <p className="text-muted-foreground mb-4">
-              In no event shall Akii, nor its directors, employees, partners,
-              agents, suppliers, or affiliates, be liable for any indirect,
-              incidental, special, consequential or punitive damages, including
-              without limitation, loss of profits, data, use, goodwill, or other
-              intangible losses, resulting from (i) your access to or use of or
-              inability to access or use the Service; (ii) any conduct or
-              content of any third party on the Service; (iii) any content
-              obtained from the Service; and (iv) unauthorized access, use or
-              alteration of your transmissions or content, whether based on
-              warranty, contract, tort (including negligence) or any other legal
-              theory, whether or not we have been informed of the possibility of
-              such damage.
+              To the maximum extent permitted by applicable law, Akii and its affiliates, 
+              suppliers, partners, and AWS infrastructure providers (including Amazon Bedrock) 
+              shall not be liable for any indirect, incidental, special, consequential or 
+              punitive damages, including without limitation, loss of profits, data, goodwill, 
+              use, or other intangible losses, arising out of or in connection with:
+            </p>
+            <p className="text-muted-foreground mb-4">
+              (i) your access to or use of or inability to access or use the Service;
+            </p>
+            <p className="text-muted-foreground mb-4">
+              (ii) any conduct or content of any third party on the Service;
+            </p>
+            <p className="text-muted-foreground mb-4">
+              (iii) any content obtained from the Service;
+            </p>
+            <p className="text-muted-foreground mb-4">
+              (iv) unauthorized access, use, or alteration of your transmissions or content;
+            </p>
+            <p className="text-muted-foreground mb-4">
+              (v) the operation, security, or performance of underlying AI models hosted by AWS 
+              or its model providers.
+            </p>
+            <p className="text-muted-foreground mb-4">
+              Your use of the Service, including any reliance on outputs generated by AI Instances, 
+              is at your sole risk. The Service is provided on an "AS IS" and "AS AVAILABLE" basis.
+            </p>
+            <p className="text-muted-foreground mb-4">
+              Akii does not warrant that:
+            </p>
+            <p className="text-muted-foreground mb-4">
+              The Service will be uninterrupted, timely, secure, or error-free;
+            </p>
+            <p className="text-muted-foreground mb-4">
+              The results that may be obtained from the use of the Service will be accurate or reliable;
+            </p>
+            <p className="text-muted-foreground mb-4">
+              Any errors in the Service will be corrected.
+            </p>
+            <p className="text-muted-foreground mb-4">
+              Some jurisdictions do not allow the exclusion of certain warranties or the limitation of 
+              liability for incidental or consequential damages, so some of the above limitations may 
+              not apply to you.
             </p>
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">8. Changes</h2>
+            <h2 className="text-2xl font-semibold mb-4">8. Changes to the Terms</h2>
             <p className="text-muted-foreground mb-4">
               We reserve the right, at our sole discretion, to modify or replace
-              these Terms at any time. If a revision is material we will try to
-              provide at least 30 days' notice prior to any new terms taking
-              effect. What constitutes a material change will be determined at
-              our sole discretion.
+              these Terms at any time. If a revision is material, we will provide
+              at least 30 days' notice prior to the new terms taking effect.
             </p>
             <p className="text-muted-foreground mb-4">
-              By continuing to access or use our Service after those revisions
-              become effective, you agree to be bound by the revised terms. If
-              you do not agree to the new terms, please stop using the Service.
+              What constitutes a material change will be determined at our sole discretion. 
+              Continued use of the Service after changes become effective will constitute 
+              your acceptance of the new terms.
             </p>
           </section>
 
           <section>
             <h2 className="text-2xl font-semibold mb-4">9. Contact Us</h2>
             <p className="text-muted-foreground mb-4">
-              If you have any questions about these Terms, please contact us at
+              If you have any questions about these Terms, please contact us at:
               support@akii.ai.
             </p>
           </section>
         </div>
 
         <div className="mt-12 text-sm text-muted-foreground">
-          <p>Last updated: {new Date().toLocaleDateString()}</p>
+          <p>Last updated: April 3, 2025</p>
         </div>
       </div>
     </MainLayout>

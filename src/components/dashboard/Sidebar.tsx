@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/auth-compatibility";
 import { cn } from "@/lib/utils";
@@ -171,16 +171,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { user, profile, signOut, isAdmin: contextIsAdmin } = useAuth();
   const currentPath = location.pathname;
   
-  // Determine admin status: if prop is true OR context says user is admin
-  const isAdmin = propIsAdmin === true || contextIsAdmin === true;
+  const [directAdminStatus, setDirectAdminStatus] = useState<boolean | null>(null);
   
-  console.log('Sidebar Component - Admin Status:', { 
-    propIsAdmin, 
-    contextIsAdmin, 
-    isAdmin,
-    currentPath,
-    profile
-  });
+  // Perform a direct check to the database to verify admin status
+  useEffect(() => {
+    if (user?.id && !contextIsAdmin) {
+      const checkAdminDirectly = async () => {
+        try {
+          // Import dynamically to avoid circular dependencies
+          const { checkIsAdmin } = await import('@/lib/supabase-auth');
+          const isUserAdmin = await checkIsAdmin(user.id);
+          console.log(`Sidebar - Direct admin check for user ${user.id}: ${isUserAdmin}`);
+          setDirectAdminStatus(isUserAdmin);
+        } catch (e) {
+          console.warn("Error checking admin status directly:", e);
+          setDirectAdminStatus(false);
+        }
+      };
+      
+      checkAdminDirectly();
+    }
+  }, [user?.id, contextIsAdmin]);
+  
+  // Determine admin status: if prop is true OR context says user is admin OR direct check says admin
+  const isAdmin = propIsAdmin === true || contextIsAdmin === true || directAdminStatus === true;
+  
+  // Only log status changes or non-null profiles to reduce console spam
+  const shouldLog = profile !== null || directAdminStatus !== null;
+  
+  useEffect(() => {
+    if (shouldLog) {
+      console.log('Sidebar Component - Admin Status:', { 
+        propIsAdmin, 
+        contextIsAdmin, 
+        directAdminStatus,
+        isAdmin,
+        currentPath,
+        profile: profile ? `${profile.id} (${profile.role})` : null
+      });
+    }
+  }, [propIsAdmin, contextIsAdmin, directAdminStatus, isAdmin, currentPath, profile, shouldLog]);
 
   // State to track expanded sections
   const [expandedSections, setExpandedSections] = useState<{

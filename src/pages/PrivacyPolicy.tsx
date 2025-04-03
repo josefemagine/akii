@@ -7,6 +7,7 @@ const PrivacyPolicy = () => {
     <MainLayout>
       <div className="container py-12 max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold mb-6">Privacy Policy</h1>
+        <p className="text-sm text-muted-foreground mb-4">Last updated: April 3, 2025</p>
         <Separator className="mb-8" />
 
         <div className="space-y-8">
@@ -86,7 +87,34 @@ const PrivacyPolicy = () => {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">4. Data Security</h2>
+            <h2 className="text-2xl font-semibold mb-4">4. Use of Amazon Bedrock</h2>
+            <p className="text-muted-foreground mb-4">
+              Akii uses Amazon Bedrock, a secure and fully managed AI service by Amazon Web Services (AWS), to deploy and operate AI models.
+            </p>
+            <p className="text-muted-foreground mb-4">
+              We want to be transparent about what this means for your data:
+            </p>
+            <ul className="list-disc pl-6 space-y-2 text-muted-foreground mb-4">
+              <li>
+                <strong>No Data Retention:</strong> Your prompts, training data, and AI interactions are not stored or retained by Amazon or any underlying model provider.
+              </li>
+              <li>
+                <strong>No Model Training:</strong> Your data is never used to train or improve foundation models from Amazon, Anthropic, Meta, or other providers used within Bedrock.
+              </li>
+              <li>
+                <strong>Private Model Execution:</strong> Your data is processed in real time within a stateless, isolated compute environment.
+              </li>
+              <li>
+                <strong>Fine-Tuning:</strong> For clients on Enterprise plans, Akii offers the option to fine-tune models using AWS Bedrock's secure model customization tools. All fine-tuned models are private and isolated to the client that initiated the training.
+              </li>
+            </ul>
+            <p className="text-muted-foreground mb-4">
+              We have a data processing agreement in place with AWS, and we rely on Bedrock specifically for its privacy-by-design architecture.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">5. Data Security</h2>
             <p className="text-muted-foreground mb-4">
               We implement appropriate technical and organizational measures to
               protect your personal data against unauthorized access,
@@ -95,7 +123,10 @@ const PrivacyPolicy = () => {
               secure, and we cannot guarantee absolute security.
             </p>
             <p className="text-muted-foreground mb-4">
-              We maintain data processing agreements with all third-party
+              All data transmission to and from our services is encrypted using HTTPS. We use encrypted S3 storage, role-based access controls, and isolated environments for each AI instance to minimize risk.
+            </p>
+            <p className="text-muted-foreground mb-4">
+              We also maintain data processing agreements with all third-party
               service providers who may have access to your information and
               require them to protect your data in accordance with industry
               standards.
@@ -103,7 +134,7 @@ const PrivacyPolicy = () => {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">5. Data Retention</h2>
+            <h2 className="text-2xl font-semibold mb-4">6. Data Retention</h2>
             <p className="text-muted-foreground mb-4">
               We retain your personal data only for as long as necessary to
               fulfill the purposes for which we collected it, including for the
@@ -116,11 +147,14 @@ const PrivacyPolicy = () => {
               Upon account termination, we will delete or anonymize your
               personal data within 90 days, unless retention is required by law.
             </p>
+            <p className="text-muted-foreground mb-4">
+              You may request early deletion of your AI training data at any time.
+            </p>
           </section>
 
           <section>
             <h2 className="text-2xl font-semibold mb-4">
-              6. Your Data Protection Rights
+              7. Your Data Protection Rights
             </h2>
             <p className="text-muted-foreground mb-4">
               Depending on your location, you may have certain rights regarding
@@ -143,7 +177,7 @@ const PrivacyPolicy = () => {
 
           <section>
             <h2 className="text-2xl font-semibold mb-4">
-              7. Cookies and Tracking Technologies
+              8. Cookies and Tracking Technologies
             </h2>
             <p className="text-muted-foreground mb-4">
               We use cookies and similar tracking technologies to track activity
@@ -160,7 +194,7 @@ const PrivacyPolicy = () => {
 
           <section>
             <h2 className="text-2xl font-semibold mb-4">
-              8. Third-Party Services
+              9. Third-Party Services
             </h2>
             <p className="text-muted-foreground mb-4">
               Our Service may contain links to third-party websites or services
@@ -180,7 +214,7 @@ const PrivacyPolicy = () => {
 
           <section>
             <h2 className="text-2xl font-semibold mb-4">
-              9. Children's Privacy
+              10. Children's Privacy
             </h2>
             <p className="text-muted-foreground mb-4">
               Our Service is not intended for use by children under the age of
@@ -196,31 +230,25 @@ const PrivacyPolicy = () => {
 
           <section>
             <h2 className="text-2xl font-semibold mb-4">
-              10. Changes to This Privacy Policy
+              11. Changes to This Privacy Policy
             </h2>
             <p className="text-muted-foreground mb-4">
               We may update our Privacy Policy from time to time. We will notify
               you of any changes by posting the new Privacy Policy on this page
-              and updating the "Last updated" date at the bottom of this page.
+              and updating the "Last updated" date at the top.
             </p>
             <p className="text-muted-foreground mb-4">
               You are advised to review this Privacy Policy periodically for any
-              changes. Changes to this Privacy Policy are effective when they
-              are posted on this page.
+              changes. Changes are effective when posted.
             </p>
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">11. Contact Us</h2>
+            <h2 className="text-2xl font-semibold mb-4">12. Contact Us</h2>
             <p className="text-muted-foreground mb-4">
-              If you have any questions about this Privacy Policy, please
-              contact us at privacy@akii.ai.
+              If you have any questions about this Privacy Policy or your data privacy rights, please contact us at: admin@akii.ai
             </p>
           </section>
-        </div>
-
-        <div className="mt-12 text-sm text-muted-foreground">
-          <p>Last updated: {new Date().toLocaleDateString()}</p>
         </div>
       </div>
     </MainLayout>

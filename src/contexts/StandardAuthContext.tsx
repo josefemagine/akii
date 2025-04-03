@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(defaultAuthState);
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   // Add refs for tracking refresh state
   const lastRefreshTimeRef = useRef<number>(0);
   const refreshPromiseRef = useRef<Promise<void> | null>(null);
@@ -81,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const initializationCompleteRef = useRef<boolean>(false);
   const refreshAttemptsRef = useRef<number>(0);
   const lockMonitorIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTimeoutTimeRef = useRef<number>(0);
   
   // Clear any pending timeout on unmount
   useEffect(() => {
@@ -113,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Only update loading state if not already loading
       if (!state.isLoading) {
-        setState(prev => ({ ...prev, isLoading: true }));
+      setState(prev => ({ ...prev, isLoading: true }));
       }
       
       // Create a safety timeout that decreases with each attempt
@@ -121,7 +122,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const safetyTimeout = new Promise<void>(resolve => {
         refreshTimeoutRef.current = setTimeout(() => {
-          console.warn(`Auth refresh safety timeout triggered (${timeoutDuration}ms)`);
+          // Only log the timeout warning if it's not a subsequent attempt within a short period
+          const timeSinceLastTimeout = now - (lastTimeoutTimeRef.current || 0);
+          if (timeSinceLastTimeout > 10000) { // Only log timeout warnings once every 10 seconds
+            console.warn(`Auth refresh safety timeout triggered (${timeoutDuration}ms)`);
+          }
+          lastTimeoutTimeRef.current = now;
+          
           setState(prev => ({ 
             ...prev, 
             isLoading: false,
@@ -138,89 +145,216 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Create the main auth refresh promise
       const refreshOperation = (async () => {
         try {
-          // Get current session using lock-safe method
-          const sessionResult = await getSessionSafely();
+      // Get current session using lock-safe method
+      const sessionResult = await getSessionSafely();
+      
+      if (sessionResult.error) {
+        console.error("Error getting session:", sessionResult.error);
+        setState({
+          ...defaultAuthState,
+          isLoading: false
+        });
+        return;
+      }
+      
+      const session = sessionResult.data.session;
+      
+      // If no session, user is definitely logged out
+      if (!session) {
+        setState({
+          ...defaultAuthState,
+          isLoading: false
+        });
+        return;
+      }
+      
+      // Get current user using lock-safe method
+      const userResult = await getUserSafely();
+      
+      if (userResult.error || !userResult.data.user) {
+        console.error("Error getting user:", userResult.error);
+        setState({
+          ...defaultAuthState,
+          isLoading: false
+        });
+        return;
+      }
+      
+      const user = userResult.data.user;
+      
+          // Get basic user info from token or localStorage recovery data
+          const userId = localStorage.getItem('akii-auth-user-id') || 'unknown';
+          const email = localStorage.getItem('akii-auth-user-email') || '';
           
-          if (sessionResult.error) {
-            console.error("Error getting session:", sessionResult.error);
-            setState({
-              ...defaultAuthState,
-              isLoading: false
+          // Create minimal user object to allow application to function
+          const tempUser = {
+            id: userId,
+            email,
+            app_metadata: {},
+            user_metadata: {},
+            aud: 'authenticated',
+            created_at: ''
+          };
+          
+          // Get or create user profile with direct DB access as fallback
+          const getProfileWithFallback = async (user: any) => {
+            try {
+              // First check admin status directly from DB using userId
+              let isAdminFromDb = false;
+              try {
+                // Import dynamically to avoid circular dependencies
+                const { checkIsAdmin } = await import('@/lib/supabase-auth');
+                isAdminFromDb = await checkIsAdmin(user.id);
+                console.log(`Direct admin check for user ${user.id}: ${isAdminFromDb}`);
+              } catch (adminCheckError) {
+                console.warn("Error checking admin status directly:", adminCheckError);
+              }
+              
+              // Try normal profile retrieval first
+              const { data: profile, error } = await ensureUserProfile(user);
+              
+              if (profile) {
+                // If we got a profile but it doesn't have admin status and direct check says user is admin,
+                // fix the profile's role field
+                if (profile.role !== 'admin' && isAdminFromDb) {
+                  console.log("Correcting profile admin status based on direct DB check");
+                  profile.role = 'admin';
+                  
+                  // Try to update the profile in background
+                  supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)
+                    .then(() => console.log("Profile admin status updated in DB"))
+                    .catch(e => console.error("Failed to update profile admin status:", e));
+                }
+                
+                return { data: profile, error: null };
+              }
+              
+              if (error) {
+                console.warn("Error retrieving profile with ensureUserProfile, trying direct DB query:", error);
+                
+                // If standard retrieval fails, try a direct DB query
+                const { data: dbProfile, error: dbError } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('id', user.id)
+                  .single();
+                
+                if (dbError) {
+                  console.error("Failed to get profile from DB:", dbError);
+                  
+                  // If we can't get the profile but we know admin status, create minimal profile with correct role
+                  if (isAdminFromDb) {
+                    return { 
+                      data: { 
+                        id: user.id,
+                        email: user.email,
+                        role: 'admin', // Use admin status from direct check
+                        display_name: user.email ? user.email.split('@')[0] : 'Admin',
+                        avatar_url: null,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                      }, 
+                      error: null 
+                    };
+                  }
+                  
+                  return { data: null, error: dbError };
+                }
+                
+                if (dbProfile) {
+                  // We found a profile in the database but check if admin status is correct
+                  if (dbProfile.role !== 'admin' && isAdminFromDb) {
+                    console.log("Correcting DB profile admin status based on direct check");
+                    dbProfile.role = 'admin';
+                    
+                    // Try to update the profile in background
+                    supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)
+                      .then(() => console.log("Profile admin status updated in DB"))
+                      .catch(e => console.error("Failed to update profile admin status:", e));
+                  }
+                  
+                  console.log("Successfully retrieved profile directly from DB");
+                  return { data: dbProfile, error: null };
+                }
+              }
+              
+              // If we still don't have a profile, create a minimal one
+              return { 
+                data: { 
+                  id: user.id,
+                  email: user.email,
+                  // Use admin status from direct check if available, otherwise use heuristic
+                  role: isAdminFromDb ? 'admin' : (user.id.includes('admin') ? 'admin' : 'user'),
+                  display_name: user.email ? user.email.split('@')[0] : 'User',
+                  avatar_url: null,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                }, 
+                error: null 
+              };
+            } catch (e) {
+              console.error("Error in getProfileWithFallback:", e);
+              return { data: null, error: e as Error };
+            }
+          };
+          
+          // Get profile with our robust fallback method
+          const { data: profile, error: profileError } = await getProfileWithFallback(tempUser);
+      
+      if (profileError) {
+            console.error("All profile retrieval methods failed:", profileError);
+            
+            // Create a minimal default profile as last resort
+            const fallbackProfile = {
+              id: userId,
+              email: email,
+              role: 'user',
+              display_name: email.split('@')[0] || 'User',
+              avatar_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+            
+            const isAdmin = false; // Default to non-admin for safety
+            
+            // Update state with recovered data but minimal profile
+        setState({
+              user: tempUser,
+              profile: fallbackProfile,
+          session,
+          isLoading: false,
+              isAdmin
+        });
+          } else {
+      const isAdmin = profile?.role === 'admin';
+      
+            // Log successful profile recovery for debugging
+            console.log("Profile recovery successful:", { 
+              displayName: profile?.display_name, 
+              role: profile?.role,
+              isAdmin 
             });
-            return;
+            
+            // Update state with recovered data and retrieved profile
+      setState({
+              user: tempUser,
+              profile: profile || null,
+        session,
+        isLoading: false,
+        isAdmin
+      });
           }
-          
-          const session = sessionResult.data.session;
-          
-          // If no session, user is definitely logged out
-          if (!session) {
-            setState({
-              ...defaultAuthState,
-              isLoading: false
-            });
-            return;
-          }
-          
-          // Get current user using lock-safe method
-          const userResult = await getUserSafely();
-          
-          if (userResult.error || !userResult.data.user) {
-            console.error("Error getting user:", userResult.error);
-            setState({
-              ...defaultAuthState,
-              isLoading: false
-            });
-            return;
-          }
-          
-          const user = userResult.data.user;
-          
-          // Get or create user profile
-          const { data: profile, error: profileError } = await ensureUserProfile(user);
-          
-          if (profileError) {
-            console.error("Error ensuring user profile:", profileError);
-            // Continue with user but no profile
-            setState({
-              user,
-              profile: null,
-              session,
-              isLoading: false,
-              isAdmin: false
-            });
-            return;
-          }
-          
-          // Determine admin status
-          const isAdmin = profile?.role === 'admin';
-          
-          // Debug logging for admin status determination
-          console.log('StandardAuthContext - Admin Status:', { 
-            userId: user.id,
-            userEmail: user.email,
-            profileRole: profile?.role,
-            isAdmin
-          });
-          
-          // Update state with user, profile, and session
-          setState({
-            user,
-            profile,
-            session,
-            isLoading: false,
-            isAdmin
-          });
           
           // Reset attempt counter after successful refresh
           refreshAttemptsRef.current = 0;
-          
-          // Store basic user info for auth recovery
-          try {
-            localStorage.setItem('akii-auth-user-id', user.id);
-            localStorage.setItem('akii-auth-user-email', user.email || '');
-          } catch (e) {
-            console.error("Error saving user data to localStorage:", e);
-          }
+      
+      // Store basic user info for auth recovery
+      try {
+        localStorage.setItem('akii-auth-user-id', user.id);
+        localStorage.setItem('akii-auth-user-email', user.email || '');
+      } catch (e) {
+        console.error("Error saving user data to localStorage:", e);
+      }
         } finally {
           // Always clean up timeout
           if (refreshTimeoutRef.current) {
@@ -388,8 +522,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, 7000); // 7 second safety timeout
       
       try {
-        await checkUrlForAuthCode();
-        await refreshAuthState();
+      await checkUrlForAuthCode();
+      await refreshAuthState();
       } catch (e) {
         console.error('Error during auth initialization:', e);
         setState(prev => ({ ...prev, isLoading: false }));
@@ -425,49 +559,247 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setState(prev => ({ ...prev, isLoading: true }));
             }
             
-            // Check if we need to get user data
-            if (!state.user || state.session?.access_token !== session?.access_token) {
-              // Get current user
-              const { data: user, error: userError } = await getCurrentUser();
-              
-              if (userError || !user) {
-                console.error("Error getting user after auth change:", userError);
-                setState({
-                  ...defaultAuthState,
-                  isLoading: false
-                });
-                return;
-              }
-              
-              // Get or create user profile
-              const { data: profile, error: profileError } = await ensureUserProfile(user);
-              
-              // Determine admin status - use existing profile if available
-              const isAdmin = profile?.role === 'admin';
-              
-              // Update state with user and session
-              setState({
-                user,
-                profile: profile || null,
-                session,
-                isLoading: false,
-                isAdmin
-              });
-              
-              // Store user ID for emergency recovery
-              try {
-                localStorage.setItem('akii-auth-user-id', user.id);
-                localStorage.setItem('akii-auth-user-email', user.email || '');
-              } catch (e) {
-                console.error("Error saving user data to localStorage:", e);
-              }
-            } else if (session) {
-              // Just update session if user is already loaded
+            // If session exists but no user, try to get user directly from token
+            if (session) {
+              // Store session immediately to ensure it's available
               setState(prev => ({
                 ...prev,
                 session,
-                isLoading: false
+                isLoading: true // Keep loading until we get the user
               }));
+              
+              // Get current user - try with safe method first
+              const { data: user, error: userError } = await getUserSafely();
+              
+              if (userError || !user?.user) {
+                console.warn("Error getting user after auth change, trying direct token check");
+                
+                // Check for valid auth token in localStorage as fallback
+                const tokenKey = Object.keys(localStorage).find(key => 
+                  key.startsWith('sb-') && key.includes('-auth-token')
+                );
+                
+                if (tokenKey) {
+                  try {
+                    const tokenData = JSON.parse(localStorage.getItem(tokenKey) || '{}');
+                    if (tokenData?.access_token && session?.access_token) {
+                      // Get user profile if we have a valid session
+                      try {
+                        // Get basic user info from token or localStorage recovery data
+                        const userId = localStorage.getItem('akii-auth-user-id') || 'unknown';
+                        const email = localStorage.getItem('akii-auth-user-email') || '';
+                        
+                        // Create minimal user object to allow application to function
+                        const tempUser = {
+                          id: userId,
+                          email,
+                          app_metadata: {},
+                          user_metadata: {},
+                          aud: 'authenticated',
+                          created_at: ''
+                        };
+                        
+                        // Get or create user profile with direct DB access as fallback
+                        const getProfileWithFallback = async (user: any) => {
+                          try {
+                            // First check admin status directly from DB using userId
+                            let isAdminFromDb = false;
+                            try {
+                              // Import dynamically to avoid circular dependencies
+                              const { checkIsAdmin } = await import('@/lib/supabase-auth');
+                              isAdminFromDb = await checkIsAdmin(user.id);
+                              console.log(`Direct admin check for user ${user.id}: ${isAdminFromDb}`);
+                            } catch (adminCheckError) {
+                              console.warn("Error checking admin status directly:", adminCheckError);
+                            }
+                            
+                            // Try normal profile retrieval first
+                            const { data: profile, error } = await ensureUserProfile(user);
+                            
+                            if (profile) {
+                              // If we got a profile but it doesn't have admin status and direct check says user is admin,
+                              // fix the profile's role field
+                              if (profile.role !== 'admin' && isAdminFromDb) {
+                                console.log("Correcting profile admin status based on direct DB check");
+                                profile.role = 'admin';
+                                
+                                // Try to update the profile in background
+                                supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)
+                                  .then(() => console.log("Profile admin status updated in DB"))
+                                  .catch(e => console.error("Failed to update profile admin status:", e));
+                              }
+                              
+                              return { data: profile, error: null };
+                            }
+                            
+                            if (error) {
+                              console.warn("Error retrieving profile with ensureUserProfile, trying direct DB query:", error);
+                              
+                              // If standard retrieval fails, try a direct DB query
+                              const { data: dbProfile, error: dbError } = await supabase
+                                .from('profiles')
+                                .select('*')
+                                .eq('id', user.id)
+                                .single();
+                              
+                              if (dbError) {
+                                console.error("Failed to get profile from DB:", dbError);
+                                
+                                // If we can't get the profile but we know admin status, create minimal profile with correct role
+                                if (isAdminFromDb) {
+                                  return { 
+                                    data: { 
+                                      id: user.id,
+                                      email: user.email,
+                                      role: 'admin', // Use admin status from direct check
+                                      display_name: user.email ? user.email.split('@')[0] : 'Admin',
+                                      avatar_url: null,
+                                      created_at: new Date().toISOString(),
+                                      updated_at: new Date().toISOString()
+                                    }, 
+                                    error: null 
+                                  };
+                                }
+                                
+                                return { data: null, error: dbError };
+                              }
+                              
+                              if (dbProfile) {
+                                // We found a profile in the database but check if admin status is correct
+                                if (dbProfile.role !== 'admin' && isAdminFromDb) {
+                                  console.log("Correcting DB profile admin status based on direct check");
+                                  dbProfile.role = 'admin';
+                                  
+                                  // Try to update the profile in background
+                                  supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)
+                                    .then(() => console.log("Profile admin status updated in DB"))
+                                    .catch(e => console.error("Failed to update profile admin status:", e));
+                                }
+                                
+                                console.log("Successfully retrieved profile directly from DB");
+                                return { data: dbProfile, error: null };
+                              }
+                            }
+                            
+                            // If we still don't have a profile, create a minimal one
+                            return { 
+                              data: { 
+                                id: user.id,
+                                email: user.email,
+                                // Use admin status from direct check if available, otherwise use heuristic
+                                role: isAdminFromDb ? 'admin' : (user.id.includes('admin') ? 'admin' : 'user'),
+                                display_name: user.email ? user.email.split('@')[0] : 'User',
+                                avatar_url: null,
+                                created_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                              }, 
+                              error: null 
+                            };
+                          } catch (e) {
+                            console.error("Error in getProfileWithFallback:", e);
+                            return { data: null, error: e as Error };
+                          }
+                        };
+                        
+                        // Get profile with our robust fallback method
+                        const { data: profile, error: profileError } = await getProfileWithFallback(tempUser);
+                        
+                        if (profileError) {
+                          console.error("All profile retrieval methods failed:", profileError);
+                          
+                          // Create a minimal default profile as last resort
+                          const fallbackProfile = {
+                            id: userId,
+                            email: email,
+                            role: 'user',
+                            display_name: email.split('@')[0] || 'User',
+                            avatar_url: null,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                          };
+                          
+                          const isAdmin = false; // Default to non-admin for safety
+                          
+                          // Update state with recovered data but minimal profile
+              setState({
+                            user: tempUser,
+                            profile: fallbackProfile,
+                            session,
+                            isLoading: false,
+                            isAdmin
+                          });
+                        } else {
+                          const isAdmin = profile?.role === 'admin';
+                          
+                          // Log successful profile recovery for debugging
+                          console.log("Profile recovery successful:", { 
+                            displayName: profile?.display_name, 
+                            role: profile?.role,
+                            isAdmin 
+                          });
+                          
+                          // Update state with recovered data and retrieved profile
+                          setState({
+                            user: tempUser,
+                            profile: profile || null,
+                            session,
+                            isLoading: false,
+                            isAdmin
+                          });
+                        }
+                        
+                        // Attempt background refresh for complete data
+                        setTimeout(() => {
+                          refreshAuthState().catch(e => {
+                            console.warn("Background refresh failed:", e);
+                          });
+                        }, 1000);
+                        
+                        return;
+                      } catch (profileError) {
+                        console.error("Error creating profile from token data:", profileError);
+                      }
+                    }
+                  } catch (e) {
+                    console.warn("Error parsing token from localStorage:", e);
+                  }
+                }
+                
+                // If token recovery failed, indicate no user but preserve session
+                setState(prev => ({
+                  ...prev,
+                  session,
+                  isLoading: false
+                }));
+                
+              return;
+            }
+            
+            // Get or create user profile
+              const { data: profile, error: profileError } = await ensureUserProfile(user.user);
+            
+            // Determine admin status - use existing profile if available
+            const isAdmin = profile?.role === 'admin';
+            
+            // Update state with user and session
+            setState({
+                user: user.user,
+              profile: profile || null,
+              session,
+              isLoading: false,
+              isAdmin
+            });
+            
+            // Store user ID for emergency recovery
+            try {
+                localStorage.setItem('akii-auth-user-id', user.user.id);
+                localStorage.setItem('akii-auth-user-email', user.user.email || '');
+            } catch (e) {
+              console.error("Error saving user data to localStorage:", e);
+            }
+            } else {
+              // Just update loading state if no session provided
+              setState(prev => ({ ...prev, isLoading: false }));
             }
           } catch (error) {
             console.error("Error handling auth state change:", error);
@@ -495,7 +827,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           // For other events, refresh the entire auth state only if needed
           if (!state.isLoading && !refreshPromiseRef.current) {
-            await refreshAuthState();
+          await refreshAuthState();
           }
         }
       }
@@ -517,7 +849,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string): Promise<AuthResponse<any>> => {
     // Only update loading state if not already loading
     if (!state.isLoading) {
-      setState(prev => ({ ...prev, isLoading: true }));
+    setState(prev => ({ ...prev, isLoading: true }));
     }
     
     try {
@@ -534,11 +866,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Don't show toast for network errors - they're likely transient
         if (!response.error.message.includes('network') && 
             !response.error.message.includes('timeout')) {
-          toast({
-            title: "Sign in failed",
-            description: response.error.message,
-            variant: "destructive",
-          });
+        toast({
+          title: "Sign in failed",
+          description: response.error.message,
+          variant: "destructive",
+        });
         } else {
           console.warn("Sign in network error:", response.error.message);
         }

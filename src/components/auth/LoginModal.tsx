@@ -418,61 +418,7 @@ const LoginModal = ({
           </Button>
         </form>
 
-        {import.meta.env.DEV && (
-          <div className="mt-4 rounded border border-gray-200 p-3 text-xs">
-            <div className="font-semibold">Auth Debug Info:</div>
-            <div className="mt-1 grid grid-cols-2 gap-1">
-              <div>Has User:</div>
-              <div>{Boolean(auth.user) ? "✅" : "❌"}</div>
-              
-              <div>Has Session:</div>
-              <div>{Boolean(auth.session) ? "✅" : "❌"}</div>
-              
-              <div>Is Loading:</div>
-              <div>{auth.isLoading ? "✅" : "❌"}</div>
-              
-              <div>User ID:</div>
-              <div className="truncate">{auth.user?.id || "none"}</div>
-              
-              <div>User Email:</div>
-              <div className="truncate">{auth.user?.email || "none"}</div>
-            </div>
-            <div className="mt-2">
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  console.log("Debug auth state:", auth);
-                  // Use appropriate refresh method instead of dispatching event
-                  if (auth.refreshAuthState) {
-                    auth.refreshAuthState();
-                  } else {
-                    // Force a direct session check if no refresh method available
-                    supabase.auth.getSession().then(result => {
-                      console.log("Manual session check:", result);
-                    }).catch(err => {
-                      console.error("Error checking session:", err);
-                    });
-                  }
-                }}
-              >
-                Refresh & Force Update
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <Separator className="w-full" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
-              Or continue with
-            </span>
-          </div>
-        </div>
+        <Separator className="my-4" />
 
         <div className="grid gap-2">
           <Button

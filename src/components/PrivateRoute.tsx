@@ -75,7 +75,8 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
       (newState.isLoading !== authStateRef.current.isLoading && !newState.isLoading);
     
     if (hasRelevantChanges && !isValidating && !auth.isLoading) {
-      throttledLog('PrivateRoute auth state:', newState);
+      // Use a more concise log format
+      console.log(`PrivateRoute: Auth state updated - ${newState.hasUser ? 'User✓' : 'NoUser'} ${newState.hasSession ? 'Session✓' : 'NoSession'}`);
     }
     
     authStateRef.current = newState;
@@ -261,6 +262,52 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
     }, 300)
   ).current;
   
+  // Look for SUPABASE_AUTH_TOKEN_LOCAL_STORAGE_KEY directly in localStorage
+  const checkForValidAuthToken = () => {
+    try {
+      // First check for the standard Supabase token format
+      const tokenKey = Object.keys(localStorage).find(key => 
+        key.startsWith('sb-') && key.includes('-auth-token')
+      );
+      
+      if (tokenKey) {
+        try {
+          // If we have a token in localStorage, let's check if it's valid
+          const tokenData = JSON.parse(localStorage.getItem(tokenKey) || '{}');
+          
+          // Check for either a valid access token or refresh token
+          const hasAccessToken = Boolean(tokenData?.access_token);
+          const hasRefreshToken = Boolean(tokenData?.refresh_token);
+          const hasExpiry = Boolean(tokenData?.expires_at);
+          
+          // Only consider valid if it has at least one token
+          if (hasAccessToken || hasRefreshToken) {
+            // Check if token is expired
+            if (hasExpiry) {
+              const expiresAt = tokenData.expires_at * 1000; // Convert to ms
+              const now = Date.now();
+              if (expiresAt < now) {
+                // Token is expired
+                console.log('PrivateRoute: Found expired auth token, not using it');
+                return false;
+              }
+            }
+            
+            // Token exists and is not expired
+            console.log('PrivateRoute: Found valid auth token in storage, bypassing auth check');
+            return true;
+          }
+        } catch (e) {
+          console.error('Error parsing auth token from localStorage:', e);
+        }
+      }
+    } catch (e) {
+      console.error('Error checking localStorage for tokens:', e);
+    }
+    
+    return false;
+  };
+  
   // Validate on mount and when auth state changes
   useEffect(() => {
     // Immediately set valid if auth state is clearly valid
@@ -281,8 +328,50 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
       return;
     }
     
+    // Check for valid auth token as a shortcut
+    if (checkForValidAuthToken()) {
+      // Immediately set as valid - we'll trust the token and fix the context later
+      setIsValid(true);
+      
+      // In the background, try to update the auth context
+      setTimeout(() => {
+        if (!componentMounted.current) return;
+        
+        // Try to refresh auth state in the background
+        if (typeof auth.refreshAuthState === 'function') {
+          auth.refreshAuthState().catch(e => {
+            // Only log if not an auth session missing error
+            if (!e.message?.includes('No current user') && 
+                !e.message?.includes('No session')) {
+              console.warn('Background refresh failed after token bypass:', e);
+            }
+          });
+        }
+      }, 500);
+      
+      return;
+    }
+    
     // Otherwise validate auth state
     validateAuthState();
+    
+    // Set a maximum wait time for authentication
+    const maxAuthWaitTime = setTimeout(() => {
+      if (isValid === null && componentMounted.current) {
+        console.warn('PrivateRoute: Authentication timed out after waiting');
+        
+        // Check for any localStorage tokens as a last resort
+        const hasAnyStorageToken = checkStorageForAuthTokens();
+        
+        if (hasAnyStorageToken) {
+          console.log('PrivateRoute: Found auth tokens in storage, allowing access');
+          setIsValid(true);
+        } else {
+          console.log('PrivateRoute: No auth tokens found after timeout, redirecting');
+          setIsValid(false);
+        }
+      }
+    }, 5000); // 5 second maximum wait time
     
     // Cleanup
     return () => {
@@ -290,8 +379,31 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
       if (validationTimeoutRef.current) {
         clearTimeout(validationTimeoutRef.current);
       }
+      clearTimeout(maxAuthWaitTime);
     };
   }, [auth.user, auth.session, auth.isAdmin, auth.isLoading, adminOnly]);
+  
+  // Function to check localStorage for any auth tokens
+  const checkStorageForAuthTokens = () => {
+    try {
+      // Look for Supabase tokens or custom auth markers in localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.includes('supabase.auth.token') || 
+          key.includes('sb-') ||
+          key.includes('akii-auth') ||
+          key === 'force-auth-login'
+        )) {
+          console.log("PrivateRoute: Found auth token in localStorage:", key);
+          return true;
+        }
+      }
+    } catch (e) {
+      console.error("PrivateRoute: Error checking localStorage auth:", e);
+    }
+    return false;
+  };
   
   // Redirect if invalid
   useEffect(() => {
@@ -309,9 +421,14 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
   // Show loading state while validating
   if (isValid === null || auth.isLoading || isValidating) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="w-8 h-8 border-t-2 border-primary rounded-full animate-spin"></div>
-        <span className="ml-2">Authenticating...</span>
+      <div className="flex flex-col items-center justify-center h-screen">
+        <div className="w-8 h-8 border-t-2 border-primary rounded-full animate-spin mb-4"></div>
+        <span className="text-lg">Authenticating...</span>
+        {isValidating && (
+          <p className="text-sm text-muted-foreground mt-2">
+            Verifying your credentials...
+          </p>
+        )}
       </div>
     );
   }

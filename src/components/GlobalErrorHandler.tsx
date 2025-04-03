@@ -14,6 +14,24 @@ import {
 } from '@/lib/auth-lock-fix';
 
 /**
+ * Check if an error is an AuthSessionMissingError
+ * Used to filter out expected errors from console logs
+ */
+function isAuthSessionMissingError(error: any): boolean {
+  if (!error) return false;
+  
+  // Check error message content
+  const errorMessage = typeof error === 'string' 
+    ? error 
+    : error.message || error.error_description || String(error);
+  
+  return typeof errorMessage === 'string' && 
+    (errorMessage.includes('Auth session missing') || 
+     errorMessage.includes('No session found') ||
+     errorMessage.includes('No user found'));
+}
+
+/**
  * GlobalErrorHandler monitors for auth and other critical errors and attempts recovery
  * It serves as a centralized error boundary for auth-related issues
  */
@@ -180,12 +198,18 @@ export function GlobalErrorHandler() {
       
       // If either fails, try force methods as fallback
       if (sessionResult.error) {
-        console.warn('Safe session check failed, attempting force check', sessionResult.error);
+        // Only log warning if it's not an expected auth session missing error
+        if (!isAuthSessionMissingError(sessionResult.error)) {
+          console.warn('Safe session check failed, attempting force check', sessionResult.error);
+        }
         sessionResult = await forceSessionCheck();
       }
       
       if (userResult.error) {
-        console.warn('Safe user check failed, attempting force check', userResult.error);
+        // Only log warning if it's not an expected auth session missing error
+        if (!isAuthSessionMissingError(userResult.error)) {
+          console.warn('Safe user check failed, attempting force check', userResult.error);
+        }
         userResult = await forceUserCheck();
       }
       
@@ -324,8 +348,17 @@ export function GlobalErrorHandler() {
       // Step 3: If we still have issues, try an emergency reset
       if ((sessionResult.error || userResult.error) || 
           (!sessionResult.data.session && !userResult.data.user)) {
-        console.warn('Session/user inconsistency detected, performing emergency reset');
-        emergencySessionReset();
+        
+        // Check if we should still proceed with emergency reset
+        const hasOnlyAuthSessionMissingErrors = 
+          (!sessionResult.error || isAuthSessionMissingError(sessionResult.error)) &&
+          (!userResult.error || isAuthSessionMissingError(userResult.error));
+        
+        // Skip reset for expected no-session state when not logged in
+        if (!hasOnlyAuthSessionMissingErrors || errorCount > 2) {
+          console.warn('Session/user inconsistency detected, performing emergency reset');
+          emergencySessionReset();
+        }
       }
       
       // Step 4: Run the auth recovery middleware if available
@@ -397,8 +430,52 @@ export function GlobalErrorHandler() {
     }
   }, [errorCount, recoveryInProgress, hasAttemptedRecovery, toast]);
   
+  // If auth context shows no admin but we have a user ID, check directly
+  useEffect(() => {
+    if (auth.user?.id && !auth.isAdmin) {
+      // Check admin status directly
+      checkUserAdminStatusDirectly(auth.user.id)
+        .then(isAdmin => {
+          if (isAdmin) {
+            console.log('[GlobalErrorHandler] Direct DB check shows user is admin but context does not');
+            // Try to update context
+            if (typeof auth.refreshAuthState === 'function') {
+              auth.refreshAuthState().catch(e => {
+                console.warn('Failed to refresh auth state after admin check:', e);
+              });
+            }
+          }
+        })
+        .catch(err => {
+          console.error('[GlobalErrorHandler] Error checking admin status:', err);
+        });
+    }
+  }, [auth.user?.id, auth.isAdmin]);
+  
   // This component doesn't render anything visually
   return null;
 }
 
-export default GlobalErrorHandler; 
+export default GlobalErrorHandler;
+
+async function checkUserAdminStatusDirectly(userId: string): Promise<boolean> {
+  if (!userId) return false;
+  
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error('Error checking admin status:', error);
+      return false;
+    }
+    
+    return data?.role === 'admin';
+  } catch (e) {
+    console.error('Exception checking admin status:', e);
+    return false;
+  }
+} 

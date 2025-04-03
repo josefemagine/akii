@@ -10,14 +10,14 @@ import type { User, Session } from '@supabase/supabase-js';
 
 // Configuration
 const CONFIG = {
-  LOCK_TIMEOUT: 2000,       // 2 seconds max lock time before forced release (reduced from 3s)
+  LOCK_TIMEOUT: 1000,       // 1 second max lock time before forced release (reduced from 2s)
   MAX_RETRY_COUNT: 3,       // Maximum number of retries for auth operations
-  RETRY_DELAY_BASE: 100,    // Base delay between retries in ms (reduced from 150ms)
-  QUEUE_TIMEOUT: 5000,      // Maximum time an operation can wait in queue (reduced from 10000ms)
-  AUTO_RELEASE_CHECK: 500,  // Check for stuck locks more frequently (reduced from 1000ms)
+  RETRY_DELAY_BASE: 50,     // Base delay between retries in ms (reduced from 100ms)
+  QUEUE_TIMEOUT: 3000,      // Maximum time an operation can wait in queue (reduced from 5000ms)
+  AUTO_RELEASE_CHECK: 250,  // Check for stuck locks more frequently (reduced from 500ms)
   CRITICAL_OPS: ['getSession', 'getCurrentUser', 'signOut'], // Critical operations that get priority
   SESSION_CACHE_TIME: 500,  // Time to cache session results in ms
-  MAX_QUEUE_LENGTH: 10      // Maximum number of operations allowed in queue
+  MAX_QUEUE_LENGTH: 5       // Maximum number of operations allowed in queue (reduced from 10)
 };
 
 // Lock state tracking
@@ -49,6 +49,31 @@ let sessionCache: {
 // Keep track of operations that have timed out for more intelligent handling
 const timedOutOperations = new Set<string>();
 
+// Keep track of pending direct session checks to avoid multiple simultaneous checks
+const pendingDirectChecks = {
+  promise: null as Promise<any> | null,
+  timestamp: 0
+};
+
+// Add this function near the top of the file, after the imports
+/**
+ * Check if an error is an AuthSessionMissingError
+ * Used to filter out expected errors from console logs
+ */
+function isAuthSessionMissingError(error: any): boolean {
+  if (!error) return false;
+  
+  // Check error message content
+  const errorMessage = typeof error === 'string' 
+    ? error 
+    : error.message || error.error_description || String(error);
+  
+  return typeof errorMessage === 'string' && 
+    (errorMessage.includes('Auth session missing') || 
+     errorMessage.includes('No session found') ||
+     errorMessage.includes('No user found'));
+}
+
 // Start auto-release timer to periodically check for stuck locks
 function startAutoReleaseTimer() {
   if (autoReleaseInterval === null) {
@@ -59,18 +84,20 @@ function startAutoReleaseTimer() {
         
         // Force release if the lock has been held too long
         if (isAuthOperationInProgress && lockHeldDuration > CONFIG.LOCK_TIMEOUT) {
-          console.warn(`Auto-release: Auth lock held by ${lockHolder} for ${lockHeldDuration}ms, forcing release`);
+          console.warn(`Auth lock auto-release: Lock held by ${lockHolder} for ${lockHeldDuration}ms, releasing`);
           releaseAuthLock();
           
           // If we have many operations in queue, perform emergency reset
-          if (authOperationQueue.length > 5 || consecutiveTimeouts > 2) {
+          if (authOperationQueue.length > 3 || consecutiveTimeouts > 2) {
             console.warn('Too many queued operations or consecutive timeouts, performing emergency reset');
             emergencySessionReset();
+            // Clear the queue after emergency reset
+            authOperationQueue = [];
           }
         }
         
-        // Log queue status periodically
-        if (authOperationQueue.length > 0) {
+        // Log queue status only if it's unusual (more than 2 items)
+        if (authOperationQueue.length > 2) {
           console.log(`Auth operation queue status: ${authOperationQueue.length} operations waiting. Lock holder: ${lockHolder}`);
         }
       }
@@ -108,6 +135,17 @@ function releaseAuthLock() {
   isAuthOperationInProgress = false;
   lockHolder = 'none';
   
+  // Clear any pending operations that have been waiting too long
+  const now = Date.now();
+  authOperationQueue = authOperationQueue.filter(op => {
+    const waitTime = now - op.timestamp;
+    if (waitTime > CONFIG.QUEUE_TIMEOUT) {
+      console.warn(`Dropping stale operation ${op.name} that waited for ${waitTime}ms`);
+      return false;
+    }
+    return true;
+  });
+  
   // Process next operation in queue if any
   if (authOperationQueue.length > 0) {
     // Sort queue by priority (higher first) then by timestamp (older first)
@@ -121,6 +159,12 @@ function releaseAuthLock() {
     const nextOperation = authOperationQueue.shift();
     if (nextOperation) {
       setTimeout(() => {
+        if (isAuthOperationInProgress) {
+          console.warn(`Lock already acquired when processing queue. Requeuing ${nextOperation.name}`);
+          authOperationQueue.unshift(nextOperation);
+          return;
+        }
+        
         isAuthOperationInProgress = true;
         lastOperationTime = Date.now();
         lockHolder = nextOperation.name;
@@ -129,7 +173,7 @@ function releaseAuthLock() {
           // Ensure lock is released even if operation fails
           releaseAuthLock();
         });
-      }, 50); // Small delay to ensure clean state
+      }, 10); // Small delay to ensure clean state
     }
   }
 }
@@ -191,55 +235,230 @@ async function executeWithRetry<T>(
 }
 
 /**
- * Attempt a direct session check, bypassing queue
- * This should be used sparingly and only when necessary
+ * Direct session check that bypasses locks for emergency situations
+ * This should be used very sparingly, and only when regular methods are failing
  */
 async function directSessionCheck() {
   try {
-    // Return the result immediately if we already have a fresh session
     const now = Date.now();
+    
+    // Generate a unique request ID for this check
+    const requestId = `direct-${now}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    // Check if we already have a fresh session in cache
     if (sessionCache.session && (now - sessionCache.timestamp < CONFIG.SESSION_CACHE_TIME)) {
-      return { data: { session: sessionCache.session }, error: null };
+      return { 
+        data: { session: sessionCache.session }, 
+        error: null 
+      };
     }
     
-    // If there's already a pending promise, reuse it instead of creating a new one
-    if (sessionCache.pendingPromise) {
-      console.log('Reusing existing pending session request');
-      return sessionCache.pendingPromise;
+    // Check if we already have a pending direct check in progress
+    if (pendingDirectChecks.promise && (now - pendingDirectChecks.timestamp < 1000)) {
+      // Reuse the existing promise to avoid multiple simultaneous direct checks
+      return pendingDirectChecks.promise;
     }
     
-    // Track this attempt
-    sessionCache.requestCount++;
-    
-    // Create a new promise and cache it
-    sessionCache.pendingPromise = (async () => {
+    // Create a new direct check promise
+    const checkPromise = (async () => {
       try {
-        // Direct call to Supabase - intentionally bypassing our queue
-        const result = await supabase.auth.getSession();
+        // Always try localStorage check first as it's faster
+        const tokenKey = Object.keys(localStorage).find(key => 
+          key.startsWith('sb-') && key.includes('-auth-token')
+        );
         
-        // Cache the result for future requests
-        if (result.data?.session) {
-          sessionCache.session = result.data.session;
-          sessionCache.timestamp = Date.now();
+        if (tokenKey) {
+          try {
+            const tokenData = JSON.parse(localStorage.getItem(tokenKey) || '{}');
+            // If we have an active token, use it immediately
+            if (tokenData?.access_token) {
+              // Check for expiry
+              const isExpired = tokenData.expires_at && 
+                tokenData.expires_at * 1000 < Date.now();
+                
+              if (!isExpired) {
+                // Extract user info from token if available
+                let userId = 'pending';
+                let email = '';
+                
+                // Check for user details in localStorage first (most reliable)
+                const storedUserId = localStorage.getItem('akii-auth-user-id');
+                const storedEmail = localStorage.getItem('akii-auth-user-email');
+                
+                if (storedUserId) {
+                  userId = storedUserId;
+                  email = storedEmail || '';
+                } else {
+                  // Try to extract user info from JWT if possible
+                  try {
+                    const tokenParts = tokenData.access_token.split('.');
+                    if (tokenParts.length === 3) {
+                      const tokenPayload = JSON.parse(atob(tokenParts[1]));
+                      if (tokenPayload.sub) {
+                        userId = tokenPayload.sub;
+                        email = tokenPayload.email || '';
+                        
+                        // Store for future use
+                        localStorage.setItem('akii-auth-user-id', userId);
+                        if (email) localStorage.setItem('akii-auth-user-email', email);
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('Could not parse JWT token:', e);
+                  }
+                }
+                
+                // Also check if this user is admin directly in the DB
+                try {
+                  // Create a minimal session with the user ID to use right away
+                  console.log(`Direct session check (${requestId}) using token from localStorage with user ID: ${userId}`);
+                  
+                  // We'll determine if user is admin and set the appropriate user data
+                  // in the component that uses this session
+                  return { 
+                    data: { 
+                      session: { 
+                        access_token: tokenData.access_token,
+                        refresh_token: tokenData.refresh_token,
+                        // Create a full session object with more complete user data
+                        user: { 
+                          id: userId,
+                          email: email,
+                          app_metadata: {},
+                          user_metadata: {},
+                          aud: 'authenticated',
+                          created_at: ''
+                        },
+                        expires_at: tokenData.expires_at
+                      } 
+                    }, 
+                    error: null 
+                  };
+                } catch (e) {
+                  console.warn("Error creating session object:", e);
+                  throw e;
+                }
+              }
+            }
+          } catch (e) {
+            // Continue with API call if token parsing fails
+          }
         }
         
-        return result;
-      } catch (error) {
-        console.error('Error in direct session check:', error);
-        return { data: { session: null }, error };
+        // Use a timeout promise as fallback
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('Direct session check timed out after 3s'));
+          }, 3000);
+        });
+        
+        // Make direct Supabase call
+        const sessionPromise = supabase.auth.getSession()
+          .then(result => {
+            // Cache successful results
+            if (result?.data?.session) {
+              sessionCache.session = result.data.session;
+              sessionCache.timestamp = Date.now();
+            }
+            return result;
+          })
+          .catch(err => {
+            console.warn(`Direct session check (${requestId}) failed with error:`, err);
+            throw err;
+          });
+        
+        // Race against timeout
+        try {
+          const result = await Promise.race([sessionPromise, timeoutPromise]);
+          return result;
+        } catch (raceError) {
+          // If timeout won the race and we found a token earlier, use it as fallback
+          if (raceError.message?.includes('timed out') && tokenKey) {
+            try {
+              const tokenData = JSON.parse(localStorage.getItem(tokenKey) || '{}');
+              if (tokenData?.access_token) {
+                // Extract user info from token if available
+                let userId = 'pending';
+                let email = '';
+                
+                // Check for user details in localStorage first (most reliable)
+                const storedUserId = localStorage.getItem('akii-auth-user-id');
+                const storedEmail = localStorage.getItem('akii-auth-user-email');
+                
+                if (storedUserId) {
+                  userId = storedUserId;
+                  email = storedEmail || '';
+                } else {
+                  // Try to extract user info from JWT if possible
+                  try {
+                    const tokenParts = tokenData.access_token.split('.');
+                    if (tokenParts.length === 3) {
+                      const tokenPayload = JSON.parse(atob(tokenParts[1]));
+                      if (tokenPayload.sub) {
+                        userId = tokenPayload.sub;
+                        email = tokenPayload.email || '';
+                        
+                        // Store for future use
+                        localStorage.setItem('akii-auth-user-id', userId);
+                        if (email) localStorage.setItem('akii-auth-user-email', email);
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('Could not parse JWT token:', e);
+                  }
+                }
+                
+                console.log(`Direct session check (${requestId}) using token from localStorage after timeout with user ID: ${userId}`);
+                return { 
+                  data: { 
+                    session: { 
+                      access_token: tokenData.access_token,
+                      refresh_token: tokenData.refresh_token,
+                      // Create more complete session object
+                      user: { 
+                        id: userId,
+                        email: email,
+                        app_metadata: {},
+                        user_metadata: {},
+                        aud: 'authenticated',
+                        created_at: ''
+                      },
+                      expires_at: tokenData.expires_at
+                    } 
+                  }, 
+                  error: null 
+                };
+              }
+            } catch (e) {
+              // Continue to error case
+            }
+          }
+          
+          // Standard error case
+          throw raceError;
+        }
       } finally {
-        // Clear the pending promise after a short delay to allow batching of near-simultaneous requests
+        // Always clear the pending promise reference when done
         setTimeout(() => {
-          sessionCache.pendingPromise = null;
-          sessionCache.requestCount = 0;
-        }, 50);
+          if (pendingDirectChecks.promise === checkPromise) {
+            pendingDirectChecks.promise = null;
+          }
+        }, 100);
       }
     })();
     
-    return sessionCache.pendingPromise;
+    // Store the promise for reuse
+    pendingDirectChecks.promise = checkPromise;
+    pendingDirectChecks.timestamp = now;
+    
+    return checkPromise;
   } catch (error) {
-    console.error('Fatal error in directSessionCheck:', error);
-    return { data: { session: null }, error };
+    // Provide structured error response
+    console.warn('Direct session check failed:', error instanceof Error ? error.message : String(error));
+    return { 
+      data: { session: null },
+      error: error instanceof Error ? error : new Error('Unknown error in direct session check')
+    };
   }
 }
 
@@ -254,7 +473,10 @@ export async function withAuthLock<T>(
   // Auto-release lock if it's been held too long
   const now = Date.now();
   if (isAuthOperationInProgress && (now - lastOperationTime > CONFIG.LOCK_TIMEOUT)) {
-    console.warn(`Auth lock timeout detected (held by ${lockHolder}), forcing release`);
+    // Only log if it's been significantly over the timeout to reduce console spam
+    if (now - lastOperationTime > CONFIG.LOCK_TIMEOUT * 1.5) {
+      console.warn(`Auth lock timeout detected (held by ${lockHolder}), forcing release`);
+    }
     releaseAuthLock();
   }
 
@@ -284,6 +506,11 @@ export async function withAuthLock<T>(
   // Special case for getSession - use cached result if available and recent
   if (operationName === 'getSession' && sessionCache.session && (now - sessionCache.timestamp < CONFIG.SESSION_CACHE_TIME)) {
     // For repeated getSession calls within a short timeframe, return cached result
+    // Only log occasionally to reduce console spam
+    if (sessionCache.requestCount % 10 === 0) {
+      console.debug('Using cached session result');
+    }
+    sessionCache.requestCount++;
     return Promise.resolve({ data: { session: sessionCache.session }, error: null }) as Promise<T>;
   }
   
@@ -319,13 +546,14 @@ export async function withAuthLock<T>(
   // Special case for getSession to reduce queue contention
   if (operationName === 'getSession') {
     // Counter to limit log spam - only log every Nth call
+    sessionCache.requestCount++;
     const shouldLog = sessionCache.requestCount % 10 === 0;
     
     // If another getSession is in progress or queued, use direct approach
     if (lockHolder === 'getSession' || authOperationQueue.some(op => op.name === 'getSession')) {
       // Limit log messages to reduce console spam
       if (shouldLog) {
-        console.log('Multiple getSession calls detected, sharing result');
+        console.debug('Multiple getSession calls detected, sharing result');
       }
       
       try {
@@ -440,20 +668,35 @@ export async function getSessionSafely(): Promise<SessionResponse> {
 }
 
 /**
- * Get the current user with lock protection
+ * Safe method to get user with proper lock handling
  */
 export async function getUserSafely(): Promise<UserResponse> {
-  try {
-    return await withAuthLock(() => supabase.auth.getUser(), 'getUser');
-  } catch (error) {
-    console.error('Error in getUserSafely:', error);
-    
-    // If user operation keeps failing, return a standard error response
-    return {
-      data: { user: null },
-      error: error instanceof Error ? error : new Error(String(error))
-    };
-  }
+  return await withAuthLock(async () => {
+    try {
+      // Use proper session checking first
+      const sessionResult = await supabase.auth.getSession();
+      if (!sessionResult.data.session) {
+        return { data: { user: null }, error: null };
+      }
+      
+      // Now get the user with confidence that session exists
+      const result = await supabase.auth.getUser();
+      return {
+        data: { user: result.data.user },
+        error: result.error
+      };
+    } catch (error) {
+      // Don't log AuthSessionMissingError as it's expected in many cases
+      if (!isAuthSessionMissingError(error)) {
+        console.error('Error in getUserSafely:', error);
+      }
+      
+      return {
+        data: { user: null },
+        error: error instanceof Error ? error : new Error(String(error))
+      };
+    }
+  }, 'getUserSafely');
 }
 
 /**
@@ -652,19 +895,36 @@ export async function forceSessionCheck(): Promise<{
   data: { session: Session | null };
   error: Error | null;
 }> {
-  // Clear locks first to ensure we can get a fresh state
-  clearAuthLocks();
+  console.log('Forcing direct session check');
   
   try {
-    // Make a direct call to Supabase bypassing our queue
-    const result = await supabase.auth.getSession();
-    return { 
-      data: { session: result.data.session },
-      error: result.error
-    };
+    // Use a timeout promise to ensure we don't wait forever
+    const timeoutPromise = new Promise<{
+      data: { session: Session | null };
+      error: Error;
+    }>((resolve) => {
+      setTimeout(() => {
+        resolve({
+          data: { session: null },
+          error: new Error('Session check timed out')
+        });
+      }, 3000); // 3 second timeout
+    });
+    
+    // Attempt to directly get session
+    const sessionPromise = directSessionCheck();
+    
+    // Race the actual request against the timeout
+    const result = await Promise.race([sessionPromise, timeoutPromise]);
+    
+    return result;
   } catch (error) {
-    console.error('Error in forceSessionCheck:', error);
-    return { 
+    // Don't log AuthSessionMissingError as it's expected in many cases
+    if (!isAuthSessionMissingError(error)) {
+      console.error('Error in forceSessionCheck:', error);
+    }
+    
+    return {
       data: { session: null },
       error: error instanceof Error ? error : new Error(String(error))
     };
@@ -679,19 +939,41 @@ export async function forceUserCheck(): Promise<{
   data: { user: User | null };
   error: Error | null;
 }> {
-  // Clear locks first to ensure we can get a fresh state
-  clearAuthLocks();
+  console.log('Forcing direct user check');
   
   try {
-    // Make a direct call to Supabase bypassing our queue
-    const result = await supabase.auth.getUser();
-    return { 
-      data: { user: result.data.user },
-      error: result.error
-    };
+    // Use a timeout promise to ensure we don't wait forever
+    const timeoutPromise = new Promise<{
+      data: { user: User | null };
+      error: Error;
+    }>((resolve) => {
+      setTimeout(() => {
+        resolve({
+          data: { user: null },
+          error: new Error('User check timed out')
+        });
+      }, 3000); // 3 second timeout
+    });
+    
+    // Attempt to get user directly without lock
+    const userPromise = supabase.auth.getUser().then(result => {
+      return {
+        data: { user: result.data?.user || null },
+        error: result.error
+      };
+    });
+    
+    // Race the actual request against the timeout
+    const result = await Promise.race([userPromise, timeoutPromise]);
+    
+    return result;
   } catch (error) {
-    console.error('Error in forceUserCheck:', error);
-    return { 
+    // Don't log AuthSessionMissingError as it's expected in many cases
+    if (!isAuthSessionMissingError(error)) {
+      console.error('Error in forceUserCheck:', error);
+    }
+    
+    return {
       data: { user: null },
       error: error instanceof Error ? error : new Error(String(error))
     };

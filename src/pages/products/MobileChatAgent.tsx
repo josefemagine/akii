@@ -2,17 +2,19 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import MainLayout from "@/components/layout/MainLayout";
 import {
   Smartphone,
-  CheckCircle,
+  Check,
   ArrowRight,
   Code,
   Zap,
   Globe,
   Clock,
   Users,
+  Bot,
+  Settings,
+  Star,
 } from "lucide-react";
 
 const HeroSection = () => {
@@ -27,23 +29,24 @@ const HeroSection = () => {
           >
             <div className="inline-flex items-center rounded-lg bg-muted px-3 py-1 text-sm font-medium mb-4">
               <Smartphone className="mr-1 h-4 w-4" />
-              Mobile Chat Agent
+              Mobile App Integration
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              AI Chat for Your <span className="text-primary">Mobile Apps</span>
+              AI-Powered <span className="text-primary">Mobile Chat</span> For Your Apps
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Integrate powerful AI chat capabilities into your iOS and Android
-              apps to enhance user experience and provide instant support.
+              Transform your mobile apps with intelligent chat capabilities that deliver personalized experiences, automate support, and drive user engagement.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button size="lg" className="gap-2" asChild>
                 <Link to="/signup">
-                  Get Started <ArrowRight className="h-4 w-4" />
+                  Start Free Trial <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link to="/demo">See Demo</Link>
+                <Link to="/demo">
+                  View Live Demo
+                </Link>
               </Button>
             </div>
           </motion.div>
@@ -51,16 +54,83 @@ const HeroSection = () => {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="flex items-center justify-center"
+            className="relative rounded-lg overflow-hidden border bg-card p-2"
           >
-            <div className="relative w-full max-w-[500px] aspect-square">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-full blur-3xl" />
-              <img
-                src="https://images.unsplash.com/photo-1551650975-87deedd944c3?w=800&q=80"
-                alt="Mobile Chat Agent Interface"
-                className="relative z-10 w-full h-full object-cover rounded-lg shadow-xl"
-              />
+            <div className="rounded-md overflow-hidden bg-background/50">
+              <div className="flex items-center gap-1 p-2 bg-black/90">
+                <div className="h-3 w-3 rounded-full bg-red-500"></div>
+                <div className="h-3 w-3 rounded-full bg-yellow-500"></div>
+                <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                <span className="text-white text-xs ml-2">mobile app simulator</span>
+              </div>
+              <div className="p-4 flex flex-col h-[360px] justify-between">
+                <div className="flex-1 overflow-y-auto mb-4 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                      <Bot className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="bg-muted rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
+                      <p>Welcome to the AcmeShop app! How can I assist you today?</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3 justify-end">
+                    <div className="bg-primary/10 rounded-lg rounded-tr-none p-3 text-sm max-w-[80%]">
+                      <p>I'm looking for a new running shoe with good cushioning.</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center">
+                      <Users className="h-4 w-4 text-gray-500" />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                      <Bot className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="bg-muted rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
+                      <p>Great! Based on your preferences, I recommend the following:</p>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <div className="bg-background rounded p-2">
+                          <div className="h-16 bg-gray-200 rounded mb-1"></div>
+                          <p className="text-xs font-medium">UltraBoost 5.0</p>
+                          <p className="text-xs text-muted-foreground">$129.99</p>
+                        </div>
+                        <div className="bg-background rounded p-2">
+                          <div className="h-16 bg-gray-200 rounded mb-1"></div>
+                          <p className="text-xs font-medium">CloudRunner Pro</p>
+                          <p className="text-xs text-muted-foreground">$149.99</p>
+                        </div>
+                      </div>
+                      <p className="mt-2">Would you like to see more details on either of these?</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="Type your message..." 
+                    className="w-full rounded-full border border-border bg-background px-4 py-2 pr-10 text-sm" 
+                  />
+                  <Button size="icon" variant="ghost" className="absolute right-0 top-0 h-full aspect-square rounded-full text-primary">
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="flex items-center justify-between mt-2 px-1">
+                  <div className="text-xs text-muted-foreground">Powered by <span className="font-medium text-primary">Akii</span></div>
+                  <div className="flex gap-2">
+                    <button className="text-muted-foreground hover:text-foreground">
+                      <Settings className="h-3 w-3" />
+                    </button>
+                    <button className="text-muted-foreground hover:text-foreground">
+                      <Zap className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
+            <div className="absolute -z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-r from-primary/20 to-purple-500/20 blur-3xl rounded-full opacity-50" />
           </motion.div>
         </div>
       </div>
@@ -144,65 +214,125 @@ const FeaturesSection = () => {
 };
 
 const HowItWorksSection = () => {
-  const steps = [
-    {
-      number: "01",
-      title: "Install SDK",
-      description:
-        "Add our lightweight SDK to your iOS or Android project using CocoaPods, Swift Package Manager, or Gradle.",
-    },
-    {
-      number: "02",
-      title: "Configure & Customize",
-      description:
-        "Set up your agent's appearance, behavior, and knowledge base through our dashboard.",
-    },
-    {
-      number: "03",
-      title: "Integrate Authentication",
-      description:
-        "Connect with your existing user authentication system to personalize the experience.",
-    },
-    {
-      number: "04",
-      title: "Launch & Monitor",
-      description:
-        "Deploy to your users and track performance, engagement, and satisfaction through our analytics.",
-    },
-  ];
-
   return (
-    <section className="py-16 md:py-24 bg-muted/30">
-      <div className="container px-4 md:px-6">
-        <div className="flex flex-col items-center justify-center space-y-4 text-center">
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-              How It Works
-            </h2>
-            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
-              Get your AI chat agent integrated into your mobile apps in just a
-              few simple steps.
-            </p>
-          </div>
+    <section className="py-20 bg-gradient-to-b from-background/80 to-background/60 relative">
+      <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none"></div>
+      <div className="container px-4 md:px-6 relative z-10">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            How It Works
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+            Get up and running with Akii Mobile Chat in minutes. Our SDK makes integration straightforward for iOS and Android developers.
+          </p>
         </div>
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4 mt-12">
-          {steps.map((step, index) => (
-            <div key={index} className="relative">
-              {index < steps.length - 1 && (
-                <div
-                  className="absolute top-10 left-full w-full h-0.5 bg-border hidden lg:block"
-                  style={{ width: "calc(100% - 3rem)" }}
-                />
-              )}
-              <div className="flex flex-col items-center text-center space-y-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl font-bold">
-                  {step.number}
-                </div>
-                <h3 className="text-xl font-bold">{step.title}</h3>
-                <p className="text-muted-foreground">{step.description}</p>
+
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-center">
+          <div className="lg:col-span-3 space-y-8">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/20 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-primary">1</div>
+                <h3 className="text-xl font-semibold">Install our SDK</h3>
+              </div>
+              <div className="bg-secondary/30 p-6 rounded-lg border border-border overflow-hidden">
+                <pre className="overflow-x-auto text-sm text-muted-foreground">
+                  <code>{`// iOS - Add to your Podfile
+pod 'AkiiChat', '~> 1.2.0'
+
+// Android - Add to your build.gradle
+implementation 'com.akii:chat-sdk:1.2.0'`}</code>
+                </pre>
               </div>
             </div>
-          ))}
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/20 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-primary">2</div>
+                <h3 className="text-xl font-semibold">Initialize the SDK in your app</h3>
+              </div>
+              <div className="bg-secondary/30 p-6 rounded-lg border border-border overflow-hidden">
+                <pre className="overflow-x-auto text-sm text-muted-foreground">
+                  <code>{`// iOS - Swift
+import AkiiChat
+
+AkiiChat.shared.initialize(
+    instanceId: "YOUR_INSTANCE_ID",
+    primaryColor: UIColor(hex: "#16a34a"),
+    userId: currentUser.id
+)
+
+// Android - Kotlin
+import com.akii.chat.AkiiChat
+
+AkiiChat.getInstance().initialize(
+    context,
+    "YOUR_INSTANCE_ID", 
+    "#16a34a",
+    currentUser.id
+)`}</code>
+                </pre>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/20 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-primary">3</div>
+                <h3 className="text-xl font-semibold">Launch the chat interface</h3>
+              </div>
+              <p className="text-muted-foreground">
+                Display the chat interface with a single line of code. Customize the UI, behavior, and knowledge in your Akii.com dashboard.
+              </p>
+              <div className="bg-secondary/30 p-6 rounded-lg border border-border overflow-hidden">
+                <pre className="overflow-x-auto text-sm text-muted-foreground">
+                  <code>{`// iOS - Swift
+AkiiChat.shared.presentChat(from: self)
+
+// Android - Kotlin
+AkiiChat.getInstance().startChat(activity)`}</code>
+                </pre>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-2">
+            <div className="border border-border p-4 rounded-xl shadow-lg bg-background">
+              <div className="border-b border-border pb-3 mb-3 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="w-2 h-2 rounded-full bg-red-500 mr-2"></div>
+                  <div className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></div>
+                  <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+                  <span className="text-sm text-muted-foreground">Mobile App Preview</span>
+                </div>
+              </div>
+              <div className="h-[400px] relative">
+                <div className="absolute inset-0 mx-auto w-[220px] border-8 border-gray-800 rounded-3xl shadow-lg bg-card overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-7 bg-gray-800 flex justify-center items-end pb-1">
+                    <div className="w-16 h-1.5 bg-gray-600 rounded-full"></div>
+                  </div>
+                  <div className="absolute bottom-0 left-0 w-full h-7 bg-gray-800"></div>
+                  <div className="h-full pt-7 pb-7 bg-white dark:bg-gray-900 overflow-hidden">
+                    <div className="h-full overflow-y-auto">
+                      <div className="p-3 bg-primary text-white flex items-center">
+                        <Smartphone className="h-4 w-4 mr-2" />
+                        <span className="font-medium">Akii Mobile Chat</span>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        <div className="bg-muted/50 p-2 rounded-lg text-sm max-w-[80%]">
+                          How can I help you today?
+                        </div>
+                        <div className="bg-primary/10 p-2 rounded-lg text-sm ml-auto max-w-[80%]">
+                          I need to change my delivery address
+                        </div>
+                        <div className="bg-muted/50 p-2 rounded-lg text-sm max-w-[80%]">
+                          I can help with that! Please provide your new address.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -211,212 +341,101 @@ const HowItWorksSection = () => {
 
 const BenefitsSection = () => {
   return (
-    <section className="py-16 md:py-24 bg-background">
-      <div className="container px-4 md:px-6">
-        <div className="grid gap-6 lg:grid-cols-[400px_1fr] lg:gap-12 xl:grid-cols-[600px_1fr]">
-          <div className="flex items-center justify-center">
-            <div className="relative w-full max-w-[500px] aspect-square">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-full blur-3xl" />
-              <img
-                src="https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&q=80"
-                alt="Mobile App Benefits"
-                className="relative z-10 w-full h-full object-cover rounded-lg shadow-xl"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col justify-center space-y-4">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-                Benefits for Your Mobile App
-              </h2>
-              <p className="text-muted-foreground md:text-xl">
-                Our Mobile Chat Agent delivers measurable improvements to your
-                app's user experience and business metrics.
-              </p>
-            </div>
-            <ul className="grid gap-4">
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <p className="font-medium">Increased User Retention</p>
-                  <p className="text-sm text-muted-foreground">
-                    Keep users engaged with your app longer by providing instant
-                    assistance and reducing frustration.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <p className="font-medium">Reduced Support Tickets</p>
-                  <p className="text-sm text-muted-foreground">
-                    Decrease the volume of support tickets by up to 40% by
-                    resolving common issues automatically.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <p className="font-medium">Higher App Store Ratings</p>
-                  <p className="text-sm text-muted-foreground">
-                    Improve your app store ratings with better user experiences
-                    and faster issue resolution.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <p className="font-medium">Valuable User Insights</p>
-                  <p className="text-sm text-muted-foreground">
-                    Gain insights into user needs and pain points through
-                    conversation analytics.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <p className="font-medium">Increased In-App Conversions</p>
-                  <p className="text-sm text-muted-foreground">
-                    Guide users to premium features or purchases with
-                    contextual, helpful suggestions.
-                  </p>
-                </div>
-              </li>
-            </ul>
-            <div className="flex flex-col gap-2 min-[400px]:flex-row pt-4">
-              <Button asChild>
-                <Link to="/signup">Start Free Trial</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link to="/case-studies">View Case Studies</Link>
-              </Button>
-            </div>
-          </div>
+    <section className="py-20 px-4">
+      <div className="container mx-auto max-w-6xl">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl font-bold mb-4">Why Choose Akii Mobile Chat?</h2>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            The smart choice for businesses looking to enhance mobile app engagement
+          </p>
         </div>
-      </div>
-    </section>
-  );
-};
 
-const PricingSection = () => {
-  const plans = [
-    {
-      name: "Starter",
-      price: "$59",
-      description:
-        "Perfect for small apps with limited user base and chat volume.",
-      features: [
-        "1,500 messages per month",
-        "Basic customization",
-        "Email support",
-        "iOS & Android SDKs",
-        "Standard response time",
-      ],
-      cta: "Get Started",
-      popular: false,
-    },
-    {
-      name: "Professional",
-      price: "$129",
-      description: "Ideal for growing apps with moderate chat volume.",
-      features: [
-        "7,500 messages per month",
-        "Advanced customization",
-        "Priority email support",
-        "iOS & Android SDKs",
-        "Faster response time",
-        "Push notification integration",
-        "Analytics dashboard",
-      ],
-      cta: "Get Started",
-      popular: true,
-    },
-    {
-      name: "Enterprise",
-      price: "Custom",
-      description: "For large-scale apps with high volume requirements.",
-      features: [
-        "Unlimited messages",
-        "Full customization",
-        "24/7 phone & email support",
-        "iOS & Android SDKs",
-        "Fastest response time",
-        "Advanced analytics",
-        "Dedicated account manager",
-        "Custom integrations",
-      ],
-      cta: "Contact Sales",
-      popular: false,
-    },
-  ];
-
-  return (
-    <section className="py-16 md:py-24 bg-muted/30">
-      <div className="container px-4 md:px-6">
-        <div className="flex flex-col items-center justify-center space-y-4 text-center">
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-              Simple, Transparent Pricing
-            </h2>
-            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
-              Choose the plan that's right for your mobile app. All plans
-              include a 14-day free trial.
-            </p>
-          </div>
-        </div>
-        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-3 mt-12">
-          {plans.map((plan, index) => (
-            <Card
-              key={index}
-              className={`flex flex-col ${plan.popular ? "border-primary shadow-lg" : ""}`}
-            >
-              {plan.popular && (
-                <div className="bg-primary text-primary-foreground text-center py-2 text-sm font-medium">
-                  Most Popular
-                </div>
-              )}
-              <CardContent className="p-6 flex flex-col flex-1">
-                <div className="flex flex-col space-y-4 flex-1">
-                  <h3 className="text-2xl font-bold">{plan.name}</h3>
-                  <div className="space-y-1">
-                    <p className="text-3xl font-bold">{plan.price}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {plan.name === "Enterprise"
-                        ? "Custom pricing"
-                        : "per month"}
-                    </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+            className="space-y-6"
+          >
+            <div className="flex gap-4">
+              <div className="bg-primary/10 p-3 rounded-full h-fit">
+                <Smartphone className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">Native Mobile Experience</h3>
+                <p className="text-muted-foreground">
+                  Offer a truly seamless experience with our native SDKs for iOS and Android. The chat interface feels like a natural part of your app, maintaining your brand identity.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-4">
+              <div className="bg-primary/10 p-3 rounded-full h-fit">
+                <Globe className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">Offline Capabilities</h3>
+                <p className="text-muted-foreground">
+                  Our SDK includes offline mode that caches responses to common questions, ensuring your users get help even when they're not connected to the internet.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-4">
+              <div className="bg-primary/10 p-3 rounded-full h-fit">
+                <Users className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">Personalized User Experience</h3>
+                <p className="text-muted-foreground">
+                  Connect with your authentication system to provide truly personalized experiences. The AI remembers user preferences and past interactions.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+            className="relative"
+          >
+            <div className="relative z-10 rounded-lg overflow-hidden border bg-card p-6">
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    <Star className="h-5 w-5 text-yellow-500" />
                   </div>
-                  <p className="text-muted-foreground">{plan.description}</p>
-                  <ul className="space-y-2 flex-1">
-                    {plan.features.map((feature, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-primary" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    className="mt-auto"
-                    variant={plan.popular ? "default" : "outline"}
-                    asChild
-                  >
-                    <Link
-                      to={
-                        plan.name === "Enterprise"
-                          ? "/contact-sales"
-                          : "/signup"
-                      }
-                    >
-                      {plan.cta}
-                    </Link>
-                  </Button>
+                  <p className="italic text-muted-foreground mb-2">
+                    "After integrating Akii Mobile Chat, our app's user retention increased by 42%. The AI assistant helps users discover features they didn't know existed, drastically improving overall engagement."
+                  </p>
+                  <p className="font-medium">Alex Rivera, CPO at HealthFit App</p>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+                
+                <div className="border-t pt-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    <Star className="h-5 w-5 text-yellow-500" />
+                    <Star className="h-5 w-5 text-yellow-500" />
+                  </div>
+                  <p className="italic text-muted-foreground mb-2">
+                    "Support tickets decreased by 68% after implementing Akii's mobile chat solution. Our developers were impressed with how easy it was to integrate, and our users love the instant responses."
+                  </p>
+                  <p className="font-medium">Priya Sharma, CTO at ShopSquare</p>
+                </div>
+              </div>
+            </div>
+            <div className="absolute -z-10 -top-6 -left-6 w-24 h-24 bg-primary/30 rounded-full blur-xl"></div>
+            <div className="absolute -z-10 -bottom-10 -right-10 w-32 h-32 bg-purple-500/20 rounded-full blur-xl"></div>
+          </motion.div>
         </div>
       </div>
     </section>
@@ -424,62 +443,83 @@ const PricingSection = () => {
 };
 
 const FAQSection = () => {
-  const faqs = [
-    {
-      question: "How do I integrate the Mobile Chat Agent into my app?",
-      answer:
-        "Integration is simple with our native SDKs. For iOS, you can use CocoaPods or Swift Package Manager. For Android, we provide a Gradle dependency. Our documentation includes step-by-step guides and sample code for both platforms.",
-    },
-    {
-      question: "Can I customize the appearance of the chat interface?",
-      answer:
-        "Yes, you can fully customize the chat interface to match your app's design. You can change colors, fonts, button styles, and even create a completely custom UI using our headless API if needed.",
-    },
-    {
-      question: "Does the Mobile Chat Agent work offline?",
-      answer:
-        "Yes, our SDK includes an offline mode that can provide basic responses to common questions even when the user doesn't have an internet connection. When connectivity is restored, the full AI capabilities become available again.",
-    },
-    {
-      question: "How does the Mobile Chat Agent handle user authentication?",
-      answer:
-        "Our SDK integrates with your existing authentication system. You simply pass the user's identifier to our SDK, and we handle the rest. This allows for personalized experiences and conversation history across sessions.",
-    },
-    {
-      question: "Is there a limit to the number of conversations?",
-      answer:
-        "Each plan comes with a specific number of messages per month. A message is counted each time the AI agent responds to a user. You can upgrade your plan at any time if you need more capacity.",
-    },
-    {
-      question: "How secure is the Mobile Chat Agent?",
-      answer:
-        "We take security seriously. All conversations are encrypted in transit and at rest. We comply with GDPR, CCPA, and other privacy regulations. Our SDKs also support features like secure storage and automatic message expiration.",
-    },
-  ];
-
   return (
-    <section className="py-16 md:py-24 bg-background">
-      <div className="container px-4 md:px-6">
-        <div className="flex flex-col items-center justify-center space-y-4 text-center">
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-              Frequently Asked Questions
-            </h2>
-            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
-              Have questions? We've got answers.
+    <section className="py-20 px-4 bg-muted/30">
+      <div className="container mx-auto max-w-4xl">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl font-bold mb-4">Frequently Asked Questions</h2>
+          <p className="text-xl text-muted-foreground">
+            Everything you need to know about Akii Mobile Chat
+          </p>
+        </div>
+
+        <div className="space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            viewport={{ once: true }}
+            className="bg-card rounded-lg p-6 border border-border"
+          >
+            <h3 className="text-lg font-semibold mb-2">How do I integrate the Mobile Chat into my app?</h3>
+            <p className="text-muted-foreground">
+              Integration is simple with our native SDKs. For iOS, you can use CocoaPods or Swift Package Manager. For Android, we provide a Gradle dependency. Our documentation includes step-by-step guides and sample code for both platforms.
             </p>
-          </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            viewport={{ once: true }}
+            className="bg-card rounded-lg p-6 border border-border"
+          >
+            <h3 className="text-lg font-semibold mb-2">Can I customize the appearance of the chat interface?</h3>
+            <p className="text-muted-foreground">
+              Yes, you can fully customize the chat interface to match your app's design. You can change colors, fonts, button styles, and even create a completely custom UI using our headless API if needed. The SDK provides extensive styling options.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
+            viewport={{ once: true }}
+            className="bg-card rounded-lg p-6 border border-border"
+          >
+            <h3 className="text-lg font-semibold mb-2">Does the Mobile Chat work offline?</h3>
+            <p className="text-muted-foreground">
+              Yes, our SDK includes an offline mode that can provide basic responses to common questions even when the user doesn't have an internet connection. The SDK intelligently caches frequently asked questions and responses, and when connectivity is restored, the full AI capabilities become available again.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.3 }}
+            viewport={{ once: true }}
+            className="bg-card rounded-lg p-6 border border-border"
+          >
+            <h3 className="text-lg font-semibold mb-2">How does the Mobile Chat handle user authentication?</h3>
+            <p className="text-muted-foreground">
+              Our SDK integrates with your existing authentication system. You simply pass the user's identifier to our SDK during initialization, and we handle the rest. This allows for personalized experiences, conversation history across sessions, and user-specific data security.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+            viewport={{ once: true }}
+            className="bg-card rounded-lg p-6 border border-border"
+          >
+            <h3 className="text-lg font-semibold mb-2">How secure is the Mobile Chat?</h3>
+            <p className="text-muted-foreground">
+              We take security seriously. All conversations are encrypted in transit and at rest. We comply with GDPR, CCPA, and other privacy regulations. Our SDKs also support features like secure storage, automatic message expiration, and data minimization to protect user privacy.
+            </p>
+          </motion.div>
         </div>
-        <div className="mx-auto max-w-3xl mt-12 space-y-4">
-          {faqs.map((faq, index) => (
-            <Card key={index}>
-              <CardContent className="p-6">
-                <h3 className="text-lg font-bold mb-2">{faq.question}</h3>
-                <p className="text-muted-foreground">{faq.answer}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        
         <div className="text-center mt-8">
           <p className="text-muted-foreground mb-4">Still have questions?</p>
           <Button asChild>
@@ -493,28 +533,26 @@ const FAQSection = () => {
 
 const CTASection = () => {
   return (
-    <section className="py-20 px-4 bg-muted/30">
+    <section className="py-20 px-4 bg-gradient-to-br from-primary/10 to-purple-500/10">
       <div className="container mx-auto max-w-6xl">
-        <div className="bg-gradient-to-r from-primary/10 to-purple-500/10 rounded-2xl p-12 border border-border relative overflow-hidden">
-          <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,transparent,rgba(255,255,255,0.6),transparent)]" />
-          <div className="relative z-10 max-w-2xl mx-auto text-center">
-            <h2 className="text-3xl font-bold mb-6">
-              Ready to enhance your mobile app?
-            </h2>
-            <p className="text-xl text-muted-foreground mb-8">
-              Start your 14-day free trial today and see how our Mobile Chat
-              Agent can transform your app experience.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="gap-2" asChild>
-                <Link to="/signup">
-                  Start Free Trial <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link to="/demo">Schedule Demo</Link>
-              </Button>
-            </div>
+        <div className="bg-card border border-border rounded-2xl p-8 md:p-12 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Transform Your Mobile Experience Today
+          </h2>
+          <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+            Join thousands of apps using Akii.com to provide exceptional AI-powered assistance and support to their mobile users.
+          </p>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Button size="lg" className="gap-2" asChild>
+              <Link to="/signup">
+                Start Free Trial <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" asChild>
+              <Link to="/contact">
+                Talk to Sales
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -529,7 +567,6 @@ const MobileChatAgent = () => {
       <FeaturesSection />
       <HowItWorksSection />
       <BenefitsSection />
-      <PricingSection />
       <FAQSection />
       <CTASection />
     </MainLayout>

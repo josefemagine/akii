@@ -31,6 +31,7 @@ import { emergencySessionReset, forceSessionCheck } from "@/lib/auth-lock-fix";
 import { AuthProvider as StandardAuthProvider } from "./contexts/StandardAuthContext";
 import { PrivateRoute } from "./components/PrivateRoute";
 import BillingComponent from './components/Billing';
+import ScrollToTop from "./components/layout/ScrollToTop";
 
 // Setup network interceptors for auth error handling
 const setupNetworkInterceptors = () => {
@@ -155,6 +156,8 @@ const WordPressChatAgent = lazy(
   () => import("./pages/products/WordPressChatAgent"),
 );
 const PrivateAIAPI = lazy(() => import("./pages/products/PrivateAIAPI"));
+const ZapierIntegration = lazy(() => import("./pages/products/ZapierIntegration"));
+const N8nIntegration = lazy(() => import("./pages/products/N8nIntegration"));
 
 // Auth pages
 const AuthCallback = lazy(() => import("./pages/auth/callback"));
@@ -310,6 +313,9 @@ function AppContent() {
       {/* Add GlobalErrorHandler before anything else */}
       <GlobalErrorHandler />
       
+      {/* Add ScrollToTop to ensure pages start at the top on navigation */}
+      <ScrollToTop />
+      
       <EnvWarning />
       
       {/* Tempo routes */}
@@ -326,13 +332,15 @@ function AppContent() {
           }
         >
           <Route index element={<LandingPage />} />
-          <Route path="pricing" element={<Pricing />} />
-          <Route path="blog" element={<Blog />} />
-          <Route path="contact" element={<Contact />} />
-          <Route path="privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="terms-of-service" element={<TermsOfService />} />
-          <Route path="supabase-test" element={<SupabaseTest />} />
         </Route>
+        
+        {/* Public pages with their own MainLayout */}
+        <Route path="/pricing" element={<Suspense fallback={<LoadingFallback />}><Pricing /></Suspense>} />
+        <Route path="/blog" element={<Suspense fallback={<LoadingFallback />}><Blog /></Suspense>} />
+        <Route path="/contact" element={<Suspense fallback={<LoadingFallback />}><Contact /></Suspense>} />
+        <Route path="/privacy-policy" element={<Suspense fallback={<LoadingFallback />}><PrivacyPolicy /></Suspense>} />
+        <Route path="/terms-of-service" element={<Suspense fallback={<LoadingFallback />}><TermsOfService /></Suspense>} />
+        <Route path="/supabase-test" element={<Suspense fallback={<LoadingFallback />}><SupabaseTest /></Suspense>} />
 
         {/* Auth routes */}
         <Route path="/auth">
@@ -344,13 +352,15 @@ function AppContent() {
         <Route path="/token/*" element={<TokenHandler />} />
 
         {/* Product pages */}
-        <Route path="/products/web-chat-agent" element={<WebChatAgent />} />
-        <Route path="/products/mobile-chat-agent" element={<MobileChatAgent />} />
-        <Route path="/products/whatsapp-chat-agent" element={<WhatsAppChatAgent />} />
-        <Route path="/products/telegram-chat-agent" element={<TelegramChatAgent />} />
-        <Route path="/products/shopify-chat-agent" element={<ShopifyChatAgent />} />
-        <Route path="/products/wordpress-chat-agent" element={<WordPressChatAgent />} />
+        <Route path="/products/web-chat" element={<WebChatAgent />} />
+        <Route path="/products/mobile-chat" element={<MobileChatAgent />} />
+        <Route path="/products/whatsapp-chat" element={<WhatsAppChatAgent />} />
+        <Route path="/products/telegram-chat" element={<TelegramChatAgent />} />
+        <Route path="/products/shopify-chat" element={<ShopifyChatAgent />} />
+        <Route path="/products/wordpress-chat" element={<WordPressChatAgent />} />
         <Route path="/products/private-ai-api" element={<PrivateAIAPI />} />
+        <Route path="/products/integrations/zapier" element={<ZapierIntegration />} />
+        <Route path="/products/integrations/n8n" element={<N8nIntegration />} />
 
         {/* Dashboard routes - protected */}
         <Route
