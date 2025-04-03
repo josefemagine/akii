@@ -34,15 +34,15 @@ const TelegramChatAgent = () => {
               >
                 <div className="inline-flex items-center rounded-lg bg-muted px-3 py-1 text-sm font-medium mb-4">
                   <Send className="mr-1 h-4 w-4" />
-                  Telegram Integration
+                  3-Minute Telegram Setup
                 </div>
                 <h1 className="text-4xl md:text-5xl font-bold mb-6">
-                  AI-Powered <span className="text-primary">Telegram Chat</span> For Your Business
+                  Add <span className="text-primary">Your Company's AI</span> To Telegram
                 </h1>
                 <p className="text-xl text-muted-foreground mb-8">
-                  Connect with your audience instantly through Telegram with intelligent AI that automates support, answers questions, and drives engagement.
+                  Connect your Telegram bot in minutes with just a BotFather token. No coding or technical expertise required to train AI on your data.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex flex-col sm:flex-row gap-4 mb-8">
                   <Button size="lg" className="gap-2" asChild>
                     <Link to="/signup">
                       Start Free Trial <ArrowRight className="h-4 w-4" />
@@ -53,6 +53,21 @@ const TelegramChatAgent = () => {
                       View Live Demo
                     </Link>
                   </Button>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary">3-minute</p>
+                    <p className="text-sm text-muted-foreground">BotFather setup</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary">Zero</p>
+                    <p className="text-sm text-muted-foreground">coding needed</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary">100%</p>
+                    <p className="text-sm text-muted-foreground">your company data</p>
+                  </div>
                 </div>
               </motion.div>
               <motion.div
@@ -75,13 +90,13 @@ const TelegramChatAgent = () => {
                           <Bot className="h-4 w-4 text-white" />
                         </div>
                         <div className="bg-blue-100 dark:bg-blue-900/20 rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
-                          <p>Hello! I'm your Akii AI assistant. How can I help you today?</p>
+                          <p>Hello! I'm your YourCompany AI assistant. I'm trained on all our products, policies, and FAQs. How can I help you today?</p>
                         </div>
                       </div>
                       
                       <div className="flex items-start gap-3 justify-end">
                         <div className="bg-gray-100 dark:bg-gray-800 rounded-lg rounded-tr-none p-3 text-sm max-w-[80%]">
-                          <p>I need information about your summer promotion. Do you have any discounts for new customers?</p>
+                          <p>What are your shipping options for international orders?</p>
                         </div>
                         <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center">
                           <Users className="h-4 w-4 text-gray-500" />
@@ -93,29 +108,22 @@ const TelegramChatAgent = () => {
                           <Bot className="h-4 w-4 text-white" />
                         </div>
                         <div className="bg-blue-100 dark:bg-blue-900/20 rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
-                          <p>Yes! We have a special summer offer for new customers. You can get 25% off your first purchase with code SUMMER25. Would you like me to send you our latest catalog?</p>
+                          <p>For international orders, we offer three shipping options:</p>
+                          <ol className="list-decimal pl-5 mt-2 space-y-1">
+                            <li>Standard (7-10 business days)</li>
+                            <li>Express (3-5 business days)</li>
+                            <li>Priority (1-2 business days)</li>
+                          </ol>
+                          <p className="mt-2">All options include tracking. Would you like more details about pricing for a specific country?</p>
                         </div>
                       </div>
 
                       <div className="flex items-start gap-3 justify-end">
                         <div className="bg-gray-100 dark:bg-gray-800 rounded-lg rounded-tr-none p-3 text-sm max-w-[80%]">
-                          <p>Yes, please send the catalog. Also, do you offer same-day delivery?</p>
+                          <p>Yes, what's the cost for express shipping to France?</p>
                         </div>
                         <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center">
                           <Users className="h-4 w-4 text-gray-500" />
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-                          <Bot className="h-4 w-4 text-white" />
-                        </div>
-                        <div className="bg-blue-100 dark:bg-blue-900/20 rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
-                          <p>Here's our summer catalog:</p>
-                          <div className="mt-2 h-24 bg-gray-200 dark:bg-gray-600 rounded mb-1 flex items-center justify-center">
-                            <span className="text-xs text-muted-foreground">Summer_2023_Catalog.pdf</span>
-                          </div>
-                          <p className="mt-2">And yes, we do offer same-day delivery for orders placed before 2pm in select areas. Would you like me to check if your location is eligible?</p>
                         </div>
                       </div>
                     </div>
@@ -132,7 +140,7 @@ const TelegramChatAgent = () => {
                     </div>
                     
                     <div className="flex items-center justify-between mt-2 px-1">
-                      <div className="text-xs text-muted-foreground">Powered by <span className="font-medium text-blue-500">Akii</span></div>
+                      <div className="text-xs text-muted-foreground">AI trained on <span className="font-medium text-blue-500">your company data</span></div>
                       <div className="flex gap-2">
                         <button className="text-muted-foreground hover:text-foreground">
                           <Settings className="h-3 w-3" />
@@ -280,39 +288,304 @@ const TelegramChatAgent = () => {
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="py-20 bg-gradient-to-br from-primary/20 via-secondary/20 to-background relative overflow-hidden">
+        {/* How It Works Section */}
+        <section className="py-20 bg-gradient-to-b from-background/80 to-background/60 relative">
           <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none"></div>
           <div className="container px-4 md:px-6 relative z-10">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="max-w-3xl mx-auto text-center"
-            >
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-3">
+                Simple 3-Step Process
+              </div>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Transform Your Telegram Engagement Today
+                Connect Telegram in Minutes
               </h2>
-              <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-                Join businesses that have increased customer satisfaction by 40% and reduced support costs by 60% with Akii Telegram Chat.
+              <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+                Just create a bot with BotFather and paste your token. No developers, no coding, and no technical setup required.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/contact">
-                  <Button size="lg" className="w-full sm:w-auto">
-                    Start Free Trial
-                  </Button>
-                </Link>
-                <Link to="/demo">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                    Schedule a Demo
-                  </Button>
-                </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                viewport={{ once: true }}
+                className="bg-card border border-border rounded-xl p-6 text-center relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 rounded-full -translate-x-6 -translate-y-6 blur-xl"></div>
+                <div className="bg-blue-600/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-blue-600 text-xl mx-auto mb-6">1</div>
+                <h3 className="text-xl font-semibold mb-4">Create a Telegram Bot with BotFather</h3>
+                <p className="text-muted-foreground">
+                  Open Telegram, search for @BotFather, and follow the simple prompts to create your bot and get your token.
+                </p>
+                <div className="mt-6 flex justify-center">
+                  <Send className="h-16 w-16 text-blue-600/50" />
+                </div>
+              </motion.div>
+
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.1 }}
+                viewport={{ once: true }}
+                className="bg-card border border-border rounded-xl p-6 text-center relative overflow-hidden"
+              >
+                <div className="absolute bottom-0 left-0 w-20 h-20 bg-purple-500/10 rounded-full translate-x-6 translate-y-6 blur-xl"></div>
+                <div className="bg-blue-600/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-blue-600 text-xl mx-auto mb-6">2</div>
+                <h3 className="text-xl font-semibold mb-4">Paste Your Bot Token</h3>
+                <p className="text-muted-foreground">
+                  Copy your bot token from BotFather and paste it into our dashboard. We'll handle the technical integration automatically.
+                </p>
+                <div className="mt-6 flex justify-center">
+                  <Bot className="h-16 w-16 text-blue-600/50" />
+                </div>
+              </motion.div>
+
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                viewport={{ once: true }}
+                className="bg-card border border-border rounded-xl p-6 text-center relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 w-20 h-20 bg-blue-500/10 rounded-full translate-x-6 -translate-y-6 blur-xl"></div>
+                <div className="bg-blue-600/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-blue-600 text-xl mx-auto mb-6">3</div>
+                <h3 className="text-xl font-semibold mb-4">Train AI on Your Data</h3>
+                <p className="text-muted-foreground">
+                  Upload your company data, and our AI will automatically learn from it. Your bot is now ready to assist your customers.
+                </p>
+                <div className="mt-6 flex justify-center">
+                  <Zap className="h-16 w-16 text-blue-600/50" />
+                </div>
+              </motion.div>
+            </div>
+
+            <div className="mt-16 bg-white/5 backdrop-blur-sm border border-border rounded-xl p-6 md:p-8">
+              <div className="flex flex-col md:flex-row items-center gap-8">
+                <div className="md:w-1/2">
+                  <h3 className="text-xl font-semibold mb-4">Getting Your Bot Token is Easy</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Creating a bot with Telegram's BotFather takes less than a minute:
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-card border border-border rounded-lg p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-blue-600/20 h-8 w-8 rounded-full flex items-center justify-center">
+                          <span className="font-bold text-sm text-blue-600">1</span>
+                        </div>
+                        <div>
+                          <h4 className="font-medium">Open @BotFather in Telegram</h4>
+                          <p className="text-sm text-muted-foreground">Type "/newbot" to start the creation process</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-card border border-border rounded-lg p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-blue-600/20 h-8 w-8 rounded-full flex items-center justify-center">
+                          <span className="font-bold text-sm text-blue-600">2</span>
+                        </div>
+                        <div>
+                          <h4 className="font-medium">Name Your Bot</h4>
+                          <p className="text-sm text-muted-foreground">Choose a name and username for your bot</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-card border border-border rounded-lg p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-blue-600/20 h-8 w-8 rounded-full flex items-center justify-center">
+                          <span className="font-bold text-sm text-blue-600">3</span>
+                        </div>
+                        <div>
+                          <h4 className="font-medium">Copy the API Token</h4>
+                          <p className="text-sm text-muted-foreground">BotFather will give you a token like "5555555555:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 flex items-center gap-2">
+                    <Check className="h-5 w-5 text-blue-600" />
+                    <span className="text-sm">No programming knowledge needed</span>
+                  </div>
+                </div>
+                
+                <div className="md:w-1/2">
+                  <div className="bg-card border-2 border-blue-600/20 rounded-xl p-5 shadow-sm">
+                    <div className="flex items-center mb-4">
+                      <div className="p-2 bg-blue-600/10 rounded-lg mr-3">
+                        <Send className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <h4 className="font-semibold">Telegram Bot Connection</h4>
+                      <div className="ml-auto px-2.5 py-0.5 bg-blue-600/20 text-blue-600 text-xs rounded-full">
+                        Connected
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground">Bot Name</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="bg-muted px-3 py-1.5 rounded text-sm flex-1">
+                            YourCompanyBot
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground">Bot Token</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="bg-muted px-3 py-1.5 rounded text-sm font-mono text-muted-foreground flex-1">
+                            •••••••••••••••••••••••••••••••••••
+                          </div>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                            <Check className="h-4 w-4 text-blue-600" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="pt-2">
+                        <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                          Connected Successfully
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="mt-8 text-sm text-muted-foreground">
-                No credit card required. 14-day free trial.
-              </div>
-            </motion.div>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="py-20 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-blue-500/20 z-0"></div>
+          <div className="container px-4 md:px-6 relative z-10">
+            <div className="flex flex-col lg:flex-row gap-8 items-center">
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="w-full lg:w-1/2"
+              >
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                  Connect Telegram in Minutes <br /> Not Days or Weeks
+                </h2>
+                <p className="text-lg text-muted-foreground mb-6">
+                  Stop struggling with complex Telegram integrations. Our simple BotFather setup gets your company's AI on Telegram today - with just a few clicks.
+                </p>
+                
+                <div className="space-y-4 mb-8">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-primary/10 p-2 rounded-full mt-1">
+                      <Check className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium">3-Minute Setup</h3>
+                      <p className="text-muted-foreground">Just copy-paste your BotFather token - no coding required</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="bg-primary/10 p-2 rounded-full mt-1">
+                      <Check className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium">Pre-built Bot Connection</h3>
+                      <p className="text-muted-foreground">Our dashboard includes a ready-to-use Telegram API integration</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="bg-primary/10 p-2 rounded-full mt-1">
+                      <Check className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium">Same-day Deployment</h3>
+                      <p className="text-muted-foreground">Go live with your AI Telegram assistant today</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-4 mt-8">
+                  <Button size="lg" asChild>
+                    <Link to="/signup">
+                      Start Free 14-Day Trial
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="lg" asChild>
+                    <Link to="/demo">
+                      <Send className="mr-2 h-5 w-5" />
+                      See BotFather Setup Demo
+                    </Link>
+                  </Button>
+                </div>
+                
+                <div className="mt-6 text-sm text-muted-foreground flex items-center">
+                  <Check className="h-4 w-4 mr-2" />
+                  No credit card required for trial. Cancel anytime.
+                </div>
+              </motion.div>
+              
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="w-full lg:w-1/2"
+              >
+                <div className="relative bg-background border border-border rounded-lg p-6 shadow-lg">
+                  <div className="bg-secondary/10 rounded-lg p-4 mb-6">
+                    <h3 className="text-xl font-medium mb-2">Connect in 3 Simple Steps</h3>
+                    <p className="text-sm text-muted-foreground">Here's how quickly you can go live:</p>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-500 font-bold">1</div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">Create Bot with BotFather</h4>
+                        <p className="text-sm text-muted-foreground">Simple chat commands in Telegram</p>
+                      </div>
+                      <Clock className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-sm font-medium">1 min</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-500 font-bold">2</div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">Paste Bot Token</h4>
+                        <p className="text-sm text-muted-foreground">We automatically verify the connection</p>
+                      </div>
+                      <Clock className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-sm font-medium">1 min</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-500 font-bold">3</div>
+                      <div className="flex-1">
+                        <h4 className="font-medium">Upload Company Data & Go Live</h4>
+                        <p className="text-sm text-muted-foreground">Your AI starts responding immediately</p>
+                      </div>
+                      <Clock className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-sm font-medium">1 min</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 border-t border-border pt-6 text-center">
+                    <div className="inline-flex items-center justify-center bg-secondary/10 rounded-full px-3 py-1 text-xs font-medium text-secondary mb-2">
+                      WORKS WITH ANY TELEGRAM BOT
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Whether you're creating a new bot or enhancing an existing one, our platform seamlessly integrates with any Telegram bot created through BotFather.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
           </div>
         </section>
 
@@ -507,39 +780,42 @@ const TelegramChatAgent = () => {
               transition={{ duration: 0.5 }}
               className="text-center mb-16"
             >
+              <div className="inline-flex items-center rounded-full bg-secondary/10 px-3 py-1 text-sm font-medium text-secondary mb-3">
+                Common Questions
+              </div>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
                 Frequently Asked Questions
               </h2>
               <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                Get answers to common questions about the Akii Telegram Chat solution
+                Everything you need to know about setting up your Telegram bot with BotFather
               </p>
             </motion.div>
 
             <div className="grid grid-cols-1 gap-6 max-w-4xl mx-auto">
               {[
                 {
-                  question: "Do I need technical skills to set up a Telegram bot?",
-                  answer: "Not at all. Our platform makes it easy to create and deploy your Telegram bot even if you have no coding experience. We provide a simple interface and step-by-step guidance throughout the process."
+                  question: "What is BotFather and how do I use it?",
+                  answer: "BotFather is Telegram's official bot for creating and managing other bots. To use it, simply search for @BotFather in Telegram, send the command /newbot, and follow the prompts to name your bot and get your API token. The entire process takes less than a minute."
                 },
                 {
-                  question: "Can I customize the AI's responses?",
-                  answer: "Yes, you have full control over your AI assistant's knowledge base and responses. You can train it using your own FAQs, product information, and company guidelines to ensure it represents your brand voice accurately."
+                  question: "Do I need coding skills to set up a Telegram bot?",
+                  answer: "Not at all! Our platform is designed for non-technical users. You only need to create a bot with BotFather and copy-paste the token into our dashboard. We handle all the technical configuration and programming automatically."
                 },
                 {
-                  question: "How does the Telegram bot handle complex inquiries?",
-                  answer: "When a conversation becomes too complex for the AI to handle, it can seamlessly transfer the chat to a human agent. The transfer includes the full conversation history, ensuring a smooth transition without the customer having to repeat information."
+                  question: "What happens if I lose my bot token?",
+                  answer: "If you lose your bot token, you can easily retrieve it from BotFather. Just message @BotFather in Telegram, send the command /mybots, select your bot, and then click 'API Token' to view it again. You can then update it in our dashboard."
                 },
                 {
-                  question: "Can the bot handle multiple languages?",
-                  answer: "Yes, our Telegram bot supports multiple languages and can automatically detect and respond in the language the customer is using. This makes it ideal for businesses with an international customer base."
+                  question: "Can I customize my bot's appearance in Telegram?",
+                  answer: "Yes! Through BotFather, you can customize your bot's profile picture, description, and about section. Just use the /setuserpic, /setdescription, and /setabouttext commands in BotFather. All these changes will be reflected in your bot immediately."
                 },
                 {
-                  question: "What kind of analytics will I receive?",
-                  answer: "Our comprehensive analytics dashboard provides insights on conversation volume, frequently asked questions, resolution rates, customer satisfaction, and bot performance. You can use this data to continuously improve your customer experience."
+                  question: "How long does it take to set up a Telegram bot?",
+                  answer: "The entire process takes about 3 minutes: 1 minute to create your bot with BotFather, 1 minute to paste the token into our platform, and 1 minute to upload your company data for AI training. Your bot will be ready to assist customers immediately after setup."
                 },
                 {
-                  question: "How does pricing work for the Telegram bot?",
-                  answer: "We offer flexible pricing plans based on your business needs. All plans include the core features, with higher tiers offering increased message volume, advanced analytics, and additional customization options. Contact our sales team for a custom quote."
+                  question: "Can I connect multiple Telegram bots to one account?",
+                  answer: "Yes! You can create and connect multiple Telegram bots to our platform. This is useful if you want different bots for different departments, products, or languages. Each bot can be trained on specific data relevant to its purpose."
                 }
               ].map((faq, index) => (
                 <motion.div
@@ -554,6 +830,25 @@ const TelegramChatAgent = () => {
                   <p className="text-muted-foreground">{faq.answer}</p>
                 </motion.div>
               ))}
+            </div>
+            
+            <div className="mt-12 text-center">
+              <div className="inline-flex items-center justify-center bg-background rounded-lg border border-border px-4 py-1.5 text-sm mb-4">
+                <span className="mr-2">Need more help with your BotFather setup?</span>
+                <span className="text-primary font-medium">We're here to help</span>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button variant="outline" asChild>
+                  <Link to="/docs/telegram-setup">
+                    View BotFather Guide
+                  </Link>
+                </Button>
+                <Button asChild>
+                  <Link to="/contact">
+                    Contact Support
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
         </section>

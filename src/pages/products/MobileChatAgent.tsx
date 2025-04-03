@@ -29,13 +29,13 @@ const HeroSection = () => {
           >
             <div className="inline-flex items-center rounded-lg bg-muted px-3 py-1 text-sm font-medium mb-4">
               <Smartphone className="mr-1 h-4 w-4" />
-              Mobile App Integration
+              Your Company's AI Assistant
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              AI-Powered <span className="text-primary">Mobile Chat</span> For Your Apps
+              Add <span className="text-primary">Your Company's Own AI</span> To Your Mobile App
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Transform your mobile apps with intelligent chat capabilities that deliver personalized experiences, automate support, and drive user engagement.
+              Launch an AI assistant trained on your company data in your mobile app in minutes, not months. No coding expertise required.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button size="lg" className="gap-2" asChild>
@@ -49,6 +49,20 @@ const HeroSection = () => {
                 </Link>
               </Button>
             </div>
+            <div className="mt-8 grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-primary">3-minute</p>
+                <p className="text-sm text-muted-foreground">setup time</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-primary">Zero</p>
+                <p className="text-sm text-muted-foreground">coding needed</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-primary">100%</p>
+                <p className="text-sm text-muted-foreground">your company data</p>
+              </div>
+            </div>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -57,11 +71,11 @@ const HeroSection = () => {
             className="relative rounded-lg overflow-hidden border bg-card p-2"
           >
             <div className="rounded-md overflow-hidden bg-background/50">
-              <div className="flex items-center gap-1 p-2 bg-black/90">
+              <div className="flex items-center gap-1.5 p-3 bg-black/90">
                 <div className="h-3 w-3 rounded-full bg-red-500"></div>
                 <div className="h-3 w-3 rounded-full bg-yellow-500"></div>
                 <div className="h-3 w-3 rounded-full bg-green-500"></div>
-                <span className="text-white text-xs ml-2">mobile app simulator</span>
+                <span className="text-white text-xs ml-2">YourCompany Mobile App</span>
               </div>
               <div className="p-4 flex flex-col h-[360px] justify-between">
                 <div className="flex-1 overflow-y-auto mb-4 space-y-4">
@@ -70,13 +84,13 @@ const HeroSection = () => {
                       <Bot className="h-4 w-4 text-primary" />
                     </div>
                     <div className="bg-muted rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
-                      <p>Welcome to the AcmeShop app! How can I assist you today?</p>
+                      <p>Welcome to YourCompany! I'm trained on all our product information and company policies. How can I help you today?</p>
                     </div>
                   </div>
                   
                   <div className="flex items-start gap-3 justify-end">
                     <div className="bg-primary/10 rounded-lg rounded-tr-none p-3 text-sm max-w-[80%]">
-                      <p>I'm looking for a new running shoe with good cushioning.</p>
+                      <p>I need help finding a product that works with my existing equipment.</p>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center">
                       <Users className="h-4 w-4 text-gray-500" />
@@ -88,20 +102,25 @@ const HeroSection = () => {
                       <Bot className="h-4 w-4 text-primary" />
                     </div>
                     <div className="bg-muted rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
-                      <p>Great! Based on your preferences, I recommend the following:</p>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <div className="bg-background rounded p-2">
-                          <div className="h-16 bg-gray-200 rounded mb-1"></div>
-                          <p className="text-xs font-medium">UltraBoost 5.0</p>
-                          <p className="text-xs text-muted-foreground">$129.99</p>
-                        </div>
-                        <div className="bg-background rounded p-2">
-                          <div className="h-16 bg-gray-200 rounded mb-1"></div>
-                          <p className="text-xs font-medium">CloudRunner Pro</p>
-                          <p className="text-xs text-muted-foreground">$149.99</p>
-                        </div>
-                      </div>
-                      <p className="mt-2">Would you like to see more details on either of these?</p>
+                      <p>I'd be happy to help! Our SmartConnect Series is designed for compatibility with most existing systems. What specific equipment do you currently have?</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3 justify-end">
+                    <div className="bg-primary/10 rounded-lg rounded-tr-none p-3 text-sm max-w-[80%]">
+                      <p>I have the HomeBase 2000 system from last year.</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center">
+                      <Users className="h-4 w-4 text-gray-500" />
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                      <Bot className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="bg-muted rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
+                      <p>Perfect! The HomeBase 2000 works seamlessly with our SmartConnect Pro model. Would you like me to show you the specs and compatibility details?</p>
                     </div>
                   </div>
                 </div>
@@ -118,7 +137,7 @@ const HeroSection = () => {
                 </div>
                 
                 <div className="flex items-center justify-between mt-2 px-1">
-                  <div className="text-xs text-muted-foreground">Powered by <span className="font-medium text-primary">Akii</span></div>
+                  <div className="text-xs text-muted-foreground">AI trained on <span className="font-medium text-primary">YourCompany data</span></div>
                   <div className="flex gap-2">
                     <button className="text-muted-foreground hover:text-foreground">
                       <Settings className="h-3 w-3" />
@@ -141,55 +160,60 @@ const HeroSection = () => {
 const FeaturesSection = () => {
   const features = [
     {
-      icon: <Zap className="h-6 w-6 text-primary" />,
-      title: "Native Integration",
+      icon: <Bot className="h-6 w-6 text-primary" />,
+      title: "Trained on Your Company Data",
       description:
-        "Seamlessly integrate with iOS and Android apps using our native SDKs for a smooth user experience.",
+        "AI assistant that knows your products, policies, and FAQs - providing accurate, company-specific answers to all customer questions.",
     },
     {
-      icon: <Globe className="h-6 w-6 text-primary" />,
-      title: "Offline Support",
+      icon: <Zap className="h-6 w-6 text-primary" />,
+      title: "Instant Setup",
       description:
-        "Provide basic responses even when users are offline, with full functionality when connection is restored.",
+        "Get up and running in minutes with our simple setup process - no coding, API configurations, or technical knowledge required.",
     },
     {
       icon: <Users className="h-6 w-6 text-primary" />,
-      title: "User Authentication",
+      title: "Customer-First Experience",
       description:
-        "Easily connect with your existing user authentication system for personalized experiences.",
+        "Provide personalized support that remembers customer preferences and purchase history for a truly tailored experience.",
     },
     {
-      icon: <Clock className="h-6 w-6 text-primary" />,
-      title: "Push Notifications",
+      icon: <Globe className="h-6 w-6 text-primary" />,
+      title: "Works Offline",
       description:
-        "Send timely notifications to re-engage users and provide updates on their queries.",
+        "Customers can still get answers even when offline - perfect for mobile users with intermittent connectivity.",
     },
     {
-      icon: <Code className="h-6 w-6 text-primary" />,
-      title: "Customizable UI",
+      icon: <Settings className="h-6 w-6 text-primary" />,
+      title: "Easy Updates",
       description:
-        "Fully customize the chat interface to match your app's design language and branding.",
+        "Update your AI's knowledge instantly whenever you change products or policies - no app updates or approvals needed.",
     },
     {
-      icon: <Smartphone className="h-6 w-6 text-primary" />,
-      title: "Cross-Platform",
+      icon: <Star className="h-6 w-6 text-primary" />,
+      title: "Boost Engagement",
       description:
-        "One API to support both iOS and Android platforms, with consistent behavior across devices.",
+        "Turn browsers into buyers with personalized product recommendations and proactive assistance that increases conversion rates.",
     },
   ];
 
   return (
     <section className="py-20 px-4 bg-muted/30">
       <div className="container mx-auto max-w-6xl">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">
-            Mobile-First Chat Features
-          </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Our Mobile Chat Agent is designed specifically for native mobile
-            applications with features that mobile users expect.
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-16">
+          <div>
+            <div className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-3">
+              Company-Specific AI
+            </div>
+            <h2 className="text-3xl font-bold">
+              Your Data, Your AI Assistant
+            </h2>
+          </div>
+          <p className="text-lg text-muted-foreground mt-3 md:mt-0 max-w-xl">
+            Unlike generic AI solutions, our mobile chat is trained on your specific company information.
           </p>
         </div>
+        
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((feature, index) => (
             <motion.div
@@ -198,15 +222,109 @@ const FeaturesSection = () => {
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
               viewport={{ once: true }}
-              className="bg-card rounded-lg p-6 border border-border shadow-sm"
+              className="bg-card rounded-lg p-6 border border-border shadow-sm hover:shadow-md transition-shadow duration-300"
             >
               <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                 {feature.icon}
               </div>
-              <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+              <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
               <p className="text-muted-foreground">{feature.description}</p>
             </motion.div>
           ))}
+        </div>
+        
+        <div className="mt-16 relative p-8 border border-border rounded-xl bg-gradient-to-r from-background to-muted/30">
+          <div className="absolute inset-0 overflow-hidden rounded-xl">
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-secondary/5 rounded-full blur-3xl"></div>
+          </div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+            <div className="flex-1">
+              <h3 className="text-2xl font-bold mb-4">Sample Company Data We Can Train On:</h3>
+              <ul className="space-y-4">
+                <li className="flex gap-3">
+                  <div className="h-6 w-6 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center">
+                    <Check className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <span className="font-medium">Product Information</span>
+                    <p className="text-sm text-muted-foreground">Specifications, pricing, compatibility, features and benefits</p>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <div className="h-6 w-6 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center">
+                    <Check className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <span className="font-medium">Support Documentation</span>
+                    <p className="text-sm text-muted-foreground">Troubleshooting guides, user manuals, FAQs</p>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <div className="h-6 w-6 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center">
+                    <Check className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <span className="font-medium">Company Policies</span>
+                    <p className="text-sm text-muted-foreground">Return policies, warranties, shipping information</p>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <div className="h-6 w-6 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center">
+                    <Check className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <div>
+                    <span className="font-medium">Historical Customer Interactions</span>
+                    <p className="text-sm text-muted-foreground">Common questions, typical issues, and best responses</p>
+                  </div>
+                </li>
+              </ul>
+            </div>
+            <div className="w-full md:w-auto flex-shrink-0">
+              <div className="bg-card border border-border p-4 rounded-lg shadow-sm">
+                <div className="text-sm font-medium mb-2">Training Success Metrics</div>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Accuracy on Product Questions</span>
+                      <span className="font-medium">98%</span>
+                    </div>
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="bg-primary h-full rounded-full" style={{ width: "98%" }}></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Policy Compliance</span>
+                      <span className="font-medium">100%</span>
+                    </div>
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="bg-primary h-full rounded-full" style={{ width: "100%" }}></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Customer Satisfaction</span>
+                      <span className="font-medium">94%</span>
+                    </div>
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="bg-primary h-full rounded-full" style={{ width: "94%" }}></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Time to Implementation</span>
+                      <span className="font-medium">3-5 minutes</span>
+                    </div>
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="bg-green-500 h-full rounded-full" style={{ width: "15%" }}></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -220,113 +338,102 @@ const HowItWorksSection = () => {
       <div className="container px-4 md:px-6 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            How It Works
+            Three Simple Steps to Launch
           </h2>
           <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-            Get up and running with Akii Mobile Chat in minutes. Our SDK makes integration straightforward for iOS and Android developers.
+            Add your company's AI assistant to your mobile app in minutes without any coding knowledge required.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-center">
-          <div className="lg:col-span-3 space-y-8">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/20 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-primary">1</div>
-                <h3 className="text-xl font-semibold">Install our SDK</h3>
-              </div>
-              <div className="bg-secondary/30 p-6 rounded-lg border border-border overflow-hidden">
-                <pre className="overflow-x-auto text-sm text-muted-foreground">
-                  <code>{`// iOS - Add to your Podfile
-pod 'AkiiChat', '~> 1.2.0'
-
-// Android - Add to your build.gradle
-implementation 'com.akii:chat-sdk:1.2.0'`}</code>
-                </pre>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+            className="bg-card border border-border rounded-xl p-6 text-center relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-20 h-20 bg-primary/10 rounded-full -translate-x-6 -translate-y-6 blur-xl"></div>
+            <div className="bg-primary/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-primary text-xl mx-auto mb-6">1</div>
+            <h3 className="text-xl font-semibold mb-4">Connect Your Mobile App</h3>
+            <p className="text-muted-foreground">
+              Simply register your app with our platform by providing your app's name and selecting iOS, Android, or both. No developer account or technical details needed.
+            </p>
+            <div className="mt-6 flex justify-center">
+              <Smartphone className="h-16 w-16 text-primary/50" />
             </div>
+          </motion.div>
 
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/20 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-primary">2</div>
-                <h3 className="text-xl font-semibold">Initialize the SDK in your app</h3>
-              </div>
-              <div className="bg-secondary/30 p-6 rounded-lg border border-border overflow-hidden">
-                <pre className="overflow-x-auto text-sm text-muted-foreground">
-                  <code>{`// iOS - Swift
-import AkiiChat
-
-AkiiChat.shared.initialize(
-    instanceId: "YOUR_INSTANCE_ID",
-    primaryColor: UIColor(hex: "#16a34a"),
-    userId: currentUser.id
-)
-
-// Android - Kotlin
-import com.akii.chat.AkiiChat
-
-AkiiChat.getInstance().initialize(
-    context,
-    "YOUR_INSTANCE_ID", 
-    "#16a34a",
-    currentUser.id
-)`}</code>
-                </pre>
-              </div>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            viewport={{ once: true }}
+            className="bg-card border border-border rounded-xl p-6 text-center relative overflow-hidden"
+          >
+            <div className="absolute bottom-0 left-0 w-20 h-20 bg-purple-500/10 rounded-full translate-x-6 translate-y-6 blur-xl"></div>
+            <div className="bg-primary/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-primary text-xl mx-auto mb-6">2</div>
+            <h3 className="text-xl font-semibold mb-4">Upload Your Company Data</h3>
+            <p className="text-muted-foreground">
+              Use our user-friendly interface to upload your product catalogs, FAQs, customer support documents, and more. Our AI will automatically learn from your data.
+            </p>
+            <div className="mt-6 flex justify-center">
+              <Bot className="h-16 w-16 text-primary/50" />
             </div>
+          </motion.div>
 
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/20 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-primary">3</div>
-                <h3 className="text-xl font-semibold">Launch the chat interface</h3>
-              </div>
-              <p className="text-muted-foreground">
-                Display the chat interface with a single line of code. Customize the UI, behavior, and knowledge in your Akii.com dashboard.
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            viewport={{ once: true }}
+            className="bg-card border border-border rounded-xl p-6 text-center relative overflow-hidden"
+          >
+            <div className="absolute top-0 left-0 w-20 h-20 bg-primary/10 rounded-full translate-x-6 -translate-y-6 blur-xl"></div>
+            <div className="bg-primary/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-primary text-xl mx-auto mb-6">3</div>
+            <h3 className="text-xl font-semibold mb-4">Add to Your App</h3>
+            <p className="text-muted-foreground">
+              We'll provide a simple activation code for your developer to add to your app - a 2-minute task. Or use our no-code plugin if you're on a platform like Shopify or WordPress.
+            </p>
+            <div className="mt-6 flex justify-center">
+              <Zap className="h-16 w-16 text-primary/50" />
+            </div>
+          </motion.div>
+        </div>
+
+        <div className="mt-16 bg-muted/20 border border-border rounded-xl p-6 md:p-8">
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            <div className="flex-1">
+              <h3 className="text-xl font-semibold mb-2">Zero Technical Knowledge Required</h3>
+              <p className="text-muted-foreground mb-4">
+                Our platform handles all the complex AI training and integration behind the scenes. There's no need for coding, machine learning expertise, or technical setup.
               </p>
-              <div className="bg-secondary/30 p-6 rounded-lg border border-border overflow-hidden">
-                <pre className="overflow-x-auto text-sm text-muted-foreground">
-                  <code>{`// iOS - Swift
-AkiiChat.shared.presentChat(from: self)
-
-// Android - Kotlin
-AkiiChat.getInstance().startChat(activity)`}</code>
-                </pre>
-              </div>
+              <ul className="space-y-2">
+                {[
+                  "No API keys or credentials to manage",
+                  "No need for ML engineers or AI specialists",
+                  "No server infrastructure to set up or maintain",
+                  "Content updates are instantly available in your app"
+                ].map((item, index) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <Check className="h-5 w-5 text-primary flex-shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
-
-          <div className="lg:col-span-2">
-            <div className="border border-border p-4 rounded-xl shadow-lg bg-background">
-              <div className="border-b border-border pb-3 mb-3 flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="w-2 h-2 rounded-full bg-red-500 mr-2"></div>
-                  <div className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></div>
-                  <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
-                  <span className="text-sm text-muted-foreground">Mobile App Preview</span>
-                </div>
-              </div>
-              <div className="h-[400px] relative">
-                <div className="absolute inset-0 mx-auto w-[220px] border-8 border-gray-800 rounded-3xl shadow-lg bg-card overflow-hidden">
+            <div className="flex-1 flex justify-center">
+              <div className="w-60 h-60 relative">
+                <div className="absolute inset-0 border-8 border-gray-800 rounded-3xl shadow-lg bg-card overflow-hidden">
                   <div className="absolute top-0 left-0 w-full h-7 bg-gray-800 flex justify-center items-end pb-1">
                     <div className="w-16 h-1.5 bg-gray-600 rounded-full"></div>
                   </div>
-                  <div className="absolute bottom-0 left-0 w-full h-7 bg-gray-800"></div>
-                  <div className="h-full pt-7 pb-7 bg-white dark:bg-gray-900 overflow-hidden">
-                    <div className="h-full overflow-y-auto">
-                      <div className="p-3 bg-primary text-white flex items-center">
-                        <Smartphone className="h-4 w-4 mr-2" />
-                        <span className="font-medium">Akii Mobile Chat</span>
-                      </div>
-                      <div className="p-3 space-y-2">
-                        <div className="bg-muted/50 p-2 rounded-lg text-sm max-w-[80%]">
-                          How can I help you today?
-                        </div>
-                        <div className="bg-primary/10 p-2 rounded-lg text-sm ml-auto max-w-[80%]">
-                          I need to change my delivery address
-                        </div>
-                        <div className="bg-muted/50 p-2 rounded-lg text-sm max-w-[80%]">
-                          I can help with that! Please provide your new address.
-                        </div>
-                      </div>
+                  <div className="h-full pt-7 flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 p-4">
+                    <div className="text-center">
+                      <Zap className="h-12 w-12 mx-auto mb-4 text-primary" />
+                      <p className="font-medium">Your AI is live!</p>
+                      <p className="text-xs text-muted-foreground mt-1">Trained on your company data</p>
+                      <Button className="mt-3 text-xs h-7" size="sm">Take Tour</Button>
                     </div>
                   </div>
                 </div>
@@ -344,53 +451,75 @@ const BenefitsSection = () => {
     <section className="py-20 px-4">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">Why Choose Akii Mobile Chat?</h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            The smart choice for businesses looking to enhance mobile app engagement
+          <div className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-3">
+            Business Impact
+          </div>
+          <h2 className="text-3xl font-bold mb-4">Real Results from Company-Trained AI</h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Companies using AI assistants trained on their specific data see measurable improvements
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
             viewport={{ once: true }}
-            className="space-y-6"
+            className="md:col-span-7 space-y-8"
           >
-            <div className="flex gap-4">
-              <div className="bg-primary/10 p-3 rounded-full h-fit">
-                <Smartphone className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Native Mobile Experience</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="bg-card rounded-lg border border-border p-6">
+                <div className="text-3xl font-bold text-primary mb-2">42%</div>
+                <h3 className="text-xl font-semibold mb-2">Increased Engagement</h3>
                 <p className="text-muted-foreground">
-                  Offer a truly seamless experience with our native SDKs for iOS and Android. The chat interface feels like a natural part of your app, maintaining your brand identity.
+                  Mobile app users interact 42% more with apps that have company-specific AI assistance.
+                </p>
+              </div>
+              
+              <div className="bg-card rounded-lg border border-border p-6">
+                <div className="text-3xl font-bold text-primary mb-2">68%</div>
+                <h3 className="text-xl font-semibold mb-2">Fewer Support Tickets</h3>
+                <p className="text-muted-foreground">
+                  Customers find answers through the AI, reducing the need for human support intervention.
+                </p>
+              </div>
+              
+              <div className="bg-card rounded-lg border border-border p-6">
+                <div className="text-3xl font-bold text-primary mb-2">3 min</div>
+                <h3 className="text-xl font-semibold mb-2">Implementation Time</h3>
+                <p className="text-muted-foreground">
+                  From signup to live in your app in minutes, not the weeks or months of traditional AI solutions.
+                </p>
+              </div>
+              
+              <div className="bg-card rounded-lg border border-border p-6">
+                <div className="text-3xl font-bold text-primary mb-2">27%</div>
+                <h3 className="text-xl font-semibold mb-2">Increased Conversions</h3>
+                <p className="text-muted-foreground">
+                  Customers are 27% more likely to make a purchase when assisted by company-trained AI.
                 </p>
               </div>
             </div>
             
-            <div className="flex gap-4">
-              <div className="bg-primary/10 p-3 rounded-full h-fit">
-                <Globe className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Offline Capabilities</h3>
-                <p className="text-muted-foreground">
-                  Our SDK includes offline mode that caches responses to common questions, ensuring your users get help even when they're not connected to the internet.
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex gap-4">
-              <div className="bg-primary/10 p-3 rounded-full h-fit">
-                <Users className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Personalized User Experience</h3>
-                <p className="text-muted-foreground">
-                  Connect with your authentication system to provide truly personalized experiences. The AI remembers user preferences and past interactions.
-                </p>
+            <div className="bg-muted/30 rounded-lg border border-border p-6">
+              <h3 className="text-xl font-semibold mb-3">No Technical Complexity</h3>
+              <p className="text-muted-foreground mb-4">
+                Unlike traditional AI implementations that require data scientists, engineers, and months of work, our solution requires:
+              </p>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-4xl font-bold text-primary mb-1">0</div>
+                  <p className="text-sm text-muted-foreground">Engineers Needed</p>
+                </div>
+                <div>
+                  <div className="text-4xl font-bold text-primary mb-1">0</div>
+                  <p className="text-sm text-muted-foreground">Lines of Code</p>
+                </div>
+                <div>
+                  <div className="text-4xl font-bold text-primary mb-1">0</div>
+                  <p className="text-sm text-muted-foreground">Server Setup</p>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -400,36 +529,52 @@ const BenefitsSection = () => {
             whileInView={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
             viewport={{ once: true }}
-            className="relative"
+            className="md:col-span-5 relative"
           >
             <div className="relative z-10 rounded-lg overflow-hidden border bg-card p-6">
+              <div className="text-xl font-bold mb-6">What Our Customers Say</div>
+              
               <div className="space-y-6">
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    <Star className="h-5 w-5 text-yellow-500" />
+                    <Star className="h-5 w-5 text-yellow-500" fill="#eab308" />
+                    <Star className="h-5 w-5 text-yellow-500" fill="#eab308" />
+                    <Star className="h-5 w-5 text-yellow-500" fill="#eab308" />
+                    <Star className="h-5 w-5 text-yellow-500" fill="#eab308" />
+                    <Star className="h-5 w-5 text-yellow-500" fill="#eab308" />
                   </div>
-                  <p className="italic text-muted-foreground mb-2">
-                    "After integrating Akii Mobile Chat, our app's user retention increased by 42%. The AI assistant helps users discover features they didn't know existed, drastically improving overall engagement."
-                  </p>
-                  <p className="font-medium">Alex Rivera, CPO at HealthFit App</p>
+                  <div className="flex gap-3 items-start">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                      <span className="font-semibold text-primary">AR</span>
+                    </div>
+                    <div>
+                      <p className="italic text-muted-foreground mb-2">
+                        "We were able to add AI to our app that actually knows our products perfectly without having to hire AI engineers. Setup took literally 5 minutes, and our customers love the personalized assistance."
+                      </p>
+                      <p className="font-medium">Alex Rivera, CPO at HealthFit App</p>
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="border-t pt-6">
                   <div className="flex items-center gap-2 mb-3">
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    <Star className="h-5 w-5 text-yellow-500" />
+                    <Star className="h-5 w-5 text-yellow-500" fill="#eab308" />
+                    <Star className="h-5 w-5 text-yellow-500" fill="#eab308" />
+                    <Star className="h-5 w-5 text-yellow-500" fill="#eab308" />
+                    <Star className="h-5 w-5 text-yellow-500" fill="#eab308" />
+                    <Star className="h-5 w-5 text-yellow-500" fill="#eab308" />
                   </div>
-                  <p className="italic text-muted-foreground mb-2">
-                    "Support tickets decreased by 68% after implementing Akii's mobile chat solution. Our developers were impressed with how easy it was to integrate, and our users love the instant responses."
-                  </p>
-                  <p className="font-medium">Priya Sharma, CTO at ShopSquare</p>
+                  <div className="flex gap-3 items-start">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                      <span className="font-semibold text-primary">PS</span>
+                    </div>
+                    <div>
+                      <p className="italic text-muted-foreground mb-2">
+                        "I'm not technical at all, but I was able to add a company-specific AI chat to our app that knows everything about our product catalog. Our support tickets dropped by over 60% in the first month!"
+                      </p>
+                      <p className="font-medium">Priya Sharma, CMO at ShopSquare</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -447,9 +592,12 @@ const FAQSection = () => {
     <section className="py-20 px-4 bg-muted/30">
       <div className="container mx-auto max-w-4xl">
         <div className="text-center mb-16">
+          <div className="inline-flex items-center rounded-full bg-secondary/10 px-3 py-1 text-sm font-medium text-secondary mb-3">
+            Common Questions
+          </div>
           <h2 className="text-3xl font-bold mb-4">Frequently Asked Questions</h2>
-          <p className="text-xl text-muted-foreground">
-            Everything you need to know about Akii Mobile Chat
+          <p className="text-lg text-muted-foreground">
+            Everything you need to know about adding your company's AI to your mobile app
           </p>
         </div>
 
@@ -461,9 +609,9 @@ const FAQSection = () => {
             viewport={{ once: true }}
             className="bg-card rounded-lg p-6 border border-border"
           >
-            <h3 className="text-lg font-semibold mb-2">How do I integrate the Mobile Chat into my app?</h3>
+            <h3 className="text-lg font-semibold mb-2">What company data can I use to train the AI?</h3>
             <p className="text-muted-foreground">
-              Integration is simple with our native SDKs. For iOS, you can use CocoaPods or Swift Package Manager. For Android, we provide a Gradle dependency. Our documentation includes step-by-step guides and sample code for both platforms.
+              You can train the AI on virtually any company information: product catalogs, FAQs, support documentation, company policies, user manuals, pricing information, and even historical customer conversations. The more data you provide, the more knowledgeable your AI becomes about your specific business.
             </p>
           </motion.div>
 
@@ -474,9 +622,9 @@ const FAQSection = () => {
             viewport={{ once: true }}
             className="bg-card rounded-lg p-6 border border-border"
           >
-            <h3 className="text-lg font-semibold mb-2">Can I customize the appearance of the chat interface?</h3>
+            <h3 className="text-lg font-semibold mb-2">Do I need technical expertise to set this up?</h3>
             <p className="text-muted-foreground">
-              Yes, you can fully customize the chat interface to match your app's design. You can change colors, fonts, button styles, and even create a completely custom UI using our headless API if needed. The SDK provides extensive styling options.
+              Not at all! Our platform is designed for non-technical users. You simply upload your company documents and information through our user-friendly dashboard. The final implementation requires a simple activation code that your developer can add in minutes, or you can use our no-code plugins for platforms like Shopify or WordPress.
             </p>
           </motion.div>
 
@@ -487,9 +635,9 @@ const FAQSection = () => {
             viewport={{ once: true }}
             className="bg-card rounded-lg p-6 border border-border"
           >
-            <h3 className="text-lg font-semibold mb-2">Does the Mobile Chat work offline?</h3>
+            <h3 className="text-lg font-semibold mb-2">How long does it take to get up and running?</h3>
             <p className="text-muted-foreground">
-              Yes, our SDK includes an offline mode that can provide basic responses to common questions even when the user doesn't have an internet connection. The SDK intelligently caches frequently asked questions and responses, and when connectivity is restored, the full AI capabilities become available again.
+              Most customers go from signing up to having a fully functioning AI in their app within 5-10 minutes. The training process happens instantly in the background, and implementing the activation code is a 2-minute task for your developer. Compare this to traditional AI implementations that can take months!
             </p>
           </motion.div>
 
@@ -500,9 +648,9 @@ const FAQSection = () => {
             viewport={{ once: true }}
             className="bg-card rounded-lg p-6 border border-border"
           >
-            <h3 className="text-lg font-semibold mb-2">How does the Mobile Chat handle user authentication?</h3>
+            <h3 className="text-lg font-semibold mb-2">How do I update the AI when my products or information changes?</h3>
             <p className="text-muted-foreground">
-              Our SDK integrates with your existing authentication system. You simply pass the user's identifier to our SDK during initialization, and we handle the rest. This allows for personalized experiences, conversation history across sessions, and user-specific data security.
+              Simply log into your dashboard and update your content. Our system will automatically retrain the AI with your new information, and the changes will be immediately available in your app. There's no need to update your app or get app store approval for content changes.
             </p>
           </motion.div>
 
@@ -513,18 +661,26 @@ const FAQSection = () => {
             viewport={{ once: true }}
             className="bg-card rounded-lg p-6 border border-border"
           >
-            <h3 className="text-lg font-semibold mb-2">How secure is the Mobile Chat?</h3>
+            <h3 className="text-lg font-semibold mb-2">Is my company data secure?</h3>
             <p className="text-muted-foreground">
-              We take security seriously. All conversations are encrypted in transit and at rest. We comply with GDPR, CCPA, and other privacy regulations. Our SDKs also support features like secure storage, automatic message expiration, and data minimization to protect user privacy.
+              Absolutely! Your data is encrypted both in transit and at rest. We never share your company information with other customers or use it to train general AI models. Your data is used exclusively to train your company's dedicated AI instance, ensuring your proprietary information remains secure and confidential.
             </p>
           </motion.div>
         </div>
         
-        <div className="text-center mt-8">
-          <p className="text-muted-foreground mb-4">Still have questions?</p>
-          <Button asChild>
-            <Link to="/contact">Contact Us</Link>
-          </Button>
+        <div className="text-center mt-12">
+          <div className="inline-flex items-center justify-center bg-background rounded-lg border border-border px-4 py-1.5 text-sm mb-4">
+            <span className="mr-2">Still have questions?</span>
+            <span className="text-primary font-medium">We're here to help</span>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button variant="outline" asChild>
+              <Link to="/contact">Contact Our Team</Link>
+            </Button>
+            <Button asChild>
+              <Link to="/docs">Read Documentation</Link>
+            </Button>
+          </div>
         </div>
       </div>
     </section>
@@ -535,24 +691,59 @@ const CTASection = () => {
   return (
     <section className="py-20 px-4 bg-gradient-to-br from-primary/10 to-purple-500/10">
       <div className="container mx-auto max-w-6xl">
-        <div className="bg-card border border-border rounded-2xl p-8 md:p-12 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Transform Your Mobile Experience Today
-          </h2>
-          <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Join thousands of apps using Akii.com to provide exceptional AI-powered assistance and support to their mobile users.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Button size="lg" className="gap-2" asChild>
-              <Link to="/signup">
-                Start Free Trial <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link to="/contact">
-                Talk to Sales
-              </Link>
-            </Button>
+        <div className="bg-card border border-border rounded-2xl p-8 md:p-12">
+          <div className="max-w-3xl mx-auto text-center">
+            <div className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-4">
+              Get Started in Minutes
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Your Company's AI in Your Mobile App
+            </h2>
+            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Add an AI assistant trained exclusively on your company data to your mobile app today—no coding, no engineers, no complexity.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+              <div className="bg-muted/20 rounded-lg p-6 text-center">
+                <div className="bg-primary/20 w-10 h-10 rounded-full flex items-center justify-center font-semibold text-primary text-lg mx-auto mb-3">1</div>
+                <h3 className="font-semibold mb-1">Upload Your Data</h3>
+                <p className="text-sm text-muted-foreground">Product catalogs, FAQs, support docs</p>
+              </div>
+              <div className="bg-muted/20 rounded-lg p-6 text-center">
+                <div className="bg-primary/20 w-10 h-10 rounded-full flex items-center justify-center font-semibold text-primary text-lg mx-auto mb-3">2</div>
+                <h3 className="font-semibold mb-1">Get Activation Code</h3>
+                <p className="text-sm text-muted-foreground">Simple implementation for developers</p>
+              </div>
+              <div className="bg-muted/20 rounded-lg p-6 text-center">
+                <div className="bg-primary/20 w-10 h-10 rounded-full flex items-center justify-center font-semibold text-primary text-lg mx-auto mb-3">3</div>
+                <h3 className="font-semibold mb-1">Go Live</h3>
+                <p className="text-sm text-muted-foreground">Your AI is ready to assist customers</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-center gap-4 mb-8">
+              <Button size="lg" className="gap-2" asChild>
+                <Link to="/signup">
+                  Start Free 14-Day Trial <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link to="/contact">
+                  Schedule Demo
+                </Link>
+              </Button>
+            </div>
+            
+            <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+              <Check className="h-4 w-4 text-primary" />
+              <span>No credit card required</span>
+              <span className="mx-2">•</span>
+              <Check className="h-4 w-4 text-primary" />
+              <span>Full access to all features</span>
+              <span className="mx-2">•</span>
+              <Check className="h-4 w-4 text-primary" />
+              <span>Cancel anytime</span>
+            </div>
           </div>
         </div>
       </div>

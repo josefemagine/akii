@@ -17,6 +17,8 @@ import {
   Settings,
   Star,
   Phone,
+  PlayCircle,
+  Info,
 } from "lucide-react";
 
 const WhatsAppChatAgent = () => {
@@ -33,15 +35,15 @@ const WhatsAppChatAgent = () => {
             >
               <div className="inline-flex items-center rounded-lg bg-muted px-3 py-1 text-sm font-medium mb-4">
                 <MessageSquare className="mr-1 h-4 w-4" />
-                WhatsApp Integration
+                3-Minute WhatsApp Setup
               </div>
               <h1 className="text-4xl md:text-5xl font-bold mb-6">
-                AI-Powered <span className="text-primary">WhatsApp Chat</span> For Your Business
+                Add <span className="text-primary">Your Company's AI</span> To WhatsApp Business
               </h1>
               <p className="text-xl text-muted-foreground mb-8">
-                Transform customer interactions on WhatsApp with an intelligent chat solution that automates support, personalizes conversations, and drives conversions.
+                Connect your WhatsApp Business account in minutes with just your Meta API keys. No coding or technical expertise required.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row gap-4 mb-8">
                 <Button size="lg" className="gap-2" asChild>
                   <Link to="/signup">
                     Start Free Trial <ArrowRight className="h-4 w-4" />
@@ -52,6 +54,21 @@ const WhatsAppChatAgent = () => {
                     View Live Demo
                   </Link>
                 </Button>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary">3-minute</p>
+                  <p className="text-sm text-muted-foreground">Meta API setup</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary">Zero</p>
+                  <p className="text-sm text-muted-foreground">coding needed</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary">100%</p>
+                  <p className="text-sm text-muted-foreground">your company data</p>
+                </div>
               </div>
             </motion.div>
             <motion.div
@@ -74,13 +91,13 @@ const WhatsAppChatAgent = () => {
                         <Bot className="h-4 w-4 text-green-600" />
                       </div>
                       <div className="bg-green-50 dark:bg-green-900/20 rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
-                        <p>Hello! Welcome to Acme Store. How can I assist you today?</p>
+                        <p>Hello! I'm your YourCompany AI assistant. I'm trained on all our products, policies, and FAQs. How can I help you today?</p>
                       </div>
                     </div>
                     
                     <div className="flex items-start gap-3 justify-end">
                       <div className="bg-gray-100 dark:bg-gray-800 rounded-lg rounded-tr-none p-3 text-sm max-w-[80%]">
-                        <p>I'm looking for information about your summer sale. Do you have any discounts on outdoor furniture?</p>
+                        <p>I need to return an item I purchased last week. What's your return policy?</p>
                       </div>
                       <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center">
                         <Users className="h-4 w-4 text-gray-500" />
@@ -92,20 +109,16 @@ const WhatsAppChatAgent = () => {
                         <Bot className="h-4 w-4 text-green-600" />
                       </div>
                       <div className="bg-green-50 dark:bg-green-900/20 rounded-lg rounded-tl-none p-3 text-sm max-w-[80%]">
-                        <p>Yes! Our summer sale is on now with 30% off all patio furniture. Here are some popular items:</p>
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          <div className="bg-white dark:bg-gray-700 rounded p-2">
-                            <div className="h-16 bg-gray-200 dark:bg-gray-600 rounded mb-1"></div>
-                            <p className="text-xs font-medium">Lounge Set</p>
-                            <p className="text-xs text-muted-foreground">$399 $279</p>
-                          </div>
-                          <div className="bg-white dark:bg-gray-700 rounded p-2">
-                            <div className="h-16 bg-gray-200 dark:bg-gray-600 rounded mb-1"></div>
-                            <p className="text-xs font-medium">Patio Table</p>
-                            <p className="text-xs text-muted-foreground">$249 $174</p>
-                          </div>
-                        </div>
-                        <p className="mt-2">Would you like to learn more about any of these items?</p>
+                        <p>I'd be happy to help with your return! According to our policy, you can return any item within 30 days of purchase with the original receipt for a full refund. Would you like me to guide you through the return process?</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-3 justify-end">
+                      <div className="bg-gray-100 dark:bg-gray-800 rounded-lg rounded-tr-none p-3 text-sm max-w-[80%]">
+                        <p>Yes, please. Do I need to bring it to a store or can I mail it?</p>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center">
+                        <Users className="h-4 w-4 text-gray-500" />
                       </div>
                     </div>
                   </div>
@@ -122,7 +135,7 @@ const WhatsAppChatAgent = () => {
                   </div>
                   
                   <div className="flex items-center justify-between mt-2 px-1">
-                    <div className="text-xs text-muted-foreground">Powered by <span className="font-medium text-green-600">Akii</span></div>
+                    <div className="text-xs text-muted-foreground">AI trained on <span className="font-medium text-green-600">your company data</span></div>
                     <div className="flex gap-2">
                       <button className="text-muted-foreground hover:text-foreground">
                         <Settings className="h-3 w-3" />
@@ -274,138 +287,154 @@ const WhatsAppChatAgent = () => {
         <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none"></div>
         <div className="container px-4 md:px-6 relative z-10">
           <div className="text-center mb-16">
+            <div className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-3">
+              Simple 3-Step Process
+            </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              How It Works
+              Connect WhatsApp in Minutes
             </h2>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              Get up and running with Akii WhatsApp Chat in minutes. Our simple integration process connects your WhatsApp Business account to our intelligent AI system.
+              Just paste your Meta API keys and we'll handle the rest. No developers, no coding, and no technical setup required.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-center">
-            <div className="lg:col-span-3 space-y-8">
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary/20 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-primary">1</div>
-                  <h3 className="text-xl font-semibold">Connect your WhatsApp Business account</h3>
-                </div>
-                <div className="bg-secondary/30 p-6 rounded-lg border border-border overflow-hidden">
-                  <pre className="overflow-x-auto text-sm text-muted-foreground">
-                    <code>{`// Register your WhatsApp Business account with Akii
-const whatsappConfig = {
-  phoneNumberId: "YOUR_WHATSAPP_PHONE_NUMBER_ID",
-  businessAccountId: "YOUR_BUSINESS_ACCOUNT_ID",
-  accessToken: "YOUR_WHATSAPP_ACCESS_TOKEN"
-};
-
-// Initialize the WhatsApp connection
-await akii.whatsapp.connect(whatsappConfig);`}</code>
-                  </pre>
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              viewport={{ once: true }}
+              className="bg-card border border-border rounded-xl p-6 text-center relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-20 h-20 bg-green-500/10 rounded-full -translate-x-6 -translate-y-6 blur-xl"></div>
+              <div className="bg-green-600/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-green-600 text-xl mx-auto mb-6">1</div>
+              <h3 className="text-xl font-semibold mb-4">Connect Meta Business Account</h3>
+              <p className="text-muted-foreground">
+                Simply copy your Meta Business ID and access token from the WhatsApp Business Platform and paste them into our dashboard.
+              </p>
+              <div className="mt-6 flex justify-center">
+                <MessageSquare className="h-16 w-16 text-green-600/50" />
               </div>
+            </motion.div>
 
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary/20 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-primary">2</div>
-                  <h3 className="text-xl font-semibold">Configure your AI agent with custom knowledge</h3>
-                </div>
-                <div className="bg-secondary/30 p-6 rounded-lg border border-border overflow-hidden">
-                  <pre className="overflow-x-auto text-sm text-muted-foreground">
-                    <code>{`// Define your agent's knowledge and behavior
-const agent = akii.whatsapp.createAgent({
-  name: "Sales Assistant",
-  welcomeMessage: "Hello! I'm your shopping assistant. How can I help you today?",
-  knowledgeBase: ["products.csv", "faq.md", "policies.md"],
-  languages: ["en", "es", "fr"],
-  handoffConditions: {
-    sentiment: "negative",
-    specificIntents: ["refund", "complaint"]
-  }
-});`}</code>
-                  </pre>
-                </div>
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              viewport={{ once: true }}
+              className="bg-card border border-border rounded-xl p-6 text-center relative overflow-hidden"
+            >
+              <div className="absolute bottom-0 left-0 w-20 h-20 bg-purple-500/10 rounded-full translate-x-6 translate-y-6 blur-xl"></div>
+              <div className="bg-green-600/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-green-600 text-xl mx-auto mb-6">2</div>
+              <h3 className="text-xl font-semibold mb-4">Upload Your Company Data</h3>
+              <p className="text-muted-foreground">
+                Upload your product catalogs, FAQs, customer support documents, and company policies. Our AI will automatically learn from your data.
+              </p>
+              <div className="mt-6 flex justify-center">
+                <Bot className="h-16 w-16 text-green-600/50" />
               </div>
+            </motion.div>
 
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary/20 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-primary">3</div>
-                  <h3 className="text-xl font-semibold">Deploy and monitor your WhatsApp AI</h3>
-                </div>
-                <p className="text-muted-foreground">
-                  With just a few clicks, your WhatsApp AI is ready to engage with customers. Monitor performance, conversations, and insights through your Akii.com dashboard.
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              viewport={{ once: true }}
+              className="bg-card border border-border rounded-xl p-6 text-center relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-20 h-20 bg-green-500/10 rounded-full translate-x-6 -translate-y-6 blur-xl"></div>
+              <div className="bg-green-600/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-green-600 text-xl mx-auto mb-6">3</div>
+              <h3 className="text-xl font-semibold mb-4">Go Live</h3>
+              <p className="text-muted-foreground">
+                Click "Activate" and your AI assistant will immediately be available on your WhatsApp Business number, ready to assist your customers.
+              </p>
+              <div className="mt-6 flex justify-center">
+                <Zap className="h-16 w-16 text-green-600/50" />
+              </div>
+            </motion.div>
+          </div>
+
+          <div className="mt-16 bg-white/5 backdrop-blur-sm border border-border rounded-xl p-6 md:p-8">
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <div className="md:w-1/2">
+                <h3 className="text-xl font-semibold mb-4">Simple Meta API Integration</h3>
+                <p className="text-muted-foreground mb-6">
+                  Just two pieces of information are all you need to connect WhatsApp to our platform:
                 </p>
-                <div className="bg-secondary/30 p-6 rounded-lg border border-border overflow-hidden">
-                  <pre className="overflow-x-auto text-sm text-muted-foreground">
-                    <code>{`// Deploy your agent
-await agent.deploy();
-
-// Get real-time analytics and logs
-const analytics = await akii.whatsapp.getAnalytics({
-  timeframe: "last_7_days",
-  metrics: ["conversations", "resolution_rate", "sentiment", "handoffs"]
-});
-
-console.log(\`Average sentiment score: \${analytics.sentiment.average}\`);
-console.log(\`Conversation volume: \${analytics.conversations.total}\`);`}</code>
-                  </pre>
-                </div>
-              </div>
-            </div>
-
-            <div className="lg:col-span-2">
-              <div className="border border-border p-4 rounded-xl shadow-lg bg-background">
-                <div className="border-b border-border pb-3 mb-3 flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 rounded-full bg-red-500 mr-2"></div>
-                    <div className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></div>
-                    <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
-                    <span className="text-sm text-muted-foreground">WhatsApp Business Dashboard</span>
+                
+                <div className="space-y-4">
+                  <div className="bg-card border border-border rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-green-600/20 h-8 w-8 rounded-full flex items-center justify-center">
+                        <span className="font-bold text-sm text-green-600">1</span>
+                      </div>
+                      <div>
+                        <h4 className="font-medium">Meta Business ID</h4>
+                        <p className="text-sm text-muted-foreground">Found in your Meta Business Dashboard</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-card border border-border rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-green-600/20 h-8 w-8 rounded-full flex items-center justify-center">
+                        <span className="font-bold text-sm text-green-600">2</span>
+                      </div>
+                      <div>
+                        <h4 className="font-medium">WhatsApp Access Token</h4>
+                        <p className="text-sm text-muted-foreground">Generated from your Meta Developer portal</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="h-[400px] relative">
-                  <div className="absolute inset-0 flex flex-col">
-                    <div className="flex border-b border-border p-2 bg-green-50 dark:bg-green-900/20">
-                      <div className="w-10 h-10 rounded-full bg-green-600 flex-shrink-0 mr-3 flex items-center justify-center text-white font-bold text-xs">A</div>
-                      <div>
-                        <div className="text-sm font-medium">Akii Sales Assistant</div>
-                        <div className="text-xs text-muted-foreground">Active now</div>
+                
+                <div className="mt-6 flex items-center gap-2">
+                  <Check className="h-5 w-5 text-green-600" />
+                  <span className="text-sm">No advanced configuration needed</span>
+                </div>
+              </div>
+              
+              <div className="md:w-1/2">
+                <div className="bg-card border-2 border-green-600/20 rounded-xl p-5 shadow-sm">
+                  <div className="flex items-center mb-4">
+                    <div className="p-2 bg-green-600/10 rounded-lg mr-3">
+                      <MessageSquare className="h-6 w-6 text-green-600" />
+                    </div>
+                    <h4 className="font-semibold">WhatsApp Connection</h4>
+                    <div className="ml-auto px-2.5 py-0.5 bg-green-600/20 text-green-600 text-xs rounded-full">
+                      Connected
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">Meta Business ID</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="bg-muted px-3 py-1.5 rounded text-sm font-mono text-muted-foreground flex-1">
+                          •••••••••••••••••••
+                        </div>
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                          <Check className="h-4 w-4 text-green-600" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex-1 p-3 space-y-3 overflow-y-auto">
-                      <div className="flex justify-end">
-                        <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2 max-w-xs text-sm">
-                          I'm interested in your new summer collection
+                    
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">WhatsApp Access Token</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="bg-muted px-3 py-1.5 rounded text-sm font-mono text-muted-foreground flex-1">
+                          •••••••••••••••••••••••••••••••••••
                         </div>
-                      </div>
-                      <div className="flex">
-                        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 max-w-xs text-sm">
-                          Great choice! Our summer collection just launched. Here are some of our bestsellers:
-                          <div className="mt-2 border-t border-border pt-2">
-                            <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded mb-1"></div>
-                            <div className="text-xs font-medium">Summer 2023 Catalog</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2 max-w-xs text-sm">
-                          Do you have the blue dress in size M?
-                        </div>
-                      </div>
-                      <div className="flex">
-                        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 max-w-xs text-sm">
-                          Let me check that for you... Yes! The blue summer dress is available in size M. Would you like me to help you place an order?
-                        </div>
+                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                          <Check className="h-4 w-4 text-green-600" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="border-t border-border p-2 flex">
-                      <input 
-                        type="text" 
-                        placeholder="Type a message" 
-                        className="flex-1 bg-transparent border-0 focus:outline-none text-sm" 
-                      />
-                      <button className="text-green-600 p-1">
-                        <ArrowRight className="h-4 w-4" />
-                      </button>
+                    
+                    <div className="pt-2">
+                      <Button className="w-full bg-green-600 hover:bg-green-700">
+                        Connected Successfully
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -899,39 +928,42 @@ console.log(\`Conversation volume: \${analytics.conversations.total}\`);`}</code
             transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
+            <div className="inline-flex items-center rounded-full bg-secondary/10 px-3 py-1 text-sm font-medium text-secondary mb-3">
+              Common Questions
+            </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               Frequently Asked Questions
             </h2>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              Get answers to common questions about the Akii WhatsApp Chat solution
+              Everything you need to know about connecting your WhatsApp Business account
             </p>
           </motion.div>
 
           <div className="grid grid-cols-1 gap-6 max-w-4xl mx-auto">
             {[
               {
-                question: "How long does it take to set up Akii WhatsApp Chat?",
-                answer: "Setup typically takes less than a day. Our team will guide you through the process of connecting your WhatsApp Business account, configuring your AI assistant, and testing before going live."
+                question: "Where do I find my Meta API keys?",
+                answer: "Your Meta API keys can be found in your Meta Business Manager account. Go to the WhatsApp Business Platform dashboard, navigate to Settings, and you'll find your Business ID and be able to generate an access token. We provide step-by-step screenshot instructions in our setup guide."
               },
               {
-                question: "Can I customize the AI assistant's responses?",
-                answer: "Yes, you have full control over your AI assistant's knowledge base, tone, and responses. You can train it using your own content, FAQs, product information, and company policies."
+                question: "Do I need to be a developer to set up the WhatsApp integration?",
+                answer: "Not at all! Our platform is designed for non-technical users. You simply copy and paste your Meta API keys into our dashboard, and we handle all the technical configuration. The entire setup process typically takes less than 3 minutes."
               },
               {
-                question: "How does the human handoff feature work?",
-                answer: "The AI can detect when a conversation requires human intervention based on customer sentiment, specific keywords, or complex issues. It will seamlessly transfer the conversation to a human agent with full context preservation."
+                question: "Will my existing WhatsApp Business number still work?",
+                answer: "Yes, your WhatsApp Business number continues to work exactly as before. Our AI simply becomes available on that number, responding to customer inquiries according to the rules you set. You can still manually respond to messages at any time."
               },
               {
-                question: "Is Akii WhatsApp Chat compliant with WhatsApp's policies?",
-                answer: "Yes, Akii is fully compliant with WhatsApp's Business Solution Provider policies and messaging guidelines. We help ensure your business follows all required rules for engagement."
+                question: "How do I know my Meta API connection is working properly?",
+                answer: "Our system automatically tests the connection as soon as you enter your API keys and displays a confirmation message with a green checkmark. We also provide a test message feature that lets you send a test message to verify everything is working correctly."
               },
               {
-                question: "Can I integrate Akii WhatsApp Chat with my existing CRM?",
-                answer: "Absolutely. We offer integrations with popular CRM systems like Salesforce, HubSpot, and Zoho, as well as custom API integrations for your specific business needs."
+                question: "Can I connect multiple WhatsApp Business numbers?",
+                answer: "Yes! You can connect unlimited WhatsApp Business numbers to our platform. Each number can have its own dedicated AI assistant with custom training data and separate analytics. This is perfect for businesses with multiple departments or locations."
               },
               {
-                question: "What kind of analytics and reporting are available?",
-                answer: "Our comprehensive dashboard provides insights on conversation volume, resolution rates, common queries, sentiment analysis, handoff rates, and customer satisfaction metrics."
+                question: "What happens if my WhatsApp API keys expire?",
+                answer: "We proactively monitor your WhatsApp API connection and will notify you via email before your access token expires. Our dashboard also shows the expiration date, and we provide one-click token renewal that takes just seconds to complete."
               }
             ].map((faq, index) => (
               <motion.div
@@ -947,42 +979,157 @@ console.log(\`Conversation volume: \${analytics.conversations.total}\`);`}</code
               </motion.div>
             ))}
           </div>
+          
+          <div className="mt-12 text-center">
+            <div className="inline-flex items-center justify-center bg-background rounded-lg border border-border px-4 py-1.5 text-sm mb-4">
+              <span className="mr-2">Need more help with your Meta API setup?</span>
+              <span className="text-primary font-medium">We're here to help</span>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button variant="outline" asChild>
+                <Link to="/docs/meta-api-setup">
+                  View Setup Guide
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link to="/contact">
+                  Contact Support
+                </Link>
+              </Button>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-br from-primary/20 via-secondary/20 to-background relative overflow-hidden">
-        <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none"></div>
+      <section className="py-20 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20 z-0"></div>
         <div className="container px-4 md:px-6 relative z-10">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="max-w-3xl mx-auto text-center"
-          >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Transform Your WhatsApp Marketing & Support Today
-            </h2>
-            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Join businesses that have increased customer engagement by 70% and reduced support costs by 50% with Akii WhatsApp Chat.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/contact">
-                <Button size="lg" className="w-full sm:w-auto">
-                  Start Free Trial
+          <div className="flex flex-col lg:flex-row gap-8 items-center">
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="w-full lg:w-1/2"
+            >
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Connect WhatsApp in Minutes <br /> Not Days or Weeks
+              </h2>
+              <p className="text-lg text-muted-foreground mb-6">
+                Stop struggling with complex WhatsApp integrations. Our simple Meta API setup gets your company's AI on WhatsApp today - with just a few clicks.
+              </p>
+              
+              <div className="space-y-4 mb-8">
+                <div className="flex items-start gap-3">
+                  <div className="bg-primary/10 p-2 rounded-full mt-1">
+                    <Check className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium">3-Minute Setup</h3>
+                    <p className="text-muted-foreground">Just copy-paste your Meta API keys - no coding required</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <div className="bg-primary/10 p-2 rounded-full mt-1">
+                    <Check className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium">Pre-built Meta Connection</h3>
+                    <p className="text-muted-foreground">Our dashboard includes a ready-to-use Meta API integration</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <div className="bg-primary/10 p-2 rounded-full mt-1">
+                    <Check className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium">Same-day Deployment</h3>
+                    <p className="text-muted-foreground">Go live with your AI WhatsApp assistant today</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-4 mt-8">
+                <Button size="lg" asChild>
+                  <Link to="/signup">
+                    Start Free 14-Day Trial
+                  </Link>
                 </Button>
-              </Link>
-              <Link to="/demo">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                  Schedule a Demo
+                <Button variant="outline" size="lg" asChild>
+                  <Link to="/demo">
+                    <PlayCircle className="mr-2 h-5 w-5" />
+                    See Meta API Setup Demo
+                  </Link>
                 </Button>
-              </Link>
-            </div>
-            <div className="mt-8 text-sm text-muted-foreground">
-              No credit card required. 14-day free trial.
-            </div>
-          </motion.div>
+              </div>
+              
+              <div className="mt-6 text-sm text-muted-foreground flex items-center">
+                <Info className="h-4 w-4 mr-2" />
+                No credit card required for trial. Cancel anytime.
+              </div>
+            </motion.div>
+            
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="w-full lg:w-1/2"
+            >
+              <div className="relative bg-background border border-border rounded-lg p-6 shadow-lg">
+                <div className="bg-secondary/10 rounded-lg p-4 mb-6">
+                  <h3 className="text-xl font-medium mb-2">Connect in 3 Simple Steps</h3>
+                  <p className="text-sm text-muted-foreground">Here's how quickly you can go live:</p>
+                </div>
+                
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">1</div>
+                    <div className="flex-1">
+                      <h4 className="font-medium">Copy Meta Business API Keys</h4>
+                      <p className="text-sm text-muted-foreground">From your Meta Business Manager</p>
+                    </div>
+                    <Clock className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium">1 min</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">2</div>
+                    <div className="flex-1">
+                      <h4 className="font-medium">Paste into Akii Dashboard</h4>
+                      <p className="text-sm text-muted-foreground">We automatically verify the connection</p>
+                    </div>
+                    <Clock className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium">1 min</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">3</div>
+                    <div className="flex-1">
+                      <h4 className="font-medium">Upload Company Data & Go Live</h4>
+                      <p className="text-sm text-muted-foreground">Your AI starts responding immediately</p>
+                    </div>
+                    <Clock className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium">1 min</span>
+                  </div>
+                </div>
+                
+                <div className="mt-6 border-t border-border pt-6 text-center">
+                  <div className="inline-flex items-center justify-center bg-secondary/10 rounded-full px-3 py-1 text-xs font-medium text-secondary mb-2">
+                    TRUSTED BY BUSINESSES WORLDWIDE
+                  </div>
+                  <div className="flex justify-center items-center gap-6 flex-wrap mt-2">
+                    <img src="/logos/company1.svg" alt="Company Logo" width={80} height={30} className="opacity-70" />
+                    <img src="/logos/company2.svg" alt="Company Logo" width={80} height={30} className="opacity-70" />
+                    <img src="/logos/company3.svg" alt="Company Logo" width={80} height={30} className="opacity-70" />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         </div>
       </section>
     </MainLayout>
