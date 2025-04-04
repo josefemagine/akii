@@ -162,7 +162,7 @@ const AIInstanceAccess = ({ teamId }: AIInstanceAccessProps) => {
       console.error("Error updating access:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to update AI instance access",
+        description: error instanceof Error ? error.message : "Failed to update AI instance access",
         variant: "destructive",
       });
     } finally {

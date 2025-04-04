@@ -82,7 +82,7 @@ export default function TeamInviteForm({
     } catch (error) {
       toast({
         title: "Error",
-        description: error.message || "Failed to send invitation",
+        description: error instanceof Error ? error.message : "Failed to send invitation",
         variant: "destructive",
       });
     } finally {

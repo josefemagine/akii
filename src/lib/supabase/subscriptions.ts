@@ -239,30 +239,36 @@ export async function createSubscription(
   trialDays: number = 0
 ): Promise<ApiResponse<Subscription>> {
   try {
-    // Calculate period dates
+    // Calculate subscription periods
     const now = new Date();
     const currentPeriodStart = now.toISOString();
+    const currentPeriodEnd = new Date(now);
     
-    let currentPeriodEnd: Date;
-    if (billingCycle === 'yearly') {
-      currentPeriodEnd = new Date(now.setFullYear(now.getFullYear() + 1));
+    if (billingCycle === 'monthly') {
+      currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
     } else {
-      currentPeriodEnd = new Date(now.setMonth(now.getMonth() + 1));
+      currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
     }
-
-    // Calculate trial dates if applicable
+    
+    // Set up trial if needed
     let trialStart = null;
     let trialEnd = null;
     
     if (trialDays > 0) {
-      trialStart = new Date().toISOString();
-      const trialEndDate = new Date();
+      trialStart = now.toISOString();
+      const trialEndDate = new Date(now);
       trialEndDate.setDate(trialEndDate.getDate() + trialDays);
       trialEnd = trialEndDate.toISOString();
     }
 
+    // Get admin client
+    const adminClient = getAdminClient();
+    if (!adminClient) {
+      throw new Error('Failed to get admin client for subscription creation');
+    }
+
     // Create the subscription using admin client for potential elevated permissions
-    const { data, error } = await getAdminClient()
+    const { data, error } = await adminClient
       .from('subscriptions')
       .insert({
         user_id: userId,
@@ -295,7 +301,13 @@ export async function updateSubscriptionStatus(
   status: Subscription['status']
 ): Promise<ApiResponse<Subscription>> {
   try {
-    const { data, error } = await getAdminClient()
+    // Get admin client
+    const adminClient = getAdminClient();
+    if (!adminClient) {
+      throw new Error('Failed to get admin client for subscription status update');
+    }
+
+    const { data, error } = await adminClient
       .from('subscriptions')
       .update({
         status,
@@ -321,7 +333,13 @@ export async function cancelSubscriptionAtPeriodEnd(
   subscriptionId: string
 ): Promise<ApiResponse<Subscription>> {
   try {
-    const { data, error } = await getAdminClient()
+    // Get admin client
+    const adminClient = getAdminClient();
+    if (!adminClient) {
+      throw new Error('Failed to get admin client for subscription cancellation');
+    }
+
+    const { data, error } = await adminClient
       .from('subscriptions')
       .update({
         cancel_at_period_end: true,
@@ -355,7 +373,13 @@ export async function createInvoice(
     const now = new Date();
     const invoiceNumber = `INV-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
     
-    const { data, error } = await getAdminClient()
+    // Get admin client
+    const adminClient = getAdminClient();
+    if (!adminClient) {
+      throw new Error('Failed to get admin client for invoice creation');
+    }
+
+    const { data, error } = await adminClient
       .from('invoices')
       .insert({
         user_id: userId,
@@ -396,7 +420,13 @@ export async function updateInvoiceStatus(
       updates.paid_at = new Date().toISOString();
     }
 
-    const { data, error } = await getAdminClient()
+    // Get admin client
+    const adminClient = getAdminClient();
+    if (!adminClient) {
+      throw new Error('Failed to get admin client for invoice status update');
+    }
+
+    const { data, error } = await adminClient
       .from('invoices')
       .update(updates)
       .eq('id', invoiceId)

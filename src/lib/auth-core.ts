@@ -57,7 +57,8 @@ export function hasValidAdminOverride(user: User | string | null): boolean {
   if (typeof user === 'string') {
     email = user;
   } else {
-    email = user.email;
+    // User object may have undefined email, handle it safely
+    email = user.email || null;
   }
   
   // Check local storage for admin override

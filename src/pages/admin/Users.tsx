@@ -578,7 +578,7 @@ const UsersPage = () => {
               if (error || !success) {
                 toast({
                   title: "Error adding admin",
-                  description: error?.message || "Failed to set user as admin",
+                  description: error && typeof error === 'object' && 'message' in error ? error.message : "Failed to set user as admin",
                   variant: "destructive",
                 });
                 return;

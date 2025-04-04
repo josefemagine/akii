@@ -168,7 +168,7 @@ const TeamMembersList = ({ initialMembers = [] }: TeamMembersListProps) => {
       console.error("Error sending invitation:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to send invitation",
+        description: error instanceof Error ? error.message : "Failed to send invitation",
         variant: "destructive",
       });
     } finally {
@@ -210,7 +210,7 @@ const TeamMembersList = ({ initialMembers = [] }: TeamMembersListProps) => {
       console.error("Error removing team member:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to remove team member",
+        description: error instanceof Error ? error.message : "Failed to remove team member",
         variant: "destructive",
       });
     } finally {
@@ -251,7 +251,7 @@ const TeamMembersList = ({ initialMembers = [] }: TeamMembersListProps) => {
       console.error("Error updating team member:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to update team member",
+        description: error instanceof Error ? error.message : "Failed to update team member",
         variant: "destructive",
       });
     } finally {

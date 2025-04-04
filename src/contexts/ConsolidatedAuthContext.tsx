@@ -215,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         // Also check backup storage location
-        const backupKey = `akii-signup-${user.email.replace(/[^a-zA-Z0-9]/g, "")}`;
+        const backupKey = `akii-signup-${user.email?.replace(/[^a-zA-Z0-9]/g, "") || ''}`;
         const backupData = sessionStorage.getItem(backupKey);
         if (backupData && (!storedMetadata || Object.keys(storedMetadata).length === 0)) {
           try {
@@ -239,8 +239,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Ensure profile exists - this will create it if needed
       let retryCount = 0;
-      let userProfile = null;
-      let profileError = null;
+      let userProfile: UserProfile | null = null;
+      let profileError: Error | null = null;
       const MAX_RETRIES = 3;
       
       // Create a timeout for just the profile loading portion
@@ -260,33 +260,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }, 5000); // 5 second timeout just for profile loading
       
-      while (retryCount < MAX_RETRIES && !userProfile) {
-        if (retryCount > 0) {
-          console.log(`Retry attempt ${retryCount} to get/create profile`);
-          // Add a small delay before retrying
-          await new Promise(resolve => setTimeout(resolve, 500 * retryCount));
-        }
-        
-        const result = await ensureUserProfile({
-          ...user,
-          user_metadata: {
-            ...user.user_metadata,
-            ...storedMetadata
+      while (!userProfile && retryCount < MAX_RETRIES) {
+        try {
+          // Try to get user info from database
+          console.log(`Attempt ${retryCount + 1}/${MAX_RETRIES} to get user profile`);
+          
+          if (retryCount > 0) {
+            // Wait before retry with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 500));
           }
-        });
-        
-        userProfile = result.data;
-        profileError = result.error;
-        
-        if (profileError) {
-          console.error(`Profile error on attempt ${retryCount}:`, profileError);
+          
+          // Ensure profile exists - this will create it if needed
+          const { data: profile, error: fetchedProfileError } = await ensureUserProfile(user.id);
+          
+          userProfile = profile;
+          profileError = fetchedProfileError;
+          
+          if (fetchedProfileError) {
+            console.error(`Profile fetch attempt ${retryCount + 1} failed:`, fetchedProfileError);
+            retryCount++;
+          } else if (!userProfile) {
+            console.warn(`Profile fetch attempt ${retryCount + 1} returned null profile`);
+            retryCount++;
+          } else {
+            break; // Success, exit loop
+          }
+        } catch (error) {
+          console.error(`Unexpected error in profile fetch attempt ${retryCount + 1}:`, error);
+          profileError = error instanceof Error ? error : new Error(String(error));
+          retryCount++;
         }
-        
-        if (userProfile) {
-          break;
-        }
-        
-        retryCount++;
       }
       
       // Clear the profile loading timeout since we've completed that step
@@ -337,11 +340,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Set state with user, profile and session
       setState({
         user,
-        profile: userProfile,
+        profile: userProfile as UserProfile | null,
         session,
         isLoading: false,
         isAdmin,
-        userRole,
+        userRole: userRole as UserRole | null,
         error: null
       });
       
@@ -432,8 +435,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn("Forcing loading state to complete after timeout");
           
           // Try to get user data directly from local storage as emergency fallback
-          let emergencyUser = null;
-          let emergencyProfile = null;
+          let emergencyUser: User | null = null;
+          let emergencyProfile: UserProfile | null = null;
           try {
             // Try to get session data
             const sessionStr = localStorage.getItem('supabase.auth.token');
@@ -464,7 +467,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     .select('*')
                     .eq('id', emergencyUser.id)
                     .single()
-                    .then(({ data, error }) => {
+                    .then(({ data, error }: { data: UserProfile | null; error: Error | null }) => {
                       if (data && !error) {
                         console.log("Emergency: Direct profile fetch successful", data);
                         // Store this profile for future use
@@ -561,7 +564,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           
           // Get or create profile with error handling
-          const { data: profile, error: profileError } = await ensureUserProfile(user);
+          const { data: profile, error: profileError } = await ensureUserProfile(user.id);
           
           // Log detailed information about the profile result
           console.log("Profile loading result:", { 
@@ -1101,7 +1104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ...prev,
           profile,
           isAdmin: isUserAdmin,
-          userRole: profile.role,
+          userRole: profile.role || null,
         }));
       }
     } catch (error) {

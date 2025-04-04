@@ -52,7 +52,7 @@ export async function uploadProfilePicture(
       // First check if the bucket exists
       const { data: buckets } = await supabase.storage.listBuckets();
       
-      if (!buckets || !buckets.some(b => b.name === bucketName)) {
+      if (!buckets || !buckets.some((b: any) => b.name === bucketName)) {
         console.error(`Bucket ${bucketName} does not exist!`);
         throw new Error(`Storage bucket "${bucketName}" not found. Please contact support.`);
       }
@@ -131,7 +131,7 @@ export async function deleteProfilePicture(
     }
 
     // Update the user profile to remove the avatar URL
-    const { error: profileError } = await updateUserProfile(userId, { avatar_url: null });
+    const { error: profileError } = await updateUserProfile(userId, { avatar_url: undefined });
     
     if (profileError) {
       console.error("Error updating profile after avatar deletion:", profileError);

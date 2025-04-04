@@ -87,9 +87,6 @@ export async function getCompleteUserData(userId: string): Promise<ApiResponse<a
       throw new Error("User ID is required");
     }
 
-    // Use the admin client to get auth user data
-    const adminClient = getAdminClient();
-    
     // Get user profile data
     const { data: profileData, error: profileError } = await getClient()
       .from("profiles")
@@ -98,6 +95,12 @@ export async function getCompleteUserData(userId: string): Promise<ApiResponse<a
       .single();
 
     if (profileError && profileError.code !== 'PGRST116') throw profileError;
+
+    // Get admin client and check if it exists
+    const adminClient = getAdminClient();
+    if (!adminClient) {
+      throw new Error("Failed to get admin client for user data retrieval");
+    }
 
     // Get auth user data (this endpoint is available in admin API)
     const { data: adminUserData, error: adminUserError } = await adminClient.auth.admin.getUserById(userId);

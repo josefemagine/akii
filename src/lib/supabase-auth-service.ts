@@ -135,22 +135,19 @@ export function getCurrentProfile(): UserProfile | null {
  */
 export async function refreshProfile(updates?: Partial<UserProfile>): Promise<UserProfile | null> {
   try {
-    // Get the current user if not already cached
-    if (!_currentUser) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('Cannot refresh profile: No authenticated user');
-        return null;
-      }
-      _currentUser = user;
+    // Make sure we have a current user
+    if (!_currentUser || !_currentUser.id) {
+      console.error('Cannot refresh profile: No authenticated user');
+      return null;
     }
-    
-    let query = supabase
+
+    // Create a base query
+    const query = supabase
       .from('profiles')
       .select('*');
-    
-    if (updates) {
-      // If updates provided, update the profile first
+
+    // If there are updates, update the profile first
+    if (updates && Object.keys(updates).length > 0) {
       const { data: updateData, error: updateError } = await supabase
         .from('profiles')
         .update({

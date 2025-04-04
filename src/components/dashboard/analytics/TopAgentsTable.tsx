@@ -95,7 +95,7 @@ const TopAgentsTable = ({
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Avatar className="h-8 w-8">
-                        <AvatarImage src={agent.avatar_url} alt={agent.name} />
+                        <AvatarImage src={agent.avatar_url || undefined} alt={agent.name} />
                       </Avatar>
                       <div>
                         <div className="font-medium">{agent.name}</div>

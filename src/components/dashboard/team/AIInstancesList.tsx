@@ -154,7 +154,7 @@ const AIInstancesList = ({
       console.error("Error creating AI instance:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create AI instance",
+        description: error instanceof Error ? error.message : "Failed to create AI instance",
         variant: "destructive",
       });
     } finally {
@@ -201,7 +201,7 @@ const AIInstancesList = ({
       console.error("Error updating AI instance:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to update AI instance",
+        description: error instanceof Error ? error.message : "Failed to update AI instance",
         variant: "destructive",
       });
     } finally {
@@ -244,7 +244,7 @@ const AIInstancesList = ({
       console.error("Error deleting AI instance:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to delete AI instance",
+        description: error instanceof Error ? error.message : "Failed to delete AI instance",
         variant: "destructive",
       });
     } finally {

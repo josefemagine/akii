@@ -7,14 +7,29 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Accept', 'x-api-key']
 }));
-app.use(express.json());
 
-// Set JSON Content-Type for all responses
+// Middleware to log requests
 app.use((req, res, next) => {
-  res.setHeader('Content-Type', 'application/json');
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// Middleware to set JSON headers
+app.use((req, res, next) => {
+  // Set the Content-Type header for JSON responses 
+  res.header('Content-Type', 'application/json');
+  
+  // Create a wrapper for res.json to ensure Content-Type is set
+  const originalJson = res.json;
+  res.json = function(body) {
+    // Explicitly set the Content-Type before sending the response
+    this.set('Content-Type', 'application/json');
+    return originalJson.call(this, body);
+  };
+  
   next();
 });
 
@@ -22,11 +37,12 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   
-  // Track response
-  const originalJson = res.json;
-  res.json = function(body) {
-    console.log('Response JSON:', JSON.stringify(body, null, 2));
-    return originalJson.call(this, body);
+  // Capture the response
+  const originalSend = res.send;
+  res.send = function(body) {
+    console.log(`Response for ${req.method} ${req.url}: `, typeof body === 'string' ? body.substring(0, 100) : 'non-string body');
+    console.log('Response headers:', JSON.stringify(this.getHeaders()));
+    return originalSend.call(this, body);
   };
   
   next();
@@ -46,7 +62,7 @@ const mockInstances = [
     modelId: "amazon.titan-text-express-v1",
     throughputName: "pro-throughput",
     status: "InService",
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days ago
     plan: "pro"
   },
   {
@@ -55,19 +71,21 @@ const mockInstances = [
     modelId: "anthropic.claude-instant-v1",
     throughputName: "business-throughput",
     status: "InService",
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
     plan: "business"
   }
 ];
 
 // Route handler to generate JSON response
 function jsonResponse(res, data) {
-  res.setHeader('Content-Type', 'application/json');
+  // Explicitly set the Content-Type header for JSON responses
+  res.header('Content-Type', 'application/json');
   return res.json(data);
 }
 
 // Base endpoint
 app.get('/api/bedrock', (req, res) => {
+  console.log('[INFO] Handling GET /api/bedrock');
   try {
     jsonResponse(res, { 
       api: 'Bedrock API', 
@@ -82,6 +100,7 @@ app.get('/api/bedrock', (req, res) => {
 
 // Get instances endpoint
 app.get('/api/bedrock/instances', (req, res) => {
+  console.log('[INFO] Handling GET /api/bedrock/instances');
   try {
     jsonResponse(res, { instances: mockInstances });
   } catch (err) {
@@ -92,8 +111,8 @@ app.get('/api/bedrock/instances', (req, res) => {
 
 // Provision instance endpoint
 app.post('/api/bedrock/provision-instance', (req, res) => {
+  console.log('[INFO] Handling POST /api/bedrock/provision-instance', req.body);
   try {
-    console.log('Request body:', req.body);
     const { name, modelId, throughputName } = req.body;
     
     if (!name || !modelId || !throughputName) {
@@ -128,8 +147,8 @@ app.post('/api/bedrock/provision-instance', (req, res) => {
 
 // Delete instance endpoint
 app.post('/api/bedrock/delete-instance', (req, res) => {
+  console.log('[INFO] Handling POST /api/bedrock/delete-instance', req.body);
   try {
-    console.log('Request body:', req.body);
     const { instanceId } = req.body;
     
     if (!instanceId) {
@@ -165,7 +184,7 @@ app.use((req, res) => {
 
 // Start server
 const server = app.listen(PORT, () => {
-  console.log(`API server running on http://localhost:${PORT}`);
+  console.log(`Mock Bedrock API server running at http://localhost:${PORT}`);
   console.log('Available endpoints:');
   console.log('  - GET  /api/bedrock');
   console.log('  - GET  /api/bedrock/instances');

@@ -43,7 +43,8 @@ export async function checkUserStatus(userId: string): Promise<AuthResponse<User
     if (error) throw error;
     if (!profile) throw new Error("User profile not found");
     
-    return { data: profile.status, error: null };
+    // Ensure we return null if status is undefined
+    return { data: profile.status || null, error: null };
   } catch (error) {
     console.error("Error checking user status:", error);
     return { data: null, error: error as Error };

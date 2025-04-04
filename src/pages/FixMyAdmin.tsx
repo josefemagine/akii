@@ -32,7 +32,7 @@ export default function FixMyAdmin() {
       
     } catch (error) {
       console.error("Error clearing session:", error);
-      setMessage(`Error clearing session: ${error.message}`);
+      setMessage(`Error clearing session: ${error instanceof Error ? error.message : String(error)}`);
       setStatus("error");
     } finally {
       setLoading(false);
@@ -64,7 +64,7 @@ export default function FixMyAdmin() {
       
       if (error) {
         console.error("Error checking role:", error);
-        setMessage(`Error checking role: ${error.message}`);
+        setMessage(`Error checking role: ${error instanceof Error ? error.message : String(error)}`);
         setStatus("error");
         return;
       }
@@ -80,7 +80,7 @@ export default function FixMyAdmin() {
       
     } catch (error) {
       console.error("Error checking role:", error);
-      setMessage(`Error checking role: ${error.message}`);
+      setMessage(`Error checking role: ${error instanceof Error ? error.message : String(error)}`);
       setStatus("error");
     } finally {
       setLoading(false);
@@ -114,7 +114,7 @@ export default function FixMyAdmin() {
       
     } catch (error) {
       console.error("Error refreshing role:", error);
-      setMessage(`Error refreshing role: ${error.message}`);
+      setMessage(`Error refreshing role: ${error instanceof Error ? error.message : String(error)}`);
       setStatus("error");
     } finally {
       setLoading(false);
@@ -160,7 +160,7 @@ export default function FixMyAdmin() {
       
     } catch (error) {
       console.error("Error setting admin override:", error);
-      setMessage(`Error setting admin override: ${error.message}`);
+      setMessage(`Error setting admin override: ${error instanceof Error ? error.message : String(error)}`);
       setStatus("error");
     } finally {
       setLoading(false);
@@ -231,7 +231,7 @@ export default function FixMyAdmin() {
       
     } catch (error) {
       console.error("Error forcing Josef admin:", error);
-      setMessage(`Error forcing admin: ${error.message}`);
+      setMessage(`Error forcing admin: ${error instanceof Error ? error.message : String(error)}`);
       setStatus("error");
     } finally {
       setLoading(false);

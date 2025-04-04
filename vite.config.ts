@@ -86,49 +86,57 @@ export default defineConfig({
     // @ts-ignore
     allowedHosts: process.env.TEMPO === "true" ? true : undefined,
     proxy: {
-      // Proxy API requests to our local API server during development
       '/api/bedrock': {
         target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
-        ws: false, // Disable WebSocket proxy
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
+        rewrite: (path) => path,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('Proxy error:', err);
           });
           
           proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log('Proxying:', req.method, req.url, '->', proxyReq.path);
+            console.log(`[Proxy] ${req.method} ${req.url}`);
             
-            // Ensure correct headers for the request
+            // Set headers for JSON
             proxyReq.setHeader('Accept', 'application/json');
-            proxyReq.setHeader('Content-Type', 'application/json');
             
-            // Add body to the request if it has one
-            // @ts-ignore - req.body exists when using express but TS doesn't know that
-            if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
-              // @ts-ignore
-              const bodyData = JSON.stringify(req.body);
+            // If request has a body, make sure it's properly sent
+            const reqWithBody = req as any;
+            if (reqWithBody.body && typeof reqWithBody.body === 'object' && Object.keys(reqWithBody.body).length > 0) {
+              const bodyData = JSON.stringify(reqWithBody.body);
+              console.log('[Proxy] Request body:', bodyData);
+              
+              // Update headers
+              proxyReq.setHeader('Content-Type', 'application/json');
               proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+              
+              // Write body to request
               proxyReq.write(bodyData);
             }
           });
           
           proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received response:', proxyRes.statusCode, req.url);
+            console.log(`[Proxy] Response ${proxyRes.statusCode} for ${req.method} ${req.url}`);
+            console.log(`[Proxy] Response headers:`, JSON.stringify(proxyRes.headers));
             
-            // Force Content-Type to be application/json
+            // Force the content type to be application/json
             proxyRes.headers['content-type'] = 'application/json';
-
-            // Handle transformation of response content
-            proxyRes.on('data', function(chunk) {
-              const responseBody = chunk.toString('utf8');
-              if (!responseBody.startsWith('{') && !responseBody.startsWith('[')) {
-                console.warn('Response body is not JSON format:', responseBody.substring(0, 100));
+            
+            // Log full response body (useful for debugging)
+            let responseBody = '';
+            proxyRes.on('data', (chunk) => {
+              responseBody += chunk;
+            });
+            
+            proxyRes.on('end', () => {
+              console.log(`[Proxy] Response body (first 200 chars): ${responseBody.substring(0, 200)}`);
+              try {
+                JSON.parse(responseBody);
+                console.log('[Proxy] Response is valid JSON');
+              } catch (e) {
+                console.error('[Proxy] Response is NOT valid JSON:', e);
               }
             });
           });
