@@ -78,6 +78,7 @@ const PrivateAIAPI = lazy(() => import("./pages/products/PrivateAIAPI"));
 const ZapierIntegration = lazy(() => import("./pages/products/ZapierIntegration"));
 const N8nIntegration = lazy(() => import("./pages/products/N8nIntegration"));
 const AdminBedrock = lazy(() => import("./pages/admin/Bedrock"));
+const AdminSupabaseBedrock = lazy(() => import("./pages/admin/SupabaseBedrock"));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -235,6 +236,7 @@ export default function App() {
                   <Route path="affiliates" element={<AdminAffiliates />} />
                   <Route path="compliance" element={<AdminCompliance />} />
                   <Route path="bedrock" element={<AdminBedrock />} />
+                  <Route path="supabase-bedrock" element={<AdminSupabaseBedrock />} />
                   <Route path="run-migration" element={<RunMigration />} />
                   <Route path="n8n-workflows" element={<AdminN8nWorkflows />} />
                   <Route path="moderation" element={<Moderation />} />

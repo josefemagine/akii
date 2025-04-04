@@ -306,6 +306,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { to: "/admin/database-schema", icon: <Database className="h-5 w-5" />, label: "Database Schema" },
     { to: "/admin/manage-instances", icon: <Cloud className="h-5 w-5" />, label: "AI Instances" },
     { to: "/admin/bedrock", icon: <Box className="h-5 w-5" />, label: "Bedrock AI" },
+    { to: "/admin/supabase-bedrock", icon: <Box className="h-5 w-5" />, label: "Supabase Bedrock" },
     { to: "/admin/supabase-check", icon: <CheckCircle className="h-5 w-5" />, label: "Supabase Check" },
     { to: "/admin/admin-check", icon: <AlertTriangle className="h-5 w-5" />, label: "Admin Check" },
   ];
@@ -608,6 +609,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             currentPath.includes("/admin/database-schema") ||
                             currentPath.includes("/admin/manage-instances") || 
                             currentPath.includes("/admin/bedrock") ||
+                            currentPath.includes("/admin/supabase-bedrock") ||
                             currentPath.includes("/admin/supabase-check") || 
                             currentPath.includes("/admin/admin-check")}
                   isCollapsed={isCollapsed}
