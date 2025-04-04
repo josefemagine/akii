@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Supabase Edge Function Test</title>
+    <title>Edge Function Testing Tool</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -81,6 +81,39 @@
         .panel.active {
             display: block;
         }
+        .checkbox-group {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            border: 1px solid #ffeeba;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            border: 1px solid #f5c6cb;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            border: 1px solid #c3e6cb;
+        }
     </style>
 </head>
 <body>
@@ -90,10 +123,17 @@
         <div class="tab active" onclick="showTab('setup')">Setup</div>
         <div class="tab" onclick="showTab('test')">Test</div>
         <div class="tab" onclick="showTab('help')">Help</div>
+        <div class="tab" onclick="showTab('advanced')">Advanced</div>
     </div>
     
     <div id="setup" class="panel active">
         <h2>Setup</h2>
+        
+        <div class="input-group">
+            <label for="projectRef">Supabase Project Reference:</label>
+            <input type="text" id="projectRef" placeholder="Enter Supabase Project Reference ID" />
+            <button onclick="saveProjectRef()">Save Project Ref</button>
+        </div>
         
         <div class="input-group">
             <label for="apiKey">API Key:</label>
@@ -102,13 +142,25 @@
         </div>
         
         <div class="input-group">
-            <label for="endpointUrl">Edge Function URL:</label>
-            <input type="text" id="endpointUrl" value="https://hndbdiquvotjxcmjzlgu.supabase.co/functions/v1/bedrock/test-env" placeholder="Enter Edge Function URL" />
-            <button onclick="saveEndpointUrl()">Save URL</button>
+            <label for="jwtToken">JWT Token (for Super Action):</label>
+            <input type="text" id="jwtToken" placeholder="Enter JWT Token" />
+            <button onclick="saveJwtToken()">Save JWT Token</button>
+            <div class="checkbox-group">
+                <input type="checkbox" id="tryExtractJwt" checked />
+                <label for="tryExtractJwt">Try to extract JWT from Supabase Auth</label>
+            </div>
+            <button onclick="extractSupabaseJwt()">Extract JWT from Supabase Auth</button>
         </div>
         
         <div class="input-group">
-            <label for="superAction">Super Action URL (Alternative):</label>
+            <label for="endpointUrl">Edge Function URL:</label>
+            <input type="text" id="endpointUrl" placeholder="Enter Edge Function URL" />
+            <button onclick="saveEndpointUrl()">Save URL</button>
+            <button onclick="buildEdgeFunctionUrl()">Generate URL from Project Ref</button>
+        </div>
+        
+        <div class="input-group">
+            <label for="superAction">Super Action URL:</label>
             <input type="text" id="superAction" value="https://api.akii.com/functions/v1/super-action/test-env" placeholder="Enter Super Action URL" />
             <button onclick="saveSuperAction()">Save URL</button>
         </div>
@@ -129,29 +181,63 @@
         </div>
     </div>
     
+    <div id="advanced" class="panel">
+        <h2>Advanced Configuration</h2>
+        
+        <div class="input-group">
+            <label for="authMethod">Authentication Method for Supabase Edge Function:</label>
+            <select id="authMethod">
+                <option value="apiKey">API Key</option>
+                <option value="jwt">JWT Token</option>
+                <option value="both">Try Both</option>
+            </select>
+            <button onclick="saveAuthMethod()">Save Method</button>
+        </div>
+        
+        <div class="input-group">
+            <label for="testEndpoint">Test Endpoint Path:</label>
+            <input type="text" id="testEndpoint" value="test-env" placeholder="Enter test endpoint path" />
+            <button onclick="saveTestEndpoint()">Save Endpoint</button>
+        </div>
+        
+        <div class="input-group">
+            <h3>Debug Information</h3>
+            <button onclick="showDebugInfo()">Show Debug Info</button>
+            <pre id="debugInfo" style="display: none;"></pre>
+        </div>
+    </div>
+    
     <div id="help" class="panel">
         <h2>Help</h2>
         
         <h3>About this tool</h3>
         <p>This tool helps test your Supabase Edge Functions with different authentication header formats.</p>
         
-        <h3>API Key</h3>
-        <p>The API key is used for authentication with the Edge Function. It will be tried with both the <code>x-api-key</code> header and the <code>Authorization: Bearer</code> header format.</p>
+        <h3>Getting Started</h3>
+        <div class="warning">
+            <p><strong>DNS Error?</strong> If you're seeing "ERR_NAME_NOT_RESOLVED", make sure your Supabase Project Reference is correct.</p>
+        </div>
+        
+        <h3>Authentication</h3>
+        <ul>
+            <li><strong>API Key:</strong> Used for Bedrock API authentication via x-api-key header</li>
+            <li><strong>JWT Token:</strong> Used for Supabase Function authentication (especially the Super Action endpoint)</li>
+        </ul>
         
         <h3>URLs</h3>
         <p>You can test two different endpoints:</p>
         <ul>
-            <li><strong>Edge Function URL:</strong> Direct Supabase Edge Function URL (e.g., <code>https://[project-ref].supabase.co/functions/v1/[function-name]</code>)</li>
+            <li><strong>Edge Function URL:</strong> Direct Supabase Edge Function URL (e.g., <code>https://[project-ref].supabase.co/functions/v1/[function-name]/test-env</code>)</li>
             <li><strong>Super Action URL:</strong> Your custom API endpoint that might forward to the Supabase Edge Function</li>
         </ul>
         
         <h3>Troubleshooting</h3>
         <p>If you encounter errors:</p>
         <ul>
-            <li>Check if your API key is correct</li>
-            <li>Verify that the Edge Function is deployed</li>
-            <li>Check the CORS configuration on the server</li>
-            <li>Look at the browser console for more detailed error messages</li>
+            <li><strong>ERR_NAME_NOT_RESOLVED:</strong> Check your Supabase project reference ID</li>
+            <li><strong>401 Unauthorized:</strong> Your authentication token/key is invalid or missing</li>
+            <li><strong>Invalid JWT:</strong> Super Action requires a valid JWT token from Supabase Auth</li>
+            <li><strong>CORS errors:</strong> The server needs to allow requests from your domain</li>
         </ul>
     </div>
     
@@ -180,14 +266,39 @@
         }
         
         // Save values to localStorage
+        function saveProjectRef() {
+            const projectRef = document.getElementById('projectRef').value.trim();
+            if (projectRef) {
+                localStorage.setItem('supabase-project-ref', projectRef);
+                alert('Project Reference saved to localStorage');
+                document.getElementById('projectRef').value = '';
+                document.getElementById('projectRef').placeholder = 'Project Reference saved';
+            } else {
+                alert('Please enter a valid Project Reference');
+            }
+        }
+        
         function saveApiKey() {
             const apiKey = document.getElementById('apiKey').value.trim();
             if (apiKey) {
                 localStorage.setItem('bedrock-api-key', apiKey);
                 alert('API key saved to localStorage');
                 document.getElementById('apiKey').value = '';
+                document.getElementById('apiKey').placeholder = 'API key saved';
             } else {
                 alert('Please enter an API key');
+            }
+        }
+        
+        function saveJwtToken() {
+            const jwtToken = document.getElementById('jwtToken').value.trim();
+            if (jwtToken) {
+                localStorage.setItem('jwt-token', jwtToken);
+                alert('JWT token saved to localStorage');
+                document.getElementById('jwtToken').value = '';
+                document.getElementById('jwtToken').placeholder = 'JWT token saved';
+            } else {
+                alert('Please enter a JWT token');
             }
         }
         
@@ -211,23 +322,165 @@
             }
         }
         
+        function saveAuthMethod() {
+            const method = document.getElementById('authMethod').value;
+            localStorage.setItem('auth-method', method);
+            alert('Authentication method saved');
+        }
+        
+        function saveTestEndpoint() {
+            const endpoint = document.getElementById('testEndpoint').value.trim();
+            localStorage.setItem('test-endpoint', endpoint);
+            alert('Test endpoint saved');
+            buildEdgeFunctionUrl();
+        }
+        
+        // Build Edge Function URL from project ref
+        function buildEdgeFunctionUrl() {
+            const projectRef = localStorage.getItem('supabase-project-ref');
+            if (!projectRef) {
+                alert('Please save a Project Reference first');
+                return;
+            }
+            
+            const testEndpoint = localStorage.getItem('test-endpoint') || 'test-env';
+            const url = `https://${projectRef}.supabase.co/functions/v1/bedrock/${testEndpoint}`;
+            document.getElementById('endpointUrl').value = url;
+            localStorage.setItem('edge-function-url', url);
+            alert('Edge Function URL generated and saved');
+        }
+        
+        // Extract JWT from Supabase Auth
+        function extractSupabaseJwt() {
+            try {
+                let jwt = '';
+                
+                // Try different storage formats for different Supabase versions
+                const supabaseAuthV1 = localStorage.getItem('supabase.auth.token');
+                const supabaseAuthV2 = localStorage.getItem('sb-access-token');
+                
+                if (supabaseAuthV2) {
+                    jwt = supabaseAuthV2;
+                    console.log('Found Supabase Auth V2 token');
+                } else if (supabaseAuthV1) {
+                    try {
+                        const authData = JSON.parse(supabaseAuthV1);
+                        if (authData && authData.currentSession && authData.currentSession.access_token) {
+                            jwt = authData.currentSession.access_token;
+                            console.log('Found Supabase Auth V1 token');
+                        }
+                    } catch (e) {
+                        console.error('Error parsing Supabase Auth token:', e);
+                    }
+                }
+                
+                if (jwt) {
+                    document.getElementById('jwtToken').value = jwt;
+                    alert('JWT token extracted from Supabase Auth');
+                } else {
+                    alert('No JWT token found in localStorage. Are you logged into Supabase?');
+                }
+            } catch (error) {
+                console.error('Error extracting JWT:', error);
+                alert('Error extracting JWT: ' + error.message);
+            }
+        }
+        
+        // Show debug info
+        function showDebugInfo() {
+            const debugElement = document.getElementById('debugInfo');
+            
+            const debugInfo = {
+                localStorage: {
+                    projectRef: localStorage.getItem('supabase-project-ref'),
+                    apiKey: localStorage.getItem('bedrock-api-key') ? '(present but not shown)' : null,
+                    jwtToken: localStorage.getItem('jwt-token') ? '(present but not shown)' : null,
+                    edgeFunctionUrl: localStorage.getItem('edge-function-url'),
+                    superActionUrl: localStorage.getItem('super-action-url'),
+                    authMethod: localStorage.getItem('auth-method'),
+                    testEndpoint: localStorage.getItem('test-endpoint')
+                },
+                supabaseAuth: {
+                    hasV1Token: Boolean(localStorage.getItem('supabase.auth.token')),
+                    hasV2Token: Boolean(localStorage.getItem('sb-access-token'))
+                },
+                browser: {
+                    userAgent: navigator.userAgent,
+                    cookiesEnabled: navigator.cookieEnabled
+                }
+            };
+            
+            debugElement.textContent = JSON.stringify(debugInfo, null, 2);
+            debugElement.style.display = 'block';
+        }
+        
         // Test Supabase Edge Function
         async function testSupabaseEdgeFunction(urlType = 'default') {
-            const apiKey = localStorage.getItem('bedrock-api-key');
+            let authToken, authMethod;
             
-            if (!apiKey) {
-                console.error('No API key found in localStorage');
+            if (urlType === 'default') {
+                // For Edge Function, use API key or JWT based on setting
+                authMethod = localStorage.getItem('auth-method') || 'apiKey';
+                if (authMethod === 'apiKey') {
+                    authToken = localStorage.getItem('bedrock-api-key');
+                } else if (authMethod === 'jwt') {
+                    authToken = localStorage.getItem('jwt-token');
+                } else {
+                    // Try both - API key first, then JWT
+                    authToken = localStorage.getItem('bedrock-api-key') || localStorage.getItem('jwt-token');
+                }
+            } else {
+                // For Super Action, use JWT token
+                authToken = localStorage.getItem('jwt-token');
+                
+                // If JWT not explicitly set but "try extract" is checked, try to get from Supabase Auth
+                if (!authToken && document.getElementById('tryExtractJwt').checked) {
+                    const supabaseAuthV2 = localStorage.getItem('sb-access-token');
+                    const supabaseAuthV1 = localStorage.getItem('supabase.auth.token');
+                    
+                    if (supabaseAuthV2) {
+                        authToken = supabaseAuthV2;
+                    } else if (supabaseAuthV1) {
+                        try {
+                            const authData = JSON.parse(supabaseAuthV1);
+                            if (authData && authData.currentSession && authData.currentSession.access_token) {
+                                authToken = authData.currentSession.access_token;
+                            }
+                        } catch (e) {
+                            console.error('Error parsing Supabase Auth token:', e);
+                        }
+                    }
+                }
+            }
+            
+            if (!authToken) {
+                console.error('No authentication token found');
                 return {
                     success: false,
-                    error: 'No API key found in localStorage. Please set an API key in the Setup tab.'
+                    error: urlType === 'default' 
+                        ? 'No API key found in localStorage. Please set an API key in the Setup tab.'
+                        : 'No JWT token found. Please set a JWT token in the Setup tab or make sure you are logged into Supabase.'
                 };
             }
             
             let testUrl;
             
             if (urlType === 'default') {
-                testUrl = localStorage.getItem('edge-function-url') || 
-                    'https://hndbdiquvotjxcmjzlgu.supabase.co/functions/v1/bedrock/test-env';
+                testUrl = localStorage.getItem('edge-function-url');
+                if (!testUrl) {
+                    // Try to build from project ref if available
+                    const projectRef = localStorage.getItem('supabase-project-ref');
+                    const testEndpoint = localStorage.getItem('test-endpoint') || 'test-env';
+                    
+                    if (projectRef) {
+                        testUrl = `https://${projectRef}.supabase.co/functions/v1/bedrock/${testEndpoint}`;
+                    } else {
+                        return {
+                            success: false,
+                            error: 'No Edge Function URL found. Please set a URL or Project Reference in the Setup tab.'
+                        };
+                    }
+                }
             } else {
                 testUrl = localStorage.getItem('super-action-url') || 
                     'https://api.akii.com/functions/v1/super-action/test-env';
@@ -241,7 +494,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
-                        'x-api-key': apiKey
+                        'x-api-key': authToken
                     }
                 });
                 
@@ -265,7 +518,7 @@
                         headers: {
                             'Content-Type': 'application/json',
                             'Accept': 'application/json',
-                            'Authorization': `Bearer ${apiKey}`
+                            'Authorization': `Bearer ${authToken}`
                         }
                     });
                     
@@ -319,9 +572,13 @@
                 
                 // Display result
                 resultElement.textContent = JSON.stringify(result, null, 2);
+                
+                // Add success/error class
+                resultElement.className = result.success ? 'success' : 'error';
             } catch (error) {
                 console.error('Error running test:', error);
                 document.getElementById('result').textContent = `Error: ${error.message}`;
+                document.getElementById('result').className = 'error';
             }
         }
         
@@ -333,15 +590,41 @@
                 document.getElementById('apiKey').placeholder = 'API key found in localStorage';
             }
             
+            const savedJwt = localStorage.getItem('jwt-token');
+            if (savedJwt) {
+                document.getElementById('jwtToken').placeholder = 'JWT token found in localStorage';
+            }
+            
+            const savedProjectRef = localStorage.getItem('supabase-project-ref');
+            if (savedProjectRef) {
+                document.getElementById('projectRef').placeholder = 'Project ref found: ' + savedProjectRef;
+            }
+            
             // Set saved URLs
             const savedUrl = localStorage.getItem('edge-function-url');
             if (savedUrl) {
                 document.getElementById('endpointUrl').value = savedUrl;
+            } else if (savedProjectRef) {
+                // Try to build URL if we have project ref
+                const testEndpoint = localStorage.getItem('test-endpoint') || 'test-env';
+                document.getElementById('endpointUrl').value = `https://${savedProjectRef}.supabase.co/functions/v1/bedrock/${testEndpoint}`;
             }
             
             const savedSuperAction = localStorage.getItem('super-action-url');
             if (savedSuperAction) {
                 document.getElementById('superAction').value = savedSuperAction;
+            }
+            
+            // Set saved auth method
+            const savedAuthMethod = localStorage.getItem('auth-method');
+            if (savedAuthMethod) {
+                document.getElementById('authMethod').value = savedAuthMethod;
+            }
+            
+            // Set saved test endpoint
+            const savedTestEndpoint = localStorage.getItem('test-endpoint');
+            if (savedTestEndpoint) {
+                document.getElementById('testEndpoint').value = savedTestEndpoint;
             }
         };
     </script>
