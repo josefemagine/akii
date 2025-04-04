@@ -10,23 +10,26 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { AlertCircle, CheckCircle2, BarChart3 } from "lucide-react";
+import { User } from "@/types/custom-types";
 
 interface SubscriptionUsageProps {
   className?: string;
 }
 
 export function SubscriptionUsage({ className }: SubscriptionUsageProps) {
-  const { user } = useAuth();
-
+  const { user: authUser } = useAuth();
+  const user = authUser as User | null;
+  
   // Default values if user data is not available
-  const messagesUsed = user?.subscription?.messages_used || 0;
-  const messageLimit = user?.subscription?.message_limit || 1000;
-  const plan = user?.subscription?.plan || "free";
-  const status = user?.subscription?.status || "active";
-  const renewsAt = user?.subscription?.renews_at
-    ? new Date(user.subscription.renews_at)
+  const subscription = user?.subscription || null;
+  const messagesUsed = subscription?.messages_used || 0;
+  const messageLimit = subscription?.message_limit || 1000;
+  const plan = subscription?.plan || "free";
+  const status = subscription?.status || "active";
+  const renewsAt = subscription?.renews_at
+    ? new Date(subscription.renews_at)
     : null;
-  const addons = user?.subscription?.addons || {};
+  const addons = subscription?.addons || {};
 
   // Calculate usage percentage
   const usagePercentage = Math.min(

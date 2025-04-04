@@ -1,12 +1,61 @@
 /**
  * SUPABASE CLIENT MODULE
+ * Singleton module that provides access to the Supabase client instance
+ */
+
+import { createClient } from '@supabase/supabase-js';
+import { isBrowser } from './browser-check';
+
+// Access environment variables with fallbacks
+// Check window.ENV first (for deployment) then import.meta.env (for local dev)
+const getEnv = (key: string): string => {
+  if (isBrowser && typeof window !== 'undefined' && window.ENV && window.ENV[key]) {
+    return window.ENV[key];
+  }
+  return (import.meta.env[key] as string) || '';
+};
+
+// Supabase project URL and anonymous key
+const supabaseUrl = getEnv('VITE_SUPABASE_URL') || 'https://your-project.supabase.co';
+const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY') || '';
+
+// Validate the required environment variables
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables. Make sure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.');
+}
+
+// Create a single instance of the Supabase client
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: isBrowser, // Only persist session in browsers
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
+
+// Export the Supabase instances
+export default supabase;
+export const auth = supabase.auth;
+
+// Debug helper
+export function logSupabaseClientInfo() {
+  console.log('Supabase client initialized with URL:', supabaseUrl);
+  
+  return {
+    url: supabaseUrl,
+    hasAnonKey: !!supabaseAnonKey,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * SUPABASE CLIENT MODULE
  * 
  * This module re-exports the supabase client from the singleton implementation.
  * It provides convenience methods but does NOT create its own client instance.
  */
 
 import { User } from "@supabase/supabase-js";
-import { supabase } from "./supabase-singleton";
 
 // Standard interface for user profiles
 export interface UserProfile {
@@ -163,6 +212,3 @@ export async function updateProfile(updates: Partial<UserProfile>): Promise<User
 export function onAuthStateChange(callback: (event: string, session: any) => void) {
   return supabase.auth.onAuthStateChange(callback);
 }
-
-// Re-export the supabase client
-export default supabase;

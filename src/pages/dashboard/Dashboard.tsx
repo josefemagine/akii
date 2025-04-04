@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card";
 import { fetchAnalyticsData } from "@/lib/api";
 import type { AnalyticsData } from "@/lib/api";
-import { dashboardStyles } from "@/components/layout/DashboardPageContainer";
+import { dashboardStyles, DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DashboardSection } from "@/components/layout/DashboardSection";
 import { useAuth } from "@/contexts/auth-compatibility";
@@ -341,7 +341,7 @@ const Dashboard = () => {
 
   // Determine which component to render based on current state
   // Use conditional rendering instead of multiple returns for better performance
-  return useMemo(() => {
+  const content = useMemo(() => {
     // Show error state but with data
     if (error && analyticsData) {
       return <ErrorState error={error} analyticsData={analyticsData} />;
@@ -360,6 +360,13 @@ const Dashboard = () => {
     // Show main content
     return <DashboardContent analyticsData={analyticsData} />;
   }, [error, analyticsData, loading, renderAttempt]);
+
+  // Wrap all rendered content in the DashboardPageContainer for consistent width and styling
+  return (
+    <DashboardPageContainer>
+      {content}
+    </DashboardPageContainer>
+  );
 };
 
 export default Dashboard;

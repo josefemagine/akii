@@ -1,17 +1,17 @@
 export type TeamMemberRole = "owner" | "admin" | "member" | "viewer";
-export type UserRole = "user" | "admin" | "moderator";
-export type UserStatus = "active" | "inactive" | "suspended" | "pending";
+export type UserRole = "user" | "admin" | "moderator" | "owner" | "editor" | null;
+export type UserStatus = "active" | "inactive" | "suspended" | "pending" | null;
 export type AIInstanceStatus = "active" | "inactive" | "archived";
 
-export interface User {
-  id: string;
-  email?: string;
-  app_metadata?: Record<string, any>;
-  user_metadata?: Record<string, any>;
-  aud?: string;
-  created_at?: string;
-  role?: string;
-  subscription?: Subscription;
+// Import the User type from Supabase
+import type { User as SupabaseUser } from "@supabase/supabase-js";
+
+// Extend the Supabase User type
+export interface User extends SupabaseUser {
+  role?: UserRole;
+  status?: UserStatus;
+  subscription: Subscription | null;
+  isAdmin?: boolean;
 }
 
 export interface UserProfile {
@@ -70,5 +70,6 @@ export interface Subscription {
   renews_at: string;
   trial_ends_at?: string;
   addons?: Record<string, any>;
+  payment_method?: string;
 }
 

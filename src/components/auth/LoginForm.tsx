@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useAuth } from "@/contexts/AuthContext";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2 } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -14,29 +13,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast";
+import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
 
-const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-});
+interface LoginFormProps {
+  signInWithGoogle: () => Promise<void>;
+}
 
-type LoginFormValues = z.infer<typeof loginSchema>;
-
-export default function LoginForm() {
+const LoginForm: React.FC<LoginFormProps> = ({ signInWithGoogle }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signIn, signInWithGoogle } = useAuth();
-
-  // For debugging
-  useEffect(() => {
-    console.log("Auth context loaded:", !!signIn, !!signInWithGoogle);
-  }, [signIn, signInWithGoogle]);
+  const { signIn } = useSupabaseAuth();
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,22 +47,23 @@ export default function LoginForm() {
       localStorage.setItem("login-attempt-time", Date.now().toString());
       localStorage.setItem("login-attempt-email", email);
 
-      const { data, error } = await signIn(email, password);
-
-      if (error) {
-        console.error("Login error:", error);
-        setError(error.message);
+      const result = await signIn(email, password);
+      
+      if (result.error) {
+        console.error("Login error:", result.error);
+        setError(result.error.message);
         localStorage.removeItem("login-attempt");
-      } else {
+      } else if (result.data) {
+        const userData = result.data.user;
         console.log(
           "Login successful, user data:",
-          data?.user ? "User exists" : "No user data",
+          userData ? "User exists" : "No user data",
         );
 
         // Store user email and ID for backup recovery
-        if (data?.user) {
+        if (userData) {
           localStorage.setItem("akii-auth-user-email", email);
-          localStorage.setItem("akii-auth-user-id", data.user.id);
+          localStorage.setItem("akii-auth-user-id", userData.id);
           localStorage.setItem("akii-auth-timestamp", Date.now().toString());
         }
 
@@ -240,4 +231,6 @@ export default function LoginForm() {
       </CardFooter>
     </Card>
   );
-}
+};
+
+export default LoginForm;

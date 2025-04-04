@@ -15,7 +15,6 @@ import {
   // Types
   User,
   Session,
-  UserProfile,
   UserRole,
   UserStatus,
   SupabaseResponse,
@@ -42,6 +41,7 @@ import {
   clearStoredAuth,
   verifyConnection
 } from "@/lib/auth-core";
+import { UserProfile } from "@/lib/auth-helpers";
 
 // State interface
 interface AuthState {
@@ -305,7 +305,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: user.email || "",
           first_name: user.user_metadata?.first_name || "",
           last_name: user.user_metadata?.last_name || "",
-          company: user.user_metadata?.company || "",
           role: "user",
           status: "active",
           created_at: new Date().toISOString(),

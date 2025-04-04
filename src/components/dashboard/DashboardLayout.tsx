@@ -69,7 +69,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [networkBanner, setNetworkBanner] = useState(false);
   
   // Use both contexts for a smooth transition
-  const { profile, isLoading, refreshAuthState } = useDirectAuth();
+  const { profile, isLoading, refreshAuthState, user } = useDirectAuth();
   const compatAuth = useAuth();
   
   const navigate = useNavigate();
@@ -124,7 +124,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       if (!profile) {
         console.log("DashboardLayout: No profile detected, ensuring profile exists");
         try {
-          const { data: profileData, error } = await ensureProfileExists();
+          // Get the current user ID from auth context
+          const currentUserId = user?.id;
+          const { data: profileData, error } = await ensureProfileExists(currentUserId);
           
           if (profileData) {
             console.log("DashboardLayout: Profile created or found successfully:", profileData);
@@ -135,7 +137,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             // If we couldn't create the profile, let's try one more time
             setTimeout(async () => {
               console.log("DashboardLayout: Retrying profile creation");
-              const retryResult = await ensureProfileExists();
+              const retryResult = await ensureProfileExists(currentUserId);
               if (retryResult.data) {
                 console.log("DashboardLayout: Profile retry successful:", retryResult.data);
                 refreshAuthState();
@@ -153,7 +155,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     };
     
     verifyUserProfile();
-  }, [profile, refreshAuthState]);
+  }, [profile, refreshAuthState, user?.id]);
   
   // Verify auth state periodically
   useEffect(() => {

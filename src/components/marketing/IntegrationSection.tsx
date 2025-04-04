@@ -150,31 +150,31 @@ export const IntegrationSection: React.FC = () => {
     {
       icon: <Monitor className="h-6 w-6" />,
       title: "Web Chat",
-      description: "Deploy a branded AI chat widget on your website in minutes.",
+      description: "Boost conversions and resolve questions instantly with a branded AI chat widget trained on your products & services.",
       learnMoreLink: "/products/web-chat"
     },
     {
       icon: <Smartphone className="h-6 w-6" />,
       title: "Mobile Chat",
-      description: "Connect your AI to iOS and Android apps via SDK or API.",
+      description: "Power your mobile apps with AI trained on your data — connect via SDK or API.",
       learnMoreLink: "/products/mobile-chat"
     },
     {
       icon: <MessageCircle className="h-6 w-6" />,
       title: "WhatsApp",
-      description: "Launch private AI-powered conversations in WhatsApp.",
+      description: "Deliver smart, instant support on WhatsApp Business — powered by your custom-trained AI.",
       learnMoreLink: "/products/whatsapp-chat"
     },
     {
       icon: <Send className="h-6 w-6" />,
       title: "Telegram",
-      description: "Create public or private Telegram bots powered by your AI.",
+      description: "Support customers, drive sales, and grow communities with AI-powered Telegram bots.",
       learnMoreLink: "/products/telegram-chat"
     },
     {
       icon: <ShoppingBag className="h-6 w-6" />,
       title: "Shopify App",
-      description: "Boost sales with product-aware sales and support chat on your Shopify store.",
+      description: "AI chat that knows your products, supports your customers, and grows your Shopify sales.",
       learnMoreLink: "/products/shopify-chat"
     },
     {
@@ -186,7 +186,7 @@ export const IntegrationSection: React.FC = () => {
     {
       icon: <Share className="h-6 w-6" />,
       title: "Zapier",
-      description: "Connect your AI to thousands of apps via Zapier automations and workflows.",
+      description: "Connect 8,000+ data sources via Zapier to train your AI on the tools your business already uses.",
       learnMoreLink: "/products/integrations/zapier"
     },
     {
@@ -226,11 +226,11 @@ export const IntegrationSection: React.FC = () => {
       <div className="container px-4 md:px-6 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Your AI. Plug & Play Across Web, Mobile, and More.
+            Private AI, trained on your data. Deployed anywhere.
           </h2>
           <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-            Easily deploy your private AI Instance across all major platforms — including Web, Mobile, WhatsApp, 
-            Telegram, Shopify, WordPress, and REST API — with no complex setup required.
+            Easily deploy your private AI instance across all major platforms — including Web, Mobile, WhatsApp, 
+            Telegram, Shopify, WordPress, Zapier, n8n, and REST API — with no complex setup required.
           </p>
         </div>
         

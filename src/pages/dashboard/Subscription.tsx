@@ -13,9 +13,11 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, CreditCard, ArrowRight, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { User } from "@/types/custom-types";
 
 const SubscriptionPage = () => {
-  const { user, isAdmin } = useAuth();
+  const { user: authUser, isAdmin } = useAuth();
+  const user = authUser as User | null;
   const currentPlan = user?.subscription?.plan || "free";
 
   // If user is admin, show special message

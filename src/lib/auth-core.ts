@@ -25,14 +25,14 @@ import { signInWithOAuth } from './supabase-auth';
 export type User = SupabaseUser;
 export type Session = SupabaseSession;
 
-export type UserRole = "user" | "admin" | "moderator";
-export type UserStatus = "active" | "inactive" | "suspended" | "pending";
+export type UserRole = "user" | "admin" | "moderator" | "owner" | "editor" | null;
+export type UserStatus = "active" | "inactive" | "suspended" | "pending" | null;
 
 export interface UserProfile {
   id: string;
   email: string;
-  role?: UserRole;
-  status?: UserStatus;
+  role: UserRole;
+  status: UserStatus;
   first_name?: string;
   last_name?: string;
   company?: string;

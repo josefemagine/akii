@@ -25,8 +25,8 @@ type SupabaseSignInResponse = { data: { user: User | null; session: Session | nu
 type SupabaseSignUpResponse = { data: { user: User | null; session: Session | null }, error: Error | null };
 
 // User profile related types
-export type UserRole = 'user' | 'admin' | 'moderator';
-export type UserStatus = 'active' | 'inactive' | 'suspended' | 'pending';
+export type UserRole = 'user' | 'admin' | 'moderator' | 'owner' | 'editor' | null;
+export type UserStatus = 'active' | 'inactive' | 'suspended' | 'pending' | null;
 
 export interface UserProfile {
   id: string;

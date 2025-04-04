@@ -1,6 +1,7 @@
 import React from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import SubscriptionPlanCard from "./SubscriptionPlanCard";
+import { User } from "@/types/custom-types";
 
 type SubscriptionPlansProps = {
   onSelectPlan: (planId: string) => void;
@@ -9,7 +10,8 @@ type SubscriptionPlansProps = {
 export default function SubscriptionPlans({
   onSelectPlan,
 }: SubscriptionPlansProps) {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  const user = authUser as User | null;
   const currentPlan = user?.subscription?.plan || "free";
 
   const plans = [

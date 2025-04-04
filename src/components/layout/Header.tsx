@@ -323,8 +323,8 @@ const Header = ({}: HeaderProps) => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <NavLink href="/plans">Plans</NavLink>
           <NavLink href="/blog">Blog</NavLink>
-          <NavLink href="/pricing">Pricing</NavLink>
         </nav>
 
         <div className="flex items-center gap-2">

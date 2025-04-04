@@ -8,11 +8,34 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { Subscription } from "@/types/subscription";
+import { User } from "@/types/custom-types";
+import { Subscription } from "@/types/custom";
 
 export default function SubscriptionUsageDisplay() {
-  const { user } = useAuth();
-  const subscription = user?.subscription as Subscription;
+  const { user: authUser } = useAuth();
+  const user = authUser as User | null;
+  const subscription = user?.subscription || null;
+
+  // If no subscription data is available, show a default view
+  if (!subscription) {
+    return (
+      <Card className="border border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xl">Subscription Usage</CardTitle>
+          <CardDescription>No subscription data available</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Message Usage</span>
+              <span>0 / 0</span>
+            </div>
+            <Progress value={0} className="h-2" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Calculate usage percentage
   const usagePercentage = Math.min(

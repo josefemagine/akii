@@ -9,8 +9,9 @@ import React, {
 import { isBrowser, safeStorage } from "@/lib/browser-check";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
-import type { Session } from "@supabase/supabase-js";
-import type { User } from "@/types/custom";
+import type { Session, AuthError } from "@supabase/supabase-js";
+import type { User, UserRole, UserStatus, Subscription } from "@/types/custom";
+import type { UserProfile } from "@/lib/auth-helpers";
 
 // Import everything from supabase-core
 import {
@@ -27,9 +28,6 @@ import {
   setUserStatus,
   checkUserStatus,
   // Types
-  type UserProfile,
-  type UserRole,
-  type UserStatus,
   type AuthResponse,
 } from "@/lib/supabase-core";
 
@@ -67,12 +65,12 @@ export interface AuthContextType {
   signIn: (
     email: string,
     password: string,
-  ) => Promise<{ data: any | null; error: Error | null }>;
+  ) => Promise<{ error: AuthError | null }>;
   signUp: (
     email: string,
     password: string,
     metadata?: any,
-  ) => Promise<{ data: any | null; error: Error | null }>;
+  ) => Promise<{ error: AuthError | null }>;
   signInWithGoogle: () => Promise<{ data: any | null; error: Error | null }>;
   verifyOtp: (
     email: string,
@@ -94,6 +92,7 @@ export interface AuthContextType {
   updatePassword: (
     password: string,
   ) => Promise<{ data: any | null; error: Error | null }>;
+  refreshSession: () => Promise<void>;
 }
 
 const AdminEmailList = [
@@ -445,27 +444,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (
     email: string,
     password: string,
-  ): Promise<{ data: any | null; error: Error | null }> => {
+  ): Promise<{ error: AuthError | null }> => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
       console.log("AuthContext: Signing in user", email);
 
-      const response = await authSignIn(email, password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-      if (response.error) {
-        console.error("AuthContext: Sign-in error", response.error);
+      if (error) {
+        console.error("AuthContext: Sign-in error", error);
         setState((prev) => ({
           ...prev,
           isLoading: false,
-          error: response.error,
+          error: error,
         }));
-        return response;
+        return { error };
       }
 
-      console.log("AuthContext: Sign-in successful", response.data);
+      console.log("AuthContext: Sign-in successful");
       // If sign-in successful, user state will be updated by the auth listener
       setState((prev) => ({ ...prev, isLoading: false }));
-      return response;
+      return { error };
     } catch (error) {
       console.error("Sign-in error:", error);
       setState((prev) => ({
@@ -474,10 +476,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error: error instanceof Error ? error : new Error(String(error)),
       }));
       // Return proper format with null data and the error
-      return {
-        data: null,
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
+      return { error: error as AuthError };
     }
   };
 
@@ -486,26 +485,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
     metadata?: any,
-  ): Promise<{ data: any | null; error: Error | null }> => {
+  ): Promise<{ error: AuthError | null }> => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
 
-      const response = await authSignUp(email, password, metadata);
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: metadata,
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
 
-      setState((prev) => ({ ...prev, isLoading: false }));
-
-      if (response.error) {
-        return { data: null, error: response.error };
+      if (error) {
+        console.error("Sign-up error:", error);
+        setState((prev) => ({ ...prev, isLoading: false }));
+        return { error };
       }
 
-      return { data: response.data, error: null };
+      toast({
+        title: "Account created!",
+        description: "Please check your email to verify your account."
+      });
+
+      setState((prev) => ({ ...prev, isLoading: false }));
+      return { error };
     } catch (error) {
       console.error("Sign-up error:", error);
       setState((prev) => ({ ...prev, isLoading: false }));
-      return {
-        data: null,
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
+      return { error: error as AuthError };
     }
   };
 
@@ -634,7 +643,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Now call Supabase signOut
-      const { error } = await auth.signOut();
+      const { error } = await supabase.auth.signOut();
       
       if (error) {
         console.error("AuthContext: Error from Supabase auth.signOut():", error);
@@ -813,6 +822,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Function to manually refresh the session
+  const refreshSession = async () => {
+    try {
+      const { data } = await supabase.auth.refreshSession();
+      setState((prev) => ({ ...prev, session: data.session }));
+      setState((prev) => ({ ...prev, user: data.session?.user || null }));
+      
+      if (data.session?.user) {
+        await checkAdminStatus();
+      }
+    } catch (error) {
+      console.error('Error refreshing session:', error);
+    }
+  };
+
   // Create context value
   const value = {
     user: state.user,
@@ -834,6 +858,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAdminStatus,
     bypassAdminCheck,
     updatePassword,
+    refreshSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

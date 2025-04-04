@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import AnimatedText from "@/components/animations/AnimatedText";
 import DataFlowAnimation from "@/components/animations/DataFlowAnimation";
 import IntegrationSection from "@/components/marketing/IntegrationSection";
 import { useAuth } from "@/contexts/auth-compatibility";
+import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
 import LoginModal from "@/components/auth/LoginModal";
 import {
   Zap,
@@ -56,49 +58,77 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
   const [typedText2, setTypedText2] = React.useState("");
   const [typedText3, setTypedText3] = React.useState("");
   const [isLoginModalOpen, setIsLoginModalOpen] = React.useState(false);
+  const [showSubElements, setShowSubElements] = React.useState(false);
   const fullText1 = "Your AI.";
   const fullText2 = "Your Data.";
-  const fullText3 = "No Leaks.";
+  const fullText3 = "Plug. Play. Perform.";
   
   React.useEffect(() => {
-    // Animate first line
-    let i = 0;
-    const typeTimer1 = setInterval(() => {
-      if (i < fullText1.length) {
-        setTypedText1(fullText1.substring(0, i + 1));
-        i++;
-      } else {
-        clearInterval(typeTimer1);
-        
-        // Start animating second line
-        let j = 0;
-        const typeTimer2 = setInterval(() => {
-          if (j < fullText2.length) {
-            setTypedText2(fullText2.substring(0, j + 1));
-            j++;
-          } else {
-            clearInterval(typeTimer2);
-            
-            // Start animating third line
-            let k = 0;
-            const typeTimer3 = setInterval(() => {
-              if (k < fullText3.length) {
-                setTypedText3(fullText3.substring(0, k + 1));
-                k++;
-              } else {
-                clearInterval(typeTimer3);
+    let typeTimer1: number | null = null;
+    let typeTimer2: number | null = null;
+    let typeTimer3: number | null = null;
+    
+    setTypedText1('');
+    setTypedText2('');
+    setTypedText3('');
+    setShowSubElements(false);
+    
+    // Type first line
+    typeTimer1 = window.setInterval(() => {
+      setTypedText1((prev) => {
+        const nextText = fullText1.slice(0, prev.length + 1);
+        if (nextText === fullText1) {
+          clearInterval(typeTimer1!);
+          
+          // Type second line after a small delay
+          typeTimer2 = window.setInterval(() => {
+            setTypedText2((prev) => {
+              const nextText = fullText2.slice(0, prev.length + 1);
+              if (nextText === fullText2) {
+                clearInterval(typeTimer2!);
+                
+                // Type third line after a small delay
+                typeTimer3 = window.setInterval(() => {
+                  setTypedText3((prev) => {
+                    const nextText = fullText3.slice(0, prev.length + 1);
+                    if (nextText === fullText3) {
+                      clearInterval(typeTimer3!);
+                      // Show subtitle and button after a small delay
+                      setTimeout(() => {
+                        setShowSubElements(true);
+                      }, 300);
+                    }
+                    return nextText;
+                  });
+                }, 100);
               }
-            }, 100);
-          }
-        }, 100);
-      }
+              return nextText;
+            });
+          }, 100);
+        }
+        return nextText;
+      });
     }, 100);
     
     return () => {
       // Cleanup timers
-      clearInterval(typeTimer1);
+      if (typeTimer1) clearInterval(typeTimer1);
+      if (typeTimer2) clearInterval(typeTimer2);
+      if (typeTimer3) clearInterval(typeTimer3);
     };
-  }, []);
+  }, [fullText1, fullText2, fullText3]);
+
+  const fadeInUpVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: {
+        duration: 0.8,
+        ease: [0.22, 1, 0.36, 1] // Custom ease to make it smooth
+      }
+    }
+  };
 
   const handleOpenLoginModal = () => {
     setIsLoginModalOpen(true);
@@ -120,15 +150,25 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
                 <span>{typedText2}<span className={typedText2.length === fullText2.length || typedText2.length === 0 ? "opacity-0" : "animate-blink"}>|</span></span>
                 <span className="text-primary">{typedText3}<span className={typedText3.length === fullText3.length || typedText3.length === 0 ? "opacity-0" : "animate-blink"}>|</span></span>
               </h1>
-              <p className="max-w-[600px] text-muted-foreground text-xl">
-                Launch your own private AI instance, fully isolated and trained on your data — not anyone else's.
-              </p>
+              <motion.p 
+                className="max-w-[600px] text-muted-foreground text-xl"
+                initial="hidden"
+                animate={showSubElements ? "visible" : "hidden"}
+                variants={fadeInUpVariants}
+              >
+                Launch your own private AI — fully isolated, trained on your data, and ready for multi-platform deployment across web, mobile, and more.
+              </motion.p>
             </div>
             
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <motion.div 
+              className="flex flex-col gap-3 sm:flex-row"
+              initial="hidden"
+              animate={showSubElements ? "visible" : "hidden"}
+              variants={fadeInUpVariants}
+            >
               {user ? (
                 <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg py-6" asChild>
-                  <Link to="/dashboard">YOUR PRIVATE AI IN 5 MINUTES</Link>
+                  <Link to="/dashboard">LAUNCH A PRIVATE AI IN 5 MINUTES</Link>
                 </Button>
               ) : (
                 <>
@@ -137,14 +177,14 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
                     className="bg-primary hover:bg-primary/90 text-lg py-6"
                     onClick={handleOpenLoginModal}
                   >
-                    YOUR PRIVATE AI IN 5 MINUTES
+                    LAUNCH A PRIVATE AI IN 5 MINUTES
                   </Button>
                   <Button size="lg" variant="outline" asChild>
-                    <Link to="/pricing">See Pricing</Link>
+                    <Link to="/plans">See Plans</Link>
                   </Button>
                 </>
               )}
-            </div>
+            </motion.div>
           </div>
           <div className="flex items-center justify-center">
             <div className="relative w-full max-w-[500px] h-[380px] sm:h-[410px] md:h-[430px] rounded-lg shadow-xl overflow-hidden bg-transparent">
@@ -164,7 +204,7 @@ const DataPrivacySection = () => {
         <div className="flex flex-col items-center justify-center space-y-4 text-center mb-10">
           <div className="space-y-2 max-w-3xl">
             <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">
-              Data Privacy You Can Trust
+              Data privacy you can trust
             </h2>
             <p className="text-muted-foreground text-lg">
               Enterprise-grade security and isolation, ensuring your data remains yours alone.
@@ -325,24 +365,13 @@ const CoreFeaturesSection = () => {
     }
   ];
 
-  // App deployment tiles to showcase different channels
-  const deploymentApps = [
-    { icon: <Monitor className="h-6 w-6 text-primary" />, name: "Web Chat" },
-    { icon: <Smartphone className="h-6 w-6 text-primary" />, name: "Mobile" },
-    { icon: <MessageSquare className="h-6 w-6 text-primary" />, name: "WhatsApp" },
-    { icon: <Share2 className="h-6 w-6 text-primary" />, name: "Telegram" },
-    { icon: <ShoppingCart className="h-6 w-6 text-primary" />, name: "Shopify" },
-    { icon: <Globe className="h-6 w-6 text-primary" />, name: "WordPress" },
-    { icon: <Code className="h-6 w-6 text-primary" />, name: "API" }
-  ];
-
   return (
     <section className="py-16 md:py-24 bg-muted/10">
       <div className="container px-4 md:px-6">
         <div className="flex flex-col items-center justify-center space-y-4 text-center mb-10">
           <Badge variant="outline" className="border-primary/20 text-primary px-3 py-1">Features</Badge>
           <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">
-            Core Platform Capabilities
+            Core platform capabilities
           </h2>
           <p className="text-muted-foreground text-lg max-w-3xl">
             Everything you need to create, deploy, and maintain private AI instances trained on your data.
@@ -358,34 +387,6 @@ const CoreFeaturesSection = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
                 <p className="text-muted-foreground">{feature.description}</p>
-
-                {/* Add deployment app tiles only for the Multi-platform Deployment feature */}
-                {feature.title === "Built-in Apps & Integrations Ready to Launch" && (
-                  <div className="mt-4 overflow-hidden relative">
-                    <div className="animate-scroll flex py-2">
-                      {/* First set of icons - will be shown initially */}
-                      {deploymentApps.map((app, i) => (
-                        <div key={i} className="flex-shrink-0 flex flex-col items-center justify-center mx-4 first:ml-0">
-                          <div className="bg-muted/20 p-2 rounded-lg w-10 h-10 flex items-center justify-center">
-                            {app.icon}
-                          </div>
-                          <span className="text-xs mt-1 text-center whitespace-nowrap">{app.name}</span>
-                        </div>
-                      ))}
-                      {/* Duplicate icons twice to ensure smooth looping */}
-                      {[...Array(2)].map((_, dupIndex) => (
-                        deploymentApps.map((app, i) => (
-                          <div key={`dup-${dupIndex}-${i}`} className="flex-shrink-0 flex flex-col items-center justify-center mx-4">
-                            <div className="bg-muted/20 p-2 rounded-lg w-10 h-10 flex items-center justify-center">
-                              {app.icon}
-                            </div>
-                            <span className="text-xs mt-1 text-center whitespace-nowrap">{app.name}</span>
-                          </div>
-                        ))
-                      ))}
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
           ))}
@@ -429,137 +430,6 @@ const WhyAkiiSection = () => {
   );
 };
 
-const PricingSection = () => {
-  const pricingTiers = [
-    {
-      name: "Starter",
-      price: "$99",
-      period: "per month",
-      description: "For small businesses getting started with AI",
-      features: [
-        "1 Private AI Instance",
-        "10GB Data Storage",
-        "5,000 Chat Messages/month",
-        "Web Chat Integration",
-        "RAG-based Training",
-        "Email Support",
-        "Data Privacy Included"
-      ],
-      mostPopular: false,
-      ctaText: "Get Started"
-    },
-    {
-      name: "Pro",
-      price: "$299",
-      period: "per month",
-      description: "For growing businesses with moderate AI needs",
-      features: [
-        "3 Private AI Instances",
-        "50GB Data Storage",
-        "25,000 Chat Messages/month",
-        "Web, Mobile, WhatsApp Integration",
-        "RAG-based Training",
-        "Priority Support",
-        "Data Privacy Included",
-        "Advanced Analytics"
-      ],
-      mostPopular: true,
-      ctaText: "Get Started"
-    },
-    {
-      name: "Business",
-      price: "$699",
-      period: "per month",
-      description: "For larger organizations with advanced needs",
-      features: [
-        "10 Private AI Instances",
-        "200GB Data Storage",
-        "100,000 Chat Messages/month",
-        "All Integration Channels",
-        "RAG-based Training",
-        "24/7 Support",
-        "Data Privacy Included",
-        "Custom Training Schedule",
-        "Enterprise SSO"
-      ],
-      mostPopular: false,
-      ctaText: "Get Started"
-    },
-    {
-      name: "Enterprise",
-      price: "Custom",
-      period: "pricing",
-      description: "For organizations with specific security requirements",
-      features: [
-        "Unlimited AI Instances",
-        "Unlimited Storage",
-        "Unlimited Messages",
-        "All Integration Channels",
-        "Full Model Fine-tuning",
-        "Dedicated Support Manager",
-        "Data Privacy Included",
-        "Custom Security Controls",
-        "Dedicated Infrastructure",
-        "On-premises Option"
-      ],
-      mostPopular: false,
-      ctaText: "Contact Sales"
-    }
-  ];
-
-  return (
-    <section className="py-16 md:py-24 bg-background">
-      <div className="container px-4 md:px-6">
-        <div className="flex flex-col items-center justify-center space-y-4 text-center mb-10">
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">
-            Transparent, Simple Pricing
-          </h2>
-          <p className="text-muted-foreground text-lg max-w-3xl">
-            All plans include data privacy as standard. Choose the plan that works for your business needs.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {pricingTiers.map((tier, index) => (
-            <Card key={index} className={`flex flex-col ${tier.mostPopular ? 'border-primary shadow-md' : 'border-muted'}`}>
-              <CardHeader>
-                {tier.mostPopular && (
-                  <Badge className="self-start mb-2 bg-primary text-white">Most Popular</Badge>
-                )}
-                <CardTitle>{tier.name}</CardTitle>
-                <div className="mt-2">
-                  <span className="text-3xl font-bold">{tier.price}</span>
-                  <span className="text-muted-foreground text-sm ml-1">{tier.period}</span>
-                </div>
-                <CardDescription className="mt-2">{tier.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <ul className="space-y-2">
-                  {tier.features.map((feature, i) => (
-                    <li key={i} className="flex items-center">
-                      <CheckCircle className="h-5 w-5 text-primary mr-2 flex-shrink-0" />
-                      <span className="text-sm">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-              <CardFooter>
-                <Button 
-                  variant={tier.mostPopular ? "default" : "outline"} 
-                  className={`w-full ${tier.mostPopular ? 'bg-primary hover:bg-primary/90' : ''}`}
-                  asChild
-                >
-                  <Link to={tier.name === "Enterprise" ? "/contact" : "/signup"}>{tier.ctaText}</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
-
 const UseCasesSection = () => {
   const useCases = [
     {
@@ -589,7 +459,7 @@ const UseCasesSection = () => {
       <div className="container px-4 md:px-6">
         <div className="flex flex-col items-center justify-center space-y-4 text-center mb-10">
           <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">
-            Use Cases & Applications
+            Use cases & applications
           </h2>
           <p className="text-muted-foreground text-lg max-w-3xl">
             Discover how organizations are using Akii's private AI instances for secure, powerful solutions.
@@ -632,7 +502,7 @@ const CTASection = ({ user }: SectionWithUserProps) => {
         <div className="flex flex-col items-center text-center max-w-3xl mx-auto space-y-4">
           <Lock className="h-12 w-12 text-primary mb-2" />
           <h2 className="text-3xl font-bold tracking-tight md:text-4xl/tight">
-            Own Your AI — and Your Data
+            Own your AI — and your data
           </h2>
           <p className="text-lg text-muted-foreground">
             Take control of your AI strategy with a secure, private platform that keeps your data completely isolated.
@@ -664,109 +534,24 @@ interface LandingPageProps {
 }
 
 const LandingPage = ({ searchValue }: LandingPageProps) => {
-  const { user, isLoading, session } = useAuth();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { user, isLoading } = useSupabaseAuth();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const navigate = useNavigate();
   
-  // Listen for auth reset events from GlobalErrorHandler
-  useEffect(() => {
-    const handleAuthReset = () => {
-      console.log("LandingPage: Received auth reset event, refreshing state");
-      // Clear authentication state on reset
-      setIsAuthenticated(null);
-      // Force re-check on next render cycle
-      authCheckCompletedRef.current = false;
-    };
-    
-    window.addEventListener('akii:auth:reset', handleAuthReset);
-    
-    return () => {
-      window.removeEventListener('akii:auth:reset', handleAuthReset);
-    };
-  }, []);
-  
-  // Listen for login modal open events from components
-  useEffect(() => {
-    const handleOpenLogin = () => {
-      console.log("LandingPage: Received open login modal event");
-      setIsLoginModalOpen(true);
-    };
-    
-    window.addEventListener('akii:open:login', handleOpenLogin);
-    
-    return () => {
-      window.removeEventListener('akii:open:login', handleOpenLogin);
-    };
-  }, []);
-  
-  // Reduce dependency in logging to only essential state changes
-  useEffect(() => {
-    // Only log when loading completes and auth state has been determined
-    if (!isLoading && isAuthenticated !== null) {
-      // Limit frequency of logging to avoid console spam
-      console.log("LandingPage auth state:", { 
-        userId: user?.id,
-        isLogged: !!user,
-        isLoading,
-        isAuthenticated: isAuthenticated,
-        hasSession: !!session
-      });
-    }
-  }, [user?.id, isLoading, isAuthenticated, session]);
-
-  // Use a ref to track if we've completed an auth check to avoid multiple checks
-  const authCheckCompletedRef = useRef(false);
-  
-  // One-time auth check that only runs once auth loading is complete
-  useEffect(() => {
-    // Skip this check if we're still loading or have already set isAuthenticated
-    if (isLoading || authCheckCompletedRef.current) return;
-    
-    // Debounce the check to avoid rapid state changes
-    const timeoutId = setTimeout(() => {
-      const hasAuth = !!user || !!session;
-      setIsAuthenticated(hasAuth);
-      authCheckCompletedRef.current = true;
-      
-      if (!hasAuth) {
-        console.log("LandingPage: No valid user session found, treating as unauthenticated");
-      }
-    }, 100);
-    
-    return () => clearTimeout(timeoutId);
-  }, [user, session, isLoading]);
-
   // Memoize user state to prevent unnecessary re-renders
   const effectiveUserState = useMemo(() => {
     return user 
       ? { ...user, isAuthenticated: true } 
       : { id: null, isAuthenticated: false };
   }, [user]);
-  
-  // Handle redirect after authentication - with debounce to avoid flash
-  useEffect(() => {
-    // Only redirect once loading is complete and we have a user
-    if (!isLoading && user) {
-      // Small delay to ensure all auth state is settled before redirect
-      const redirectTimer = setTimeout(() => {
-        console.log('LandingPage: User is authenticated with real session, redirecting to dashboard');
-        navigate('/dashboard');
-      }, 50);
-      
-      return () => clearTimeout(redirectTimer);
-    }
-  }, [user, isLoading, navigate]);
 
   return (
     <>
       <HeroSection user={effectiveUserState} />
-      <DataPrivacySection />
-      <WhatIsAkiiSection />
-      <CoreFeaturesSection />
       <IntegrationSection />
+      <CoreFeaturesSection />
+      <WhatIsAkiiSection />
+      <DataPrivacySection />
       <WhyAkiiSection />
-      <PricingSection />
       <UseCasesSection />
       <CTASection user={effectiveUserState} />
       

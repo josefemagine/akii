@@ -140,7 +140,7 @@ const DataFlowAnimation = () => {
             variants={dataSourceVariants}
             className="text-white text-base font-medium mb-1 pb-[10px]"
           >
-            8000+ Integrations
+            8000+ Training Data Sources
           </motion.div>
 
           <div className="flex justify-center space-x-5 mb-2">

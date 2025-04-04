@@ -10,6 +10,7 @@ import {
 import { SearchProvider } from "./contexts/SearchContext";
 import { DirectAuthProvider } from "./contexts/direct-auth-context";
 import { AuthProvider } from "./contexts/auth-compatibility";
+import { SupabaseAuthProvider } from "./contexts/SupabaseAuthContext";
 
 // Import components
 import { EnvWarning } from "@/components/ui/env-warning";
@@ -63,6 +64,7 @@ const APIKeys = lazy(() => import("./pages/dashboard/APIKeys"));
 const Blog = lazy(() => import("./pages/Blog"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Pricing = lazy(() => import("./pages/Pricing"));
+const Plans = lazy(() => import("./pages/Plans"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const AuthCallback = lazy(() => import("./pages/auth/callback"));
@@ -156,8 +158,9 @@ export default function App() {
 
   return (
     <Suspense fallback={<LoadingScreen />}>
-      <DirectAuthProvider>
-        <AuthProvider>
+      <SupabaseAuthProvider>
+        <DirectAuthProvider>
+          <AuthProvider>
             <SearchProvider>
               <ScrollToTop />
               <EnvWarning />
@@ -173,6 +176,7 @@ export default function App() {
                 
                 {/* Public pages */}
                 <Route path="/pricing" element={<Suspense fallback={<LoadingFallback />}><Pricing /></Suspense>} />
+                <Route path="/plans" element={<Suspense fallback={<LoadingFallback />}><Plans /></Suspense>} />
                 <Route path="/blog" element={<Suspense fallback={<LoadingFallback />}><Blog /></Suspense>} />
                 <Route path="/contact" element={<Suspense fallback={<LoadingFallback />}><Contact /></Suspense>} />
                 <Route path="/privacy-policy" element={<Suspense fallback={<LoadingFallback />}><PrivacyPolicy /></Suspense>} />
@@ -197,28 +201,22 @@ export default function App() {
                 <Route path="/products/integrations/n8n" element={<Suspense fallback={<LoadingFallback />}><N8nIntegration /></Suspense>} />
                 
                 {/* Dashboard routes - protected */}
-                <Route path="/dashboard" element={<PrivateRoute><DashboardLayout><Dashboard /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/ai-instances" element={<PrivateRoute><DashboardLayout><Agents /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/settings" element={<PrivateRoute><DashboardLayout><Settings /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/web-chat" element={<PrivateRoute><DashboardLayout><WebChat /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/mobile-chat" element={<PrivateRoute><DashboardLayout><MobileChat /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/whatsapp-chat" element={<PrivateRoute><DashboardLayout><WhatsAppChat /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/telegram-chat" element={<PrivateRoute><DashboardLayout><TelegramChat /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/shopify-chat" element={<PrivateRoute><DashboardLayout><ShopifyChat /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/wordpress-chat" element={<PrivateRoute><DashboardLayout><WordPressChat /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/private-ai" element={<PrivateRoute><DashboardLayout><PrivateAI /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/billing" element={<PrivateRoute><DashboardLayout><Billing /></DashboardLayout></PrivateRoute>} />
-                <Route path="/dashboard/api-keys" element={<PrivateRoute><DashboardLayout><APIKeys /></DashboardLayout></PrivateRoute>} />
+                <Route path="/dashboard" element={<PrivateRoute><DashboardLayout /></PrivateRoute>}>
+                  <Route index element={<Dashboard />} />
+                  <Route path="ai-instances" element={<Agents />} />
+                  <Route path="settings" element={<Settings />} />
+                  <Route path="web-chat" element={<WebChat />} />
+                  <Route path="mobile-chat" element={<MobileChat />} />
+                  <Route path="whatsapp-chat" element={<WhatsAppChat />} />
+                  <Route path="telegram-chat" element={<TelegramChat />} />
+                  <Route path="shopify-chat" element={<ShopifyChat />} />
+                  <Route path="wordpress-chat" element={<WordPressChat />} />
+                  <Route path="private-ai" element={<PrivateAI />} />
+                  <Route path="billing" element={<Billing />} />
+                  <Route path="api-keys" element={<APIKeys />} />
+                </Route>
                 
                 {/* Admin routes */}
-                <Route path="/admin/dashboard" element={
-                  <PrivateRoute adminOnly={true}>
-                    <DashboardLayout isAdmin={true}>
-                      <AdminDashboard />
-                    </DashboardLayout>
-                  </PrivateRoute>
-                } />
-                
                 <Route path="/admin" element={
                   <PrivateRoute adminOnly={true}>
                     <DashboardLayout isAdmin={true}>
@@ -226,6 +224,7 @@ export default function App() {
                     </DashboardLayout>
                   </PrivateRoute>
                 }>
+                  <Route path="dashboard" element={<AdminDashboard />} />
                   <Route path="users" element={<AdminUsers />} />
                   <Route path="settings" element={<AdminSettings />} />
                   <Route path="packages" element={<AdminPackages />} />
@@ -253,8 +252,9 @@ export default function App() {
               </Routes>
               <Toaster />
             </SearchProvider>
-        </AuthProvider>
-      </DirectAuthProvider>
+          </AuthProvider>
+        </DirectAuthProvider>
+      </SupabaseAuthProvider>
     </Suspense>
   );
 }
