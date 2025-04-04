@@ -571,7 +571,7 @@ const BedrockDashboard = () => {
                       <div>
                         <CardTitle>{instance.name}</CardTitle>
                         <CardDescription>
-                          Model: {instance.modelId.split('.')[1] || instance.modelId}
+                          Model: {instance.modelId && instance.modelId.includes('.') ? instance.modelId.split('.')[1] : instance.modelId}
                         </CardDescription>
                       </div>
                       <StatusBadge status={instance.status} />
@@ -596,7 +596,7 @@ const BedrockDashboard = () => {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Throughput:</span>{" "}
-                        <span className="font-medium">{instance.throughputName.split('-')[0]}</span>
+                        <span className="font-medium">{instance.throughputName ? instance.throughputName.split('-')[0] : 'Standard'}</span>
                       </div>
                     </div>
                   </CardContent>
