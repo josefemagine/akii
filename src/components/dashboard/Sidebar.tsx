@@ -52,6 +52,8 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
+  Cloud,
+  Box,
 } from "lucide-react";
 
 // Common sidebar link component
@@ -302,6 +304,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { to: "/admin/workflows", icon: <Workflow className="h-5 w-5" />, label: "Workflows" },
     { to: "/admin/n8n-workflows", icon: <Zap className="h-5 w-5" />, label: "n8n Workflows" },
     { to: "/admin/database-schema", icon: <Database className="h-5 w-5" />, label: "Database Schema" },
+    { to: "/admin/manage-instances", icon: <Cloud className="h-5 w-5" />, label: "AI Instances" },
+    { to: "/admin/bedrock", icon: <Box className="h-5 w-5" />, label: "Bedrock AI" },
     { to: "/admin/supabase-check", icon: <CheckCircle className="h-5 w-5" />, label: "Supabase Check" },
     { to: "/admin/admin-check", icon: <AlertTriangle className="h-5 w-5" />, label: "Admin Check" },
   ];
@@ -602,6 +606,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   isActive={currentPath.includes("/admin/workflows") || 
                             currentPath.includes("/admin/n8n-workflows") || 
                             currentPath.includes("/admin/database-schema") ||
+                            currentPath.includes("/admin/manage-instances") || 
+                            currentPath.includes("/admin/bedrock") ||
                             currentPath.includes("/admin/supabase-check") || 
                             currentPath.includes("/admin/admin-check")}
                   isCollapsed={isCollapsed}

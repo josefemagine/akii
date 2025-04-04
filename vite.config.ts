@@ -70,6 +70,39 @@ export default defineConfig({
   server: {
     // @ts-ignore
     allowedHosts: process.env.TEMPO === "true" ? true : undefined,
+    proxy: {
+      // Proxy API requests to avoid CORS issues during development
+      '/api/bedrock': {
+        target: 'https://www.akii.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/bedrock/, '/bedrock'),
+        secure: false,
+        headers: {
+          'Origin': 'https://www.akii.com',
+          'Referer': 'https://www.akii.com/'
+        },
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('Proxy error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Proxying:', req.method, req.url, '->', proxyReq.path);
+            // Add the host header
+            proxyReq.setHeader('Host', 'www.akii.com');
+            
+            // Preserve the original headers
+            Object.keys(req.headers).forEach(key => {
+              if (key !== 'host' && req.headers[key] !== undefined) {
+                proxyReq.setHeader(key, req.headers[key] as string);
+              }
+            });
+          });
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            console.log('Received response:', proxyRes.statusCode, req.url);
+          });
+        }
+      }
+    }
   },
   define: {
     __WS_TOKEN__: JSON.stringify("development"),

@@ -1,13 +1,12 @@
-import UnifiedDashboardLayout from './UnifiedDashboardLayout';
+import DashboardLayout from '../dashboard/DashboardLayout';
 import MainLayout from './MainLayout';
 import { DashboardPageContainer } from './DashboardPageContainer';
 
-// Export the new unified dashboard layout as the primary export
-export { UnifiedDashboardLayout, MainLayout, DashboardPageContainer };
+// Export the dashboard layout components
+export { DashboardLayout, MainLayout, DashboardPageContainer };
 
-// Also export the unified dashboard as default and as DashboardLayout for backwards compatibility
-export { UnifiedDashboardLayout as DashboardLayout };
-export default UnifiedDashboardLayout;
+// Export DashboardLayout as the default export for backwards compatibility
+export default DashboardLayout;
 
 export { PageHeader } from './PageHeader';
 export { DashboardSection } from './DashboardSection'; 

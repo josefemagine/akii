@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/StandardAuthContext';
+import { useAuth } from '@/contexts/auth-compatibility';
+import { useDirectAuth } from '@/contexts/direct-auth-context';
+import { isLoggedIn } from '@/lib/direct-db-access';
 import { getSessionSafely, forceSessionCheck, forceUserCheck } from '@/lib/auth-lock-fix';
 import { debounce } from 'lodash';
 
@@ -36,9 +38,10 @@ const SESSION_CHECK_CACHE_MS = 2000; // Cache session check results for 2 second
 export const PrivateRoute: React.FC<PrivateRouteProps> = ({
   children,
   adminOnly = false,
-  redirectTo = '/auth/login',
+  redirectTo = '/login',
 }) => {
-  const auth = useAuth();
+  const compatAuth = useAuth();
+  const directAuth = useDirectAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isValidating, setIsValidating] = useState(false);
@@ -47,40 +50,185 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
   const lastValidationTimeRef = useRef<number>(0);
   const validationCount = useRef(0);
   const componentMounted = useRef(true);
+  const firstRender = useRef(true);
   
-  // Keep track of authentication state within the component
-  const authStateRef = useRef({
-    hasUser: Boolean(auth.user),
-    userId: auth.user?.id,
-    hasSession: Boolean(auth.session),
-    isLoading: auth.isLoading,
-    isValidatingSession: isValidating
-  });
+  // Check if we're already at the login page to prevent loops
+  const isLoginPage = location.pathname === '/login';
   
-  // Centralize auth state tracking to reduce re-renders
+  // Determine effective auth state by checking both auth systems
+  const effectiveAuthState = {
+    // Prioritize direct auth over compatibility layer
+    hasUser: Boolean(directAuth.user) || Boolean(compatAuth.user),
+    userId: directAuth.user?.id || compatAuth.user?.id,
+    hasProfile: Boolean(directAuth.profile) || false,
+    isAdmin: directAuth.isAdmin || compatAuth.isAdmin || false,
+    isLoading: directAuth.isLoading || compatAuth.isLoading
+  };
+  
+  // Log initial auth state
   useEffect(() => {
-    const newState = {
-      hasUser: Boolean(auth.user),
-      userId: auth.user?.id,
-      hasSession: Boolean(auth.session),
-      isLoading: auth.isLoading,
-      isValidatingSession: isValidating
-    };
+    console.log('PrivateRoute: Initial auth state', {
+      ...effectiveAuthState,
+      currentPath: location.pathname,
+      isLoginPage
+    });
     
-    // Only log state changes that would affect the routing decision
-    // and limit log frequency to reduce spam
-    const hasRelevantChanges = 
-      newState.hasUser !== authStateRef.current.hasUser ||
-      newState.hasSession !== authStateRef.current.hasSession ||
-      (newState.isLoading !== authStateRef.current.isLoading && !newState.isLoading);
+    firstRender.current = false;
+  }, []);
+  
+  // Check if we're on the wrong port
+  useEffect(() => {
+    // Skip if already on login page
+    if (isLoginPage) return;
     
-    if (hasRelevantChanges && !isValidating && !auth.isLoading) {
-      // Use a more concise log format
-      console.log(`PrivateRoute: Auth state updated - ${newState.hasUser ? 'User✓' : 'NoUser'} ${newState.hasSession ? 'Session✓' : 'NoSession'}`);
+    const currentPort = window.location.port;
+    const knownPorts = localStorage.getItem('akii-dev-ports');
+    
+    // Log port information
+    console.log('PrivateRoute: Port check', {
+      currentPort,
+      knownPorts: knownPorts ? JSON.parse(knownPorts) : null,
+      pathname: location.pathname
+    });
+    
+    // If we're on port 5187 (known wrong port), redirect to a known good port
+    if (currentPort === '5187' && import.meta.env.DEV) {
+      console.log('PrivateRoute: Detected wrong port 5187, redirecting');
+      
+      // Get the target port from localStorage if available
+      const runningInstances = localStorage.getItem('akii-dev-ports');
+      const targetPort = runningInstances ? JSON.parse(runningInstances)[0] : '5188';
+      
+      // Store the current path to redirect after login
+      localStorage.setItem('akii-redirect-after-login', location.pathname);
+      
+      // Create the correct URL
+      const correctUrl = window.location.href.replace(`:${currentPort}`, `:${targetPort}`);
+      
+      // Redirect to the correct port
+      window.location.href = correctUrl;
+    }
+  }, [location.pathname, isLoginPage]);
+  
+  // Direct check for login status as final fallback
+  const checkDirectLoginStatus = () => {
+    // Log storage state
+    console.log('PrivateRoute: AUTHENTICATION DEBUG - localStorage state:');
+    const allStorage = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        allStorage[key] = localStorage.getItem(key);
+      }
+    }
+    console.log(allStorage);
+    
+    // Ensure localStorage is initialized with defaults before checking
+    try {
+      // Initialize with default values if not set
+      if (!localStorage.getItem('akii-is-logged-in')) {
+        localStorage.setItem('akii-is-logged-in', 'false');
+      }
+      
+      if (!localStorage.getItem('akii-login-timestamp')) {
+        localStorage.setItem('akii-login-timestamp', '0');
+      }
+      
+      if (!localStorage.getItem('akii-session-duration')) {
+        localStorage.setItem('akii-session-duration', (8 * 60 * 60 * 1000).toString());
+      }
+    } catch (error) {
+      console.error('PrivateRoute: Error initializing localStorage', error);
     }
     
-    authStateRef.current = newState;
-  }, [auth.user, auth.session, auth.isLoading, isValidating]);
+    // Check for emergency login state first
+    const emergencyLogin = localStorage.getItem('akii-auth-emergency') === 'true';
+    if (emergencyLogin) {
+      console.log('PrivateRoute: Emergency login detected!');
+      const emergencyTimestamp = localStorage.getItem('akii-auth-emergency-time');
+      const emergencyUser = localStorage.getItem('akii-auth-fallback-user');
+      
+      // If emergency data is available, force login state
+      if (emergencyTimestamp && emergencyUser) {
+        console.log('PrivateRoute: Using emergency login credentials');
+        
+        // If emergency login was within the last hour, consider it valid
+        const currentTime = Date.now();
+        const timestamp = parseInt(emergencyTimestamp, 10);
+        if (!isNaN(timestamp) && (currentTime - timestamp) < (60 * 60 * 1000)) {
+          localStorage.setItem('akii-is-logged-in', 'true');
+          
+          // Extract user ID from emergency user data
+          try {
+            const userData = JSON.parse(emergencyUser);
+            if (userData && userData.id) {
+              console.log('PrivateRoute: Setting user ID from emergency data:', userData.id);
+            }
+          } catch (error) {
+            console.error('PrivateRoute: Error parsing emergency user data', error);
+          }
+          
+          return true;
+        } else {
+          console.log('PrivateRoute: Emergency login expired, clearing');
+          localStorage.removeItem('akii-auth-emergency');
+          localStorage.removeItem('akii-auth-emergency-time');
+        }
+      }
+    }
+    
+    // Check for login in progress state
+    const loginInProgress = localStorage.getItem('akii-login-in-progress') === 'true';
+    if (loginInProgress) {
+      console.log('PrivateRoute: Login in progress detected');
+      
+      // If there's a user ID, consider it valid during login process
+      const userId = localStorage.getItem('akii-auth-user-id');
+      if (userId) {
+        console.log('PrivateRoute: Using in-progress login state with user ID:', userId);
+        return true;
+      }
+    }
+    
+    // Check isLoggedIn function result
+    const loginStatus = isLoggedIn();
+    const userId = localStorage.getItem('akii-auth-user-id');
+    
+    console.log('PrivateRoute: Direct login check', { 
+      loginStatus, 
+      userId,
+      currentPath: location.pathname
+    });
+    
+    // Analyze individual criteria
+    const storedLoginFlag = localStorage.getItem('akii-is-logged-in');
+    const loginTimestampStr = localStorage.getItem('akii-login-timestamp');
+    
+    // Parse the timestamp safely
+    let loginTimestamp = 0;
+    if (loginTimestampStr && loginTimestampStr !== 'null') {
+      try {
+        loginTimestamp = parseInt(loginTimestampStr, 10);
+        if (isNaN(loginTimestamp)) loginTimestamp = 0;
+      } catch (error) {
+        console.error('PrivateRoute: Error parsing timestamp', error);
+      }
+    }
+    
+    const currentTime = Date.now();
+    const timeDiff = currentTime - loginTimestamp;
+    const sessionDuration = parseInt(localStorage.getItem('akii-session-duration') || '28800000', 10);
+    
+    console.log('PrivateRoute: AUTHENTICATION DEBUG - criteria analysis:', {
+      storedLoginFlag: storedLoginFlag === 'true',
+      hasTimestamp: loginTimestamp > 0,
+      hasUserId: !!userId,
+      sessionValid: timeDiff < sessionDuration,
+      allValid: storedLoginFlag === 'true' && loginTimestamp > 0 && !!userId && timeDiff < sessionDuration
+    });
+    
+    return loginStatus && !!userId;
+  };
   
   // Cleanup on unmount
   useEffect(() => {
@@ -92,349 +240,138 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
     };
   }, []);
   
-  // Reliable session check that safely reuses in-flight checks
-  const checkSessionReliably = async () => {
-    const now = Date.now();
-    
-    // Reuse cached session check if recent enough
-    if (pendingSessionCheck && (now - lastSessionCheckTime < SESSION_CHECK_CACHE_MS)) {
-      return pendingSessionCheck;
+  // Effect to validate auth and redirect if necessary
+  useEffect(() => {
+    // Skip validation if already at login page
+    if (isLoginPage) {
+      console.log('PrivateRoute: Already at login page, skipping validation');
+      setIsValid(true);
+      return;
     }
     
-    // Create a new session check and cache it
-    lastSessionCheckTime = now;
-    pendingSessionCheck = (async () => {
-      try {
-        // First try normal safe method
-        const sessionResult = await getSessionSafely();
-        
-        // If that fails, fall back to force check
-        if (sessionResult.error) {
-          return await forceSessionCheck();
-        }
-        
-        return sessionResult;
-      } catch (err) {
-        console.error('Session check failed with both methods:', err);
-        // Last resort attempt with direct force check
-        return await forceSessionCheck();
-      } finally {
-        // Clear pending check after a short delay to allow batching
-        setTimeout(() => {
-          pendingSessionCheck = null;
-        }, 100);
-      }
-    })();
+    // Skip repeated validations if already validated
+    if (isValid !== null) return;
     
-    return pendingSessionCheck;
-  };
-  
-  // Debounced validation function to prevent excessive auth checks
-  const validateAuthState = useRef(
-    debounce(async () => {
-      // Skip if already validating or if we validated very recently
-      const now = Date.now();
-      if (isValidating || (now - lastValidationTimeRef.current < 1000) || !componentMounted.current) {
-        return;
-      }
+    const validateAuth = async () => {
+      // Avoid multiple validations running simultaneously
+      if (isValidating) return;
+      
+      setIsValidating(true);
       
       try {
-        validationCount.current++;
-        lastValidationTimeRef.current = now;
-        setIsValidating(true);
+        console.log('PrivateRoute: Validating authentication, current path:', location.pathname);
         
-        // If we already have a user and session, we're good
-        if (auth.user && auth.session && !adminOnly) {
+        // First priority: Check Direct Auth (our new system)
+        console.log('PrivateRoute: Checking direct auth context:', { 
+          user: !!directAuth.user,
+          userId: directAuth.user?.id,
+          profile: !!directAuth.profile,
+          isLoading: directAuth.isLoading
+        });
+        
+        if (directAuth.user) {
+          console.log('PrivateRoute: User authenticated via Direct Auth');
+          
+          // If admin route, check admin status
+          if (adminOnly && !directAuth.isAdmin) {
+            console.log('PrivateRoute: User not an admin, redirecting from admin route');
+            setIsValid(false);
+            navigate('/dashboard', { replace: true });
+            return;
+          }
+          
           setIsValid(true);
           return;
         }
         
-        // If admin-only route, check admin status
-        if (adminOnly && (!auth.user || !auth.isAdmin)) {
-          setIsValid(false);
+        // Second priority: Check Compatibility Auth
+        console.log('PrivateRoute: Checking compatibility auth context:', { 
+          user: !!compatAuth.user,
+          session: !!compatAuth.session,
+          isLoading: compatAuth.isLoading
+        });
+        
+        if (compatAuth.user && compatAuth.session) {
+          console.log('PrivateRoute: User authenticated via Compatibility Auth');
+          
+          // If admin route, check admin status
+          if (adminOnly && !compatAuth.isAdmin) {
+            console.log('PrivateRoute: User not an admin (compat), redirecting from admin route');
+            setIsValid(false);
+            navigate('/dashboard', { replace: true });
+            return;
+          }
+          
+          setIsValid(true);
           return;
         }
         
-        // If auth is still loading, wait for it
-        if (auth.isLoading) {
-          // Set a timeout to prevent hanging indefinitely
-          if (validationTimeoutRef.current) {
-            clearTimeout(validationTimeoutRef.current);
-          }
+        // Third priority: Check direct login status via localStorage
+        console.log('PrivateRoute: Falling back to direct localStorage check');
+        const directLoginCheck = checkDirectLoginStatus();
+        
+        if (directLoginCheck) {
+          console.log('PrivateRoute: User authenticated via direct localStorage check');
           
-          validationTimeoutRef.current = setTimeout(() => {
-            if (!componentMounted.current) return;
-            
-            console.log('PrivateRoute: Auth validation timed out');
-            setIsValidating(false);
-            
-            // If we have a stale state, try force check
-            if (validationCount.current < 3) {
-              console.log('PrivateRoute: Using force check after timeout');
-              
-              Promise.all([
-                forceSessionCheck(),
-                forceUserCheck()
-              ]).then(([sessionResult, userResult]) => {
-                if (!componentMounted.current) return;
-                
-                const hasValidAuth = Boolean(
-                  sessionResult.data?.session && userResult.data?.user
-                );
-                setIsValid(hasValidAuth);
-              }).catch(() => {
-                if (!componentMounted.current) return;
-                setIsValid(false);
-              });
-            } else {
-              // After multiple attempts, make a decision based on what we have
-              setIsValid(Boolean(auth.user && auth.session));
-            }
-          }, 3000);
+          // Force refresh auth on next tick to synchronize contexts
+          console.log('PrivateRoute: Triggering auth refresh to synchronize contexts');
+          setTimeout(() => {
+            directAuth.refreshAuthState();
+          }, 0);
           
+          setIsValid(true);
           return;
         }
         
-        // Try refreshing auth state if needed
-        let hasRefreshed = false;
-        if (!auth.user || !auth.session) {
-          throttledLog('PrivateRoute: Starting validation and refresh');
-          
-          try {
-            // First try context's refresh method
-            await auth.refreshAuthState();
-            hasRefreshed = true;
-          } catch (refreshError) {
-            console.warn('Context refresh failed, falling back to direct checks:', refreshError);
-            
-            // Fall back to direct session and user checks
-            const [sessionResult, userResult] = await Promise.all([
-              checkSessionReliably(),
-              forceUserCheck()
-            ]);
-            
-            // If we have valid session and user, try to update context manually
-            if (sessionResult.data?.session && userResult.data?.user) {
-              try {
-                // Check if auth context has updateSession using type assertion
-                const authWithUpdate = auth as any;
-                if (typeof authWithUpdate.updateSession === 'function') {
-                  await authWithUpdate.updateSession(sessionResult.data.session);
-                } else {
-                  // Otherwise, try to re-run the standard refresh
-                  await auth.refreshAuthState();
-                }
-                hasRefreshed = true;
-              } catch (e) {
-                console.error('Failed to update auth context with fresh session:', e);
-              }
-            }
-          }
-        }
-        
-        if (hasRefreshed) {
-          throttledLog('PrivateRoute: Auth state refreshed');
-        }
-        
-        // After refresh, check if user is authenticated
-        const authValid = Boolean(auth.user && auth.session);
-        
-        // If admin route, also check admin status
-        if (adminOnly && (!auth.user || !auth.isAdmin)) {
-          setIsValid(false);
-        } else {
-          setIsValid(authValid);
-        }
-      } catch (error) {
-        console.error('Error validating auth state:', error);
+        // No authentication at all, redirect to login
+        console.log('PrivateRoute: Not authenticated, redirecting to login from:', location.pathname);
         setIsValid(false);
-      } finally {
-        if (componentMounted.current) {
-          setIsValidating(false);
-        }
         
-        // Clean up timeout
-        if (validationTimeoutRef.current) {
-          clearTimeout(validationTimeoutRef.current);
-          validationTimeoutRef.current = null;
-        }
-      }
-    }, 300)
-  ).current;
-  
-  // Look for SUPABASE_AUTH_TOKEN_LOCAL_STORAGE_KEY directly in localStorage
-  const checkForValidAuthToken = () => {
-    try {
-      // First check for the standard Supabase token format
-      const tokenKey = Object.keys(localStorage).find(key => 
-        key.startsWith('sb-') && key.includes('-auth-token')
-      );
-      
-      if (tokenKey) {
-        try {
-          // If we have a token in localStorage, let's check if it's valid
-          const tokenData = JSON.parse(localStorage.getItem(tokenKey) || '{}');
-          
-          // Check for either a valid access token or refresh token
-          const hasAccessToken = Boolean(tokenData?.access_token);
-          const hasRefreshToken = Boolean(tokenData?.refresh_token);
-          const hasExpiry = Boolean(tokenData?.expires_at);
-          
-          // Only consider valid if it has at least one token
-          if (hasAccessToken || hasRefreshToken) {
-            // Check if token is expired
-            if (hasExpiry) {
-              const expiresAt = tokenData.expires_at * 1000; // Convert to ms
-              const now = Date.now();
-              if (expiresAt < now) {
-                // Token is expired
-                console.log('PrivateRoute: Found expired auth token, not using it');
-                return false;
-              }
-            }
-            
-            // Token exists and is not expired
-            console.log('PrivateRoute: Found valid auth token in storage, bypassing auth check');
-            return true;
-          }
-        } catch (e) {
-          console.error('Error parsing auth token from localStorage:', e);
-        }
-      }
-    } catch (e) {
-      console.error('Error checking localStorage for tokens:', e);
-    }
-    
-    return false;
-  };
-  
-  // Validate on mount and when auth state changes
-  useEffect(() => {
-    // Immediately set valid if auth state is clearly valid
-    if (auth.user && auth.session && !adminOnly) {
-      setIsValid(true);
-      return;
-    }
-    
-    // For admin routes, check admin status immediately
-    if (adminOnly) {
-      if (auth.user && auth.session && auth.isAdmin) {
-        setIsValid(true);
-      } else if (auth.user && auth.session && !auth.isAdmin) {
-        setIsValid(false);
-      } else {
-        validateAuthState();
-      }
-      return;
-    }
-    
-    // Check for valid auth token as a shortcut
-    if (checkForValidAuthToken()) {
-      // Immediately set as valid - we'll trust the token and fix the context later
-      setIsValid(true);
-      
-      // In the background, try to update the auth context
-      setTimeout(() => {
-        if (!componentMounted.current) return;
-        
-        // Try to refresh auth state in the background
-        if (typeof auth.refreshAuthState === 'function') {
-          auth.refreshAuthState().catch(e => {
-            // Only log if not an auth session missing error
-            if (!e.message?.includes('No current user') && 
-                !e.message?.includes('No session')) {
-              console.warn('Background refresh failed after token bypass:', e);
-            }
+        // Prevent redirect loops by checking if we're already being sent to login
+        if (location.pathname !== redirectTo) {
+          navigate(redirectTo, { 
+            replace: true,
+            state: { from: location.pathname }
           });
         }
-      }, 500);
-      
-      return;
-    }
-    
-    // Otherwise validate auth state
-    validateAuthState();
-    
-    // Set a maximum wait time for authentication
-    const maxAuthWaitTime = setTimeout(() => {
-      if (isValid === null && componentMounted.current) {
-        console.warn('PrivateRoute: Authentication timed out after waiting');
-        
-        // Check for any localStorage tokens as a last resort
-        const hasAnyStorageToken = checkStorageForAuthTokens();
-        
-        if (hasAnyStorageToken) {
-          console.log('PrivateRoute: Found auth tokens in storage, allowing access');
-          setIsValid(true);
-        } else {
-          console.log('PrivateRoute: No auth tokens found after timeout, redirecting');
-          setIsValid(false);
-        }
+      } catch (error) {
+        console.error('PrivateRoute: Error validating auth', error);
+        setIsValid(false);
+      } finally {
+        setIsValidating(false);
       }
-    }, 5000); // 5 second maximum wait time
-    
-    // Cleanup
-    return () => {
-      validateAuthState.cancel();
-      if (validationTimeoutRef.current) {
-        clearTimeout(validationTimeoutRef.current);
-      }
-      clearTimeout(maxAuthWaitTime);
     };
-  }, [auth.user, auth.session, auth.isAdmin, auth.isLoading, adminOnly]);
-  
-  // Function to check localStorage for any auth tokens
-  const checkStorageForAuthTokens = () => {
-    try {
-      // Look for Supabase tokens or custom auth markers in localStorage
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (
-          key.includes('supabase.auth.token') || 
-          key.includes('sb-') ||
-          key.includes('akii-auth') ||
-          key === 'force-auth-login'
-        )) {
-          console.log("PrivateRoute: Found auth token in localStorage:", key);
-          return true;
-        }
-      }
-    } catch (e) {
-      console.error("PrivateRoute: Error checking localStorage auth:", e);
+    
+    // Don't validate while auth is still loading
+    if (!effectiveAuthState.isLoading && !isValidating) {
+      validateAuth();
     }
-    return false;
-  };
+  }, [
+    directAuth, 
+    compatAuth, 
+    adminOnly, 
+    navigate, 
+    redirectTo, 
+    location, 
+    isValid, 
+    isValidating,
+    effectiveAuthState.isLoading,
+    isLoginPage
+  ]);
   
-  // Redirect if invalid
-  useEffect(() => {
-    if (isValid === false) {
-      const returnUrl = encodeURIComponent(location.pathname + location.search);
-      navigate(`${redirectTo}?returnUrl=${returnUrl}`, { replace: true });
-    }
-  }, [isValid, navigate, location, redirectTo]);
-  
-  // Show children if authenticated
-  if (isValid === true) {
+  // If validation is complete and user is authenticated, render children
+  if (isValid) {
     return <>{children}</>;
   }
   
-  // Show loading state while validating
-  if (isValid === null || auth.isLoading || isValidating) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <div className="w-8 h-8 border-t-2 border-primary rounded-full animate-spin mb-4"></div>
-        <span className="text-lg">Authenticating...</span>
-        {isValidating && (
-          <p className="text-sm text-muted-foreground mt-2">
-            Verifying your credentials...
-          </p>
-        )}
-      </div>
-    );
-  }
-  
-  // Should never get here because of the redirect effect
-  return null;
+  // Otherwise show a loading state
+  return (
+    <div className="flex flex-col items-center justify-center h-screen bg-background">
+      <div className="w-16 h-16 border-t-4 border-primary rounded-full animate-spin mb-4"></div>
+      <p className="text-foreground text-lg">Authenticating...</p>
+      <p className="text-muted-foreground text-sm mt-2">Checking login status...</p>
+    </div>
+  );
 };
 
 

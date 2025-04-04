@@ -10,14 +10,14 @@ import type { User, Session } from '@supabase/supabase-js';
 
 // Configuration
 const CONFIG = {
-  LOCK_TIMEOUT: 1000,       // 1 second max lock time before forced release (reduced from 2s)
-  MAX_RETRY_COUNT: 3,       // Maximum number of retries for auth operations
-  RETRY_DELAY_BASE: 50,     // Base delay between retries in ms (reduced from 100ms)
-  QUEUE_TIMEOUT: 3000,      // Maximum time an operation can wait in queue (reduced from 5000ms)
-  AUTO_RELEASE_CHECK: 250,  // Check for stuck locks more frequently (reduced from 500ms)
+  LOCK_TIMEOUT: 3000,       // 3 seconds max lock time before forced release (increased from 1s)
+  MAX_RETRY_COUNT: 5,       // Maximum number of retries for auth operations (increased from 3)
+  RETRY_DELAY_BASE: 100,    // Base delay between retries in ms (increased from 50ms)
+  QUEUE_TIMEOUT: 5000,      // Maximum time an operation can wait in queue (increased from 3000ms)
+  AUTO_RELEASE_CHECK: 500,  // Check for stuck locks frequency (increased from 250ms)
   CRITICAL_OPS: ['getSession', 'getCurrentUser', 'signOut'], // Critical operations that get priority
-  SESSION_CACHE_TIME: 500,  // Time to cache session results in ms
-  MAX_QUEUE_LENGTH: 5       // Maximum number of operations allowed in queue (reduced from 10)
+  SESSION_CACHE_TIME: 2000, // Time to cache session results in ms (increased from 500ms)
+  MAX_QUEUE_LENGTH: 8       // Maximum number of operations allowed in queue (increased from 5)
 };
 
 // Lock state tracking
@@ -785,95 +785,90 @@ export function getAuthLockStatus() {
 }
 
 /**
- * Emergency session reset - clears all auth-related state
- * Use this when you're absolutely stuck
+ * Emergency reset for auth session
+ * This is a last resort when other methods fail
  */
 export function emergencySessionReset() {
-  // First clear any auth locks
-  clearAuthLocks();
+  console.warn('Performing emergency session reset');
   
-  // Clear all timed out operations
-  timedOutOperations.clear();
+  // Log diagnostic information to help debug the issue
+  console.info('Auth lock diagnostic information:');
+  console.info('- Current lock holder:', lockHolder);
+  console.info('- Lock held for:', Date.now() - lastOperationTime, 'ms');
+  console.info('- Queue length:', authOperationQueue.length);
+  console.info('- Consecutive timeouts:', consecutiveTimeouts);
+  console.info('- Session cache age:', Date.now() - sessionCache.timestamp, 'ms');
   
-  // Reset internal state completely
-  isAuthOperationInProgress = false;
-  lockHolder = 'none';
-  lastOperationTime = 0;
-  sessionCache = {
-    session: null,
-    timestamp: 0,
-    pendingPromise: null,
-    requestCount: 0
-  };
-  
-  // Try to clear Supabase internal locks with a direct call to empty the session
-  try {
-    // Force-clear any internal Supabase lock states with a synchronous call
-    // This bypasses our locking mechanism intentionally
-    console.log('Forcing Supabase internal lock reset');
-    setTimeout(() => {
-      try {
-        // Make a synchronous call to auth.getSession() to clear any internal locks
-        supabase.auth.getSession().catch(e => {
-          console.warn('Error during forced session check:', e);
-        });
-      } catch (e) {
-        console.warn('Error during forced session check:', e);
-      }
-    }, 100);
-  } catch (e) {
-    console.warn('Error attempting to reset internal Supabase locks:', e);
+  // Try to collect browser performance metrics
+  if (typeof window !== 'undefined' && window.performance) {
+    try {
+      const navTiming = window.performance.timing;
+      console.info('Performance metrics:');
+      console.info('- Network latency:', navTiming.responseEnd - navTiming.requestStart, 'ms');
+      console.info('- DOM load time:', navTiming.domComplete - navTiming.domLoading, 'ms');
+    } catch (e) {
+      console.warn('Could not collect performance metrics:', e);
+    }
   }
   
-  // Try to clear any auth-related localStorage items
+  // Try to collect network status
+  if (typeof navigator !== 'undefined') {
+    try {
+      // Check if navigator.connection exists (not standard in all browsers)
+      const connection = (navigator as any).connection;
+      if (connection) {
+        console.info('Network information:');
+        console.info('- Effective connection type:', connection.effectiveType);
+        console.info('- Downlink:', connection.downlink, 'Mbps');
+        console.info('- Round trip time:', connection.rtt, 'ms');
+      }
+    } catch (e) {
+      console.warn('Could not collect network information:', e);
+    }
+  }
+  
   try {
-    // Find all localStorage keys related to auth
-    const authKeys = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (
-        key.includes('supabase') || 
-        key.includes('sb-') || 
-        key.includes('auth') || 
-        key.includes('token') ||
-        key.includes('akii-auth') ||
-        key.includes('_access_token') ||
-        key.includes('_refresh_token')
-      )) {
-        authKeys.push(key);
+    // First clear any locks
+    isAuthOperationInProgress = false;
+    lockHolder = 'none';
+    
+    // Clear the queue
+    authOperationQueue = [];
+    
+    // Reset timedout operations
+    timedOutOperations.clear();
+    consecutiveTimeouts = 0;
+    
+    // Reset the session cache
+    sessionCache = {
+      session: null,
+      timestamp: 0,
+      pendingPromise: null,
+      requestCount: 0
+    };
+    
+    // Reset the pending direct checks
+    pendingDirectChecks.promise = null;
+    pendingDirectChecks.timestamp = 0;
+    
+    // Force reset the supabase js client
+    if (typeof window !== 'undefined') {
+      try {
+        console.log('Attempting to reset supabase auth instance');
+        supabase.auth.initialize();
+      } catch (e) {
+        console.error('Error resetting supabase auth instance:', e);
       }
     }
     
-    // Clear all auth-related keys
-    if (authKeys.length > 0) {
-      console.log(`Clearing ${authKeys.length} auth-related localStorage items`);
-      authKeys.forEach(key => {
-        try {
-          localStorage.removeItem(key);
-        } catch (e) {
-          console.error(`Error removing localStorage key ${key}:`, e);
-        }
-      });
-    }
+    console.log('Emergency session reset completed');
+    
+    // Restart the auto-release timer
+    stopAutoReleaseTimer();
+    startAutoReleaseTimer();
   } catch (e) {
-    console.error('Error clearing localStorage:', e);
+    console.error('Error in emergency session reset:', e);
   }
-  
-  // Force a reload of all auth listeners - done by dispatching a custom event
-  // that auth providers might be listening for
-  try {
-    const resetEvent = new CustomEvent('akii:auth:reset', {
-      detail: { timestamp: Date.now() }
-    });
-    window.dispatchEvent(resetEvent);
-    console.log('Dispatched auth reset event');
-  } catch (e) {
-    console.error('Error dispatching auth reset event:', e);
-  }
-  
-  console.log('Emergency session reset completed');
-  
-  return { success: true };
 }
 
 // Cleanup function to be called when the app is shutting down
@@ -932,7 +927,7 @@ export async function forceSessionCheck(): Promise<{
 }
 
 /**
- * Force a new user check - use in rare cases where you need 
+ * Force a direct user check - use in rare cases where you need 
  * to bypass the queue and get the current user
  */
 export async function forceUserCheck(): Promise<{
@@ -942,36 +937,66 @@ export async function forceUserCheck(): Promise<{
   console.log('Forcing direct user check');
   
   try {
-    // Use a timeout promise to ensure we don't wait forever
-    const timeoutPromise = new Promise<{
-      data: { user: User | null };
-      error: Error;
-    }>((resolve) => {
-      setTimeout(() => {
-        resolve({
-          data: { user: null },
-          error: new Error('User check timed out')
-        });
-      }, 3000); // 3 second timeout
-    });
-    
-    // Attempt to get user directly without lock
-    const userPromise = supabase.auth.getUser().then(result => {
+    // First try to get a valid session
+    const sessionResult = await forceSessionCheck();
+    if (!sessionResult.data.session) {
       return {
-        data: { user: result.data?.user || null },
-        error: result.error
+        data: { user: null },
+        error: new Error('No valid session found')
       };
-    });
-    
-    // Race the actual request against the timeout
-    const result = await Promise.race([userPromise, timeoutPromise]);
-    
-    return result;
-  } catch (error) {
-    // Don't log AuthSessionMissingError as it's expected in many cases
-    if (!isAuthSessionMissingError(error)) {
-      console.error('Error in forceUserCheck:', error);
     }
+
+    // Try to get user directly from Supabase
+    const { data, error } = await supabase.auth.getUser();
+    
+    // If we have a valid user, return it
+    if (!error && data?.user) {
+      return { data, error: null };
+    }
+    
+    // If direct method failed but we have a session, create a fallback user from session
+    if (sessionResult.data.session) {
+      console.log('Using fallback user extraction from session token');
+      const session = sessionResult.data.session;
+      
+      // Extract user ID from session
+      const userId = session.user?.id;
+      
+      if (userId) {
+        // Create minimal user object from session data
+        const fallbackUser: User = {
+          id: userId,
+          email: session.user?.email || '',
+          app_metadata: session.user?.app_metadata || {},
+          user_metadata: session.user?.user_metadata || {},
+          aud: 'authenticated',
+          created_at: ''
+        };
+        
+        // Store user info in localStorage for emergency recovery
+        try {
+          localStorage.setItem('akii-auth-user-id', userId);
+          if (session.user?.email) {
+            localStorage.setItem('akii-auth-user-email', session.user.email);
+          }
+        } catch (e) {
+          console.warn('Could not store user info in localStorage:', e);
+        }
+        
+        return {
+          data: { user: fallbackUser },
+          error: null
+        };
+      }
+    }
+    
+    // No valid user could be found or created
+    return {
+      data: { user: null },
+      error: error || new Error('Failed to get user')
+    };
+  } catch (error) {
+    console.error('Error in forceUserCheck:', error);
     
     return {
       data: { user: null },

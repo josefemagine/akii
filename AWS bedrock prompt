@@ -1,0 +1,132 @@
+Tempo AI Prompt: Build Akii Admin Bedrock Dashboard + API Integration
+We are building an admin interface for Akii — an AI-as-a-Service platform powered by Amazon Bedrock. This admin panel will allow internal team members to provision, view, and manage AI Instances per user plan via a secure API Gateway + Lambda integration.
+
+🔐 API DETAILS
+POST /provision-instance – provision a new AI instance
+
+GET /instances – list all provisioned AI instances
+
+DELETE /instance – delete an AI instance
+
+Security: All endpoints require an API Key
+
+The API Key should be securely stored in the frontend environment file as:
+
+env
+Copy
+Edit
+BEDROCK_AWS_KEY=your-api-key-here
+In your React app, it will be accessed via:
+
+js
+Copy
+Edit
+const apiKey = process.env.NEXT_PUBLIC_BEDROCK_AWS_KEY;
+Do not hardcode the key.
+
+📂 Create a New Admin Page: /dashboard/admin/bedrock
+Page name: BedrockDashboard.jsx
+
+✅ Features to Include:
+Provision AI Instance Form
+
+Input: Instance name
+
+Dropdown: Plan (Starter, Pro, Business)
+
+Maps to modelId and throughputName
+
+Triggers a POST to /provision-instance
+
+List of All AI Instances
+
+Pull data from /instances (GET)
+
+Display:
+
+Instance name
+
+Model ID
+
+Status (Pending, InService, Failed)
+
+Created date
+
+Plan
+
+Delete button
+
+Delete Instance
+
+Triggers DELETE /instance
+
+Body: { throughputName: "..." }
+
+Refresh list on success
+
+Summary Stats
+
+Total instances
+
+Active (InService)
+
+Failed
+
+Pending
+
+Use badges and visual highlights for clarity.
+
+🧱 React Implementation Notes
+Use fetch() with x-api-key header:
+
+js
+Copy
+Edit
+headers: {
+  "Content-Type": "application/json",
+  "x-api-key": process.env.NEXT_PUBLIC_BEDROCK_AWS_KEY
+}
+Style form inputs, buttons, and instance cards cleanly
+
+Add loading state and error/success toasts
+
+Mobile responsive preferred
+
+🧠 Plan Config
+js
+Copy
+Edit
+const planConfig = {
+  starter: {
+    modelId: "amazon.titan-text-lite-v1",
+    throughputName: "starter-throughput",
+  },
+  pro: {
+    modelId: "amazon.titan-text-express-v1",
+    throughputName: "pro-throughput",
+  },
+  business: {
+    modelId: "anthropic.claude-instant-v1",
+    throughputName: "business-throughput",
+  },
+};
+🔒 Security
+Never hardcode the API key
+
+Store in .env.local as:
+
+ini
+Copy
+Edit
+NEXT_PUBLIC_BEDROCK_AWS_KEY=your-key
+Add usage plan throttling in API Gateway
+
+Restrict by IP or domain in production
+
+✅ Optional Enhancements
+Sort/filter instances by status or plan
+
+Show estimated usage or monthly cost per instance
+
+Add audit logs for who provisioned what
+

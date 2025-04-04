@@ -1,6 +1,6 @@
 import React, { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import UnifiedDashboardLayout from "./layout/UnifiedDashboardLayout";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useAuth } from "@/contexts/auth-compatibility";
 
 interface AdminRouteProps {
@@ -31,7 +31,7 @@ const AdminRoute = ({ children }: AdminRouteProps) => {
   }
 
   // If user is logged in and is an admin, render the admin content
-  return <UnifiedDashboardLayout isAdmin={true}>{children}</UnifiedDashboardLayout>;
+  return <DashboardLayout isAdmin={true}>{children}</DashboardLayout>;
 };
 
 export default AdminRoute;

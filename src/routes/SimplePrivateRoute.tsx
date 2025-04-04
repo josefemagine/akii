@@ -1,7 +1,7 @@
 import React from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import UnifiedDashboardLayout from "@/components/layout/UnifiedDashboardLayout";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { LoadingScreen } from "@/components/LoadingScreen";
 
 interface PrivateRouteProps {
@@ -19,7 +19,7 @@ const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
     return <Navigate to="/" replace />;
   }
 
-  return <UnifiedDashboardLayout variant="simple">{children || <Outlet />}</UnifiedDashboardLayout>;
+  return <DashboardLayout>{children || <Outlet />}</DashboardLayout>;
 };
 
 export default PrivateRoute;

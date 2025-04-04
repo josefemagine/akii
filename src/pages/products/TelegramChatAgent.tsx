@@ -67,8 +67,8 @@ const TelegramChatAgent = () => {
                   <div className="text-center">
                     <p className="text-2xl font-bold text-primary">100%</p>
                     <p className="text-sm text-muted-foreground">your company data</p>
-                  </div>
                 </div>
+              </div>
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -124,7 +124,7 @@ const TelegramChatAgent = () => {
                         </div>
                         <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center">
                           <Users className="h-4 w-4 text-gray-500" />
-                        </div>
+                    </div>
                       </div>
                     </div>
                     
@@ -137,7 +137,7 @@ const TelegramChatAgent = () => {
                       <Button size="icon" variant="ghost" className="absolute right-0 top-0 h-full aspect-square rounded-full text-blue-500">
                         <Send className="h-4 w-4" />
                       </Button>
-                    </div>
+                      </div>
                     
                     <div className="flex items-center justify-between mt-2 px-1">
                       <div className="text-xs text-muted-foreground">AI trained on <span className="font-medium text-blue-500">your company data</span></div>
@@ -181,14 +181,14 @@ const TelegramChatAgent = () => {
               >
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <Zap className="h-6 w-6 text-primary" />
-                </div>
+                  </div>
                 <h3 className="text-xl font-semibold mb-2">
                   Easy Setup
                 </h3>
-                <p className="text-muted-foreground">
-                  Get your Telegram bot up and running in minutes with our
-                  simple setup process.
-                </p>
+                  <p className="text-muted-foreground">
+                    Get your Telegram bot up and running in minutes with our
+                    simple setup process.
+                  </p>
               </motion.div>
 
               <motion.div
@@ -200,14 +200,14 @@ const TelegramChatAgent = () => {
               >
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <MessageSquare className="h-6 w-6 text-primary" />
-                </div>
+                  </div>
                 <h3 className="text-xl font-semibold mb-2">
                   Custom Commands
                 </h3>
-                <p className="text-muted-foreground">
-                  Create custom commands to provide specific information or
-                  trigger actions.
-                </p>
+                  <p className="text-muted-foreground">
+                    Create custom commands to provide specific information or
+                    trigger actions.
+                  </p>
               </motion.div>
 
               <motion.div
@@ -219,14 +219,14 @@ const TelegramChatAgent = () => {
               >
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <Users className="h-6 w-6 text-primary" />
-                </div>
+                  </div>
                 <h3 className="text-xl font-semibold mb-2">
                   Group Chat Support
                 </h3>
-                <p className="text-muted-foreground">
-                  Deploy your AI agent in Telegram groups to assist multiple
-                  users simultaneously.
-                </p>
+                  <p className="text-muted-foreground">
+                    Deploy your AI agent in Telegram groups to assist multiple
+                    users simultaneously.
+                  </p>
               </motion.div>
 
               <motion.div
@@ -238,14 +238,14 @@ const TelegramChatAgent = () => {
               >
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <Send className="h-6 w-6 text-primary" />
-                </div>
+                  </div>
                 <h3 className="text-xl font-semibold mb-2">
                   Inline Queries
                 </h3>
-                <p className="text-muted-foreground">
-                  Allow users to query your bot directly from any chat using
-                  inline mode.
-                </p>
+                  <p className="text-muted-foreground">
+                    Allow users to query your bot directly from any chat using
+                    inline mode.
+                  </p>
               </motion.div>
 
               <motion.div
@@ -257,13 +257,13 @@ const TelegramChatAgent = () => {
               >
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <Settings className="h-6 w-6 text-primary" />
-                </div>
+                  </div>
                 <h3 className="text-xl font-semibold mb-2">
                   Interactive Buttons
                 </h3>
-                <p className="text-muted-foreground">
-                  Create rich interactive experiences with buttons and menus.
-                </p>
+                  <p className="text-muted-foreground">
+                    Create rich interactive experiences with buttons and menus.
+                  </p>
               </motion.div>
 
               <motion.div
@@ -275,13 +275,13 @@ const TelegramChatAgent = () => {
               >
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <Globe className="h-6 w-6 text-primary" />
-                </div>
+                  </div>
                 <h3 className="text-xl font-semibold mb-2">
                   Detailed Analytics
                 </h3>
-                <p className="text-muted-foreground">
-                  Track user engagement and bot performance with comprehensive
-                  analytics.
+                  <p className="text-muted-foreground">
+                    Track user engagement and bot performance with comprehensive
+                    analytics.
                 </p>
               </motion.div>
             </div>

@@ -29,6 +29,8 @@ import {
   cleanupAuthLocks,
   forceSessionCheck
 } from '@/lib/auth-lock-fix';
+import { useDirectAuth } from './direct-auth-context';
+import { getProfileDirectly, ensureProfileExists } from '@/lib/direct-db-access';
 
 interface AuthState {
   user: User | null;
@@ -59,13 +61,16 @@ const defaultAuthState: AuthState = {
   isAdmin: false
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Create context
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+  
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
   }
+  
   return context;
 }
 
@@ -117,8 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, isLoading: true }));
       }
       
-      // Create a safety timeout that decreases with each attempt
-      const timeoutDuration = Math.max(5000 - (refreshAttemptsRef.current * 500), 2000);
+      // Create a safety timeout that decreases with each attempt, but with higher base value
+      const timeoutDuration = Math.max(8000 - (refreshAttemptsRef.current * 500), 3000);
       
       const safetyTimeout = new Promise<void>(resolve => {
         refreshTimeoutRef.current = setTimeout(() => {
@@ -442,7 +447,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Handle online/offline status
     const handleOnline = () => {
       console.log('Network connection restored, refreshing auth state');
-      refreshAuthState();
+      
+      // When coming back online, verify session immediately
+      forceSessionCheck().then(result => {
+        if (result.data.session) {
+          console.log('Session found after reconnection, refreshing full auth state');
+          refreshAuthState(); // Add immediate full refresh after connection restored
+        } else {
+          console.log('No valid session found after reconnection');
+        }
+      }).catch(err => {
+        console.error('Error checking session after reconnection:', err);
+      });
     };
     
     // Add network event listeners
@@ -519,7 +535,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           return prev;
         });
-      }, 7000); // 7 second safety timeout
+      }, 15000); // 15 second safety timeout (increased from 7s)
       
       try {
       await checkUrlForAuthCode();
@@ -1191,6 +1207,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshAuthState,
     updateSession
   };
+
+  // Simply pass through the direct auth context
+  const directAuth = useDirectAuth();
 
   return (
     <AuthContext.Provider value={value}>

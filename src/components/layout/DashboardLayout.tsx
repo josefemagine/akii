@@ -38,6 +38,7 @@ import {
   UsersRound,
   Bot,
   Loader2,
+  Cloud,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -321,6 +322,12 @@ const Sidebar = ({ collapsed = false, onToggle = () => {} }: SidebarProps) => {
       icon: <Database className="h-5 w-5" />,
       label: "Database",
       href: "/dashboard/database",
+      subItems: []
+    },
+    {
+      icon: <Cloud className="h-5 w-5" />,
+      label: "AI Instances",
+      href: "/admin/manage-instances",
       subItems: []
     },
   ];
