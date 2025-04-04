@@ -25,7 +25,8 @@ const supabaseClient = createClient(
 
 // API key validation
 function isValidApiKey(request: Request): boolean {
-  const apiKey = request.headers.get("x-api-key");
+  // Check for API key in x-api-key or authorization header
+  const apiKey = request.headers.get("x-api-key") || request.headers.get("authorization");
   
   // Allow access in development with no key
   if (Deno.env.get("DENO_ENV") === "development" && !BEDROCK_API_KEY) {
@@ -34,11 +35,14 @@ function isValidApiKey(request: Request): boolean {
   }
   
   if (!apiKey) {
-    console.log("[API] Missing API key");
+    console.log("[API] Missing API key in headers");
     return false;
   }
   
-  if (apiKey !== BEDROCK_API_KEY) {
+  // Extract token from "Bearer token" format if present
+  const token = apiKey.startsWith("Bearer ") ? apiKey.slice(7) : apiKey;
+  
+  if (token !== BEDROCK_API_KEY) {
     console.log("[API] Invalid API key provided");
     return false;
   }

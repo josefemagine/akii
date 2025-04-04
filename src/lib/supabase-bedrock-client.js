@@ -30,10 +30,12 @@ const getApiKey = () => {
  * Get headers for Bedrock API requests
  */
 const getHeaders = () => {
+  const apiKey = getApiKey();
   return {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'x-api-key': getApiKey()
+    'x-api-key': apiKey,
+    'Authorization': `Bearer ${apiKey}`
   };
 };
 
