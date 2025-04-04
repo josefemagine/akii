@@ -1,13 +1,16 @@
 /**
- * Client library for interacting with AWS Bedrock via Supabase Edge Functions
+ * Supabase Bedrock API Client
+ * This client handles communication with Bedrock API endpoints,
+ * using proper authentication through Supabase JWT tokens.
  */
-import { BedrockConfig } from './env-config';
 
-// Base URL for Edge Functions
-const getBaseUrl = () => {
-  // Use the new Edge Function URL
-  return "https://api.akii.com/functions/v1/super-action";
-};
+import { BedrockConfig } from './bedrock-config';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
  * Get the API key for Bedrock requests
@@ -27,128 +30,165 @@ const getApiKey = () => {
 };
 
 /**
- * Get headers for Bedrock API requests
+ * Get Supabase auth session with JWT token
+ * @returns {Promise<string>} JWT token for authentication or null if not authenticated
  */
-const getHeaders = () => {
-  const apiKey = getApiKey();
-  return {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'x-api-key': apiKey,
-    'Authorization': `Bearer ${apiKey}`
-  };
+const getAuthToken = async () => {
+  try {
+    // Get current session
+    const { data: { session }, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      console.error('Error getting auth session:', error.message);
+      return null;
+    }
+    
+    if (!session) {
+      console.log('No active session found');
+      return null;
+    }
+    
+    return session.access_token;
+  } catch (error) {
+    console.error('Failed to get auth token:', error);
+    return null;
+  }
 };
 
 /**
- * Get all Bedrock instances
+ * Get headers for Bedrock API requests, using JWT token when available
+ * Falls back to API key if JWT token is not available
  */
-export async function getBedrockInstances() {
+const getHeaders = async () => {
+  // Try to get JWT token first
+  const token = await getAuthToken();
+  const apiKey = getApiKey();
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+  
+  // Use JWT token if available, otherwise use API key
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  // Always include x-api-key as fallback
+  if (apiKey) {
+    headers['x-api-key'] = apiKey;
+  }
+  
+  return headers;
+};
+
+/**
+ * Base API URL for Bedrock endpoints
+ */
+const apiBaseUrl = BedrockConfig.apiUrl;
+
+/**
+ * Get a list of all Bedrock model throughput instances
+ */
+const listInstances = async () => {
   try {
-    const baseUrl = getBaseUrl();
-    if (!baseUrl) {
-      throw new Error('Supabase URL not configured');
-    }
-    
-    const response = await fetch(`${baseUrl}/instances`, {
+    const headers = await getHeaders();
+    const response = await fetch(`${apiBaseUrl}/instances`, { 
       method: 'GET',
-      headers: getHeaders()
+      headers
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get instances: ${response.status} ${errorText}`);
+      throw new Error(`API Error: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
-    return data.instances || [];
+    return { instances: data.instances || [], error: null };
   } catch (error) {
-    console.error('Error fetching Bedrock instances:', error);
-    return [];
+    console.error('Error listing instances:', error);
+    return { instances: [], error: error.message };
   }
-}
+};
 
 /**
- * Create a new Bedrock instance
+ * Create a new Bedrock model throughput instance
  */
-export async function createBedrockInstance(instanceData) {
+const createInstance = async (modelInfo) => {
   try {
-    const baseUrl = getBaseUrl();
-    if (!baseUrl) {
-      throw new Error('Supabase URL not configured');
-    }
-    
-    const response = await fetch(`${baseUrl}/provision-instance`, {
+    const headers = await getHeaders();
+    const response = await fetch(`${apiBaseUrl}/provision-instance`, {
       method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(instanceData)
+      headers,
+      body: JSON.stringify(modelInfo)
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create instance: ${response.status} ${errorText}`);
+      throw new Error(`API Error: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
-    return data.instance;
+    return { instance: data.instance, error: null };
   } catch (error) {
-    console.error('Error creating Bedrock instance:', error);
-    throw error;
+    console.error('Error creating instance:', error);
+    return { instance: null, error: error.message };
   }
-}
+};
 
 /**
- * Delete a Bedrock instance
+ * Delete a Bedrock model throughput instance
  */
-export async function deleteBedrockInstance(instanceId) {
+const deleteInstance = async (instanceId) => {
   try {
-    const baseUrl = getBaseUrl();
-    if (!baseUrl) {
-      throw new Error('Supabase URL not configured');
-    }
-    
-    const response = await fetch(`${baseUrl}/delete-instance`, {
+    const headers = await getHeaders();
+    const response = await fetch(`${apiBaseUrl}/delete-instance`, {
       method: 'DELETE',
-      headers: getHeaders(),
+      headers,
       body: JSON.stringify({ instanceId })
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to delete instance: ${response.status} ${errorText}`);
+      throw new Error(`API Error: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
-    return data.success;
+    return { success: data.success, error: null };
   } catch (error) {
-    console.error('Error deleting Bedrock instance:', error);
-    throw error;
+    console.error('Error deleting instance:', error);
+    return { success: false, error: error.message };
   }
-}
+};
 
 /**
- * Test the environment configuration
+ * Test API environment and connectivity
  */
-export async function testEnvironment() {
+const testEnvironment = async () => {
   try {
-    const baseUrl = getBaseUrl();
-    if (!baseUrl) {
-      throw new Error('Supabase URL not configured');
-    }
-    
-    const response = await fetch(`${baseUrl}/test-env`, {
+    const headers = await getHeaders();
+    const response = await fetch(`${apiBaseUrl}/test-env`, {
       method: 'GET',
-      headers: getHeaders()
+      headers
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to test environment: ${response.status} ${errorText}`);
+      throw new Error(`API Error: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
-    return data;
+    return { environment: data, error: null };
   } catch (error) {
     console.error('Error testing environment:', error);
-    throw error;
+    return { environment: null, error: error.message };
   }
-} 
+};
+
+// Export all client functions
+export const BedrockClient = {
+  listInstances,
+  createInstance,
+  deleteInstance,
+  testEnvironment,
+  getApiKey,
+  getAuthToken,
+};
+
+export default BedrockClient; 

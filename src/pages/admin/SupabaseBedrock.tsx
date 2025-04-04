@@ -12,12 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { EnvConfig } from "@/lib/env-config";
-import { 
-  getBedrockInstances, 
-  createBedrockInstance, 
-  deleteBedrockInstance,
-  testEnvironment
-} from "@/lib/supabase-bedrock-client";
+import { BedrockClient } from "@/lib/supabase-bedrock-client";
 
 // Plan configuration - maps to AWS Bedrock models and commitment options
 const planConfig = {
@@ -148,7 +143,12 @@ const SupabaseBedrock = () => {
     setError(null);
     
     try {
-      const data = await getBedrockInstances();
+      const { instances: data, error: fetchError } = await BedrockClient.listInstances();
+      
+      if (fetchError) {
+        throw new Error(fetchError);
+      }
+      
       setInstances(data);
       
       // Calculate stats
@@ -172,7 +172,12 @@ const SupabaseBedrock = () => {
   // Test environment
   const fetchEnvironmentDiagnostics = async () => {
     try {
-      const data = await testEnvironment();
+      const { environment: data, error: envError } = await BedrockClient.testEnvironment();
+      
+      if (envError) {
+        throw new Error(envError);
+      }
+      
       setEnvDiagnostics(data);
       setShowDiagnostics(true);
     } catch (error) {
@@ -206,11 +211,15 @@ const SupabaseBedrock = () => {
       }
       
       // Create new instance
-      const newInstance = await createBedrockInstance({
+      const { instance: newInstance, error: createError } = await BedrockClient.createInstance({
         modelId: planDetails.modelId,
         commitmentDuration: planDetails.commitmentDuration,
         modelUnits: planDetails.modelUnits
       });
+      
+      if (createError) {
+        throw new Error(createError);
+      }
       
       toast({
         title: "Success",
@@ -240,7 +249,15 @@ const SupabaseBedrock = () => {
     }
     
     try {
-      await deleteBedrockInstance(instanceId);
+      const { success, error: deleteError } = await BedrockClient.deleteInstance(instanceId);
+      
+      if (deleteError) {
+        throw new Error(deleteError);
+      }
+      
+      if (!success) {
+        throw new Error("Unknown error while deleting instance");
+      }
       
       toast({
         title: "Success",
