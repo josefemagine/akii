@@ -235,7 +235,7 @@ export default function App() {
                   <Route path="blog" element={<AdminBlog />} />
                   <Route path="affiliates" element={<AdminAffiliates />} />
                   <Route path="compliance" element={<AdminCompliance />} />
-                  <Route path="bedrock" element={<AdminBedrock />} />
+                  <Route path="bedrock" element={<AdminSupabaseBedrock />} />
                   <Route path="supabase-bedrock" element={<AdminSupabaseBedrock />} />
                   <Route path="run-migration" element={<RunMigration />} />
                   <Route path="n8n-workflows" element={<AdminN8nWorkflows />} />
