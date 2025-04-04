@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Configure rewrites to direct /api/bedrock paths to pages/api/bedrock
+  // Configure rewrites to direct /api/bedrock paths to pages/api/bedrock-next
   async rewrites() {
     return [
       {
@@ -8,8 +8,20 @@ const nextConfig = {
         destination: '/api/bedrock-next',
       },
       {
-        source: '/api/bedrock/:path*',
-        destination: '/api/bedrock-next/:path*',
+        source: '/api/bedrock/instances',
+        destination: '/api/bedrock-next/instances',
+      },
+      {
+        source: '/api/bedrock/provision-instance',
+        destination: '/api/bedrock-next/provision-instance',
+      },
+      {
+        source: '/api/bedrock/delete-instance',
+        destination: '/api/bedrock-next/delete-instance',
+      },
+      {
+        source: '/api/bedrock/test-env',
+        destination: '/api/bedrock-next/test-env',
       },
     ];
   },
@@ -24,7 +36,9 @@ const nextConfig = {
   // Configure build environment variables
   env: {
     BEDROCK_API_KEY: process.env.BEDROCK_API_KEY,
-    VITE_BEDROCK_API_URL: 'https://www.akii.com/api/bedrock',
+    SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+    SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY,
+    VITE_BEDROCK_API_URL: '/api/bedrock',
   },
 };
 

@@ -1,6 +1,7 @@
 // API endpoint for deleting an AWS Bedrock model instance
 // This endpoint handles POST requests to /api/bedrock/delete-instance
-import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } from './config';
+import { deleteBedrockInstance } from '../../../api/bedrock/db-utils.js';
+import { isValidApiKey } from '../../../api/bedrock/config.js';
 
 /**
  * @typedef {Object} DeleteRequest
@@ -11,75 +12,63 @@ import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } fr
 /**
  * Vercel serverless function for the /api/bedrock/delete-instance endpoint
  */
-export default function handler(req, res) {
+export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key, Authorization');
+
+  // Handle OPTIONS request
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  // Only allow POST method
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  
   try {
-    // Set CORS headers
-    setCorsHeaders(res);
-    
-    // Handle preflight OPTIONS request
-    if (handleOptionsRequest(req, res)) {
-      return;
-    }
-    
-    // Only allow POST method
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-    
-    // Check for API key
-    console.log('[/delete-instance] Checking API key in request headers');
+    // Check API key
     const apiKey = req.headers['x-api-key'];
+    console.log(`[NEXT] Request headers: ${Object.keys(req.headers).join(', ')}`);
+    console.log(`[NEXT] API key provided: ${Boolean(apiKey)}, length: ${apiKey ? apiKey.length : 0}`);
     
-    // Log headers for debugging (mask sensitive values)
-    const safeHeaders = {...req.headers};
-    if (safeHeaders['x-api-key']) safeHeaders['x-api-key'] = '***MASKED***';
-    console.log('[/delete-instance] Request headers:', safeHeaders);
-    
-    // Validate API key
-    console.log('[/delete-instance] Starting API key validation');
-    const keyValid = isValidApiKey(apiKey);
-    console.log(`[/delete-instance] API key validation result: ${keyValid}`);
-    
-    if (!keyValid) {
-      console.log('[/delete-instance] Sending 401 unauthorized response');
+    if (!isValidApiKey(apiKey)) {
+      console.warn('[NEXT] Invalid or missing API key');
       return res.status(401).json({ error: 'Invalid or missing API key' });
     }
     
-    // Get request body
-    const { instanceId, throughputName } = req.body;
-    console.log('[/delete-instance] Request body:', { instanceId, throughputName });
+    // Log the API request
+    console.log(`[NEXT] POST /delete-instance`, { body: req.body });
     
     // Validate request body
-    if (!instanceId || !throughputName) {
-      console.log('[/delete-instance] Invalid request - missing required fields');
-      return res.status(400).json({ 
-        error: 'Invalid request. Required fields: instanceId, throughputName' 
-      });
+    const { instanceId } = req.body;
+    
+    if (!instanceId) {
+      console.warn('[NEXT] Missing required field: instanceId');
+      return res.status(400).json({ error: 'Missing required field: instanceId' });
     }
     
-    // Delete the instance
-    // In a real implementation, this would call AWS Bedrock API
+    // Delete instance
+    console.log(`[NEXT] Deleting Bedrock instance: ${instanceId}`);
+    const { success, error } = await deleteBedrockInstance(instanceId);
     
-    // Log the request
-    logApiRequest('/api/bedrock/delete-instance', 'POST', { instanceId, throughputName });
+    if (error) {
+      console.error('[NEXT] Error deleting instance:', error);
+      return res.status(500).json({ error: 'Failed to delete instance', details: error.message });
+    }
     
-    // Return success
-    console.log('[/delete-instance] Sending successful delete response');
-    return res.status(200).json({ 
-      success: true, 
-      message: `Instance ${instanceId} deletion initiated`
-    });
+    if (!success) {
+      console.warn(`[NEXT] Failed to delete instance: ${instanceId}`);
+      return res.status(404).json({ error: 'Instance not found or could not be deleted' });
+    }
+    
+    console.log(`[NEXT] Successfully deleted instance: ${instanceId}`);
+    return res.status(200).json({ success: true });
   } catch (error) {
-    // Log the error
-    console.error('[/delete-instance] Error processing request:', error);
-    
-    // Return a meaningful error response
-    return res.status(500).json({ 
-      error: { 
-        code: "500", 
-        message: "Internal server error processing delete request", 
-        details: error.message 
-      } 
-    });
+    console.error('[NEXT] Unexpected error in delete-instance endpoint:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 } 

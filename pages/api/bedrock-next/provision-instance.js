@@ -1,6 +1,7 @@
 // API endpoint for provisioning a new AWS Bedrock model instance
 // This endpoint handles POST requests to /api/bedrock/provision-instance
-import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } from './config';
+import { createBedrockInstance } from '../../../api/bedrock/db-utils.js';
+import { isValidApiKey } from '../../../api/bedrock/config.js';
 
 /**
  * @typedef {Object} ProvisionRequest
@@ -32,89 +33,65 @@ const modelToPlan = {
 /**
  * Vercel serverless function for the /api/bedrock/provision-instance endpoint
  */
-export default function handler(req, res) {
+export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key, Authorization');
+
+  // Handle OPTIONS request
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  // Only allow POST method
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  
   try {
-    // Set CORS headers
-    setCorsHeaders(res);
-    
-    // Handle preflight OPTIONS request
-    if (handleOptionsRequest(req, res)) {
-      return;
-    }
-    
-    // Only allow POST method
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-    
-    // Check for API key
-    console.log('[/provision-instance] Checking API key in request headers');
+    // Check API key
     const apiKey = req.headers['x-api-key'];
+    console.log(`[NEXT] Request headers: ${Object.keys(req.headers).join(', ')}`);
+    console.log(`[NEXT] API key provided: ${Boolean(apiKey)}, length: ${apiKey ? apiKey.length : 0}`);
     
-    // Log headers for debugging (mask sensitive values)
-    const safeHeaders = {...req.headers};
-    if (safeHeaders['x-api-key']) safeHeaders['x-api-key'] = '***MASKED***';
-    console.log('[/provision-instance] Request headers:', safeHeaders);
-    
-    // Validate API key
-    console.log('[/provision-instance] Starting API key validation');
-    const keyValid = isValidApiKey(apiKey);
-    console.log(`[/provision-instance] API key validation result: ${keyValid}`);
-    
-    if (!keyValid) {
-      console.log('[/provision-instance] Sending 401 unauthorized response');
+    if (!isValidApiKey(apiKey)) {
+      console.warn('[NEXT] Invalid or missing API key');
       return res.status(401).json({ error: 'Invalid or missing API key' });
     }
     
-    // Get request body
-    const { name, modelId, throughputName } = req.body;
-    console.log('[/provision-instance] Request body:', { name, modelId, throughputName });
+    // Log the API request
+    console.log(`[NEXT] POST /provision-instance`, { body: req.body });
     
     // Validate request body
+    const { name, modelId, throughputName } = req.body;
+    
     if (!name || !modelId || !throughputName) {
-      console.log('[/provision-instance] Invalid request - missing required fields');
+      console.warn('[NEXT] Missing required fields:', { name, modelId, throughputName });
       return res.status(400).json({ 
-        error: 'Invalid request. Required fields: name, modelId, throughputName' 
+        error: 'Missing required fields',
+        details: {
+          name: !name ? 'Missing' : 'OK',
+          modelId: !modelId ? 'Missing' : 'OK',
+          throughputName: !throughputName ? 'Missing' : 'OK'
+        }
       });
     }
     
-    // Create a new instance
-    // In a real implementation, this would call AWS Bedrock API
-    const newInstance = {
-      id: `instance-${Date.now()}`,
-      name,
-      modelId,
-      throughputName,
-      status: 'Pending',
-      createdAt: new Date().toISOString(),
-      plan: modelToPlan[modelId] || 'starter'
-    };
+    // Provision instance
+    console.log('[NEXT] Creating new Bedrock instance...');
+    const { instance, error } = await createBedrockInstance(req.body);
     
-    // Log the request
-    logApiRequest('/api/bedrock/provision-instance', 'POST', { 
-      name, 
-      modelId, 
-      instanceId: newInstance.id 
-    });
+    if (error) {
+      console.error('[NEXT] Error creating instance:', error);
+      return res.status(500).json({ error: 'Failed to create instance', details: error.message });
+    }
     
-    // Return the created instance
-    console.log('[/provision-instance] Sending successful provision response');
-    return res.status(201).json({ 
-      success: true, 
-      message: 'Instance provisioning started',
-      instance: newInstance 
-    });
+    console.log(`[NEXT] Successfully created instance: ${instance.id}`);
+    return res.status(200).json({ instance });
   } catch (error) {
-    // Log the error
-    console.error('[/provision-instance] Error processing request:', error);
-    
-    // Return a meaningful error response
-    return res.status(500).json({ 
-      error: { 
-        code: "500", 
-        message: "Internal server error processing provision request", 
-        details: error.message 
-      } 
-    });
+    console.error('[NEXT] Unexpected error in provision-instance endpoint:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 } 

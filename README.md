@@ -118,7 +118,7 @@ The project includes several TypeScript files related to auth context refactorin
 
 ## Bedrock API Endpoints
 
-The application includes serverless API endpoints for AWS Bedrock integration. These endpoints are automatically deployed as serverless functions when using Vercel.
+The application includes serverless API endpoints for AWS Bedrock integration. These endpoints use Next.js API routes, following Vercel's recommended pattern for JavaScript functions.
 
 ### Available Endpoints:
 
@@ -126,20 +126,18 @@ The application includes serverless API endpoints for AWS Bedrock integration. T
 - **GET /api/bedrock/instances** - Lists all Bedrock instances (requires API key)
 - **POST /api/bedrock/provision-instance** - Provisions a new Bedrock instance (requires API key)
 - **POST /api/bedrock/delete-instance** - Deletes a Bedrock instance (requires API key)
+- **GET /api/bedrock/test-env** - Tests environment variable loading (requires API key)
 
-### Testing:
+### Implementation Details:
 
-You can test the API endpoints locally by running:
-
-```bash
-npm run test-api
-```
-
-This script sends requests to all endpoints and provides a summary of the test results.
+The API endpoints are implemented using Next.js API routes in the `/pages/api/bedrock-next/` directory. For backwards compatibility, the application includes URL rewrites in both `next.config.js` and `vercel.json` to route requests from the legacy `/api/bedrock/` path to the new Next.js API routes.
 
 ### API Configuration:
 
-All endpoints share common configuration for API key validation, CORS handling, and request logging, defined in `/api/bedrock/config.js`.
+All endpoints share common utility functions for API key validation, environment variable access, and database operations, defined in the following files:
+- `/api/bedrock/config.js` - Common configuration and validation functions
+- `/api/bedrock/env-utils.js` - Environment variable utilities
+- `/api/bedrock/db-utils.js` - Database access functions
 
 ## Environment Variable Configuration
 

@@ -1,7 +1,10 @@
 {
   "rewrites": [
     { "source": "/api/bedrock", "destination": "/api/bedrock-next" },
-    { "source": "/api/bedrock/:path*", "destination": "/api/bedrock-next/:path*" },
+    { "source": "/api/bedrock/instances", "destination": "/api/bedrock-next/instances" },
+    { "source": "/api/bedrock/provision-instance", "destination": "/api/bedrock-next/provision-instance" },
+    { "source": "/api/bedrock/delete-instance", "destination": "/api/bedrock-next/delete-instance" },
+    { "source": "/api/bedrock/test-env", "destination": "/api/bedrock-next/test-env" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -55,10 +58,10 @@
     }
   },
   "env": {
-    "VITE_SUPABASE_URL": "${VITE_SUPABASE_URL}",
-    "VITE_SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}",
-    "BEDROCK_API_KEY": "${BEDROCK_API_KEY}",
-    "SUPABASE_URL": "${VITE_SUPABASE_URL}",
-    "SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}"
+    "VITE_SUPABASE_URL": "@vite_supabase_url",
+    "VITE_SUPABASE_ANON_KEY": "@vite_supabase_anon_key",
+    "BEDROCK_API_KEY": "@bedrock_api_key",
+    "SUPABASE_URL": "@vite_supabase_url",
+    "SUPABASE_ANON_KEY": "@vite_supabase_anon_key"
   }
 }
