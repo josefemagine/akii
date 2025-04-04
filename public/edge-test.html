@@ -33,8 +33,9 @@
             font-size: 16px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            width: 300px;
+            width: 100%;
             margin-bottom: 10px;
+            box-sizing: border-box;
         }
         pre {
             background-color: #f5f5f5;
@@ -46,29 +47,139 @@
         .result {
             margin-top: 20px;
         }
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 1rem;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            background-color: #f1f1f1;
+            border-radius: 4px 4px 0 0;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: white;
+            border-bottom: 2px solid #4CAF50;
+        }
+        .panel {
+            display: none;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 0 4px 4px 4px;
+        }
+        .panel.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
-    <h1>Supabase Edge Function Test</h1>
+    <h1>Edge Function Testing Tool</h1>
     
-    <div>
-        <p>Enter your API key to test the Supabase Edge Function:</p>
-        <input type="text" id="apiKey" placeholder="Enter API key" />
-        <button onclick="saveApiKey()">Save API Key</button>
+    <div class="tabs">
+        <div class="tab active" onclick="showTab('setup')">Setup</div>
+        <div class="tab" onclick="showTab('test')">Test</div>
+        <div class="tab" onclick="showTab('help')">Help</div>
     </div>
     
-    <div>
-        <p>Test the Edge Function with both header formats:</p>
-        <button onclick="runTest()">Test Edge Function</button>
+    <div id="setup" class="panel active">
+        <h2>Setup</h2>
+        
+        <div class="input-group">
+            <label for="apiKey">API Key:</label>
+            <input type="text" id="apiKey" placeholder="Enter API key" />
+            <button onclick="saveApiKey()">Save API Key</button>
+        </div>
+        
+        <div class="input-group">
+            <label for="endpointUrl">Edge Function URL:</label>
+            <input type="text" id="endpointUrl" value="https://hndbdiquvotjxcmjzlgu.supabase.co/functions/v1/bedrock/test-env" placeholder="Enter Edge Function URL" />
+            <button onclick="saveEndpointUrl()">Save URL</button>
+        </div>
+        
+        <div class="input-group">
+            <label for="superAction">Super Action URL (Alternative):</label>
+            <input type="text" id="superAction" value="https://api.akii.com/functions/v1/super-action/test-env" placeholder="Enter Super Action URL" />
+            <button onclick="saveSuperAction()">Save URL</button>
+        </div>
     </div>
     
-    <div class="result">
-        <h2>Result:</h2>
-        <pre id="result">No test run yet.</pre>
+    <div id="test" class="panel">
+        <h2>Test Edge Functions</h2>
+        
+        <p>Select which endpoint to test:</p>
+        <div>
+            <button onclick="runTest('default')">Test Supabase Edge Function</button>
+            <button onclick="runTest('super')">Test Super Action</button>
+        </div>
+        
+        <div class="result">
+            <h3>Result:</h3>
+            <pre id="result">No test run yet.</pre>
+        </div>
+    </div>
+    
+    <div id="help" class="panel">
+        <h2>Help</h2>
+        
+        <h3>About this tool</h3>
+        <p>This tool helps test your Supabase Edge Functions with different authentication header formats.</p>
+        
+        <h3>API Key</h3>
+        <p>The API key is used for authentication with the Edge Function. It will be tried with both the <code>x-api-key</code> header and the <code>Authorization: Bearer</code> header format.</p>
+        
+        <h3>URLs</h3>
+        <p>You can test two different endpoints:</p>
+        <ul>
+            <li><strong>Edge Function URL:</strong> Direct Supabase Edge Function URL (e.g., <code>https://[project-ref].supabase.co/functions/v1/[function-name]</code>)</li>
+            <li><strong>Super Action URL:</strong> Your custom API endpoint that might forward to the Supabase Edge Function</li>
+        </ul>
+        
+        <h3>Troubleshooting</h3>
+        <p>If you encounter errors:</p>
+        <ul>
+            <li>Check if your API key is correct</li>
+            <li>Verify that the Edge Function is deployed</li>
+            <li>Check the CORS configuration on the server</li>
+            <li>Look at the browser console for more detailed error messages</li>
+        </ul>
     </div>
     
     <script>
-        // Save API key to localStorage
+        // Tab navigation
+        function showTab(tabName) {
+            // Hide all panels
+            document.querySelectorAll('.panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            
+            // Deactivate all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected panel
+            document.getElementById(tabName).classList.add('active');
+            
+            // Activate selected tab
+            document.querySelectorAll('.tab').forEach(tab => {
+                if (tab.textContent.toLowerCase().includes(tabName)) {
+                    tab.classList.add('active');
+                }
+            });
+        }
+        
+        // Save values to localStorage
         function saveApiKey() {
             const apiKey = document.getElementById('apiKey').value.trim();
             if (apiKey) {
@@ -80,18 +191,131 @@
             }
         }
         
-        // Test the edge function
-        async function runTest() {
+        function saveEndpointUrl() {
+            const url = document.getElementById('endpointUrl').value.trim();
+            if (url) {
+                localStorage.setItem('edge-function-url', url);
+                alert('Edge Function URL saved');
+            } else {
+                alert('Please enter a valid URL');
+            }
+        }
+        
+        function saveSuperAction() {
+            const url = document.getElementById('superAction').value.trim();
+            if (url) {
+                localStorage.setItem('super-action-url', url);
+                alert('Super Action URL saved');
+            } else {
+                alert('Please enter a valid URL');
+            }
+        }
+        
+        // Test Supabase Edge Function
+        async function testSupabaseEdgeFunction(urlType = 'default') {
+            const apiKey = localStorage.getItem('bedrock-api-key');
+            
+            if (!apiKey) {
+                console.error('No API key found in localStorage');
+                return {
+                    success: false,
+                    error: 'No API key found in localStorage. Please set an API key in the Setup tab.'
+                };
+            }
+            
+            let testUrl;
+            
+            if (urlType === 'default') {
+                testUrl = localStorage.getItem('edge-function-url') || 
+                    'https://hndbdiquvotjxcmjzlgu.supabase.co/functions/v1/bedrock/test-env';
+            } else {
+                testUrl = localStorage.getItem('super-action-url') || 
+                    'https://api.akii.com/functions/v1/super-action/test-env';
+            }
+            
+            try {
+                // First attempt with x-api-key header
+                console.log(`Testing ${urlType} URL with x-api-key header: ${testUrl}`);
+                const response1 = await fetch(testUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'x-api-key': apiKey
+                    }
+                });
+                
+                // Check first response
+                if (response1.ok) {
+                    const data1 = await response1.json();
+                    console.log(`${urlType} environment (x-api-key):`, data1);
+                    return {
+                        success: true,
+                        method: 'x-api-key',
+                        url: testUrl,
+                        data: data1
+                    };
+                } else {
+                    console.log(`x-api-key attempt failed with status: ${response1.status}`);
+                    
+                    // Second attempt with Authorization header
+                    console.log(`Testing ${urlType} URL with Authorization header: ${testUrl}`);
+                    const response2 = await fetch(testUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        }
+                    });
+                    
+                    if (!response2.ok) {
+                        let errorText;
+                        try {
+                            errorText = await response2.text();
+                        } catch (e) {
+                            errorText = 'Could not read response text';
+                        }
+                        
+                        console.error(`Both header approaches failed. Last error: ${response2.status} ${errorText}`);
+                        return {
+                            success: false,
+                            url: testUrl,
+                            status: response2.status,
+                            error: errorText
+                        };
+                    }
+                    
+                    const data2 = await response2.json();
+                    console.log(`${urlType} environment (Authorization):`, data2);
+                    return {
+                        success: true,
+                        method: 'Authorization',
+                        url: testUrl,
+                        data: data2
+                    };
+                }
+            } catch (error) {
+                console.error(`Error testing ${urlType} function:`, error);
+                return {
+                    success: false,
+                    url: testUrl,
+                    error: error instanceof Error ? error.message : String(error)
+                };
+            }
+        }
+        
+        // Run the test
+        async function runTest(urlType = 'default') {
             try {
                 const resultElement = document.getElementById('result');
                 resultElement.textContent = 'Testing...';
                 
-                // Import the test function
-                const module = await import('/src/lib/test-supabase-edge-function.js');
-                const testFunction = module.default;
+                // Show the test panel
+                showTab('test');
                 
                 // Run the test
-                const result = await testFunction();
+                const result = await testSupabaseEdgeFunction(urlType);
                 
                 // Display result
                 resultElement.textContent = JSON.stringify(result, null, 2);
@@ -101,11 +325,23 @@
             }
         }
         
-        // Show the current API key from localStorage on page load
+        // Initialize saved values on page load
         window.onload = function() {
+            // Set placeholder text if values exist
             const savedKey = localStorage.getItem('bedrock-api-key');
             if (savedKey) {
                 document.getElementById('apiKey').placeholder = 'API key found in localStorage';
+            }
+            
+            // Set saved URLs
+            const savedUrl = localStorage.getItem('edge-function-url');
+            if (savedUrl) {
+                document.getElementById('endpointUrl').value = savedUrl;
+            }
+            
+            const savedSuperAction = localStorage.getItem('super-action-url');
+            if (savedSuperAction) {
+                document.getElementById('superAction').value = savedSuperAction;
             }
         };
     </script>
