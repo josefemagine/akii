@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supabase Edge Function Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        input {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 300px;
+            margin-bottom: 10px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+        }
+        .result {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Supabase Edge Function Test</h1>
+    
+    <div>
+        <p>Enter your API key to test the Supabase Edge Function:</p>
+        <input type="text" id="apiKey" placeholder="Enter API key" />
+        <button onclick="saveApiKey()">Save API Key</button>
+    </div>
+    
+    <div>
+        <p>Test the Edge Function with both header formats:</p>
+        <button onclick="runTest()">Test Edge Function</button>
+    </div>
+    
+    <div class="result">
+        <h2>Result:</h2>
+        <pre id="result">No test run yet.</pre>
+    </div>
+    
+    <script>
+        // Save API key to localStorage
+        function saveApiKey() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            if (apiKey) {
+                localStorage.setItem('bedrock-api-key', apiKey);
+                alert('API key saved to localStorage');
+                document.getElementById('apiKey').value = '';
+            } else {
+                alert('Please enter an API key');
+            }
+        }
+        
+        // Test the edge function
+        async function runTest() {
+            try {
+                const resultElement = document.getElementById('result');
+                resultElement.textContent = 'Testing...';
+                
+                // Import the test function
+                const module = await import('/src/lib/test-supabase-edge-function.js');
+                const testFunction = module.default;
+                
+                // Run the test
+                const result = await testFunction();
+                
+                // Display result
+                resultElement.textContent = JSON.stringify(result, null, 2);
+            } catch (error) {
+                console.error('Error running test:', error);
+                document.getElementById('result').textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        // Show the current API key from localStorage on page load
+        window.onload = function() {
+            const savedKey = localStorage.getItem('bedrock-api-key');
+            if (savedKey) {
+                document.getElementById('apiKey').placeholder = 'API key found in localStorage';
+            }
+        };
+    </script>
+</body>
+</html> 
