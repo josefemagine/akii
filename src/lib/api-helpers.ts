@@ -22,7 +22,17 @@ export async function makeBedrockApiRequest<T>(
   data?: any,
   apiKey?: string
 ): Promise<T> {
-  const key = apiKey || BedrockConfig.apiKey;
+  // Try to get the API key from parameters, then config, then localStorage
+  let key = apiKey || BedrockConfig.apiKey;
+  
+  // As a last resort, try localStorage
+  if (!key && typeof window !== 'undefined') {
+    const savedKey = localStorage.getItem('bedrock-api-key');
+    if (savedKey) {
+      console.log('Fallback: Using API key from localStorage');
+      key = savedKey;
+    }
+  }
   
   // In development, use the local proxy to avoid CORS issues
   // In production, use the configured API URL with the API key
@@ -41,7 +51,7 @@ export async function makeBedrockApiRequest<T>(
     
     // Validate API key in production
     if (!key) {
-      throw new Error('API key is required for production API requests');
+      throw new Error('API key is required for production API requests. Please provide an API key in the settings.');
     }
   }
   
@@ -60,7 +70,10 @@ export async function makeBedrockApiRequest<T>(
     // Add the API key 
     if (key) {
       headers['x-api-key'] = key;
-      console.log(`Using API key: ${key.substring(0, 3)}${'*'.repeat(key.length - 6)}${key.substring(key.length - 3)}`);
+      const maskedKey = key.length > 6 
+        ? `${key.substring(0, 3)}${'*'.repeat(key.length - 6)}${key.substring(key.length - 3)}`
+        : '***';
+      console.log(`Using API key: ${maskedKey}`);
     } else if (isDevMode) {
       console.log('No API key provided for development environment');
     }
