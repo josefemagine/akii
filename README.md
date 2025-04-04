@@ -140,3 +140,57 @@ This script sends requests to all endpoints and provides a summary of the test r
 ### API Configuration:
 
 All endpoints share common configuration for API key validation, CORS handling, and request logging, defined in `/api/bedrock/config.js`.
+
+## Environment Variable Configuration
+
+This project uses environment variables for configuration. The application reads environment variables from multiple sources to ensure compatibility with various deployment environments.
+
+### Required Environment Variables
+
+- `VITE_SUPABASE_URL` - The URL of your Supabase instance
+- `VITE_SUPABASE_ANON_KEY` - The anonymous key for Supabase authentication
+- `BEDROCK_API_KEY` - API key for AWS Bedrock service
+
+### Environment Variable Handling
+
+To ensure maximum compatibility in different environments, the application uses a utility function to retrieve environment variables using various naming patterns:
+
+1. Standard variable name (e.g., `SUPABASE_URL`)
+2. Without `VITE_` prefix (if the variable starts with `VITE_`)
+3. With `NEXT_` prefix (e.g., `NEXT_SUPABASE_URL`)
+4. With `NEXT_PUBLIC_` prefix (e.g., `NEXT_PUBLIC_SUPABASE_URL`)
+
+This ensures that the application can retrieve the necessary variables regardless of the specific deployment environment (Vercel, local development, etc.).
+
+### Deployment on Vercel
+
+When deploying on Vercel, be sure to set the following environment variables:
+
+1. In your Vercel project settings, add the following environment variables:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `BEDROCK_API_KEY`
+   - `SUPABASE_URL` (same value as `VITE_SUPABASE_URL`)
+   - `SUPABASE_ANON_KEY` (same value as `VITE_SUPABASE_ANON_KEY`)
+
+2. If you're encountering issues with environment variables, you can use the debugging endpoints:
+   - `/api/bedrock/test-env` - Tests environment variable loading in the legacy API
+   - `/api/bedrock-next/test-env` - Tests environment variable loading in the Next.js API
+
+### Local Development
+
+For local development, create a `.env` file with the required environment variables:
+
+```
+VITE_SUPABASE_URL=your-supabase-url
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+BEDROCK_API_KEY=your-bedrock-api-key
+```
+
+## Database Integration
+
+The application uses Supabase as the database provider. The `bedrock_instances` table is used to store information about Bedrock instances.
+
+### Fallback Mechanism
+
+The application includes a fallback mechanism for cases where the Supabase client cannot be initialized (e.g., missing environment variables). In such cases, the API will use mock data to ensure the application continues to function.

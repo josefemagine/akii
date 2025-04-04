@@ -51,10 +51,14 @@
   ],
   "build": {
     "env": {
-      "VITE_BEDROCK_API_URL": "/api/bedrock",
-      "VITE_SUPABASE_URL": "${VITE_SUPABASE_URL}",
-      "VITE_SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}",
-      "BEDROCK_API_KEY": "${BEDROCK_API_KEY}"
+      "VITE_BEDROCK_API_URL": "/api/bedrock"
     }
+  },
+  "env": {
+    "VITE_SUPABASE_URL": "${VITE_SUPABASE_URL}",
+    "VITE_SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}",
+    "BEDROCK_API_KEY": "${BEDROCK_API_KEY}",
+    "SUPABASE_URL": "${VITE_SUPABASE_URL}",
+    "SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}"
   }
 }
