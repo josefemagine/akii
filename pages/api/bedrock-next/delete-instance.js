@@ -1,7 +1,7 @@
 // API endpoint for deleting an AWS Bedrock model instance
 // This endpoint handles POST requests to /api/bedrock/delete-instance
 import { deleteBedrockInstance } from '../../../api/bedrock/db-utils.js';
-import { isValidApiKey } from '../../../api/bedrock/config.js';
+import { isValidApiKey, logApiRequest } from './config.js';
 
 /**
  * @typedef {Object} DeleteRequest
@@ -35,13 +35,16 @@ export default async function handler(req, res) {
     console.log(`[NEXT] Request headers: ${Object.keys(req.headers).join(', ')}`);
     console.log(`[NEXT] API key provided: ${Boolean(apiKey)}, length: ${apiKey ? apiKey.length : 0}`);
     
+    // Log the API request
+    logApiRequest('/delete-instance', 'POST', { body: req.body });
+    
     if (!isValidApiKey(apiKey)) {
       console.warn('[NEXT] Invalid or missing API key');
-      return res.status(401).json({ error: 'Invalid or missing API key' });
+      return res.status(401).json({ 
+        error: 'Invalid or missing API key',
+        message: 'Please provide a valid API key in the x-api-key header or configure one in the admin settings'
+      });
     }
-    
-    // Log the API request
-    console.log(`[NEXT] POST /delete-instance`, { body: req.body });
     
     // Validate request body
     const { instanceId } = req.body;

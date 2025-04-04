@@ -1,7 +1,7 @@
 // API endpoint for listing AWS Bedrock model instances
 // This endpoint handles GET requests to /api/bedrock/instances
 import { getBedrockInstances } from '../../../api/bedrock/db-utils.js';
-import { isValidApiKey } from '../../../api/bedrock/config.js';
+import { isValidApiKey, logApiRequest } from './config.js';
 
 /**
  * @typedef {Object} Instance
@@ -64,9 +64,15 @@ export default async function handler(req, res) {
     console.log(`[NEXT] Request headers: ${Object.keys(req.headers).join(', ')}`);
     console.log(`[NEXT] API key provided: ${Boolean(apiKey)}, length: ${apiKey ? apiKey.length : 0}`);
     
+    // Log the request for debugging
+    logApiRequest('/instances', 'GET');
+    
     if (!isValidApiKey(apiKey)) {
       console.warn('[NEXT] Invalid or missing API key');
-      return res.status(401).json({ error: 'Invalid or missing API key' });
+      return res.status(401).json({ 
+        error: 'Invalid or missing API key',
+        message: 'Please provide a valid API key in the x-api-key header or configure one in the admin settings'
+      });
     }
     
     // Fetch instances
