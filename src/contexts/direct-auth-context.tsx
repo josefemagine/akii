@@ -60,18 +60,87 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       console.log('DirectAuth: Signing out user');
       
-      // Clear all auth-related localStorage
-      localStorage.removeItem('akii-is-logged-in');
-      localStorage.removeItem('akii-auth-user-id');
-      localStorage.removeItem('akii-login-timestamp');
-      localStorage.removeItem('akii-session-expiry');
-      localStorage.removeItem('akii-is-admin');
-      localStorage.removeItem('akii-auth-user-email');
+      // Create a list of all keys to clear from localStorage
+      const localStorageKeysToRemove = [
+        // Direct Auth Storage Keys
+        'akii-is-logged-in',
+        'akii-auth-user-id',
+        'akii-login-timestamp',
+        'akii-session-expiry',
+        'akii-is-admin',
+        'akii-auth-user-email',
+        'akii-auth-token',
+        'akii-direct-profile',
+        'akii-session-duration',
+        
+        // Admin override keys
+        'admin_override',
+        'admin_override_email',
+        'admin_override_time',
+        'akii_admin_override',
+        'akii_admin_override_email',
+        'akii_admin_override_expiry',
+        'permanent-dashboard-access',
+        'force-auth-login',
+        
+        // Other auth-related keys
+        'auth-in-progress',
+        'auth-user-role',
+        'user-role',
+        'akii-auth-role',
+      ];
       
-      // Clear sessionStorage as well
-      sessionStorage.removeItem('akii-profile');
-      sessionStorage.removeItem('akii-is-logged-in');
-      sessionStorage.removeItem('akii-auth-user-id');
+      // Clear all keys from localStorage
+      localStorageKeysToRemove.forEach(key => {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          console.warn(`DirectAuth: Failed to remove ${key} from localStorage`, e);
+        }
+      });
+      
+      // Clear any supabase related keys we might have missed
+      Object.keys(localStorage).forEach(key => {
+        if (key.includes('supabase') || 
+            key.includes('sb-') || 
+            key.includes('akii-') || 
+            key.includes('token') || 
+            key.includes('auth')) {
+          try {
+            localStorage.removeItem(key);
+          } catch (e) {
+            console.warn(`DirectAuth: Failed to remove ${key} from localStorage`, e);
+          }
+        }
+      });
+      
+      // Create a list of all keys to clear from sessionStorage
+      const sessionStorageKeysToRemove = [
+        'akii-profile',
+        'akii-is-logged-in',
+        'akii-auth-user-id',
+        'akii-direct-profile',
+      ];
+      
+      // Clear all keys from sessionStorage
+      sessionStorageKeysToRemove.forEach(key => {
+        try {
+          sessionStorage.removeItem(key);
+        } catch (e) {
+          console.warn(`DirectAuth: Failed to remove ${key} from sessionStorage`, e);
+        }
+      });
+      
+      // Remove all akii- prefixed keys from sessionStorage
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.includes('akii-') || key.includes('supabase')) {
+          try {
+            sessionStorage.removeItem(key);
+          } catch (e) {
+            console.warn(`DirectAuth: Failed to remove ${key} from sessionStorage`, e);
+          }
+        }
+      });
       
       // Reset state
       setUser(null);
@@ -86,8 +155,8 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       console.log('DirectAuth: User signed out');
       
-      // Navigate to login page
-      navigate('/login', { replace: true });
+      // Force a full page reload to clear any in-memory state
+      window.location.href = '/login';
     } catch (error: unknown) {
       console.error('DirectAuth: Error during sign out', error);
       if (error instanceof Error) {
@@ -99,14 +168,8 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setProfile(null);
       setIsAdmin(false);
       
-      // Attempt to navigate to login page despite error
-      try {
-        navigate('/login', { replace: true });
-      } catch (navError) {
-        console.error('DirectAuth: Failed to navigate after sign out error', navError);
-        // Last resort - direct location change
-        window.location.href = '/login';
-      }
+      // Force a complete reload to address persistience issues
+      window.location.href = '/login';
     }
   };
   

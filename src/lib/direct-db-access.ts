@@ -423,16 +423,103 @@ export function setLoggedIn(userId: string, email?: string): void {
  */
 export function setLoggedOut(): void {
   try {
-    // Clear all stored values
-    localStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN);
-    localStorage.removeItem(STORAGE_KEYS.LOGIN_TIMESTAMP);
-    localStorage.removeItem(STORAGE_KEYS.SESSION_EXPIRY);
-    sessionStorage.removeItem(STORAGE_KEYS.PROFILE);
+    console.log('Direct DB: Clearing all auth-related storage for logout');
     
-    // Don't clear user ID and email as they might be needed for diagnostics
-    console.log('Direct DB: User set as logged out');
+    // Direct Auth Storage Keys
+    const keysToRemove = [
+      STORAGE_KEYS.IS_LOGGED_IN,
+      STORAGE_KEYS.USER_ID,
+      STORAGE_KEYS.USER_EMAIL,
+      STORAGE_KEYS.AUTH_TOKEN,
+      STORAGE_KEYS.LOGIN_TIMESTAMP,
+      STORAGE_KEYS.SESSION_EXPIRY,
+      STORAGE_KEYS.PROFILE,
+      'akii-is-logged-in',
+      'akii-auth-user-id',
+      'akii-auth-user-email',
+      'akii-login-timestamp',
+      'akii-session-expiry',
+      'akii-is-admin',
+      'akii-session-duration',
+      
+      // Admin override keys
+      'admin_override',
+      'admin_override_email',
+      'admin_override_time',
+      'akii_admin_override',
+      'akii_admin_override_email',
+      'akii_admin_override_expiry',
+      'permanent-dashboard-access',
+      'force-auth-login',
+      
+      // Other auth-related keys
+      'auth-in-progress',
+      'auth-user-role',
+      'user-role',
+      'akii-auth-role',
+    ];
+    
+    // Clear localStorage keys
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+      } catch (error) {
+        console.warn(`Direct DB: Failed to remove ${key} from localStorage:`, error);
+      }
+    });
+    
+    // Clear sessionStorage keys
+    keysToRemove.forEach(key => {
+      try {
+        sessionStorage.removeItem(key);
+      } catch (error) {
+        console.warn(`Direct DB: Failed to remove ${key} from sessionStorage:`, error);
+      }
+    });
+    
+    // Clear any keys with certain prefixes (akii-, supabase, sb-, etc.)
+    Object.keys(localStorage).forEach(key => {
+      if (key.includes('akii-') || 
+          key.includes('supabase') || 
+          key.includes('sb-') || 
+          key.includes('token') || 
+          key.includes('auth')) {
+        try {
+          localStorage.removeItem(key);
+        } catch (error) {
+          console.warn(`Direct DB: Failed to remove ${key} from localStorage:`, error);
+        }
+      }
+    });
+    
+    // Do the same for sessionStorage
+    Object.keys(sessionStorage).forEach(key => {
+      if (key.includes('akii-') || 
+          key.includes('supabase') || 
+          key.includes('sb-') || 
+          key.includes('profile')) {
+        try {
+          sessionStorage.removeItem(key);
+        } catch (error) {
+          console.warn(`Direct DB: Failed to remove ${key} from sessionStorage:`, error);
+        }
+      }
+    });
+    
+    console.log('Direct DB: User set as logged out, all storage cleared');
   } catch (e) {
     console.warn('Direct DB: Error setting logout state:', e);
+    
+    // Even if the comprehensive approach fails, try a direct approach
+    try {
+      localStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN);
+      localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'false');
+      localStorage.removeItem(STORAGE_KEYS.LOGIN_TIMESTAMP);
+      localStorage.removeItem(STORAGE_KEYS.SESSION_EXPIRY);
+      sessionStorage.removeItem(STORAGE_KEYS.PROFILE);
+    } catch (directError) {
+      console.error('Direct DB: Critical error during emergency logout attempt:', directError);
+    }
   }
 }
 
