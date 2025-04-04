@@ -185,13 +185,30 @@ const BedrockDashboard = () => {
   useEffect(() => {
     const savedKey = localStorage.getItem('bedrock-api-key');
     if (savedKey) {
+      console.log('Found saved API key in localStorage');
       setManualApiKey(savedKey);
       setIsUsingManualKey(true);
+      
+      // Important: Delay the initial API call until after state is updated
+      setTimeout(() => {
+        console.log('Using saved API key from localStorage for initial fetch');
+        fetchInstances();
+      }, 0);
     }
     
     // Remove any stored mock data preference from localStorage
     if (localStorage.getItem('bedrock-use-mock-data')) {
       localStorage.removeItem('bedrock-use-mock-data');
+    }
+  }, []);
+  
+  // Initial data load - only if no API key was loaded from localStorage
+  useEffect(() => {
+    // Skip if we already have an API key from localStorage
+    const hasSavedKey = Boolean(localStorage.getItem('bedrock-api-key'));
+    if (!hasSavedKey) {
+      console.log('No saved API key found, running initial fetch');
+      fetchInstances();
     }
   }, []);
   
@@ -226,27 +243,36 @@ const BedrockDashboard = () => {
       setError(null);
       console.log('Fetching instances...');
       
+      // Double-check for saved API key in localStorage as an extra precaution
+      const savedKey = localStorage.getItem('bedrock-api-key');
+      if (savedKey && (!manualApiKey || manualApiKey !== savedKey)) {
+        console.log('Found saved API key in localStorage during fetch - updating state');
+        setManualApiKey(savedKey);
+        setIsUsingManualKey(true);
+      }
+      
       // Check API key status
       console.log('API Key Status:', {
         isConfigured: BedrockConfig.isConfigured(),
         isUsingManualKey,
         hasManualKey: Boolean(manualApiKey),
-        hasEnvironmentKey: Boolean(BedrockConfig.apiKey)
+        hasEnvironmentKey: Boolean(BedrockConfig.apiKey),
+        hasSavedKey: Boolean(savedKey)
       });
       
       // Handle API key logic
-      const hasManualKey = Boolean(manualApiKey);
+      const hasManualKey = Boolean(manualApiKey || savedKey);
       if (hasManualKey && !isUsingManualKey) {
         setIsUsingManualKey(true);
         console.log('Enabling manual API key mode based on key presence');
       }
 
-      const activeKey = isUsingManualKey ? manualApiKey : BedrockConfig.apiKey;
+      const activeKey = isUsingManualKey ? (manualApiKey || savedKey) : BedrockConfig.apiKey;
       console.log(`Fetching instances with ${isUsingManualKey ? 'manual' : 'environment'} key, key present: ${Boolean(activeKey)}`);
 
       // Make the API request with proper parameters
       const data = await BedrockService.getInstances(
-        isUsingManualKey ? manualApiKey : undefined
+        isUsingManualKey ? (manualApiKey || savedKey) : undefined
       );
       
       console.log(`Received ${data?.length || 0} instances from API`);
@@ -278,11 +304,6 @@ const BedrockDashboard = () => {
     failed: 0
   });
   
-  // Initial data load
-  useEffect(() => {
-    fetchInstances();
-  }, []);
-  
   // Handle instance provision
   const handleProvisionInstance = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,12 +321,19 @@ const BedrockDashboard = () => {
       setSubmitting(true);
       setError(null);
       
+      // Double-check for saved API key
+      const savedKey = localStorage.getItem('bedrock-api-key');
+      if (savedKey && (!manualApiKey || !isUsingManualKey)) {
+        setManualApiKey(savedKey);
+        setIsUsingManualKey(true);
+      }
+      
       console.log(`Provisioning instance with real data`);
       
       const result = await BedrockService.provisionInstance(
         instanceName, 
         selectedPlan, 
-        isUsingManualKey ? manualApiKey : undefined
+        isUsingManualKey ? (manualApiKey || savedKey) : undefined
       );
       
       toast({
@@ -327,7 +355,7 @@ const BedrockDashboard = () => {
       const errorMessage = err instanceof Error 
         ? err.message
         : 'Failed to provision AI instance. Please try again.';
-        
+      
       toast({
         title: "Error",
         description: errorMessage,
@@ -345,7 +373,18 @@ const BedrockDashboard = () => {
     }
     
     try {
-      await BedrockService.deleteInstance(instanceId, throughputName, manualApiKey);
+      // Double-check for saved API key
+      const savedKey = localStorage.getItem('bedrock-api-key');
+      if (savedKey && (!manualApiKey || !isUsingManualKey)) {
+        setManualApiKey(savedKey);
+        setIsUsingManualKey(true);
+      }
+      
+      await BedrockService.deleteInstance(
+        instanceId, 
+        throughputName, 
+        isUsingManualKey ? (manualApiKey || savedKey) : undefined
+      );
       
       toast({
         title: "Success",
