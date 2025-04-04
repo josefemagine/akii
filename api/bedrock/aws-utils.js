@@ -2,7 +2,7 @@
  * AWS Bedrock client utilities for provisioning and managing Bedrock resources
  */
 
-import { getBedrockApiKey } from './env-utils.js';
+import { getBedrockApiKey, getAwsAccessKeyId, getAwsSecretAccessKey, getAwsRegion } from './env-utils.js';
 
 // Check if we're in a Node.js environment (for AWS SDK import)
 const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
@@ -30,6 +30,20 @@ async function initAwsClient() {
   }
   
   try {
+    // Get AWS credentials from environment variables using utility functions
+    const awsRegion = getAwsRegion();
+    const accessKeyId = getAwsAccessKeyId();
+    const secretAccessKey = getAwsSecretAccessKey();
+    
+    console.log(`[AWS] Initializing AWS SDK with region: ${awsRegion}`);
+    console.log(`[AWS] Access key provided: ${Boolean(accessKeyId)}, Secret key provided: ${Boolean(secretAccessKey)}`);
+    
+    // Check if credentials are available
+    if (!accessKeyId || !secretAccessKey) {
+      console.error('[AWS] Missing AWS credentials');
+      return null;
+    }
+    
     // Dynamic import of AWS SDK to avoid issues in browser environments
     const { BedrockRuntime } = await import('@aws-sdk/client-bedrock-runtime');
     const sdkModule = await import('@aws-sdk/client-bedrock');
@@ -43,14 +57,14 @@ async function initAwsClient() {
     
     // Initialize AWS Bedrock client with credentials from environment variables
     bedrockClient = new BedrockClient({
-      region: process.env.AWS_REGION || 'us-east-1',
+      region: awsRegion,
       credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+        accessKeyId,
+        secretAccessKey
       }
     });
     
-    console.log('[AWS] AWS Bedrock client initialized successfully');
+    console.log(`[AWS] AWS Bedrock client initialized successfully for region ${awsRegion}`);
     return bedrockClient;
   } catch (error) {
     console.error('[AWS] Error initializing AWS SDK:', error);
