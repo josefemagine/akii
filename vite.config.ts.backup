@@ -4,9 +4,6 @@ import path from "path";
 import { tempo } from "tempo-devtools/dist/vite";
 import tsconfigPaths from 'vite-tsconfig-paths'
 
-// Check if we're doing a focused build for Bedrock API testing
-const isFocusedBedrockBuild = process.env.FOCUS_BEDROCK === "true";
-
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), tempo(), tsconfigPaths()],
@@ -15,27 +12,15 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // Use a different entry point for focused Bedrock builds
-  build: isFocusedBedrockBuild ? {
-    // Simplified build configuration for Bedrock API testing
-    outDir: 'dist-bedrock',
-    lib: {
-      entry: path.resolve(__dirname, 'src/bedrock-entry.ts'),
-      name: 'BedrockApi',
-      fileName: (format) => `bedrock.${format}.js`
-    },
-    // Skip minification for easier debugging
-    minify: false,
-    sourcemap: true
-  } : {
-    // Standard build configuration
+  build: {
+    // Increase the warning limit to suppress warnings about large chunks
+    // Our main bundle is around 1100kb so we set this higher
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       // Exclude unused/transitional files from build to prevent errors
       external: [
         /supabase\/auth-helpers-nextjs/,
-        /SimpleAuthContext\.tsx$/,
-        /ConsolidatedAuthContext\.tsx$/ // Exclude the problematic auth context file
+        /SimpleAuthContext\.tsx$/
       ],
       output: {
         manualChunks: {

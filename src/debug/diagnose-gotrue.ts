@@ -5,6 +5,10 @@
  * and provides tools to debug authentication issues.
  */
 
+// Import type definitions we need
+import { SupabaseClient } from '@supabase/supabase-js';
+import { Database } from '../types/supabase';
+
 // Extend window interface with our debug property
 declare global {
   interface Window {
@@ -16,7 +20,7 @@ declare global {
     };
     __SUPABASE_SINGLETON?: {
       auth?: any;
-      client?: any;
+      client?: SupabaseClient<Database, "public", any>;
       initialized?: boolean;
     };
     __akii_redirects?: {

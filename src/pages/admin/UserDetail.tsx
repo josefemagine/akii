@@ -185,7 +185,7 @@ export function UserDetailPage() {
       case 'pending':
       case 'trialing':
         return 'secondary';
-      case 'banned':
+      case 'suspended':
       case 'failed':
       case 'past_due':
         return 'destructive';

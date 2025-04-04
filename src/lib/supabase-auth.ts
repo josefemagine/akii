@@ -74,9 +74,11 @@ export async function signInWithOAuth(provider: 'google' | 'github') {
   }
 }
 
-export async function signOut() {
+export async function signOut(scope: 'global' | 'local' | 'others' = 'global') {
   try {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ 
+      scope: scope === 'global' ? 'global' : (scope === 'local' ? 'local' : 'others')
+    });
     if (error) throw error;
     return { error: null };
   } catch (error) {
@@ -319,6 +321,37 @@ export async function checkIsAdmin(userId: string): Promise<boolean> {
     return data?.role === 'admin';
   } catch (e) {
     console.error('Exception checking admin status:', e);
+    return false;
+  }
+}
+
+// Utility to clear auth tokens from storage (this helps with cleanup during logout)
+export function clearAuthTokens() {
+  try {
+    // Clear all supabase related localStorage items
+    Object.keys(localStorage).forEach(key => {
+      if (key.includes('supabase') || 
+          key.includes('sb-') || 
+          key.includes('akii-auth') || 
+          key.includes('token') || 
+          key.includes('auth') ||
+          key.startsWith('auth-')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    // Also try to clear cookies if possible
+    document.cookie.split(';').forEach(c => {
+      const cookieName = c.trim().split('=')[0];
+      if (cookieName.includes('supabase') || cookieName.includes('sb-')) {
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      }
+    });
+    
+    console.log('Auth tokens cleared from storage');
+    return true;
+  } catch (error) {
+    console.error('Error clearing auth tokens:', error);
     return false;
   }
 } 

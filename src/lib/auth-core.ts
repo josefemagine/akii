@@ -25,8 +25,8 @@ import { signInWithOAuth } from './supabase-auth';
 export type User = SupabaseUser;
 export type Session = SupabaseSession;
 
-export type UserRole = "user" | "admin" | "team_member";
-export type UserStatus = "active" | "inactive" | "banned" | "pending";
+export type UserRole = "user" | "admin" | "moderator";
+export type UserStatus = "active" | "inactive" | "suspended" | "pending";
 
 export interface UserProfile {
   id: string;
@@ -48,13 +48,57 @@ export interface SupabaseResponse<T> {
 }
 
 // Auth override helpers
-export function hasValidAdminOverride(user: User | null): boolean {
+export function hasValidAdminOverride(user: User | string | null): boolean {
   if (!user) return false;
+  
+  let email: string | null = null;
+  
+  // Handle both User object and email string
+  if (typeof user === 'string') {
+    email = user;
+  } else {
+    email = user.email;
+  }
+  
   // Check local storage for admin override
   const override = localStorage.getItem('akii_admin_override') === 'true';
-  const email = localStorage.getItem('akii_admin_override_email');
+  const storedEmail = localStorage.getItem('akii_admin_override_email');
+  
   // Check if override is valid
-  return override && email === user.email;
+  return override && storedEmail === email;
+}
+
+// Wrapper for verifySupabaseConnection that returns the expected format
+export async function verifyConnection(): Promise<{ 
+  success: boolean; 
+  message: string; 
+  details: Record<string, boolean>; 
+}> {
+  try {
+    const result = await verifySupabaseConnection();
+    
+    return {
+      success: result.success,
+      message: result.success 
+        ? `Connection successful (${result.latency}ms)` 
+        : `Connection failed${result.error ? ': ' + result.error.message : ''}`,
+      details: {
+        connected: result.success,
+        sessionExists: result.sessionExists || false,
+        hasError: !!result.error
+      }
+    };
+  } catch (error) {
+    console.error('Error in verifyConnection:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown connection error',
+      details: {
+        connected: false,
+        error: true
+      }
+    };
+  }
 }
 
 // Storage cleanup

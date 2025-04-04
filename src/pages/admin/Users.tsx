@@ -58,8 +58,8 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "user" | "team_member";
-  status: "active" | "inactive" | "pending";
+  role: "admin" | "user" | "moderator";
+  status: "active" | "inactive" | "suspended" | "pending";
   plan: "free" | "starter" | "professional" | "enterprise";
   createdAt: string;
   lastLogin: string;
@@ -80,13 +80,13 @@ const getRoleBadge = (role: User["role"]) => {
           Admin
         </Badge>
       );
-    case "team_member":
+    case "moderator":
       return (
         <Badge
           variant="outline"
           className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-800"
         >
-          Team Member
+          Moderator
         </Badge>
       );
     default:
@@ -865,7 +865,7 @@ const UsersPage = () => {
               >
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
-                <option value="team_member">Team Member</option>
+                <option value="moderator">Moderator</option>
               </select>
             </div>
             
@@ -879,11 +879,11 @@ const UsersPage = () => {
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
-                <option value="banned">Banned</option>
+                <option value="suspended">Suspended</option>
                 <option value="pending">Pending</option>
               </select>
               <p className="text-xs text-muted-foreground dark:text-gray-400">
-                Setting a user to "inactive" or "banned" will prevent them from accessing the application.
+                Setting a user to "inactive" or "suspended" will prevent them from accessing the application.
                 If the status field is missing from your database, visit Admin &gt; User Status Migration.
               </p>
             </div>

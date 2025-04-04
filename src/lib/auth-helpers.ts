@@ -30,7 +30,7 @@ export type UserStatus = 'active' | 'inactive' | 'suspended' | 'pending';
 
 export interface UserProfile {
   id: string;
-  email?: string;
+  email: string;
   first_name?: string;
   last_name?: string;
   avatar_url?: string;
@@ -117,23 +117,29 @@ export async function signUp(email: string, password: string, metadata?: Record<
  */
 export async function signOut(scope: 'global' | 'local' | 'others' = 'global') {
   try {
-    // First try to clear token from browser storage for immediate UI feedback
+    // Clear local tokens first
     try {
-      // Find tokens in localStorage
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('supabase.auth.token') || key.includes('sb-'))) {
-          localStorage.removeItem(key);
-        }
+      if (scope === 'global' || scope === 'local') {
+        // Clear all supabase related localStorage items
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('supabase') || 
+              key.includes('sb-') || 
+              key.includes('akii-auth') || 
+              key.includes('token') || 
+              key.includes('auth')) {
+            localStorage.removeItem(key);
+          }
+        });
       }
     } catch (e) {
       console.warn('Error clearing local tokens:', e);
     }
     
     // Call the official signOut method with the specified scope
-    const { error } = await signOutSafely({ scope });
+    // Cast the result to ensure TypeScript recognizes the error property
+    const result = await signOutSafely({ scope }) as { error: Error | null };
     
-    if (error) throw error;
+    if (result.error) throw result.error;
     return { error: null };
   } catch (error) {
     console.error(`Sign out error (scope: ${scope}):`, error);

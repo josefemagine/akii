@@ -40,7 +40,7 @@ import {
   updatePassword as authUpdatePassword,
   hasValidAdminOverride,
   clearStoredAuth,
-  verifySupabaseConnection
+  verifyConnection
 } from "@/lib/auth-core";
 
 // State interface
@@ -693,6 +693,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
       
+      // Set a flag in localStorage to indicate we're in the middle of login
+      localStorage.setItem("akii-login-in-progress", "true");
+      localStorage.setItem("akii-login-time", Date.now().toString());
+      localStorage.setItem("akii-login-method", "email");
+      
       const response = await authSignIn(email, password);
       
       if (response.error) {
@@ -723,7 +728,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.location.replace(dashboardPath);
       }
       
-      return response;
+      // Return the response in the SupabaseResponse format
+      return {
+        data: response.data?.user || null,
+        error: response.error
+      };
     } catch (error) {
       console.error("Sign in error:", error);
       toast({
@@ -735,7 +744,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear login in progress flag on error
       localStorage.removeItem("akii-login-in-progress");
       
-      return { data: null, error: error as Error };
+      return { 
+        data: null, 
+        error: error instanceof Error ? error : new Error(String(error)) 
+      };
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));
     }
@@ -753,12 +765,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Log the metadata being sent
       console.log("SignUp metadata:", metadata);
       
-      const response = await authSignUp({
-        email,
-        password,
-        metadata,
-        redirectTo: `${window.location.origin}/auth/callback`
-      });
+      const response = await authSignUp(email, password, metadata);
       
       if (response.error) {
         toast({
@@ -895,15 +902,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
       
-      return response;
+      // Transform response to match SupabaseResponse<boolean>
+      return {
+        data: response.error ? null : true,
+        error: response.error
+      };
     } catch (error) {
-      console.error("Password reset error:", error);
+      console.error("Reset password error:", error);
       toast({
-        title: "Password reset error",
+        title: "Reset password error",
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-      return { data: false, error: error as Error };
+      
+      return { 
+        data: null, 
+        error: error instanceof Error ? error : new Error(String(error)) 
+      };
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));
     }
@@ -931,7 +946,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
       
-      return response;
+      return {
+        data: response.data,
+        error: response.error
+      };
     } catch (error) {
       console.error("Password update error:", error);
       toast({
@@ -939,7 +957,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-      return { data: null, error: error as Error };
+      return { 
+        data: null, 
+        error: error instanceof Error ? error : new Error(String(error)) 
+      };
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));
     }
@@ -981,7 +1002,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
       
-      return response;
+      return {
+        data: response.error ? null : true,
+        error: response.error
+      };
     } catch (error) {
       console.error("Sign out error:", error);
       toast({
@@ -989,7 +1013,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-      return { data: false, error: error as Error };
+      return { 
+        data: null, 
+        error: error instanceof Error ? error : new Error(String(error)) 
+      };
     } finally {
       // Make sure loading state is reset
       setState(prev => ({ ...prev, isLoading: false }));
@@ -1133,8 +1160,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Verify connection
-  const verifyConnection = async () => {
-    return await verifySupabaseConnection();
+  const checkConnection = async () => {
+    return await verifyConnection();
   };
 
   // Create context value
@@ -1150,7 +1177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateProfile,
     refreshUser,
     setUserRole: handleSetUserRole,
-    verifyConnection,
+    verifyConnection: checkConnection,
   };
 
   return (

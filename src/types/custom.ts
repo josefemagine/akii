@@ -1,6 +1,6 @@
 export type TeamMemberRole = "owner" | "admin" | "member" | "viewer";
-export type UserRole = "user" | "admin" | "team_member";
-export type UserStatus = "active" | "inactive" | "banned" | "pending";
+export type UserRole = "user" | "admin" | "moderator";
+export type UserStatus = "active" | "inactive" | "suspended" | "pending";
 export type AIInstanceStatus = "active" | "inactive" | "archived";
 
 export interface User {

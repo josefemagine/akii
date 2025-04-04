@@ -43,43 +43,22 @@ interface AIInstance {
 
 // API service functions
 const BedrockService = {
+  // Check environment
+  isDevelopment: import.meta.env.DEV,
+  
   // Get API key from env config
   apiKey: BedrockConfig.apiKey,
   
-  // Development mode with mock data
-  useMockData: false, // Set to true to use mock data instead of real API calls
-  
-  // Mock instances for development
-  mockInstances: [
-    {
-      id: "mock-instance-1",
-      name: "Development Instance 1",
-      modelId: "amazon.titan-text-express-v1",
-      throughputName: "pro-throughput",
-      status: "InService" as const,
-      createdAt: new Date().toISOString(),
-      plan: "pro" as const
-    },
-    {
-      id: "mock-instance-2",
-      name: "Development Instance 2",
-      modelId: "anthropic.claude-instant-v1",
-      throughputName: "business-throughput",
-      status: "Pending" as const,
-      createdAt: new Date(Date.now() - 3600000).toISOString(),
-      plan: "business" as const
-    }
-  ],
-  
   // Get all instances
   async getInstances(manualKey?: string): Promise<AIInstance[]> {
-    // Use mock data if enabled and in development mode
-    if (this.useMockData && import.meta.env.DEV) {
-      console.log('Using mock instance data for development');
-      return new Promise(resolve => {
-        // Simulate network delay
-        setTimeout(() => resolve(this.mockInstances), 800);
-      });
+    const apiKeyToUse = manualKey || this.apiKey;
+    
+    // Log environment context
+    if (this.isDevelopment) {
+      console.log('[DEV] Using development proxy for instances API');
+    } else {
+      console.log(`[PROD] Making API request to get instances at ${BedrockConfig.apiUrl}`);
+      console.log(`Using ${manualKey ? 'manual' : 'environment'} API key: ${apiKeyToUse ? '✓' : '✗'}`);
     }
     
     try {
@@ -87,51 +66,37 @@ const BedrockService = {
         '/instances', 
         'GET', 
         undefined, 
-        manualKey || undefined
+        apiKeyToUse || undefined
       );
       
-      return data.instances || [];
+      if (data?.instances) {
+        console.log(`Received ${data.instances.length} instances`);
+        return data.instances;
+      } else {
+        console.warn('No instances data in API response:', data);
+        return [];
+      }
     } catch (error) {
       console.error('Error fetching instances:', error);
-      
-      // In development mode, fallback to mock data if real API fails
-      if (import.meta.env.DEV) {
-        console.log('API request failed, falling back to mock data');
-        return this.mockInstances;
-      }
-      
       throw error;
     }
   },
   
   // Provision a new instance
   async provisionInstance(name: string, plan: string, manualKey?: string): Promise<any> {
-    // Use mock data if enabled and in development mode
-    if (this.useMockData && import.meta.env.DEV) {
-      console.log('Using mock provisioning for development');
-      
-      // Create a new mock instance
-      const planDetails = planConfig[plan as keyof typeof planConfig];
-      const newInstance = {
-        id: `mock-instance-${Date.now()}`,
-        name,
-        modelId: planDetails.modelId,
-        throughputName: planDetails.throughputName,
-        status: "Pending" as const,
-        createdAt: new Date().toISOString(),
-        plan: plan as 'starter' | 'pro' | 'business'
-      };
-      
-      // Add it to the mock instances
-      this.mockInstances.push(newInstance);
-      
-      return new Promise(resolve => {
-        // Simulate network delay
-        setTimeout(() => resolve({ success: true, instance: newInstance }), 1000);
-      });
+    const planDetails = planConfig[plan as keyof typeof planConfig];
+    const apiKeyToUse = manualKey || this.apiKey;
+    
+    if (!planDetails) {
+      throw new Error(`Invalid plan: ${plan}. Valid options are: ${Object.keys(planConfig).join(', ')}`);
     }
     
-    const planDetails = planConfig[plan as keyof typeof planConfig];
+    if (this.isDevelopment) {
+      console.log('[DEV] Using development proxy for provisioning API');
+    } else {
+      console.log(`[PROD] Making API request to provision instance at ${BedrockConfig.apiUrl}`);
+      console.log(`Instance: ${name}, model: ${planDetails.modelId}, throughput: ${planDetails.throughputName}`);
+    }
     
     try {
       const data = await makeBedrockApiRequest(
@@ -142,46 +107,25 @@ const BedrockService = {
           modelId: planDetails.modelId,
           throughputName: planDetails.throughputName
         },
-        manualKey || undefined
+        apiKeyToUse || undefined
       );
       
       return data;
     } catch (error) {
       console.error('Error provisioning instance:', error);
-      
-      // In development mode, fallback to mock data if real API fails
-      if (import.meta.env.DEV) {
-        console.log('API request failed, falling back to mock provisioning');
-        const newInstance = {
-          id: `mock-instance-${Date.now()}`,
-          name,
-          modelId: planDetails.modelId,
-          throughputName: planDetails.throughputName,
-          status: "Pending" as const,
-          createdAt: new Date().toISOString(),
-          plan: plan as 'starter' | 'pro' | 'business'
-        };
-        this.mockInstances.push(newInstance);
-        return { success: true, instance: newInstance };
-      }
-      
       throw error;
     }
   },
   
   // Delete an instance
   async deleteInstance(instanceId: string, throughputName: string, manualKey?: string): Promise<any> {
-    // Use mock data if enabled and in development mode
-    if (this.useMockData && import.meta.env.DEV) {
-      console.log('Using mock deletion for development');
-      
-      // Remove the instance from mock instances
-      this.mockInstances = this.mockInstances.filter(instance => instance.id !== instanceId);
-      
-      return new Promise(resolve => {
-        // Simulate network delay
-        setTimeout(() => resolve({ success: true }), 800);
-      });
+    const apiKeyToUse = manualKey || this.apiKey;
+    
+    if (this.isDevelopment) {
+      console.log('[DEV] Using development proxy for deletion API');
+    } else {
+      console.log(`[PROD] Making API request to delete instance at ${BedrockConfig.apiUrl}`);
+      console.log(`Instance ID: ${instanceId}, throughput: ${throughputName}`);
     }
     
     try {
@@ -192,20 +136,12 @@ const BedrockService = {
           instanceId,
           throughputName
         },
-        manualKey || undefined
+        apiKeyToUse || undefined
       );
       
       return data;
     } catch (error) {
       console.error('Error deleting instance:', error);
-      
-      // In development mode, fallback to mock data if real API fails
-      if (import.meta.env.DEV) {
-        console.log('API request failed, falling back to mock deletion');
-        this.mockInstances = this.mockInstances.filter(instance => instance.id !== instanceId);
-        return { success: true };
-      }
-      
       throw error;
     }
   }
@@ -242,44 +178,7 @@ const BedrockDashboard = () => {
   const [manualApiKey, setManualApiKey] = useState('');
   const [isUsingManualKey, setIsUsingManualKey] = useState(false);
   
-  // Mock data toggle for development
-  const [useMockData, setUseMockData] = useState(() => {
-    // Default to false, only use mock if explicitly enabled in localStorage
-    return import.meta.env.DEV && localStorage.getItem('bedrock-use-mock-data') === 'true';
-  });
-  
-  // Update BedrockService mock data setting when the toggle changes
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      BedrockService.useMockData = useMockData;
-      localStorage.setItem('bedrock-use-mock-data', useMockData.toString());
-      
-      // Log the current state
-      console.log('==== Mock Data Settings ====');
-      console.log('Mock data enabled:', useMockData);
-      console.log('API URL:', getBedrockApiUrl(useMockData));
-      console.log('==========================');
-      
-      if (useMockData) {
-        toast({
-          title: "Mock Data Mode",
-          description: "Using mock data for Bedrock API calls",
-        });
-      } else {
-        fetchInstances();
-      }
-    }
-  }, [useMockData, toast]);
-  
-  // Stats
-  const [stats, setStats] = useState({
-    total: 0,
-    active: 0,
-    pending: 0,
-    failed: 0
-  });
-  
-  // Check if API key is configured
+  // API configuration state
   const isApiConfigured = BedrockConfig.isConfigured();
   
   // Load manual API key from localStorage if available
@@ -317,19 +216,65 @@ const BedrockDashboard = () => {
   
   // Fetch instances
   const fetchInstances = async () => {
-    if (!isApiConfigured && !isUsingManualKey) {
-      console.log('No API key available - environment key not configured and no manual key provided');
-      setLoading(false);
-      setError('Bedrock API key is not configured. Please add VITE_BEDROCK_AWS_KEY to your environment variables or enter a key below.');
-      return;
-    }
-
-    const activeKey = isUsingManualKey ? manualApiKey : BedrockConfig.apiKey;
-    console.log(`Fetching instances with ${isUsingManualKey ? 'manual' : 'environment'} key, key present: ${Boolean(activeKey)}`);
-
     try {
       setRefreshing(true);
       setError(null);
+      console.log('Fetching instances...');
+      
+      // Check for development vs production mode
+      const isDevelopment = import.meta.env.DEV;
+      
+      // In development, we use the local proxy
+      if (isDevelopment) {
+        try {
+          console.log('Using development proxy for API requests');
+          const data = await BedrockService.getInstances();
+          console.log(`Received ${data?.length || 0} instances from API`);
+          setInstances(data);
+          
+          // Calculate stats
+          const stats = {
+            total: data.length,
+            active: data.filter(i => i.status === 'InService').length,
+            pending: data.filter(i => i.status === 'Pending').length,
+            failed: data.filter(i => ['Failed'].includes(i.status as any)).length
+          };
+          
+          setStats(stats);
+          return;
+        } catch (err) {
+          console.error('Error fetching from development proxy:', err);
+          setError('Failed to load instances from dev server. Make sure your local API server is running.');
+          return;
+        }
+      }
+      
+      // For production, we need to check API key availability
+      const hasEnvKey = Boolean(BedrockConfig.apiKey);
+      const hasManualKey = Boolean(manualApiKey.trim());
+      
+      console.log('API Key Status:', { 
+        environmentKeyPresent: hasEnvKey, 
+        manualKeyPresent: hasManualKey,
+        usingManualKey: isUsingManualKey
+      });
+      
+      if (!hasEnvKey && !hasManualKey) {
+        console.log('No API key available - environment key not configured and no manual key provided');
+        setLoading(false);
+        setError('Bedrock API key is not configured. Please add VITE_BEDROCK_AWS_KEY to your environment variables or enter a key below.');
+        return;
+      }
+
+      // If we have a manual key but isUsingManualKey is false, update it
+      if (hasManualKey && !isUsingManualKey) {
+        setIsUsingManualKey(true);
+        console.log('Enabling manual API key mode based on key presence');
+      }
+
+      const activeKey = isUsingManualKey ? manualApiKey : BedrockConfig.apiKey;
+      console.log(`Fetching instances with ${isUsingManualKey ? 'manual' : 'environment'} key, key present: ${Boolean(activeKey)}`);
+
       const data = await BedrockService.getInstances(isUsingManualKey ? manualApiKey : null);
       console.log(`Received ${data?.length || 0} instances from API`);
       setInstances(data);
@@ -339,50 +284,31 @@ const BedrockDashboard = () => {
         total: data.length,
         active: data.filter(i => i.status === 'InService').length,
         pending: data.filter(i => i.status === 'Pending').length,
-        failed: data.filter(i => i.status === 'Failed').length
+        failed: data.filter(i => ['Failed'].includes(i.status as any)).length
       };
       
       setStats(stats);
-    } catch (err) {
-      console.error('Error fetching instances:', err);
-      
-      // Provide more helpful error messages based on error type
-      let errorMessage = 'Failed to load instances. Please try again.';
-      
-      if (err instanceof Error) {
-        if (err.message.includes('NetworkError') || err.message.includes('Failed to fetch')) {
-          errorMessage = import.meta.env.DEV 
-            ? 'Network error: Could not connect to the API. This could be due to the Vite proxy configuration. Check that vite.config.ts has the correct proxy settings and the server is running.'
-            : 'Network error: Could not connect to the Bedrock API. This could be due to CORS restrictions or network connectivity issues.';
-        } else if (err.message.includes('401') || err.message.includes('403')) {
-          errorMessage = 'Authentication error: The API key provided may be invalid or has insufficient permissions.';
-        } else if (err.message.includes('404')) {
-          errorMessage = import.meta.env.DEV
-            ? 'API endpoint not found. Check that the proxy configuration in vite.config.ts has the correct target URL.'
-            : 'API endpoint not found. Please check that the URL (https://www.akii.com/bedrock) is correct.';
-        } else {
-          // Include original error message for debugging
-          errorMessage = `API error: ${err.message}`;
-        }
-      }
-      
-      setError(errorMessage);
-      
-      toast({
-        title: "Error",
-        description: "Could not load AI instances. Please check the console for more details.",
-        variant: "destructive",
-      });
+    } catch (error) {
+      console.error('Error in fetchInstances:', error);
+      setError('Failed to load instances. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
   
+  // Stats
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    pending: 0,
+    failed: 0
+  });
+  
   // Initial data load
   useEffect(() => {
     fetchInstances();
-  }, [isApiConfigured]);
+  }, []);
   
   // Handle instance provision
   const handleProvisionInstance = async (e: React.FormEvent) => {
@@ -454,8 +380,6 @@ const BedrockDashboard = () => {
   useEffect(() => {
     console.log('==== Bedrock Dashboard Initialization ====');
     BedrockConfig.logConfig();
-    console.log('Development mode:', import.meta.env.DEV);
-    console.log('Mock data enabled:', useMockData);
     console.log('Using manual API key:', isUsingManualKey);
     console.log('Manual API key present:', Boolean(manualApiKey));
     console.log('==========================================');
@@ -504,19 +428,6 @@ const BedrockDashboard = () => {
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Bedrock AI Instances</h1>
           <div className="flex items-center gap-4">
-            {import.meta.env.DEV && (
-              <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-md">
-                <Code size={16} className="text-yellow-600" />
-                <Label htmlFor="mock-toggle" className="text-sm font-medium">
-                  Dev Mode
-                </Label>
-                <Switch
-                  id="mock-toggle"
-                  checked={useMockData}
-                  onCheckedChange={setUseMockData}
-                />
-              </div>
-            )}
             <Button 
               variant="outline" 
               size="sm" 
@@ -534,19 +445,6 @@ const BedrockDashboard = () => {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        
-        {import.meta.env.DEV && (
-          <Alert className={useMockData ? "bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800" : "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800"}>
-            <Code className={`h-4 w-4 ${useMockData ? "text-yellow-600" : "text-blue-600"}`} />
-            <AlertTitle>Developer Mode Active</AlertTitle>
-            <AlertDescription>
-              {useMockData 
-                ? "Using mock data for API calls. No actual API requests will be made to the Bedrock service."
-                : "Using Vite development proxy to avoid CORS issues. API requests will be sent to /api/bedrock."
-              }
-            </AlertDescription>
           </Alert>
         )}
         

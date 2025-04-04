@@ -1,6 +1,6 @@
 // Core types for Supabase
-export type UserRole = "user" | "admin" | "team_member";
-export type UserStatus = "active" | "inactive" | "banned" | "pending";
+export type UserRole = "user" | "admin" | "moderator";
+export type UserStatus = "active" | "inactive" | "suspended" | "pending";
 
 export interface UserProfile {
   id: string;
