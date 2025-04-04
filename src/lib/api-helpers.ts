@@ -13,47 +13,6 @@ export function getBedrockApiUrl(): string {
   return BedrockConfig.apiUrl;
 }
 
-// Mock data for fallbacks
-const mockInstancesData = {
-  instances: [
-    {
-      id: "mock-instance-1",
-      name: "Mock Titan Express",
-      modelId: "amazon.titan-text-express-v1",
-      throughputName: "pro-throughput",
-      status: "InService",
-      createdAt: new Date().toISOString(),
-      plan: "pro"
-    },
-    {
-      id: "mock-instance-2",
-      name: "Mock Claude",
-      modelId: "anthropic.claude-instant-v1",
-      throughputName: "business-throughput",
-      status: "InService",
-      createdAt: new Date().toISOString(),
-      plan: "business"
-    }
-  ]
-};
-
-// Mock response for provision instance
-const getMockProvisionResponse = (data?: any) => {
-  const newInstance = {
-    id: `mock-instance-${Date.now()}`,
-    name: data?.name || 'New Mock Instance',
-    modelId: data?.modelId || 'amazon.titan-text-express-v1',
-    throughputName: data?.throughputName || 'starter-throughput',
-    status: "InService",
-    createdAt: new Date().toISOString(),
-    plan: data?.throughputName?.includes('starter') ? 'starter' : 
-          data?.throughputName?.includes('pro') ? 'pro' : 'business'
-  };
-  
-  console.log('[Mock Data] Created mock instance:', newInstance);
-  return { success: true, instance: newInstance };
-};
-
 /**
  * Make a request to the Bedrock API
  */
@@ -61,31 +20,8 @@ export async function makeBedrockApiRequest<T>(
   endpoint: string,
   method: 'GET' | 'POST' | 'DELETE' = 'GET',
   data?: any,
-  apiKey?: string,
-  useMockData: boolean = false
+  apiKey?: string
 ): Promise<T> {
-  // If mock data is requested, return it immediately
-  if (useMockData) {
-    console.log(`[Mock Data] Using mock data for ${endpoint}`);
-    
-    if (endpoint === '/instances' || endpoint === 'instances') {
-      console.log('[Mock Data] Returning mock instances');
-      return mockInstancesData as unknown as T;
-    }
-    
-    if (endpoint === '/provision-instance' || endpoint === 'provision-instance') {
-      return getMockProvisionResponse(data) as unknown as T;
-    }
-    
-    if (endpoint === '/delete-instance' || endpoint === 'delete-instance') {
-      console.log('[Mock Data] Deleted mock instance:', data?.instanceId);
-      return { success: true, instanceId: data?.instanceId } as unknown as T;
-    }
-    
-    // For any other endpoints
-    return { success: true, message: 'Mock operation successful' } as unknown as T;
-  }
-  
   const key = apiKey || BedrockConfig.apiKey;
   
   // In development, use the local proxy to avoid CORS issues
@@ -105,7 +41,7 @@ export async function makeBedrockApiRequest<T>(
     
     // Validate API key in production
     if (!key) {
-      console.warn('API key is missing for production API requests, will fall back to mock data if needed');
+      throw new Error('API key is required for production API requests');
     }
   }
   
@@ -154,29 +90,6 @@ export async function makeBedrockApiRequest<T>(
       const errorText = await response.text();
       console.error(`API Error (${response.status}): ${errorText}`);
       
-      // In production with server errors, fall back to mock data if needed
-      if (!isDevMode && response.status >= 500) {
-        console.warn(`Server error (${response.status}) in production, checking for fallback options`);
-        
-        // Fall back to mock data for specific endpoints
-        if (endpoint === '/instances') {
-          console.warn('Falling back to mock instances data');
-          return mockInstancesData as unknown as T;
-        }
-        
-        // Fall back to mock data for provisioning
-        if (endpoint === '/provision-instance' || endpoint === 'provision-instance') {
-          console.warn('Falling back to mock provision response');
-          return getMockProvisionResponse(data) as unknown as T;
-        }
-        
-        // Fall back for deletion
-        if (endpoint === '/delete-instance' || endpoint === 'delete-instance') {
-          console.warn('Falling back to mock deletion response');
-          return { success: true, message: 'Mock deletion successful', instanceId: data?.instanceId } as unknown as T;
-        }
-      }
-      
       // Create a more descriptive error message based on the endpoint and status
       let errorMessage = `API Error: ${response.status}`;
       
@@ -200,6 +113,8 @@ export async function makeBedrockApiRequest<T>(
         errorMessage = `Failed to provision instance: ${errorMessage.replace('API Error: ', '')}`;
       } else if (endpoint.includes('delete-instance')) {
         errorMessage = `Failed to delete instance: ${errorMessage.replace('API Error: ', '')}`;
+      } else if (endpoint.includes('instances')) {
+        errorMessage = `Failed to fetch instances: ${errorMessage.replace('API Error: ', '')}`;
       }
       
       // Throw improved error
@@ -227,17 +142,7 @@ export async function makeBedrockApiRequest<T>(
         console.error('Full response text:', responseText);
         throw new Error(`Invalid JSON response from server. This is likely an issue with the development proxy or local server. First 100 chars: ${responseText.substring(0, 100)}...`);
       } else {
-        // In production, fall back to mock data for specific endpoints
-        if (endpoint === '/instances') {
-          console.warn('Invalid JSON in production, falling back to mock data');
-          return mockInstancesData as unknown as T;
-        }
-        
-        if (endpoint === '/provision-instance' || endpoint === 'provision-instance') {
-          console.warn('Invalid JSON for provision endpoint, falling back to mock response');
-          return getMockProvisionResponse(data) as unknown as T;
-        }
-        
+        // Never use mock data in production, always throw an error
         throw new Error('Invalid JSON response from API server. Please contact support.');
       }
     }
@@ -252,24 +157,9 @@ export async function makeBedrockApiRequest<T>(
     
     if (isDevMode) {
       console.error('This may be due to the development server not running. Make sure to start the local API server with "node server.js"');
-    } else {
-      // In production environment, fallback to mock data
-      if (endpoint === '/instances' && method === 'GET') {
-        console.warn('API error in production, falling back to mock instances data');
-        return mockInstancesData as unknown as T;
-      }
-      
-      if ((endpoint === '/provision-instance' || endpoint === 'provision-instance') && method === 'POST') {
-        console.warn('API error in production for provisioning, falling back to mock provision response');
-        return getMockProvisionResponse(data) as unknown as T;
-      }
-      
-      if ((endpoint === '/delete-instance' || endpoint === 'delete-instance') && method === 'POST') {
-        console.warn('API error in production for deletion, falling back to mock deletion response');
-        return { success: true, message: 'Mock deletion successful', instanceId: data?.instanceId } as unknown as T;
-      }
     }
     
+    // Always throw the error in production, never fall back to mock data
     throw error;
   }
 } 

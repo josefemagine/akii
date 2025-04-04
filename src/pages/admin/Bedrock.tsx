@@ -50,7 +50,7 @@ const BedrockService = {
   apiKey: BedrockConfig.apiKey,
   
   // Get all instances
-  async getInstances(manualKey?: string, useMockData?: boolean): Promise<AIInstance[]> {
+  async getInstances(manualKey?: string): Promise<AIInstance[]> {
     const apiKeyToUse = manualKey || this.apiKey;
     
     // Log environment context
@@ -66,8 +66,7 @@ const BedrockService = {
         '/instances', 
         'GET', 
         undefined, 
-        apiKeyToUse || undefined,
-        useMockData
+        apiKeyToUse || undefined
       );
       
       if (data?.instances) {
@@ -84,7 +83,7 @@ const BedrockService = {
   },
   
   // Provision a new instance
-  async provisionInstance(name: string, plan: string, manualKey?: string, useMockData?: boolean): Promise<any> {
+  async provisionInstance(name: string, plan: string, manualKey?: string): Promise<any> {
     const planDetails = planConfig[plan as keyof typeof planConfig];
     const apiKeyToUse = manualKey || this.apiKey;
     
@@ -108,8 +107,7 @@ const BedrockService = {
           modelId: planDetails.modelId,
           throughputName: planDetails.throughputName
         },
-        apiKeyToUse || undefined,
-        useMockData
+        apiKeyToUse || undefined
       );
       
       return data;
@@ -120,7 +118,7 @@ const BedrockService = {
   },
   
   // Delete an instance
-  async deleteInstance(instanceId: string, throughputName: string, manualKey?: string, useMockData?: boolean): Promise<any> {
+  async deleteInstance(instanceId: string, throughputName: string, manualKey?: string): Promise<any> {
     const apiKeyToUse = manualKey || this.apiKey;
     
     if (this.isDevelopment) {
@@ -138,8 +136,7 @@ const BedrockService = {
           instanceId,
           throughputName
         },
-        apiKeyToUse || undefined,
-        useMockData
+        apiKeyToUse || undefined
       );
       
       return data;
@@ -181,9 +178,6 @@ const BedrockDashboard = () => {
   const [manualApiKey, setManualApiKey] = useState('');
   const [isUsingManualKey, setIsUsingManualKey] = useState(false);
   
-  // Mock data state
-  const [useMockData, setUseMockData] = useState(import.meta.env.DEV);
-  
   // API configuration state
   const isApiConfigured = BedrockConfig.isConfigured();
   
@@ -195,10 +189,9 @@ const BedrockDashboard = () => {
       setIsUsingManualKey(true);
     }
     
-    // Load mock data preference
-    const savedMockPref = localStorage.getItem('bedrock-use-mock-data');
-    if (savedMockPref !== null) {
-      setUseMockData(savedMockPref === 'true');
+    // Remove any stored mock data preference from localStorage
+    if (localStorage.getItem('bedrock-use-mock-data')) {
+      localStorage.removeItem('bedrock-use-mock-data');
     }
   }, []);
   
@@ -251,16 +244,9 @@ const BedrockDashboard = () => {
       const activeKey = isUsingManualKey ? manualApiKey : BedrockConfig.apiKey;
       console.log(`Fetching instances with ${isUsingManualKey ? 'manual' : 'environment'} key, key present: ${Boolean(activeKey)}`);
 
-      // Determine if we should use mock data
-      const shouldUseMockData = useMockData || (!activeKey && !import.meta.env.DEV);
-      if (shouldUseMockData) {
-        console.log('Using mock data for instances');
-      }
-
       // Make the API request with proper parameters
       const data = await BedrockService.getInstances(
-        isUsingManualKey ? manualApiKey : undefined, 
-        shouldUseMockData
+        isUsingManualKey ? manualApiKey : undefined
       );
       
       console.log(`Received ${data?.length || 0} instances from API`);
@@ -314,40 +300,23 @@ const BedrockDashboard = () => {
       setSubmitting(true);
       setError(null);
       
-      // First check if we should use mock data or real API
-      const shouldUseMockData = useMockData || 
-                               (!isApiConfigured && !isUsingManualKey && !import.meta.env.DEV);
-      
-      console.log(`Provisioning instance with ${shouldUseMockData ? 'mock' : 'real'} data`);
+      console.log(`Provisioning instance with real data`);
       
       const result = await BedrockService.provisionInstance(
         instanceName, 
         selectedPlan, 
-        isUsingManualKey ? manualApiKey : undefined, 
-        shouldUseMockData
+        isUsingManualKey ? manualApiKey : undefined
       );
       
-      // Check if the result indicates it was a mock response (useful for showing that to the user)
-      const wasMockResponse = result.instance?.id?.toString().includes('mock');
-      
       toast({
-        title: wasMockResponse ? "Instance Provisioned (Mock)" : "Success",
-        description: wasMockResponse 
-          ? "Mock AI instance has been created. This is not a real AWS instance." 
-          : "AI instance has been provisioned successfully",
-        variant: wasMockResponse ? "default" : "default",
+        title: "Success",
+        description: "AI instance has been provisioned successfully",
+        variant: "default",
       });
       
       // Reset form
       setInstanceName('');
       setSelectedPlan('starter');
-      
-      // If using mock data but it wasn't requested, update the UI state
-      if (wasMockResponse && !useMockData) {
-        setUseMockData(true);
-        localStorage.setItem('bedrock-use-mock-data', 'true');
-        console.log('Automatically enabling mock data mode after mock provision response');
-      }
       
       // Refresh instances
       fetchInstances();
@@ -359,24 +328,11 @@ const BedrockDashboard = () => {
         ? err.message
         : 'Failed to provision AI instance. Please try again.';
         
-      // Determine if this might be a server error (500)
-      const isServerError = errorMessage.includes('500') || 
-                            errorMessage.includes('server error') ||
-                            errorMessage.includes('Internal Server Error');
-      
       toast({
         title: "Error",
         description: errorMessage,
         variant: "destructive",
       });
-      
-      // If it was a server error, suggest enabling mock data
-      if (isServerError && !useMockData) {
-        toast({
-          title: "Suggestion",
-          description: "The server is experiencing issues. Try enabling mock data for testing.",
-        });
-      }
     } finally {
       setSubmitting(false);
     }
@@ -389,7 +345,7 @@ const BedrockDashboard = () => {
     }
     
     try {
-      await BedrockService.deleteInstance(instanceId, throughputName, manualApiKey, useMockData);
+      await BedrockService.deleteInstance(instanceId, throughputName, manualApiKey);
       
       toast({
         title: "Success",
@@ -480,20 +436,6 @@ const BedrockDashboard = () => {
           </Alert>
         )}
         
-        {/* Mock data banner */}
-        {useMockData && (
-          <Alert className="mb-4 bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800">
-            <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-            <AlertTitle className="text-yellow-600 dark:text-yellow-400">Mock Data Enabled</AlertTitle>
-            <AlertDescription className="text-yellow-700 dark:text-yellow-300">
-              You are currently viewing mock data. {import.meta.env.DEV ? 
-                "This is useful for development without a real API connection." : 
-                "The production API server may be unavailable or experiencing issues."
-              }
-            </AlertDescription>
-          </Alert>
-        )}
-        
         {/* API Key Configuration Form */}
         {!isApiConfigured && (
           <Card className="mb-6">
@@ -520,47 +462,6 @@ const BedrockDashboard = () => {
                       Save
                     </Button>
                   </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* Development Controls - only show in development mode */}
-        {import.meta.env.DEV && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Development Controls</CardTitle>
-              <CardDescription>
-                These controls are only available in development mode
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center space-x-2">
-                <div className="grid flex-1 gap-2">
-                  <Label htmlFor="use-mock-data">
-                    Use Mock Data
-                  </Label>
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="use-mock-data" 
-                      checked={useMockData} 
-                      onCheckedChange={(checked) => {
-                        setUseMockData(checked);
-                        localStorage.setItem('bedrock-use-mock-data', checked ? 'true' : 'false');
-                        // Refresh data with new setting
-                        fetchInstances();
-                      }}
-                    />
-                    <Label htmlFor="use-mock-data">
-                      {useMockData ? 'Using mock data' : 'Using real API data'}
-                    </Label>
-                  </div>
-                  {!useMockData && (
-                    <p className="text-xs text-yellow-500">
-                      Warning: Using real API data requires a valid API key and local server running correctly
-                    </p>
-                  )}
                 </div>
               </div>
             </CardContent>

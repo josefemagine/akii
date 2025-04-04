@@ -4,9 +4,12 @@
  * Valid API keys
  * In a real application, these would be stored in a database
  */
-export const validApiKeys = [
-  'test-key-1234', // For testing purposes
-  process.env.BEDROCK_API_KEY // From environment variables
+// api/bedrock/config.js
+export const isValidApiKey = (key) => key === process.env.BEDROCK_API_KEY;
+export const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+export const AWS_ACCESS_KEY = process.env.AWS_ACCESS_KEY_ID;
+export const AWS_SECRET_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+// Add other shared configuration here
 ];
 
 /**
