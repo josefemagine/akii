@@ -51,9 +51,6 @@
       ]
     }
   ],
-  "env": {
-    "BEDROCK_API_KEY": "@bedrock-api-key"
-  },
   "build": {
     "env": {
       "VITE_BEDROCK_API_URL": "https://www.akii.com/api/bedrock"
