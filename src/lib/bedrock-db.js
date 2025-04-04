@@ -1,5 +1,5 @@
-import { supabase } from './supabase';
-import { insertIntoTable, fetchFromTable, updateInTable, deleteFromTable } from './direct-db-access';
+import { supabase } from './supabase.js';
+import { insertIntoTable, fetchFromTable, updateInTable, deleteFromTable } from './direct-db-access.js';
 
 /**
  * Model mapping for Bedrock instances

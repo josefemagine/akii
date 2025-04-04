@@ -3,7 +3,7 @@
 
 // Import the local config module using relative path
 import { isValidApiKey, setCorsHeaders, handleOptionsRequest, logApiRequest } from './config.js';
-import { deleteBedrockInstance } from '../../src/lib/bedrock-db.js';
+import { deleteBedrockInstance } from './bedrock-db-serverless.js';
 
 /**
  * @typedef {Object} DeleteRequest
@@ -50,17 +50,17 @@ export default async function handler(req, res) {
     // Log the request
     logApiRequest('delete-instance', 'POST', { instanceId });
     
-    // Try to delete the instance from the database
+    // Delete the instance using the serverless implementation
     const { success, error } = await deleteBedrockInstance(instanceId);
     
     if (error) {
-      console.error('Error deleting instance from database:', error);
+      console.error('Error deleting instance:', error);
       
-      // Return a partial success even if database fails (fallback)
+      // Return a partial success even if deletion fails
       return res.status(200).json({ 
         success: true, 
         message: `Instance ${instanceId} deletion initiated (fallback mode)`,
-        warning: 'Database operation failed, but deletion request was processed'
+        warning: 'Operation may be incomplete, but deletion request was processed'
       });
     }
     
