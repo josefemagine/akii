@@ -312,26 +312,71 @@ const BedrockDashboard = () => {
     
     try {
       setSubmitting(true);
-      await BedrockService.provisionInstance(instanceName, selectedPlan, manualApiKey, useMockData);
+      setError(null);
+      
+      // First check if we should use mock data or real API
+      const shouldUseMockData = useMockData || 
+                               (!isApiConfigured && !isUsingManualKey && !import.meta.env.DEV);
+      
+      console.log(`Provisioning instance with ${shouldUseMockData ? 'mock' : 'real'} data`);
+      
+      const result = await BedrockService.provisionInstance(
+        instanceName, 
+        selectedPlan, 
+        isUsingManualKey ? manualApiKey : undefined, 
+        shouldUseMockData
+      );
+      
+      // Check if the result indicates it was a mock response (useful for showing that to the user)
+      const wasMockResponse = result.instance?.id?.toString().includes('mock');
       
       toast({
-        title: "Success",
-        description: "AI instance has been provisioned successfully",
+        title: wasMockResponse ? "Instance Provisioned (Mock)" : "Success",
+        description: wasMockResponse 
+          ? "Mock AI instance has been created. This is not a real AWS instance." 
+          : "AI instance has been provisioned successfully",
+        variant: wasMockResponse ? "default" : "default",
       });
       
       // Reset form
       setInstanceName('');
       setSelectedPlan('starter');
       
+      // If using mock data but it wasn't requested, update the UI state
+      if (wasMockResponse && !useMockData) {
+        setUseMockData(true);
+        localStorage.setItem('bedrock-use-mock-data', 'true');
+        console.log('Automatically enabling mock data mode after mock provision response');
+      }
+      
       // Refresh instances
       fetchInstances();
     } catch (err) {
       console.error('Error provisioning instance:', err);
+      
+      // Extract a better error message
+      const errorMessage = err instanceof Error 
+        ? err.message
+        : 'Failed to provision AI instance. Please try again.';
+        
+      // Determine if this might be a server error (500)
+      const isServerError = errorMessage.includes('500') || 
+                            errorMessage.includes('server error') ||
+                            errorMessage.includes('Internal Server Error');
+      
       toast({
         title: "Error",
-        description: "Failed to provision AI instance. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
+      
+      // If it was a server error, suggest enabling mock data
+      if (isServerError && !useMockData) {
+        toast({
+          title: "Suggestion",
+          description: "The server is experiencing issues. Try enabling mock data for testing.",
+        });
+      }
     } finally {
       setSubmitting(false);
     }
