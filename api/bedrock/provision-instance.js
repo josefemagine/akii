@@ -27,84 +27,59 @@ import { createBedrockInstance, modelToPlan } from './db-utils.js';
  * Legacy Vercel serverless function
  */
 export default async function handler(req, res) {
+  // Handle OPTIONS request for CORS
+  if (handleOptionsRequest(req, res)) return;
+  
+  // Set CORS headers
+  setCorsHeaders(res);
+  
+  // Only allow POST method
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  
   try {
-    // Set CORS headers
-    setCorsHeaders(res);
-    
-    // Handle preflight OPTIONS request
-    if (handleOptionsRequest(req, res)) {
-      return;
-    }
-    
-    // Only allow POST method
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-    
-    // Check for API key
+    // Check API key
     const apiKey = req.headers['x-api-key'];
+    console.log(`[API] Request headers: ${Object.keys(req.headers).join(', ')}`);
+    console.log(`[API] API key provided: ${Boolean(apiKey)}, length: ${apiKey ? apiKey.length : 0}`);
     
-    // Validate API key using the simplified method
     if (!isValidApiKey(apiKey)) {
+      console.warn('[API] Invalid or missing API key');
       return res.status(401).json({ error: 'Invalid or missing API key' });
     }
     
-    // Get request body
-    const { name, modelId, throughputName } = req.body;
+    // Log the API request
+    logApiRequest('/provision-instance', 'POST', { body: req.body });
     
     // Validate request body
+    const { name, modelId, throughputName } = req.body;
+    
     if (!name || !modelId || !throughputName) {
+      console.warn('[API] Missing required fields:', { name, modelId, throughputName });
       return res.status(400).json({ 
-        error: 'Invalid request. Required fields: name, modelId, throughputName' 
+        error: 'Missing required fields',
+        details: {
+          name: !name ? 'Missing' : 'OK',
+          modelId: !modelId ? 'Missing' : 'OK',
+          throughputName: !throughputName ? 'Missing' : 'OK'
+        }
       });
     }
     
-    // Log the request
-    logApiRequest('provision-instance', 'POST', { name, modelId });
-    
-    // Create the instance in Supabase
-    const { instance, error } = await createBedrockInstance({
-      name,
-      modelId,
-      throughputName
-    });
+    // Provision instance
+    console.log('[API] Creating new Bedrock instance...');
+    const { instance, error } = await createBedrockInstance(req.body);
     
     if (error) {
-      console.error('Error creating instance in Supabase:', error);
-      
-      // Fallback to mock response if database fails
-      const newInstance = {
-        id: `instance-${Date.now()}`,
-        name,
-        modelId,
-        throughputName,
-        status: 'Pending',
-        createdAt: new Date().toISOString(),
-        plan: modelToPlan[modelId] || 'starter'
-      };
-      
-      return res.status(201).json({ 
-        success: true, 
-        message: 'Instance provisioning started (fallback mode)',
-        instance: newInstance 
-      });
+      console.error('[API] Error creating instance:', error);
+      return res.status(500).json({ error: 'Failed to create instance', details: error.message });
     }
     
-    // Return the created instance
-    return res.status(201).json({ 
-      success: true, 
-      message: 'Instance provisioning started',
-      instance 
-    });
+    console.log(`[API] Successfully created instance: ${instance.id}`);
+    return res.status(200).json({ instance });
   } catch (error) {
-    console.error('Error in provision-instance API:', error);
-    // Return a meaningful error response
-    return res.status(500).json({ 
-      error: { 
-        code: "500", 
-        message: "Internal server error", 
-        details: error.message
-      } 
-    });
+    console.error('[API] Unexpected error in provision-instance endpoint:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 } 

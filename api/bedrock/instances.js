@@ -36,59 +36,41 @@ const mockInstances = [
   }
 ];
 
-// Legacy Vercel serverless function
+// API endpoint for getting Bedrock instances
 export default async function handler(req, res) {
+  // Handle OPTIONS request for CORS
+  if (handleOptionsRequest(req, res)) return;
+  
+  // Set CORS headers
+  setCorsHeaders(res);
+  
+  // Log the API request
+  logApiRequest('/instances', 'GET');
+  
   try {
-    // Set CORS headers
-    setCorsHeaders(res);
-    
-    // Handle preflight OPTIONS request
-    if (handleOptionsRequest(req, res)) {
-      return;
-    }
-    
-    // Only allow GET method
-    if (req.method !== 'GET') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
-    
-    // Check for API key
+    // Check API key
     const apiKey = req.headers['x-api-key'];
+    console.log(`[API] Request headers: ${Object.keys(req.headers).join(', ')}`);
+    console.log(`[API] API key provided: ${Boolean(apiKey)}, length: ${apiKey ? apiKey.length : 0}`);
     
-    // Validate API key using the simplified method
     if (!isValidApiKey(apiKey)) {
+      console.warn('[API] Invalid or missing API key');
       return res.status(401).json({ error: 'Invalid or missing API key' });
     }
     
-    // Log the request
-    logApiRequest('instances', 'GET');
-    
-    // Get instances from Supabase
+    // Get instances
+    console.log('[API] Fetching Bedrock instances...');
     const { instances, error } = await getBedrockInstances();
     
     if (error) {
-      console.error('Error fetching instances from Supabase:', error);
-      console.log('Falling back to mock instances');
-      return res.status(200).json({ instances: mockInstances });
+      console.error('[API] Error fetching instances:', error);
+      return res.status(500).json({ error: 'Failed to fetch instances' });
     }
     
-    // If no instances found, use mock instances as fallback
-    if (!instances || instances.length === 0) {
-      console.log('No instances found in Supabase, using mock instances');
-      return res.status(200).json({ instances: mockInstances });
-    }
-    
-    // Return the instances from the database
+    console.log(`[API] Successfully retrieved ${instances.length} instances`);
     return res.status(200).json({ instances });
   } catch (error) {
-    console.error('Error in instances API:', error);
-    // Return a meaningful error response
-    return res.status(500).json({ 
-      error: { 
-        code: "500", 
-        message: "Internal server error", 
-        details: error.message
-      } 
-    });
+    console.error('[API] Unexpected error in instances endpoint:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 } 

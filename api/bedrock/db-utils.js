@@ -16,7 +16,8 @@ const supabaseKey = getSupabaseKey();
 console.log('[API] Supabase config:', { 
   hasUrl: Boolean(supabaseUrl), 
   hasKey: Boolean(supabaseKey), 
-  url: supabaseUrl ? `${supabaseUrl.substring(0, 8)}...` : 'missing' 
+  url: supabaseUrl ? `${supabaseUrl.substring(0, 8)}...` : 'missing',
+  urlValid: supabaseUrl && supabaseUrl.startsWith('http')
 });
 
 // Mock instance functions for when Supabase isn't available
@@ -45,10 +46,21 @@ const mockInstances = [
 let supabase = null;
 try {
   if (supabaseUrl && supabaseKey && supabaseUrl.startsWith('http')) {
-    supabase = createClient(supabaseUrl, supabaseKey);
-    console.log('[API] Supabase client initialized successfully');
+    // Validate URL structure before initializing client
+    try {
+      new URL(supabaseUrl);
+      supabase = createClient(supabaseUrl, supabaseKey);
+      console.log('[API] Supabase client initialized successfully');
+    } catch (urlError) {
+      console.error('[API] Invalid Supabase URL format:', urlError.message);
+    }
   } else {
     console.warn('[API] Missing or invalid Supabase credentials, using mock data');
+    const issues = [];
+    if (!supabaseUrl) issues.push('Missing URL');
+    if (!supabaseKey) issues.push('Missing key');
+    if (supabaseUrl && !supabaseUrl.startsWith('http')) issues.push('URL does not start with http');
+    console.warn(`[API] Credential issues: ${issues.join(', ')}`);
   }
 } catch (error) {
   console.error('[API] Error initializing Supabase client:', error);

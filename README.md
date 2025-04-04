@@ -194,3 +194,39 @@ The application uses Supabase as the database provider. The `bedrock_instances` 
 ### Fallback Mechanism
 
 The application includes a fallback mechanism for cases where the Supabase client cannot be initialized (e.g., missing environment variables). In such cases, the API will use mock data to ensure the application continues to function.
+
+## API Troubleshooting
+
+If you encounter issues with the API endpoints, here are some common problems and solutions:
+
+### API Key Validation Errors
+
+If you're getting `401 Unauthorized` errors with the message "Invalid or missing API key", try the following:
+
+1. **Check API Key Format**: The API key should not contain any whitespace, quotes, or special characters. If you copy-pasted the key, ensure no extra characters were included.
+
+2. **Verify Environment Variables**: Use the test endpoints (`/api/bedrock/test-env` or `/api/bedrock-next/test-env`) to verify that your API key is correctly loaded from environment variables.
+
+3. **Browser Storage**: The frontend stores the API key in localStorage. Try clearing your browser's localStorage and entering the API key again.
+
+4. **HTTP Headers**: Ensure the API key is being sent in the `x-api-key` header (case-sensitive).
+
+### Database Connection Issues
+
+If you're experiencing issues with the Supabase database connection:
+
+1. **Environment Variables**: Verify that `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correctly set in your environment.
+
+2. **URL Format**: The Supabase URL must be a valid URL starting with `https://`.
+
+3. **Fallback Mechanism**: If the database connection fails, the API will use mock data. Check the server logs for messages indicating that mock data is being used.
+
+### Debugging API Requests
+
+The API includes extensive logging to help diagnose issues:
+
+1. **Server Logs**: Check the server logs for detailed information about API requests, environment variables, and error messages.
+
+2. **Test Endpoints**: Use the test endpoints (`/api/bedrock/test-env` or `/api/bedrock-next/test-env`) to get diagnostic information about your environment setup.
+
+3. **Request Headers**: The API logs all request headers (with sensitive information masked). Verify that your requests include the expected headers.
