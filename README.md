@@ -115,3 +115,28 @@ npm run build-with-type-check
 ```
 
 The project includes several TypeScript files related to auth context refactoring that are intentionally excluded from type checking in `tsconfig.json` and from Vite's build process. These files will be removed in a future update once the migration is complete.
+
+## Bedrock API Endpoints
+
+The application includes serverless API endpoints for AWS Bedrock integration. These endpoints are automatically deployed as serverless functions when using Vercel.
+
+### Available Endpoints:
+
+- **GET /api/bedrock** - Health check and documentation endpoint
+- **GET /api/bedrock/instances** - Lists all Bedrock instances (requires API key)
+- **POST /api/bedrock/provision-instance** - Provisions a new Bedrock instance (requires API key)
+- **POST /api/bedrock/delete-instance** - Deletes a Bedrock instance (requires API key)
+
+### Testing:
+
+You can test the API endpoints locally by running:
+
+```bash
+npm run test-api
+```
+
+This script sends requests to all endpoints and provides a summary of the test results.
+
+### API Configuration:
+
+All endpoints share common configuration for API key validation, CORS handling, and request logging, defined in `/api/bedrock/config.js`.

@@ -10,7 +10,7 @@
  */
 export const BedrockConfig = {
   apiKey: import.meta.env.VITE_BEDROCK_AWS_KEY || '',
-  apiUrl: import.meta.env.VITE_BEDROCK_API_URL || 'https://www.akii.com/bedrock',
+  apiUrl: import.meta.env.VITE_BEDROCK_API_URL || 'https://www.akii.com/api/bedrock',
   
   /**
    * Check if the Bedrock API key is configured
