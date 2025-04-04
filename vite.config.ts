@@ -165,4 +165,12 @@ export default defineConfig({
     u: JSON.stringify(""),
     haBoTSSzzxa5: JSON.stringify(""),
   },
+  // Add preview configuration for SPA routing
+  preview: {
+    port: 4173,
+    // Add headers to allow React Router to work properly
+    headers: {
+      'Cache-Control': 'no-store',
+    },
+  },
 });

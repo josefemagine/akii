@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecting...</title>
+  <script>
+    // This script handles client-side routing for SPAs
+    // It redirects all requests to the root index.html
+    (function() {
+      // Get the current path
+      const path = window.location.pathname;
+      // Preserve query string and hash
+      const query = window.location.search;
+      const hash = window.location.hash;
+      
+      // Redirect to the root with the original path as a hash route
+      window.location.href = '/' + (query || '') + (hash || '') + '?redirect=' + encodeURIComponent(path);
+    })();
+  </script>
+</head>
+<body>
+  <p>Redirecting to application...</p>
+</body>
+</html> 

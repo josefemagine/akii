@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -180,6 +182,39 @@ app.use((req, res) => {
     error: 'Not Found', 
     message: `Endpoint ${req.method} ${req.url} not found`
   });
+});
+
+// Add middleware to handle SPA routing for non-API routes
+app.use((req, res, next) => {
+  // Skip API routes
+  if (req.url.startsWith('/api/')) {
+    return next();
+  }
+  
+  // For static files in the public directory, try to serve them
+  if (req.url.includes('.')) {
+    try {
+      const staticFile = path.join(__dirname, 'public', req.url);
+      if (fs.existsSync(staticFile)) {
+        return res.sendFile(staticFile);
+      }
+    } catch (error) {
+      console.error('Error serving static file:', error);
+    }
+  }
+  
+  // For all other routes, serve the fallback HTML
+  try {
+    const fallbackPath = path.join(__dirname, 'public', '_fallback.html');
+    if (fs.existsSync(fallbackPath)) {
+      return res.sendFile(fallbackPath);
+    }
+  } catch (error) {
+    console.error('Error serving fallback HTML:', error);
+  }
+  
+  // If we get here, continue with normal routing
+  next();
 });
 
 // Start server
