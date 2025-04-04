@@ -3,6 +3,7 @@
  */
 
 import { getBedrockApiKey, getAwsAccessKeyId, getAwsSecretAccessKey, getAwsRegion } from './env-utils.js';
+import { useHardcodedCredentials, getHardcodedCredentials } from './aws-workaround.js';
 
 // Check if we're in a Node.js environment (for AWS SDK import)
 const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
@@ -70,15 +71,21 @@ async function initAwsClient() {
       console.log('[AWS] Attempting to create client with explicit credentials');
       
       // Initialize AWS Bedrock client with credentials from environment variables
-      bedrockClient = new BedrockClient({
-        region: awsRegion,
-        credentials: {
-          accessKeyId,
-          secretAccessKey
-        }
-      });
-      
-      console.log('[AWS] Successfully created client with explicit credentials');
+      if (useHardcodedCredentials) {
+        console.log('[AWS] Using hardcoded credentials instead of environment variables');
+        const config = getHardcodedCredentials();
+        bedrockClient = new BedrockClient(config);
+        console.log('[AWS] Successfully created client with hardcoded credentials');
+      } else {
+        bedrockClient = new BedrockClient({
+          region: awsRegion,
+          credentials: {
+            accessKeyId,
+            secretAccessKey
+          }
+        });
+        console.log('[AWS] Successfully created client with explicit credentials');
+      }
     } catch (credError) {
       console.error('[AWS] Error creating client with explicit credentials:', credError);
       
@@ -96,10 +103,21 @@ async function initAwsClient() {
           // Try one more approach - directly inject env vars for AWS SDK
           console.log('[AWS] Attempting direct environment variable injection');
           
-          // Directly set AWS SDK environment variables
-          process.env.AWS_ACCESS_KEY_ID = accessKeyId;
-          process.env.AWS_SECRET_ACCESS_KEY = secretAccessKey;
-          process.env.AWS_REGION = awsRegion;
+          if (useHardcodedCredentials) {
+            // If hardcoded credentials are enabled, try with those
+            console.log('[AWS] Using hardcoded credentials for direct injection');
+            const { accessKeyId, secretAccessKey, region } = getHardcodedCredentials().credentials;
+            
+            // Directly set AWS SDK environment variables
+            process.env.AWS_ACCESS_KEY_ID = accessKeyId;
+            process.env.AWS_SECRET_ACCESS_KEY = secretAccessKey;
+            process.env.AWS_REGION = region;
+          } else {
+            // Otherwise use the values from our utility functions
+            process.env.AWS_ACCESS_KEY_ID = accessKeyId;
+            process.env.AWS_SECRET_ACCESS_KEY = secretAccessKey;
+            process.env.AWS_REGION = awsRegion;
+          }
           
           bedrockClient = new BedrockClient({ region: awsRegion });
           console.log('[AWS] Successfully created client with environment variable injection');

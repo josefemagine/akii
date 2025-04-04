@@ -41,6 +41,11 @@ export default async function handler(req, res) {
     const directSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
     const directRegion = process.env.AWS_REGION;
     
+    // Check for template syntax in the variables
+    const hasTemplateInAccessKey = directAccessKeyId && directAccessKeyId.includes('${');
+    const hasTemplateInSecretKey = directSecretAccessKey && directSecretAccessKey.includes('${');
+    const accessKeyFirstChars = directAccessKeyId ? directAccessKeyId.substring(0, 5) : 'none';
+    
     const directMaskedAccessKey = directAccessKeyId ? 
       `${directAccessKeyId.substring(0, 4)}...${directAccessKeyId.substring(directAccessKeyId.length - 4)}` : 'undefined';
     
@@ -76,7 +81,12 @@ export default async function handler(req, res) {
           accessKeyLength: directAccessKeyId?.length || 0,
           secretKeyPresent: Boolean(directSecretAccessKey),
           secretKeyLength: directSecretAccessKey?.length || 0,
-          regionValue: directRegion
+          regionValue: directRegion,
+          // Add template syntax detection
+          hasTemplateInAccessKey: hasTemplateInAccessKey,
+          hasTemplateInSecretKey: hasTemplateInSecretKey,
+          accessKeyFirstChars: accessKeyFirstChars,
+          isAkiaPrefix: accessKeyFirstChars === 'AKIA'
         }
       },
       processDetails: {
