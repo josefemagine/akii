@@ -55,14 +55,60 @@ async function initAwsClient() {
     DeleteProvisionedModelThroughputCommand = sdkModule.DeleteProvisionedModelThroughputCommand;
     GetProvisionedModelThroughputCommand = sdkModule.GetProvisionedModelThroughputCommand;
     
-    // Initialize AWS Bedrock client with credentials from environment variables
-    bedrockClient = new BedrockClient({
-      region: awsRegion,
-      credentials: {
-        accessKeyId,
-        secretAccessKey
+    // Debug credential values (safely) before creating client
+    const maskedAccessKey = accessKeyId ? 
+      `${accessKeyId.substring(0, 4)}...${accessKeyId.substring(accessKeyId.length - 4)}` : 'undefined';
+    const maskedSecretKey = secretAccessKey ? 
+      `${secretAccessKey.substring(0, 4)}...${secretAccessKey.substring(secretAccessKey.length - 4)}` : 'undefined';
+    
+    console.log(`[AWS] Debug credentials - Access Key: ${maskedAccessKey}, Secret Key: ${maskedSecretKey ? '[PRESENT]' : '[MISSING]'}`);
+    console.log(`[AWS] Access Key Length: ${accessKeyId?.length || 0}, Secret Key Length: ${secretAccessKey?.length || 0}`);
+    console.log(`[AWS] Environment vars present: AWS_ACCESS_KEY_ID=${Boolean(process.env.AWS_ACCESS_KEY_ID)}, AWS_SECRET_ACCESS_KEY=${Boolean(process.env.AWS_SECRET_ACCESS_KEY)}`);
+    
+    // Try different approaches to initialize the client
+    try {
+      console.log('[AWS] Attempting to create client with explicit credentials');
+      
+      // Initialize AWS Bedrock client with credentials from environment variables
+      bedrockClient = new BedrockClient({
+        region: awsRegion,
+        credentials: {
+          accessKeyId,
+          secretAccessKey
+        }
+      });
+      
+      console.log('[AWS] Successfully created client with explicit credentials');
+    } catch (credError) {
+      console.error('[AWS] Error creating client with explicit credentials:', credError);
+      
+      try {
+        // Alternative approach - let AWS SDK load credentials from environment
+        console.log('[AWS] Attempting to create client with default credentials');
+        bedrockClient = new BedrockClient({ 
+          region: awsRegion 
+        });
+        console.log('[AWS] Successfully created client with default credentials');
+      } catch (defaultCredError) {
+        console.error('[AWS] Error creating client with default credentials:', defaultCredError);
+        
+        try {
+          // Try one more approach - directly inject env vars for AWS SDK
+          console.log('[AWS] Attempting direct environment variable injection');
+          
+          // Directly set AWS SDK environment variables
+          process.env.AWS_ACCESS_KEY_ID = accessKeyId;
+          process.env.AWS_SECRET_ACCESS_KEY = secretAccessKey;
+          process.env.AWS_REGION = awsRegion;
+          
+          bedrockClient = new BedrockClient({ region: awsRegion });
+          console.log('[AWS] Successfully created client with environment variable injection');
+        } catch (injectionError) {
+          console.error('[AWS] Error creating client with environment injection:', injectionError);
+          return null;
+        }
       }
-    });
+    }
     
     console.log(`[AWS] AWS Bedrock client initialized successfully for region ${awsRegion}`);
     return bedrockClient;

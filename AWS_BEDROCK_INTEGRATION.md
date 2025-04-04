@@ -40,6 +40,30 @@ For example, in `vercel.json`:
 
 This prevents issues with variable interpolation in the deployed environment.
 
+## AWS Credential Format and Requirements
+
+AWS credentials used for AWS Bedrock must follow specific requirements:
+
+1. **Valid IAM Credentials**: Make sure you're using an IAM user's credentials, not temporary security tokens or IAM role credentials
+2. **Proper Permissions**: The IAM user must have explicit permissions for Bedrock services
+3. **Credential Format**: Access Key IDs typically start with 'AKIA' and are 20 characters long
+4. **Region Availability**: AWS Bedrock is only available in specific regions, make sure to use 'us-east-1' or another supported region
+
+### Troubleshooting the "UnrecognizedClientException" Error
+
+If you see the error `UnrecognizedClientException: The security token included in the request is invalid`, this usually indicates one of these issues:
+
+1. The AWS credentials (access key or secret key) are incorrect or invalid
+2. You're using temporary credentials that have expired
+3. The IAM user doesn't have sufficient permissions
+4. The credentials are not properly being passed to the AWS SDK
+
+For debugging:
+
+1. Visit the `/api/bedrock/test-env` endpoint to verify your credentials are being properly loaded
+2. In your AWS console, check that the IAM user has explicit Bedrock permissions
+3. Try creating a new set of access keys if you suspect the current ones are compromised
+
 ## IAM Permissions
 
 The AWS credentials used need the following permissions:

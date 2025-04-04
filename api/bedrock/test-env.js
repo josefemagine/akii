@@ -28,7 +28,21 @@ export default async function handler(req, res) {
     
     // Test AWS environment variables
     const awsRegion = getAwsRegion();
-    const hasAwsCredentials = Boolean(getAwsAccessKeyId()) && Boolean(getAwsSecretAccessKey());
+    const awsAccessKeyId = getAwsAccessKeyId();
+    const awsSecretAccessKey = getAwsSecretAccessKey();
+    const hasAwsCredentials = Boolean(awsAccessKeyId) && Boolean(awsSecretAccessKey);
+    
+    // Show partial masked credentials for debugging
+    const maskedAccessKey = awsAccessKeyId ? 
+      `${awsAccessKeyId.substring(0, 4)}...${awsAccessKeyId.substring(awsAccessKeyId.length - 4)}` : 'undefined';
+    
+    // Test direct environment variables too
+    const directAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
+    const directSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+    const directRegion = process.env.AWS_REGION;
+    
+    const directMaskedAccessKey = directAccessKeyId ? 
+      `${directAccessKeyId.substring(0, 4)}...${directAccessKeyId.substring(directAccessKeyId.length - 4)}` : 'undefined';
     
     // Test AWS endpoint construction
     let regionResolution = 'OK';
@@ -49,7 +63,21 @@ export default async function handler(req, res) {
         region: awsRegion,
         hasCredentials: hasAwsCredentials,
         regionResolution,
-        endpoint: `bedrock.${awsRegion}.amazonaws.com`
+        endpoint: `bedrock.${awsRegion}.amazonaws.com`,
+        // Add masked credential debug info
+        accessKeyMasked: maskedAccessKey,
+        accessKeyLength: awsAccessKeyId?.length || 0,
+        secretKeyPresent: Boolean(awsSecretAccessKey),
+        secretKeyLength: awsSecretAccessKey?.length || 0,
+        // Direct environment variable checks
+        directCheck: {
+          accessKeyPresent: Boolean(directAccessKeyId),
+          accessKeyMasked: directMaskedAccessKey,
+          accessKeyLength: directAccessKeyId?.length || 0,
+          secretKeyPresent: Boolean(directSecretAccessKey),
+          secretKeyLength: directSecretAccessKey?.length || 0,
+          regionValue: directRegion
+        }
       },
       processDetails: {
         platform: process.platform,
