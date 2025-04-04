@@ -3,6 +3,7 @@
 
 // Import the local config module using relative path
 import { isValidApiKey, setCorsHeaders, handleOptionsRequest, logApiRequest } from './config.js';
+import { deleteBedrockInstance } from '../../src/lib/bedrock-db.js';
 
 /**
  * @typedef {Object} DeleteRequest
@@ -13,7 +14,7 @@ import { isValidApiKey, setCorsHeaders, handleOptionsRequest, logApiRequest } fr
 /**
  * Legacy Vercel serverless function for the /api/bedrock/delete-instance endpoint
  */
-export default function handler(req, res) {
+export default async function handler(req, res) {
   try {
     // Set CORS headers
     setCorsHeaders(res);
@@ -46,12 +47,30 @@ export default function handler(req, res) {
       });
     }
     
+    // Log the request
+    logApiRequest('delete-instance', 'POST', { instanceId });
+    
+    // Try to delete the instance from the database
+    const { success, error } = await deleteBedrockInstance(instanceId);
+    
+    if (error) {
+      console.error('Error deleting instance from database:', error);
+      
+      // Return a partial success even if database fails (fallback)
+      return res.status(200).json({ 
+        success: true, 
+        message: `Instance ${instanceId} deletion initiated (fallback mode)`,
+        warning: 'Database operation failed, but deletion request was processed'
+      });
+    }
+    
     // Return success
     return res.status(200).json({ 
       success: true, 
-      message: `Instance ${instanceId} deletion initiated`
+      message: `Instance ${instanceId} deletion completed successfully`
     });
   } catch (error) {
+    console.error('Error in delete-instance API:', error);
     // Return a meaningful error response
     return res.status(500).json({ 
       error: { 

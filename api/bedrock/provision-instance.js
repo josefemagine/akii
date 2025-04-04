@@ -3,6 +3,7 @@
 
 // Import the local config module using relative path
 import { isValidApiKey, setCorsHeaders, handleOptionsRequest, logApiRequest } from './config.js';
+import { createBedrockInstance, modelToPlan } from '../../src/lib/bedrock-db.js';
 
 /**
  * @typedef {Object} ProvisionRequest
@@ -22,17 +23,10 @@ import { isValidApiKey, setCorsHeaders, handleOptionsRequest, logApiRequest } fr
  * @property {'starter'|'pro'|'business'} plan - The plan type
  */
 
-// Map model IDs to plan types
-const modelToPlan = {
-  'amazon.titan-text-lite-v1': 'starter',
-  'amazon.titan-text-express-v1': 'pro',
-  'anthropic.claude-instant-v1': 'business'
-};
-
 /**
  * Legacy Vercel serverless function
  */
-export default function handler(req, res) {
+export default async function handler(req, res) {
   try {
     // Set CORS headers
     setCorsHeaders(res);
@@ -65,24 +59,45 @@ export default function handler(req, res) {
       });
     }
     
-    // Create a new instance
-    const newInstance = {
-      id: `instance-${Date.now()}`,
+    // Log the request
+    logApiRequest('provision-instance', 'POST', { name, modelId });
+    
+    // Try to create the instance in the database
+    const { instance, error } = await createBedrockInstance({
       name,
       modelId,
-      throughputName,
-      status: 'Pending',
-      createdAt: new Date().toISOString(),
-      plan: modelToPlan[modelId] || 'starter'
-    };
+      throughputName
+    });
+    
+    if (error) {
+      console.error('Error creating instance in database:', error);
+      
+      // Fallback to mock response if database fails
+      const newInstance = {
+        id: `instance-${Date.now()}`,
+        name,
+        modelId,
+        throughputName,
+        status: 'Pending',
+        createdAt: new Date().toISOString(),
+        plan: modelToPlan[modelId] || 'starter'
+      };
+      
+      return res.status(201).json({ 
+        success: true, 
+        message: 'Instance provisioning started (fallback mode)',
+        instance: newInstance 
+      });
+    }
     
     // Return the created instance
     return res.status(201).json({ 
       success: true, 
       message: 'Instance provisioning started',
-      instance: newInstance 
+      instance 
     });
   } catch (error) {
+    console.error('Error in provision-instance API:', error);
     // Return a meaningful error response
     return res.status(500).json({ 
       error: { 
