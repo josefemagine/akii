@@ -3,7 +3,7 @@
 
 // Import the local config module using relative path
 import { isValidApiKey, setCorsHeaders, handleOptionsRequest, logApiRequest } from './config.js';
-import { getBedrockInstances } from './bedrock-db-serverless.js';
+import { getBedrockInstances } from './db-utils.js';
 
 /**
  * @typedef {Object} Instance
@@ -63,22 +63,22 @@ export default async function handler(req, res) {
     // Log the request
     logApiRequest('instances', 'GET');
     
-    // Get instances using the serverless implementation
+    // Get instances from Supabase
     const { instances, error } = await getBedrockInstances();
     
     if (error) {
-      console.error('Error fetching instances:', error);
+      console.error('Error fetching instances from Supabase:', error);
       console.log('Falling back to mock instances');
       return res.status(200).json({ instances: mockInstances });
     }
     
     // If no instances found, use mock instances as fallback
     if (!instances || instances.length === 0) {
-      console.log('No instances found, using mock instances');
+      console.log('No instances found in Supabase, using mock instances');
       return res.status(200).json({ instances: mockInstances });
     }
     
-    // Return the instances
+    // Return the instances from the database
     return res.status(200).json({ instances });
   } catch (error) {
     console.error('Error in instances API:', error);

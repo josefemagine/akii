@@ -1,0 +1,75 @@
+{
+  "tables": [
+    {
+      "name": "bedrock_instances",
+      "schema": "public",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "model_id",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "throughput_name",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'Pending'"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()"
+        },
+        {
+          "name": "plan",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "references": {
+            "table": "auth.users",
+            "column": "id",
+            "onDelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_bedrock_instances_user_id",
+          "columns": ["user_id"]
+        }
+      ],
+      "enableRowLevelSecurity": true,
+      "policies": [
+        {
+          "name": "Admins can manage all Bedrock instances",
+          "action": "ALL",
+          "check": "EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')"
+        }
+      ]
+    }
+  ]
+} 

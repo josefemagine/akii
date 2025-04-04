@@ -51,7 +51,10 @@
   ],
   "build": {
     "env": {
-      "VITE_BEDROCK_API_URL": "https://www.akii.com/api/bedrock"
+      "VITE_BEDROCK_API_URL": "/api/bedrock",
+      "VITE_SUPABASE_URL": "${VITE_SUPABASE_URL}",
+      "VITE_SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}",
+      "BEDROCK_API_KEY": "${BEDROCK_API_KEY}"
     }
   }
 }

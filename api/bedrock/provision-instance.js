@@ -3,7 +3,7 @@
 
 // Import the local config module using relative path
 import { isValidApiKey, setCorsHeaders, handleOptionsRequest, logApiRequest } from './config.js';
-import { createBedrockInstance, modelToPlan } from './bedrock-db-serverless.js';
+import { createBedrockInstance, modelToPlan } from './db-utils.js';
 
 /**
  * @typedef {Object} ProvisionRequest
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
     // Log the request
     logApiRequest('provision-instance', 'POST', { name, modelId });
     
-    // Create the instance using the serverless implementation
+    // Create the instance in Supabase
     const { instance, error } = await createBedrockInstance({
       name,
       modelId,
@@ -70,9 +70,9 @@ export default async function handler(req, res) {
     });
     
     if (error) {
-      console.error('Error creating instance:', error);
+      console.error('Error creating instance in Supabase:', error);
       
-      // Fallback to mock response if creation fails
+      // Fallback to mock response if database fails
       const newInstance = {
         id: `instance-${Date.now()}`,
         name,
