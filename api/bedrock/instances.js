@@ -1,5 +1,5 @@
 // API endpoint for listing AWS Bedrock model instances
-// This endpoint handles GET requests to /api/bedrock/instances
+// LEGACY VERSION - This is a temporary file to maintain backward compatibility
 import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } from './config';
 
 /**
@@ -14,7 +14,7 @@ import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } fr
  */
 
 /**
- * @type {Instance[]}
+ * Mock instances for the legacy API endpoint
  */
 const mockInstances = [
   {
@@ -23,7 +23,7 @@ const mockInstances = [
     modelId: "amazon.titan-text-express-v1",
     throughputName: "pro-throughput",
     status: "InService",
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days ago
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
     plan: "pro"
   },
   {
@@ -32,16 +32,19 @@ const mockInstances = [
     modelId: "anthropic.claude-instant-v1",
     throughputName: "business-throughput",
     status: "InService",
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     plan: "business"
   }
 ];
 
 /**
- * Vercel serverless function for the /api/bedrock/instances endpoint
+ * Legacy Vercel serverless function for the /api/bedrock/instances endpoint
  */
 export default function handler(req, res) {
   try {
+    // Log that we're using the legacy API
+    console.log('[LEGACY API] /api/bedrock/instances request received - using compatibility layer');
+    
     // Set CORS headers
     setCorsHeaders(res);
     
@@ -56,44 +59,30 @@ export default function handler(req, res) {
     }
     
     // Check for API key
-    console.log('[/instances] Checking API key in request headers');
     const apiKey = req.headers['x-api-key'];
     
-    // Log headers for debugging (mask sensitive values)
-    const safeHeaders = {...req.headers};
-    if (safeHeaders['x-api-key']) safeHeaders['x-api-key'] = '***MASKED***';
-    console.log('[/instances] Request headers:', safeHeaders);
-    
-    // Validate API key
-    console.log('[/instances] Starting API key validation');
-    const keyValid = isValidApiKey(apiKey);
-    console.log(`[/instances] API key validation result: ${keyValid}`);
-    
-    if (!keyValid) {
-      console.log('[/instances] Sending 401 unauthorized response');
+    // Validate API key using the simplified method
+    if (!isValidApiKey(apiKey)) {
       return res.status(401).json({ error: 'Invalid or missing API key' });
     }
     
-    // For now, we'll just return mock data
-    // In a real implementation, this would call AWS Bedrock API
-    const instances = mockInstances;
+    // Log the successful request
+    logApiRequest('/api/bedrock/instances', 'GET', { count: mockInstances.length });
     
-    // Log the request
-    logApiRequest('/api/bedrock/instances', 'GET', { count: instances.length });
-    
-    // Return the instances
-    console.log('[/instances] Sending successful response with instance data');
-    return res.status(200).json({ instances });
+    // Return the mock instances
+    console.log('[LEGACY API] Returning mock instances');
+    return res.status(200).json({ instances: mockInstances });
   } catch (error) {
     // Log the error
-    console.error('[/instances] Error processing request:', error);
+    console.error('[LEGACY API] Error handling instances request:', error);
     
     // Return a meaningful error response
     return res.status(500).json({ 
       error: { 
         code: "500", 
-        message: "Internal server error processing instances request", 
-        details: error.message 
+        message: "Internal server error in legacy API", 
+        details: error.message,
+        note: "This endpoint is using the legacy API - please check your configuration"
       } 
     });
   }
