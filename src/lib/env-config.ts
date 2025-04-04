@@ -13,6 +13,7 @@ export const BedrockConfig = {
   apiKey: import.meta.env.VITE_BEDROCK_AWS_KEY || '',
   
   // API URL with a meaningful default for production
+  // This is the correct URL structure for Next.js API routes
   apiUrl: import.meta.env.VITE_BEDROCK_API_URL || 'https://www.akii.com/api/bedrock',
   
   // Helper to quickly check if in development mode
