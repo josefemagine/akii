@@ -41,32 +41,60 @@ const mockInstances = [
  * Vercel serverless function for the /api/bedrock/instances endpoint
  */
 export default function handler(req, res) {
-  // Set CORS headers
-  setCorsHeaders(res);
-  
-  // Handle preflight OPTIONS request
-  if (handleOptionsRequest(req, res)) {
-    return;
+  try {
+    // Set CORS headers
+    setCorsHeaders(res);
+    
+    // Handle preflight OPTIONS request
+    if (handleOptionsRequest(req, res)) {
+      return;
+    }
+    
+    // Only allow GET method
+    if (req.method !== 'GET') {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+    
+    // Check for API key
+    console.log('[/instances] Checking API key in request headers');
+    const apiKey = req.headers['x-api-key'];
+    
+    // Log headers for debugging (mask sensitive values)
+    const safeHeaders = {...req.headers};
+    if (safeHeaders['x-api-key']) safeHeaders['x-api-key'] = '***MASKED***';
+    console.log('[/instances] Request headers:', safeHeaders);
+    
+    // Validate API key
+    console.log('[/instances] Starting API key validation');
+    const keyValid = isValidApiKey(apiKey);
+    console.log(`[/instances] API key validation result: ${keyValid}`);
+    
+    if (!keyValid) {
+      console.log('[/instances] Sending 401 unauthorized response');
+      return res.status(401).json({ error: 'Invalid or missing API key' });
+    }
+    
+    // For now, we'll just return mock data
+    // In a real implementation, this would call AWS Bedrock API
+    const instances = mockInstances;
+    
+    // Log the request
+    logApiRequest('/api/bedrock/instances', 'GET', { count: instances.length });
+    
+    // Return the instances
+    console.log('[/instances] Sending successful response with instance data');
+    return res.status(200).json({ instances });
+  } catch (error) {
+    // Log the error
+    console.error('[/instances] Error processing request:', error);
+    
+    // Return a meaningful error response
+    return res.status(500).json({ 
+      error: { 
+        code: "500", 
+        message: "Internal server error processing instances request", 
+        details: error.message 
+      } 
+    });
   }
-  
-  // Only allow GET method
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-  
-  // Check for API key
-  const apiKey = req.headers['x-api-key'];
-  if (!isValidApiKey(apiKey)) {
-    return res.status(401).json({ error: 'Invalid or missing API key' });
-  }
-  
-  // For now, we'll just return mock data
-  // In a real implementation, this would call AWS Bedrock API
-  const instances = mockInstances;
-  
-  // Log the request
-  logApiRequest('/api/bedrock/instances', 'GET', { count: instances.length });
-  
-  // Return the instances
-  return res.status(200).json({ instances });
 } 
