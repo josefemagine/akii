@@ -1,0 +1,10 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "description": "API functions for Vercel",
+  "type": "module",
+  "main": "index.js",
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {}
+} 

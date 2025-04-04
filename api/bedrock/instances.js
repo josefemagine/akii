@@ -1,6 +1,8 @@
-// API endpoint for listing AWS Bedrock model instances
-// LEGACY VERSION - This is a temporary file to maintain backward compatibility
-import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } from './config';
+// Simplified instances.js for legacy compatibility
+// Handles module resolution issues in Vercel deployment
+
+// Import the local config module using relative path
+import { isValidApiKey, setCorsHeaders, handleOptionsRequest, logApiRequest } from './config.js';
 
 /**
  * @typedef {Object} Instance
@@ -13,38 +15,29 @@ import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } fr
  * @property {'starter'|'pro'|'business'} plan - The plan type
  */
 
-/**
- * Mock instances for the legacy API endpoint
- */
+// Mock instances for API responses
 const mockInstances = [
   {
     id: "instance-1",
     name: "Production Titan Express",
     modelId: "amazon.titan-text-express-v1",
-    throughputName: "pro-throughput",
     status: "InService",
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date().toISOString(),
     plan: "pro"
   },
   {
     id: "instance-2",
     name: "Production Claude",
     modelId: "anthropic.claude-instant-v1",
-    throughputName: "business-throughput",
     status: "InService",
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date().toISOString(),
     plan: "business"
   }
 ];
 
-/**
- * Legacy Vercel serverless function for the /api/bedrock/instances endpoint
- */
+// Legacy Vercel serverless function
 export default function handler(req, res) {
   try {
-    // Log that we're using the legacy API
-    console.log('[LEGACY API] /api/bedrock/instances request received - using compatibility layer');
-    
     // Set CORS headers
     setCorsHeaders(res);
     
@@ -66,23 +59,15 @@ export default function handler(req, res) {
       return res.status(401).json({ error: 'Invalid or missing API key' });
     }
     
-    // Log the successful request
-    logApiRequest('/api/bedrock/instances', 'GET', { count: mockInstances.length });
-    
     // Return the mock instances
-    console.log('[LEGACY API] Returning mock instances');
     return res.status(200).json({ instances: mockInstances });
   } catch (error) {
-    // Log the error
-    console.error('[LEGACY API] Error handling instances request:', error);
-    
     // Return a meaningful error response
     return res.status(500).json({ 
       error: { 
         code: "500", 
-        message: "Internal server error in legacy API", 
-        details: error.message,
-        note: "This endpoint is using the legacy API - please check your configuration"
+        message: "Internal server error", 
+        details: error.message
       } 
     });
   }

@@ -1,13 +1,12 @@
-// This file redirects from the old Vercel API function to the new Next.js API route
-// TEMPORARY FIX: This file should be removed once deployment is complete
+// Simplified config.js for legacy compatibility
+// Handles module resolution issues in Vercel deployment
 
 /**
  * Valid API keys - simplified implementation 
  * that accepts any reasonable length key for compatibility
  */
 export const isValidApiKey = (apiKey) => {
-  console.log('[LEGACY API] API key validation requested - using temporary compatibility layer');
-  // Accept any non-empty API key of reasonable length
+  // Simple validation - accept any non-empty API key of reasonable length
   return Boolean(apiKey && apiKey.length > 10);
 };
 
@@ -36,5 +35,5 @@ export const handleOptionsRequest = (req, res) => {
  * Log an API request (for debugging)
  */
 export const logApiRequest = (endpoint, method, data = {}) => {
-  console.log(`[LEGACY API] [${new Date().toISOString()}] ${method} ${endpoint}`, data);
+  console.log(`[LEGACY API] ${method} ${endpoint}`, data);
 }; 

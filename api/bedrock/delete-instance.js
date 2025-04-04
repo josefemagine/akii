@@ -1,6 +1,8 @@
-// API endpoint for deleting an AWS Bedrock model instance
-// LEGACY VERSION - This is a temporary file to maintain backward compatibility
-import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } from './config';
+// Simplified delete-instance.js for legacy compatibility
+// Handles module resolution issues in Vercel deployment
+
+// Import the local config module using relative path
+import { isValidApiKey, setCorsHeaders, handleOptionsRequest, logApiRequest } from './config.js';
 
 /**
  * @typedef {Object} DeleteRequest
@@ -13,9 +15,6 @@ import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } fr
  */
 export default function handler(req, res) {
   try {
-    // Log that we're using the legacy API
-    console.log('[LEGACY API] /api/bedrock/delete-instance request received - using compatibility layer');
-    
     // Set CORS headers
     setCorsHeaders(res);
     
@@ -47,26 +46,18 @@ export default function handler(req, res) {
       });
     }
     
-    // Log the request
-    logApiRequest('/api/bedrock/delete-instance', 'POST', { instanceId, throughputName });
-    
     // Return success
-    console.log('[LEGACY API] Returning delete confirmation');
     return res.status(200).json({ 
       success: true, 
       message: `Instance ${instanceId} deletion initiated`
     });
   } catch (error) {
-    // Log the error
-    console.error('[LEGACY API] Error handling delete request:', error);
-    
     // Return a meaningful error response
     return res.status(500).json({ 
       error: { 
         code: "500", 
-        message: "Internal server error in legacy API", 
-        details: error.message,
-        note: "This endpoint is using the legacy API - please check your configuration" 
+        message: "Internal server error", 
+        details: error.message
       } 
     });
   }

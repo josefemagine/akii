@@ -1,9 +1,7 @@
 {
   "rewrites": [
-    { "source": "/api/bedrock/instances", "destination": "/pages/api/bedrock/instances" },
-    { "source": "/api/bedrock/provision-instance", "destination": "/pages/api/bedrock/provision-instance" },
-    { "source": "/api/bedrock/delete-instance", "destination": "/pages/api/bedrock/delete-instance" },
-    { "source": "/api/bedrock", "destination": "/pages/api/bedrock" },
+    { "source": "/api/bedrock", "destination": "/api/bedrock-next" },
+    { "source": "/api/bedrock/:path*", "destination": "/api/bedrock-next/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -17,7 +15,7 @@
       ]
     },
     {
-      "source": "/api/bedrock/(.*)",
+      "source": "/api/bedrock(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",

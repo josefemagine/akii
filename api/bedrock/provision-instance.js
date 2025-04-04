@@ -1,6 +1,8 @@
-// API endpoint for provisioning a new AWS Bedrock model instance
-// LEGACY VERSION - This is a temporary file to maintain backward compatibility
-import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } from './config';
+// Simplified provision-instance.js for legacy compatibility
+// Handles module resolution issues in Vercel deployment
+
+// Import the local config module using relative path
+import { isValidApiKey, setCorsHeaders, handleOptionsRequest, logApiRequest } from './config.js';
 
 /**
  * @typedef {Object} ProvisionRequest
@@ -20,9 +22,7 @@ import { setCorsHeaders, handleOptionsRequest, isValidApiKey, logApiRequest } fr
  * @property {'starter'|'pro'|'business'} plan - The plan type
  */
 
-/**
- * Map model IDs to plan types
- */
+// Map model IDs to plan types
 const modelToPlan = {
   'amazon.titan-text-lite-v1': 'starter',
   'amazon.titan-text-express-v1': 'pro',
@@ -30,13 +30,10 @@ const modelToPlan = {
 };
 
 /**
- * Legacy Vercel serverless function for the /api/bedrock/provision-instance endpoint
+ * Legacy Vercel serverless function
  */
 export default function handler(req, res) {
   try {
-    // Log that we're using the legacy API
-    console.log('[LEGACY API] /api/bedrock/provision-instance request received - using compatibility layer');
-    
     // Set CORS headers
     setCorsHeaders(res);
     
@@ -79,31 +76,19 @@ export default function handler(req, res) {
       plan: modelToPlan[modelId] || 'starter'
     };
     
-    // Log the request
-    logApiRequest('/api/bedrock/provision-instance', 'POST', { 
-      name, 
-      modelId, 
-      instanceId: newInstance.id 
-    });
-    
     // Return the created instance
-    console.log('[LEGACY API] Returning new instance data');
     return res.status(201).json({ 
       success: true, 
       message: 'Instance provisioning started',
       instance: newInstance 
     });
   } catch (error) {
-    // Log the error
-    console.error('[LEGACY API] Error handling provision request:', error);
-    
     // Return a meaningful error response
     return res.status(500).json({ 
       error: { 
         code: "500", 
-        message: "Internal server error in legacy API", 
-        details: error.message,
-        note: "This endpoint is using the legacy API - please check your configuration" 
+        message: "Internal server error", 
+        details: error.message
       } 
     });
   }
