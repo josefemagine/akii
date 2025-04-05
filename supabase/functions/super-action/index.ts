@@ -3,26 +3,35 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 // @ts-ignore - Deno-specific import
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Import our AWS integration functions
+// @ts-ignore - Deno-specific import
+import {
+  createProvisionedModelThroughput,
+  listProvisionedModelThroughputs,
+  getProvisionedModelThroughput,
+  deleteProvisionedModelThroughput,
+  invokeBedrockModel,
+  getBedrockUsageStats
+} from "./aws.ts";
+
+// Import configuration
+import { CONFIG } from "./config.ts";
 
 // CORS headers for all responses
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info, apikey, X-Client-Info",
-  "Access-Control-Allow-Credentials": "true"
+const CORS_HEADERS = CONFIG.CORS_HEADERS;
+
+// Helper for environment variables
+const getEnv = (name: string, defaultValue: string = ""): string => {
+  // @ts-ignore - Deno.env access
+  return Deno?.env?.get?.(name) || defaultValue;
 };
 
 // Environment setup
-// @ts-ignore - Deno global
-const AWS_ACCESS_KEY_ID = Deno.env.get("AWS_ACCESS_KEY_ID") || "";
-// @ts-ignore - Deno global
-const AWS_SECRET_ACCESS_KEY = Deno.env.get("AWS_SECRET_ACCESS_KEY") || "";
-// @ts-ignore - Deno global
-const AWS_REGION = Deno.env.get("AWS_REGION") || "us-east-1";
-// @ts-ignore - Deno global
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
-// @ts-ignore - Deno global
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const AWS_REGION = getEnv("AWS_REGION", "us-east-1");
+const AWS_ACCESS_KEY_ID = getEnv("AWS_ACCESS_KEY_ID");
+const AWS_SECRET_ACCESS_KEY = getEnv("AWS_SECRET_ACCESS_KEY");
+const SUPABASE_URL = getEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = getEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 // Initialize Supabase client
 const supabaseClient = createClient(
@@ -121,16 +130,47 @@ async function handleGetInstances(request: Request): Promise<Response> {
   }
 
   try {
-    // Get instances for the authenticated user only
-    const { data, error: dbError } = await supabaseClient
+    // Call AWS Bedrock API to list instances
+    const awsResponse = await listProvisionedModelThroughputs();
+    
+    if (!awsResponse.success) {
+      throw new Error(awsResponse.error || "Failed to list instances from AWS Bedrock");
+    }
+    
+    // Retrieve instances from Supabase for additional metadata
+    const { data: dbInstances, error: dbError } = await supabaseClient
       .from('bedrock_instances')
       .select('*')
       .eq('user_id', user.id);
 
     if (dbError) throw dbError;
+    
+    // Merge AWS and database data
+    // Create a map from the database instances
+    const dbInstanceMap = new Map();
+    (dbInstances || []).forEach(inst => {
+      dbInstanceMap.set(inst.instance_id, inst);
+    });
+    
+    // Map AWS instances to our format, merging with DB data
+    const instances = (awsResponse.instances || []).map(awsInstance => {
+      const instanceId = awsInstance.provisionedModelArn;
+      const dbInstance = dbInstanceMap.get(instanceId);
+      
+      return {
+        id: dbInstance?.id || null,
+        instance_id: instanceId,
+        model_id: awsInstance.modelId,
+        status: awsInstance.provisionedModelStatus,
+        model_units: awsInstance.provisionedThroughput?.provisionedModelThroughput || 0,
+        commitment_duration: awsInstance.provisionedThroughput?.commitmentDuration || "1m",
+        created_at: dbInstance?.created_at || new Date().toISOString(),
+        user_id: user.id
+      };
+    });
 
     return new Response(
-      JSON.stringify({ instances: data || [] }),
+      JSON.stringify({ instances }),
       { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
@@ -142,7 +182,7 @@ async function handleGetInstances(request: Request): Promise<Response> {
   }
 }
 
-// Create a mock Bedrock model throughput instance
+// Create a Bedrock model throughput instance
 async function handleCreateInstance(request: Request): Promise<Response> {
   // Validate JWT token
   const { user, error } = await validateJwtToken(request);
@@ -184,19 +224,30 @@ async function handleCreateInstance(request: Request): Promise<Response> {
       );
     }
 
-    // Create a mock instance ID
-    const mockInstanceId = `arn:aws:bedrock:${AWS_REGION}:123456789012:provisioned-model/${modelId.split('/').pop()}-${Date.now()}`;
+    // Call AWS Bedrock API to create provisioned model throughput
+    const awsResponse = await createProvisionedModelThroughput({
+      modelId,
+      commitmentDuration,
+      modelUnits
+    });
+    
+    if (!awsResponse.success) {
+      throw new Error(awsResponse.error || "Failed to create instance in AWS Bedrock");
+    }
+    
+    const instanceId = awsResponse.instance_id;
+    console.log(`[API] Created AWS Bedrock instance: ${instanceId}`);
     
     try {
-      // Store mock data in Supabase with user_id
+      // Store AWS data in Supabase with user_id
       const { data, error: dbError } = await supabaseClient
         .from('bedrock_instances')
         .insert({
-          instance_id: mockInstanceId,
+          instance_id: instanceId,
           model_id: modelId,
           commitment_duration: commitmentDuration,
           model_units: modelUnits,
-          status: 'CREATING',
+          status: 'CREATING', // Initial status
           created_at: new Date().toISOString(),
           user_id: user.id  // Associate with the authenticated user
         })
@@ -209,7 +260,8 @@ async function handleCreateInstance(request: Request): Promise<Response> {
           JSON.stringify({ 
             error: "Database Error", 
             message: dbError.message || "Failed to create instance in database",
-            details: dbError
+            details: dbError,
+            aws_instance: awsResponse.instance
           }),
           { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
@@ -218,16 +270,18 @@ async function handleCreateInstance(request: Request): Promise<Response> {
       return new Response(
         JSON.stringify({ 
           instance: data,
-          info: "Created instance in database"
+          info: "Created instance in AWS Bedrock and database",
+          aws_instance: awsResponse.instance
         }),
         { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     } catch (dbException) {
-      console.error("[API] Unexpected database exception:", dbException);
+      console.error("[API] Database exception:", dbException);
       return new Response(
         JSON.stringify({ 
           error: "Database Exception", 
-          message: dbException instanceof Error ? dbException.message : String(dbException)
+          message: dbException instanceof Error ? dbException.message : String(dbException),
+          aws_instance: awsResponse.instance
         }),
         { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
@@ -296,6 +350,13 @@ async function handleDeleteInstance(request: Request): Promise<Response> {
       );
     }
 
+    // Call AWS Bedrock API to delete the provisioned model
+    const awsResponse = await deleteProvisionedModelThroughput(instanceId);
+    
+    if (!awsResponse.success) {
+      throw new Error(awsResponse.error || "Failed to delete instance from AWS Bedrock");
+    }
+
     // Update status in Supabase 
     const { error: updateError } = await supabaseClient
       .from('bedrock_instances')
@@ -306,11 +367,202 @@ async function handleDeleteInstance(request: Request): Promise<Response> {
     if (updateError) throw updateError;
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ 
+        success: true,
+        aws_result: awsResponse.result
+      }),
       { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error deleting instance:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+}
+
+// Invoke a Bedrock model
+async function handleInvokeModel(request: Request): Promise<Response> {
+  // Validate JWT token
+  const { user, error } = await validateJwtToken(request);
+  
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized", message: error }),
+      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    let requestBody;
+    try {
+      requestBody = await request.json();
+    } catch (e) {
+      console.error("[API] Error parsing request JSON:", e);
+      return new Response(
+        JSON.stringify({ error: "Bad Request", message: "Invalid JSON in request body" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Extract the data payload
+    const requestData = requestBody.data || requestBody;
+    console.log("[API] Request data for invokeModel:", requestData);
+    
+    const { instance_id, prompt, max_tokens } = requestData;
+
+    if (!instance_id || !prompt) {
+      return new Response(
+        JSON.stringify({ error: "Missing required fields (instance_id or prompt)" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Verify ownership of the instance
+    const { data: instance, error: fetchError } = await supabaseClient
+      .from('bedrock_instances')
+      .select('id, instance_id, model_id')
+      .eq('instance_id', instance_id)
+      .eq('user_id', user.id)
+      .single();
+      
+    if (fetchError || !instance) {
+      return new Response(
+        JSON.stringify({ error: "Instance not found or not owned by user" }),
+        { status: 404, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Call AWS Bedrock API to invoke the model
+    const invokeResponse = await invokeBedrockModel({
+      instanceId: instance_id,
+      prompt,
+      maxTokens: max_tokens || 500
+    });
+    
+    if (!invokeResponse.success) {
+      throw new Error(invokeResponse.error || "Failed to invoke model");
+    }
+
+    // Record usage in database
+    const { error: usageError } = await supabaseClient
+      .from('bedrock_usage')
+      .insert({
+        instance_id: instance_id,
+        user_id: user.id,
+        input_tokens: invokeResponse.usage?.input_tokens || 0,
+        output_tokens: invokeResponse.usage?.output_tokens || 0,
+        total_tokens: invokeResponse.usage?.total_tokens || 0,
+        created_at: new Date().toISOString()
+      });
+
+    if (usageError) {
+      console.error("[API] Error recording usage:", usageError);
+    }
+
+    return new Response(
+      JSON.stringify({
+        response: invokeResponse.response,
+        usage: invokeResponse.usage
+      }),
+      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("Error invoking model:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+}
+
+// Get usage statistics
+async function handleGetUsageStats(request: Request): Promise<Response> {
+  // Validate JWT token
+  const { user, error } = await validateJwtToken(request);
+  
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized", message: error }),
+      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    // Option to filter by instance ID
+    let requestBody;
+    let instanceId = null;
+    
+    // Try to get parameters from request body if present
+    try {
+      requestBody = await request.json();
+      const data = requestBody.data || requestBody;
+      instanceId = data.instance_id;
+    } catch (e) {
+      // Ignore parse errors - body is optional
+    }
+    
+    // Get usage from database
+    let query = supabaseClient
+      .from('bedrock_usage')
+      .select(`
+        id,
+        instance_id,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        created_at
+      `)
+      .eq('user_id', user.id);
+      
+    // Filter by instance if specified
+    if (instanceId) {
+      query = query.eq('instance_id', instanceId);
+    }
+    
+    const { data: usageData, error: usageError } = await query;
+    
+    if (usageError) {
+      throw usageError;
+    }
+    
+    // Call AWS to get real-time usage statistics
+    const awsUsageStats = await getBedrockUsageStats({ instanceId });
+    
+    // Combine DB usage data with AWS data
+    const combinedUsage = {
+      // Calculated from database records
+      db_usage: {
+        total_tokens: usageData.reduce((sum, item) => sum + (item.total_tokens || 0), 0),
+        input_tokens: usageData.reduce((sum, item) => sum + (item.input_tokens || 0), 0),
+        output_tokens: usageData.reduce((sum, item) => sum + (item.output_tokens || 0), 0),
+        instance_breakdown: Object.values(usageData.reduce((acc, item) => {
+          if (!acc[item.instance_id]) {
+            acc[item.instance_id] = {
+              instance_id: item.instance_id,
+              total_tokens: 0,
+              input_tokens: 0,
+              output_tokens: 0
+            };
+          }
+          acc[item.instance_id].total_tokens += item.total_tokens || 0;
+          acc[item.instance_id].input_tokens += item.input_tokens || 0;
+          acc[item.instance_id].output_tokens += item.output_tokens || 0;
+          return acc;
+        }, {}))
+      },
+      // From AWS
+      aws_usage: awsUsageStats.success ? awsUsageStats.usage : null,
+      aws_limits: awsUsageStats.success ? awsUsageStats.limits : null
+    };
+
+    return new Response(
+      JSON.stringify({ usage: combinedUsage }),
+      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("Error getting usage stats:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
@@ -402,6 +654,10 @@ serve(async (request: Request) => {
             return await handleCreateInstance(request);
           case "deleteInstance":
             return await handleDeleteInstance(request);
+          case "invokeModel":
+            return await handleInvokeModel(request);
+          case "getUsageStats":
+            return await handleGetUsageStats(request);
           default:
             return new Response(
               JSON.stringify({ error: `Unknown action: ${action}` }),
