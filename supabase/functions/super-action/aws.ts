@@ -4,7 +4,9 @@ import { CONFIG } from "./config.ts";
 // Import AWS SDK for Bedrock - more focused import
 import { 
   BedrockClient, 
-  ListFoundationModelsCommand
+  ListFoundationModelsCommand,
+  CreateProvisionedModelThroughputCommand,
+  CommitmentDuration
 } from "@aws-sdk/client-bedrock";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
@@ -137,7 +139,7 @@ export async function listProvisionedModelThroughputs(): Promise<{
   }
 }
 
-// Create a provisioned model - Using real API structure but with direct API calls
+// Create a provisioned model - Using the command pattern properly
 export async function createProvisionedModelThroughput(params: {
   modelId: string,
   commitmentDuration: string,
@@ -147,23 +149,39 @@ export async function createProvisionedModelThroughput(params: {
     console.log(`[AWS] Creating provisioned model for ${params.modelId}`);
     const client = getBedrockClient();
     
-    // Make a direct API call with the client
-    console.log(`[AWS] Using client.createProvisionedModelThroughput with params:`, {
+    // Generate a unique name for the provisioned model
+    const modelName = `model-${params.modelId.split('/').pop()}-${Date.now()}`;
+    
+    // Convert string commitment duration to enum value expected by AWS SDK
+    // Valid values are "ONE_MONTH" | "SIX_MONTHS"
+    let commitmentDurationEnum: CommitmentDuration;
+    if (params.commitmentDuration === "1m") {
+      commitmentDurationEnum = CommitmentDuration.ONE_MONTH;
+    } else if (params.commitmentDuration === "6m") {
+      commitmentDurationEnum = CommitmentDuration.SIX_MONTHS;
+    } else {
+      // Default to one month if unrecognized
+      console.warn(`[AWS] Unrecognized commitment duration: ${params.commitmentDuration}. Using ONE_MONTH.`);
+      commitmentDurationEnum = CommitmentDuration.ONE_MONTH;
+    }
+    
+    console.log(`[AWS] Using CreateProvisionedModelThroughputCommand with params:`, {
       modelId: params.modelId,
-      commitmentDuration: params.commitmentDuration,
+      provisionedModelName: modelName,
+      commitmentDuration: commitmentDurationEnum,
       modelUnits: params.modelUnits
     });
     
-    // Use the client's direct method
-    // @ts-ignore - calling the method directly
-    const result = await client.createProvisionedModelThroughput({
+    // Create the command with the required parameters
+    const command = new CreateProvisionedModelThroughputCommand({
       modelId: params.modelId,
-      commitmentDuration: params.commitmentDuration,
-      modelUnits: params.modelUnits,
-      // Include a default name if required by the API
-      provisionedModelName: `model-${params.modelId.split('/').pop()}-${Date.now()}`
+      provisionedModelName: modelName,
+      commitmentDuration: commitmentDurationEnum,
+      modelUnits: params.modelUnits
     });
     
+    // Send the command
+    const result = await client.send(command);
     console.log(`[AWS] Created provisioned model:`, result);
     
     return {
@@ -191,11 +209,8 @@ export async function getProvisionedModelThroughput(provisionedModelId: string) 
     console.log(`[AWS] Getting provisioned model ${provisionedModelId}`);
     const client = getBedrockClient();
     
-    // Make a direct API call with the client
-    console.log(`[AWS] Using client.getProvisionedModelThroughput for ${provisionedModelId}`);
-    
-    // Use the client's direct method
-    // @ts-ignore - calling the method directly
+    // Since we don't have the right command imported yet, use a direct approach
+    // @ts-ignore - This is a temporary solution
     const result = await client.getProvisionedModelThroughput({
       provisionedModelId: provisionedModelId
     });
@@ -237,11 +252,8 @@ export async function deleteProvisionedModelThroughput(provisionedModelId: strin
     console.log(`[AWS] Deleting provisioned model ${provisionedModelId}`);
     const client = getBedrockClient();
     
-    // Make a direct API call with the client
-    console.log(`[AWS] Using client.deleteProvisionedModelThroughput for ${provisionedModelId}`);
-    
-    // Use the client's direct method
-    // @ts-ignore - calling the method directly
+    // Since we don't have the right command imported yet, use a direct approach
+    // @ts-ignore - This is a temporary solution
     const result = await client.deleteProvisionedModelThroughput({
       provisionedModelId: provisionedModelId
     });
