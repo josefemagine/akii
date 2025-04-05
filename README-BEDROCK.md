@@ -130,9 +130,21 @@ The AWS IAM role used by the Edge Function has permissions limited to:
 }
 ```
 
+## API Access
+
+You can access the Bedrock API through the following endpoints:
+
+- For local development with Vite proxy: `/api/super-action`
+- For production: `/api/super-action` (proxied via Next.js API route)
+- Direct Edge Function access: `https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action`
+
+> **Important**: The `/api/bedrock` path is deprecated and will be removed in future versions. 
+> Please update your code to use `/api/super-action` instead.
+
 ## Implementation Files
 
 - `supabase/functions/super-action/index.ts` - Edge Function implementation
+- `pages/api/super-action/index.js` - Next.js API route for proxying to the Edge Function
 - `src/lib/supabase-bedrock-client.js` - Frontend client for Bedrock API
 - `src/pages/admin/SupabaseBedrock.tsx` - Admin interface for Bedrock instances
 - `src/components/BedrockChat.tsx` - Chat interface for testing models
