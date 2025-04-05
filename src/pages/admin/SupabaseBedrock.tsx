@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, RefreshCw, Trash2, Code, AlertTriangle, Settings, Loader2, LogIn, Database } from "lucide-react";
+import { AlertCircle, RefreshCw, Trash2, Code, AlertTriangle, Settings, Loader2, LogIn, Database, TestTube } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,6 +15,7 @@ import { EnvConfig } from "@/lib/env-config";
 import { BedrockClient } from "@/lib/supabase-bedrock-client";
 import { BedrockConfig } from "@/lib/bedrock-config";
 import supabase from "@/lib/supabase-client";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 // Plan configuration - maps to AWS Bedrock models and commitment options
 const planConfig = {
@@ -170,6 +171,40 @@ const MockDataNotice = () => {
   );
 };
 
+// Test modal component
+const TestModal = ({ isOpen, setIsOpen, testData }: { 
+  isOpen: boolean, 
+  setIsOpen: (open: boolean) => void, 
+  testData: any 
+}) => {
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+        <DialogHeader>
+          <DialogTitle>Edge Function Details</DialogTitle>
+          <DialogDescription>
+            Raw values from the super-action Edge Function
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-4">
+          <div className="mb-4">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Environment Details</AlertTitle>
+              <AlertDescription>
+                These values show the current configuration of your Edge Function environment.
+              </AlertDescription>
+            </Alert>
+          </div>
+          <div className="bg-muted rounded-md p-4">
+            <pre className="whitespace-pre-wrap overflow-auto">{JSON.stringify(testData, null, 2)}</pre>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 // Main component
 const SupabaseBedrock = () => {
   const { toast } = useToast();
@@ -188,6 +223,11 @@ const SupabaseBedrock = () => {
   // Environment diagnostics
   const [envDiagnostics, setEnvDiagnostics] = useState<EnvironmentDiagnostics | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  
+  // Test modal state
+  const [testModalOpen, setTestModalOpen] = useState(false);
+  const [testData, setTestData] = useState<any>(null);
+  const [testingConnection, setTestingConnection] = useState(false);
   
   // Check authentication status
   const checkAuthStatus = async () => {
@@ -299,6 +339,126 @@ const SupabaseBedrock = () => {
       console.error("Exception getting environment diagnostics:", error);
       setConnectionStatus('error');
       setError(`Exception getting environment diagnostics: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+  
+  // New function to fetch detailed test data from edge function
+  const fetchDetailedTestData = async () => {
+    setTestingConnection(true);
+    setError(null);
+    
+    try {
+      // First authenticate if needed
+      const isAuth = await checkAuthStatus();
+      if (!isAuth) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to test the Edge Function.",
+          variant: "destructive",
+        });
+        setTestingConnection(false);
+        return;
+      }
+      
+      // Get the JWT token - we'll need it for direct API calls
+      const token = await BedrockClient.getAuthToken();
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Could not retrieve authentication token.",
+          variant: "destructive",
+        });
+        setTestingConnection(false);
+        return;
+      }
+      
+      // Call test diagnostics endpoint
+      const { data: testEnvData, error: testEnvError } = await BedrockClient.testEnvironment();
+      
+      if (testEnvError) {
+        setError(`Failed to run diagnostics: ${testEnvError}`);
+        toast({
+          title: "Diagnostics Failed",
+          description: `Failed to retrieve environment details: ${testEnvError}`,
+          variant: "destructive",
+        });
+        setTestingConnection(false);
+        return;
+      }
+      
+      // Call AWS credential test endpoint
+      const awsCredUrl = `${BedrockConfig.edgeFunctionUrl}`;
+      const awsCredResponse = await fetch(awsCredUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'aws-credential-test'
+        })
+      });
+      
+      let awsCredData = {};
+      if (awsCredResponse.ok) {
+        awsCredData = await awsCredResponse.json();
+      } else {
+        awsCredData = { error: `Status ${awsCredResponse.status}: ${await awsCredResponse.text()}` };
+      }
+      
+      // Also try the verify AWS credentials endpoint
+      const verifyCredResponse = await fetch(awsCredUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'verify-aws-credentials'
+        })
+      });
+      
+      let verifyCredData = {};
+      if (verifyCredResponse.ok) {
+        verifyCredData = await verifyCredResponse.json();
+      } else {
+        verifyCredData = { error: `Status ${verifyCredResponse.status}: ${await verifyCredResponse.text()}` };
+      }
+      
+      // Combine all the test data
+      const combinedTestData = {
+        timestamp: new Date().toISOString(),
+        environment: testEnvData,
+        awsCredentials: awsCredData,
+        verifyCredentials: verifyCredData,
+        config: {
+          functionUrl: BedrockConfig.edgeFunctionUrl,
+          functionName: BedrockConfig.edgeFunctionName,
+          useEdgeFunctions: BedrockConfig.useEdgeFunctions,
+          useMockData: BedrockConfig.useMockData,
+          isProduction: BedrockConfig.isProduction,
+          isLocalDevelopment: BedrockConfig.isLocalDevelopment
+        }
+      };
+      
+      setTestData(combinedTestData);
+      setTestModalOpen(true);
+      setShowDiagnostics(true);
+      
+      toast({
+        title: "Edge Function Test Complete",
+        description: "Successfully retrieved data from the Edge Function.",
+      });
+    } catch (error) {
+      console.error("Test connection error:", error);
+      setError(`Exception in edge function test: ${error instanceof Error ? error.message : String(error)}`);
+      toast({
+        title: "Test Failed",
+        description: `An error occurred: ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
+      });
+    } finally {
+      setTestingConnection(false);
     }
   };
   
@@ -486,6 +646,19 @@ const SupabaseBedrock = () => {
         </div>
         
         <div className="flex justify-end gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={fetchDetailedTestData} 
+            disabled={testingConnection || authStatus !== 'authenticated'}
+          >
+            {testingConnection ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <TestTube className="h-4 w-4 mr-2" />
+            )}
+            Test Edge Function
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchEnvironmentDiagnostics}>
             <Settings className="h-4 w-4 mr-2" /> Test Environment
           </Button>
@@ -721,6 +894,13 @@ const SupabaseBedrock = () => {
       </Tabs>
       
       <ApiConfiguration />
+      
+      {/* Add the test modal */}
+      <TestModal 
+        isOpen={testModalOpen} 
+        setIsOpen={setTestModalOpen} 
+        testData={testData} 
+      />
     </div>
   );
 };
