@@ -1,27 +1,36 @@
 /**
+ * Bedrock API Fix - Deploy this file to fix the API route
+ * 
+ * This script will:
+ * 1. Create the necessary directory structure
+ * 2. Create the API route file with the correct code
+ * 3. Commit and push the changes
+ */
+
+const fs = require('fs');
+const { execSync } = require('child_process');
+const path = require('path');
+
+// API route code
+const apiRouteCode = `/**
  * API Route: /api/super-action
  * 
- * This route provides mock responses when the Supabase Edge Function is unavailable
- * and acts as a proxy when it's available.
+ * This route forwards requests to the Supabase Edge Function
+ * and provides fallback mock responses when needed.
  */
 
 // The URL of the Supabase super-action Edge Function
 const SUPABASE_FUNCTION_URL = 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action';
 
-// CORS headers for preflight OPTIONS requests
+// CORS headers for all responses
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*', // Allow all origins for now
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey, X-Client-Info',
   'Access-Control-Allow-Credentials': 'true'
 };
 
-// Check if we should use mock data
-const useMockData = () => {
-  return process.env.USE_MOCK_SUPER_ACTION === 'true';
-};
-
-// Mock data for when the Edge Function is unavailable
+// Mock data for fallback responses
 const MOCK_DATA = {
   testEnvironment: {
     environment: {
@@ -73,7 +82,7 @@ const MOCK_DATA = {
     success: true
   },
   invokeModel: {
-    response: "This is a mock response from the model. The actual Supabase Edge Function is currently unavailable.",
+    response: "This is a mock response from the model.",
     prompt: "Your prompt here",
     tokens: {
       input: 10,
@@ -97,18 +106,10 @@ const MOCK_DATA = {
 };
 
 /**
- * Parse request body regardless of method
- * @param {Request} req - The incoming request
- * @returns {Object} The parsed body or empty object
+ * Check if mock mode is enabled
  */
-const parseRequestBody = async (req) => {
-  if (req.method === 'POST' || req.method === 'PUT') {
-    return req.body || {};
-  } else if (req.method === 'GET') {
-    // For GET requests, try to parse query parameters
-    return req.query || {};
-  }
-  return {};
+const useMockData = () => {
+  return process.env.USE_MOCK_SUPER_ACTION === 'true';
 };
 
 /**
@@ -125,15 +126,22 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  // Log request details for debugging
-  console.log(`[super-action] Received ${req.method} request to ${req.url}`);
+  // Log request info for debugging
+  console.log(\`[super-action] Received \${req.method} request to \${req.url}\`);
   
   try {
-    // Get the action from the request body or query parameters
-    const body = await parseRequestBody(req);
-    const { action, data } = body;
+    // If it's not a POST request and not OPTIONS, provide helpful response
+    if (req.method !== 'POST') {
+      return res.status(200).json({
+        message: 'API route is working',
+        info: 'This endpoint accepts POST requests with action and data parameters'
+      });
+    }
+
+    // Parse the request body
+    const { action, data } = req.body || {};
     
-    console.log(`[super-action] Action: ${action}, Mock mode: ${useMockData()}`);
+    console.log(\`[super-action] Action: \${action}, Mock mode: \${useMockData()}\`);
     
     // If no action is provided, return error
     if (!action) {
@@ -144,26 +152,18 @@ export default async function handler(req, res) {
     }
 
     // Check if we should use mock data
-    if (useMockData() || MOCK_DATA[action]) {
-      console.log(`[super-action] Returning mock data for action: ${action}`);
+    if (useMockData() && MOCK_DATA[action]) {
+      console.log(\`[super-action] Returning mock data for action: \${action}\`);
       
       // Simulate some delay for a more realistic experience
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Return the mock data if available, otherwise return a generic mock
-      if (MOCK_DATA[action]) {
-        return res.status(200).json(MOCK_DATA[action]);
-      } else {
-        return res.status(200).json({
-          mock: true,
-          message: `Mock data for ${action} action`,
-          timestamp: new Date().toISOString()
-        });
-      }
+      // Return mock data
+      return res.status(200).json(MOCK_DATA[action]);
     }
 
-    // If we don't have mock data, try to forward to the Supabase Function
-    console.log(`[super-action] Attempting to proxy action ${action} to Supabase Edge Function`);
+    // Forward request to Supabase Edge Function
+    console.log(\`[super-action] Forwarding request to Supabase Function: \${action}\`);
     
     // Extract the authorization header to forward
     const authHeader = req.headers.authorization;
@@ -181,7 +181,7 @@ export default async function handler(req, res) {
       'Authorization': authHeader
     };
 
-    // If x-client-info is present, forward it
+    // Forward client info header if present
     if (req.headers['x-client-info']) {
       headers['x-client-info'] = req.headers['x-client-info'];
     }
@@ -189,7 +189,7 @@ export default async function handler(req, res) {
     try {
       // Make the request to the Supabase Function
       const response = await fetch(SUPABASE_FUNCTION_URL, {
-        method: 'POST', // Always use POST for Edge Functions
+        method: 'POST',
         headers,
         body: JSON.stringify({ action, data })
       });
@@ -208,10 +208,10 @@ export default async function handler(req, res) {
       return res.status(response.status).json(responseData);
     } catch (fetchError) {
       console.error('[super-action] Error calling Supabase Edge Function:', fetchError);
-      console.log('[super-action] Falling back to mock data');
       
       // If fetch fails, fall back to mock data if available
       if (MOCK_DATA[action]) {
+        console.log('[super-action] Falling back to mock data');
         return res.status(200).json(MOCK_DATA[action]);
       }
       
@@ -230,4 +230,28 @@ export default async function handler(req, res) {
       message: error.message 
     });
   }
-} 
+}`;
+
+// Create directory structure
+console.log('Creating directory structure...');
+const dirPath = path.join(process.cwd(), 'pages', 'api', 'super-action');
+fs.mkdirSync(dirPath, { recursive: true });
+
+// Create the API route file
+console.log('Creating API route file...');
+const filePath = path.join(dirPath, 'index.js');
+fs.writeFileSync(filePath, apiRouteCode);
+
+// Commit and push changes
+console.log('Committing and pushing changes...');
+try {
+  execSync('git add pages/api/super-action/index.js');
+  execSync('git commit -m "Add API route for Bedrock integration"');
+  execSync('git push');
+  console.log('Changes pushed successfully!');
+} catch (error) {
+  console.error('Error committing or pushing changes:', error.message);
+  console.log('You may need to manually push the changes.');
+}
+
+console.log('Done! Check your Vercel dashboard for deployment status.');
