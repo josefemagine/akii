@@ -267,11 +267,17 @@ const AwsPermissionTester = () => {
         {logs.length > 0 && (
           <div className="mt-4">
             <h3 className="text-sm font-medium mb-2">Debug Logs</h3>
-            <pre className="bg-gray-100 p-2 rounded text-xs max-h-40 overflow-auto">
-              {logs.map((log, i) => (
-                <div key={i}>{log}</div>
-              ))}
-            </pre>
+            <div className="border border-gray-700 rounded-md">
+              <div className="bg-gray-800 px-3 py-1 text-xs text-gray-200 font-mono border-b border-gray-700 rounded-t-md flex items-center">
+                <span className="mr-2">●</span>
+                <span>Console Output</span>
+              </div>
+              <pre className="bg-gray-900 p-3 rounded-b-md text-xs max-h-40 overflow-auto text-gray-300 font-mono">
+                {logs.map((log, i) => (
+                  <div key={i} className="pb-1">{log}</div>
+                ))}
+              </pre>
+            </div>
           </div>
         )}
       </CardContent>
