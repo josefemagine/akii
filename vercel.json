@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/super-action", "destination": "https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action" },
+    { "source": "/api/super-action", "destination": "/api/super-action" },
     { "source": "/api/bedrock", "destination": "/api/bedrock-next" },
     { "source": "/api/bedrock/instances", "destination": "/api/bedrock-next/instances" },
     { "source": "/api/bedrock/provision-instance", "destination": "/api/bedrock-next/provision-instance" },
@@ -23,7 +23,7 @@
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "https://www.akii.com"
+          "value": "*"
         },
         {
           "key": "Access-Control-Allow-Methods",
@@ -87,6 +87,7 @@
     "SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}",
     "AWS_ACCESS_KEY_ID": "${AWS_ACCESS_KEY_ID}",
     "AWS_SECRET_ACCESS_KEY": "${AWS_SECRET_ACCESS_KEY}",
-    "AWS_REGION": "us-east-1"
+    "AWS_REGION": "us-east-1",
+    "USE_MOCK_SUPER_ACTION": "true"
   }
 }

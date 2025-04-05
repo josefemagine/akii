@@ -249,14 +249,13 @@ const callEdgeFunctionDirect = async (functionName, action, data, token) => {
 };
 
 /**
- * Unified edge function invocation with enhanced error handling and auth management
- * 
+ * Call Supabase Edge Function with JWT auth
  * @param {Object} options - Function call options
- * @param {string} options.functionName - Edge function name (defaults to BedrockConfig.edgeFunctionName)
- * @param {string} options.action - The action to perform (required)
- * @param {Object} options.data - Data for the action (optional)
- * @param {boolean} options.useMock - Whether to use mock data in development (defaults to false)
- * @returns {Promise<{data: any, error: string|null}>} Response data or error
+ * @param {string} options.functionName - Edge function name
+ * @param {string} options.action - Action to perform
+ * @param {Object} options.data - Data to send
+ * @param {boolean} options.useMock - Force use mock data
+ * @returns {Promise<{data: any, error: string|null}>} Response or error
  */
 const callEdgeFunction = async ({ 
   functionName = BedrockConfig.edgeFunctionName,
@@ -264,100 +263,62 @@ const callEdgeFunction = async ({
   data = {},
   useMock = false
 }) => {
-  if (!action) {
-    console.error('[Bedrock] Missing required action parameter');
-    return { data: null, error: 'Missing required action parameter' };
+  // Check for mock mode via environment variable
+  const useMockFromEnv = import.meta.env.VITE_USE_MOCK_SUPER_ACTION === 'true' || 
+                          (typeof window !== 'undefined' && window.USE_MOCK_SUPER_ACTION === 'true');
+  
+  // Validate API config
+  if (!validateApiConfiguration()) {
+    return { data: null, error: 'API configuration invalid' };
   }
   
-  // Use mock data in development mode if requested or if configured to use mock data
-  const shouldUseMock = (useMock || (BedrockConfig.isLocalDevelopment && BedrockConfig.useMockData));
-  
-  // If in development and using mock data, return mock data immediately
-  if (shouldUseMock) {
-    console.log(`[Bedrock] Using MOCK data for action: ${action}`);
+  // Use mock data in development, if force-enabled with useMock, or if env variable is set
+  if ((BedrockConfig.isLocalDevelopment && BedrockConfig.useMockData) || useMock || useMockFromEnv) {
+    console.log(`[Bedrock] Using mock data for action: ${action}`);
+    console.log(`[Bedrock] useMock:${useMock}, useMockFromEnv:${useMockFromEnv}`);
     
-    // Add small delay to simulate network latency
+    // Mock data delay to simulate network request
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Return mock data for the requested action
+    // Return appropriate mock data based on action
     if (devMockData[action]) {
       return { data: devMockData[action], error: null };
     } else {
       console.warn(`[Bedrock] No mock data available for action: ${action}`);
-      return { data: null, error: `No mock data available for action: ${action}` };
+      return { data: null, error: 'No mock data for this action' };
     }
   }
   
   try {
-    if (!validateApiConfiguration()) {
-      throw new Error('API is not properly configured');
-    }
-    
-    // Authentication check - always required for Bedrock operations
+    // Get and refresh auth token if needed
     const token = await refreshTokenIfNeeded();
-    if (!token) {
-      throw new Error('Authentication required. Please log in to access this feature.');
-    }
     
-    // Prepare the payload
-    const requestPayload = {
-      action,
-      data
-    };
+    if (!token) {
+      console.error('[Bedrock] Authentication required. No valid token available.');
+      return { data: null, error: 'Authentication required' };
+    }
     
     try {
-      // First attempt: Call the Edge Function using Supabase client
-      const { data: responseData, error } = await supabase.functions.invoke(
-        functionName,
-        {
-          body: requestPayload,
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
+      // First try the standard Supabase client method
+      const { data: responseData, error } = await supabase.functions.invoke(functionName, {
+        body: { action, data }
+      });
       
       if (error) {
-        console.error(`[Bedrock] Edge function error for action ${action}:`, error);
-        
-        // If we get a CORS or network error, try the direct fetch method
-        if (error.message && (
-            error.message.includes('CORS') || 
-            error.message.includes('Failed to fetch') ||
-            error.message.includes('Failed to send a request')
-          )) {
-          console.log('[Bedrock] Falling back to direct fetch method due to CORS/network error');
-          return await callEdgeFunctionDirect(functionName, action, data, token);
-        }
-        
-        return { data: null, error: error.message || 'Error calling Edge Function' };
-      }
-      
-      // Handle API-level errors returned in the response
-      if (responseData?.error) {
-        console.error(`[Bedrock] API error for action ${action}:`, responseData.error);
-        return { data: null, error: responseData.error };
+        console.error(`[Bedrock] Error invoking ${functionName} for action ${action}:`, error);
+        // If this fails, we will try the direct fetch approach below
+        throw new Error(error.message || 'Edge function error');
       }
       
       return { data: responseData, error: null };
-    } catch (invokeError) {
-      console.error(`[Bedrock] Exception during function invoke for ${action}:`, invokeError);
-      
-      // If we get a network or CORS error, try direct fetch as fallback
-      if (invokeError.message && (
-          invokeError.message.includes('CORS') || 
-          invokeError.message.includes('Failed to fetch') ||
-          invokeError.message.includes('Failed to send a request')
-        )) {
-        console.log('[Bedrock] Falling back to direct fetch method due to exception');
-        return await callEdgeFunctionDirect(functionName, action, data, token);
-      }
-      
-      throw invokeError; // Re-throw for the outer catch block
+    } catch (error) {
+      console.warn(`[Bedrock] Falling back to direct fetch for action ${action} due to error: ${error.message}`);
+      // Try direct fetch as fallback when Supabase client fails (often due to CORS)
+      return await callEdgeFunctionDirect(functionName, action, data, token);
     }
   } catch (error) {
-    console.error(`[Bedrock] Exception during action ${action}:`, error);
-    return { data: null, error: error.message || 'Unknown error occurred' };
+    console.error(`[Bedrock] Exception calling edge function for action ${action}:`, error);
+    return { data: null, error: error.message || 'Unknown error calling edge function' };
   }
 };
 

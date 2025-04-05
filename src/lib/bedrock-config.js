@@ -97,7 +97,10 @@ const isDebugMode = () => {
  */
 const shouldUseMockData = () => {
   const mockSetting = import.meta.env.VITE_USE_MOCK_BEDROCK;
-  return mockSetting === 'true' || isLocalDevelopment;
+  const mockSuperAction = import.meta.env.VITE_USE_MOCK_SUPER_ACTION;
+  
+  // Use mock data if either variable is true
+  return mockSetting === 'true' || mockSuperAction === 'true' || isLocalDevelopment;
 };
 
 // Export configuration object
