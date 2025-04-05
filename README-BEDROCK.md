@@ -90,6 +90,69 @@ The Edge Function handles:
 6. Enforcing plan limits and restrictions
 7. Returning appropriate responses and error handling
 
+## AWS SDK Integration (IMPORTANT)
+
+### Always Use the Official AWS SDK
+
+The AWS Bedrock integration **MUST** use the official AWS SDK packages:
+
+```typescript
+import { BedrockClient } from "@aws-sdk/client-bedrock";
+import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
+```
+
+Benefits of using the official AWS SDK:
+- Proper authentication and request signing
+- Automatic retries with exponential backoff
+- Type safety with TypeScript interfaces
+- Comprehensive error handling
+- Support for all AWS Bedrock operations
+
+### Never Use Mock Data in Production
+
+**IMPORTANT**: Mock implementations should never be used in production environments. They are only intended for:
+- Local development without AWS credentials
+- Automated testing environments
+- UI component development
+
+For production deployments:
+- Always connect to the real AWS Bedrock API
+- Properly configure AWS credentials
+- Ensure IAM permissions are correctly set
+- Use proper error handling for production scenarios
+
+### Implementation Best Practices
+
+1. **Initialize clients properly**:
+   ```typescript
+   const client = new BedrockClient({
+     region: CONFIG.AWS_REGION,
+     credentials: {
+       accessKeyId: CONFIG.AWS_ACCESS_KEY_ID,
+       secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY
+     }
+   });
+   ```
+
+2. **Use proper command classes**:
+   ```typescript
+   const command = new ListFoundationModelsCommand({});
+   const result = await client.send(command);
+   ```
+
+3. **Handle errors comprehensively**:
+   ```typescript
+   try {
+     // AWS operation
+   } catch (error) {
+     console.error("[AWS] Error:", error);
+     return {
+       success: false,
+       error: error instanceof Error ? error.message : String(error)
+     };
+   }
+   ```
+
 ## Frontend Client
 
 The frontend client:
@@ -141,15 +204,21 @@ You can access the Bedrock API through the following endpoints:
 > **Important**: The `/api/bedrock` path is deprecated and will be removed in future versions. 
 > Please update your code to use `/api/super-action` instead.
 
-## Mock Data Solution
+## Development Tools (Non-Production Only)
 
-The system includes a robust mock data solution when the Supabase Edge Function is unavailable or during development:
+For development and testing purposes only, the system includes tools that should never be used in production:
 
-1. **Environment Variable Activation**: Set `VITE_USE_MOCK_SUPER_ACTION=true` in your environment variables or `USE_MOCK_SUPER_ACTION=true` in `vercel.json` to enable mock responses
-2. **Local Fallback API**: The Next.js API route at `/api/super-action` will provide mock responses if the Edge Function fails
-3. **Development Mock Data**: Mock responses for all actions are available in `src/lib/supabase-bedrock-client.js`
+1. **Mock API Mode**: For UI development and testing without AWS connectivity
+2. **Development Fallbacks**: Local API simulation for developing without Edge Functions
+3. **Synthetic Responses**: Structured response generation for testing edge cases
 
-This enables development and testing without requiring a live AWS Bedrock connection or functioning Edge Function.
+### Activating Development Mode
+
+Development mode should ONLY be used in non-production environments:
+```bash
+# Development environment only!
+VITE_USE_MOCK_SUPER_ACTION=true
+```
 
 ## Troubleshooting
 
@@ -162,7 +231,6 @@ This enables development and testing without requiring a live AWS Bedrock connec
 
 2. **503 Service Unavailable**: If the Edge Function fails to start:
    - Check Supabase logs for errors
-   - Enable mock mode with `USE_MOCK_SUPER_ACTION=true`
    - Verify your AWS credentials are valid and have the necessary permissions
 
 3. **Authentication Errors**:
@@ -173,9 +241,10 @@ This enables development and testing without requiring a live AWS Bedrock connec
 ## Implementation Files
 
 - `supabase/functions/super-action/index.ts` - Edge Function implementation
+- `supabase/functions/super-action/aws.ts` - AWS SDK integration
 - `pages/api/super-action/index.js` - Next.js API route for proxying to the Edge Function
 - `src/lib/supabase-bedrock-client.js` - Frontend client for Bedrock API
-- `src/lib/bedrock-config.js` - Configuration for Bedrock API and mock data
+- `src/lib/bedrock-config.js` - Configuration for Bedrock API
 - `src/pages/admin/SupabaseBedrock.tsx` - Admin interface for Bedrock instances
 - `src/components/BedrockChat.tsx` - Chat interface for testing models
 
@@ -194,9 +263,8 @@ SUPABASE_SERVICE_ROLE_KEY=xxxxx
 ## Development and Testing
 
 For local development:
-1. Use the mock implementation in the frontend client
-2. Test with the Supabase CLI: `supabase functions serve super-action`
-3. Verify authentication with: `supabase functions invoke super-action --body '{"action":"listInstances"}' --header "Authorization: Bearer <jwt-token>"`
+1. Deploy and test the Edge Function using Supabase CLI: `supabase functions serve super-action`
+2. Test authentication with: `supabase functions invoke super-action --body '{"action":"listInstances"}' --header "Authorization: Bearer <jwt-token>"`
 
 ## Deployment
 
@@ -220,4 +288,6 @@ The system provides specific error messages for:
 2. Always verify user authentication before any AWS operation
 3. Track all token usage for billing and quotas
 4. Implement proper error handling and retries
-5. Use the most restricted IAM permissions possible 
+5. Use the most restricted IAM permissions possible
+6. Always use the official AWS SDK
+7. Never use mock implementations in production 
