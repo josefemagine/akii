@@ -1,12 +1,11 @@
 /**
  * Supabase Bedrock API Client
- * This client handles communication with Bedrock API endpoints,
- * using proper authentication through Supabase JWT tokens.
- * The client uses Supabase Edge Functions invoke API with proper JWT authentication.
+ * This client handles communication with Bedrock API endpoints 
+ * through Supabase Edge Functions, using JWT authentication only.
  */
 
 import { BedrockConfig } from './bedrock-config';
-// Import the singleton Supabase client instead of creating a new one
+// Import the singleton Supabase client
 import supabase from './supabase-client';
 // Import diagnostic tool in development mode only
 import { runClientDiagnostic } from './detect-client-duplicates';
@@ -20,23 +19,6 @@ if (BedrockConfig.isLocalDevelopment && process.env.NODE_ENV !== 'production') {
     console.warn('[Bedrock] Could not run client diagnostic:', err);
   }
 }
-
-/**
- * Get the API key for Bedrock requests
- * Prefers localStorage saved key, falls back to environment variable
- */
-const getApiKey = () => {
-  // Check for saved API key in localStorage first
-  const savedKey = localStorage.getItem('bedrock-api-key');
-  
-  if (savedKey) {
-    console.log('[Bedrock] Using saved API key from localStorage');
-    return savedKey;
-  }
-  
-  // Otherwise use the environment variable
-  return BedrockConfig.apiKey || '';
-};
 
 /**
  * Get Supabase auth session with JWT token
@@ -146,32 +128,30 @@ const validateApiConfiguration = () => {
  */
 const devMockData = {
   // Mock response for listInstances
-  listInstances: {
-    instances: [
-      {
-        id: 1,
-        instance_id: "ti-123456789abcdef",
-        model_id: "amazon.titan-text-lite-v1",
-        commitment_duration: "ONE_MONTH",
-        model_units: 1,
-        status: "INSERVICE",
-        created_at: new Date().toISOString(),
-        deleted_at: null
-      },
-      {
-        id: 2,
-        instance_id: "ti-987654321fedcba",
-        model_id: "amazon.titan-text-express-v1",
-        commitment_duration: "ONE_MONTH",
-        model_units: 2,
-        status: "CREATING",
-        created_at: new Date().toISOString(),
-        deleted_at: null
-      }
-    ]
-  },
-  // Mock response for testEnv
-  testEnv: {
+  listInstances: [
+    {
+      id: 1,
+      instance_id: "ti-123456789abcdef",
+      model_id: "amazon.titan-text-lite-v1",
+      commitment_duration: "ONE_MONTH",
+      model_units: 1,
+      status: "INSERVICE",
+      created_at: new Date().toISOString(),
+      deleted_at: null
+    },
+    {
+      id: 2,
+      instance_id: "ti-987654321fedcba",
+      model_id: "amazon.titan-text-express-v1",
+      commitment_duration: "ONE_MONTH",
+      model_units: 2,
+      status: "CREATING",
+      created_at: new Date().toISOString(),
+      deleted_at: null
+    }
+  ],
+  // Mock response for testEnvironment
+  testEnvironment: {
     apiVersion: "1.0.0",
     environment: "development",
     awsRegion: "us-east-1",
@@ -194,6 +174,35 @@ const devMockData = {
   // Mock response for deleteInstance
   deleteInstance: {
     success: true
+  },
+  // Mock response for invokeModel
+  invokeModel: {
+    response: "This is a mock response from the AI model.",
+    usage: {
+      input_tokens: 10,
+      output_tokens: 8,
+      total_tokens: 18
+    }
+  },
+  // Mock response for getUsageStats
+  getUsageStats: {
+    usage: {
+      total_tokens: 1500,
+      input_tokens: 500,
+      output_tokens: 1000,
+      instances: [
+        {
+          instance_id: 1,
+          total_tokens: 1500,
+          input_tokens: 500,
+          output_tokens: 1000
+        }
+      ]
+    },
+    limits: {
+      max_tokens: 10000,
+      usage_percentage: 15
+    }
   }
 };
 
@@ -202,19 +211,15 @@ const devMockData = {
  * 
  * @param {Object} options - Function call options
  * @param {string} options.functionName - Edge function name (defaults to BedrockConfig.edgeFunctionName)
- * @param {Object} options.payload - Payload to send to the function
- * @param {boolean} options.requireAuth - Whether authentication is required (defaults to BedrockConfig.auth.requireAuth)
- * @param {boolean} options.useApiKey - Whether to include API key in the payload
  * @param {string} options.action - The action to perform (required)
+ * @param {Object} options.data - Data for the action (optional)
  * @param {boolean} options.useMock - Whether to use mock data in development (defaults to false)
  * @returns {Promise<{data: any, error: string|null}>} Response data or error
  */
 const callEdgeFunction = async ({ 
   functionName = BedrockConfig.edgeFunctionName,
-  payload = {},
-  requireAuth = BedrockConfig.auth.requireAuth,
-  useApiKey = true,
   action,
+  data = {},
   useMock = false
 }) => {
   if (!action) {
@@ -222,8 +227,8 @@ const callEdgeFunction = async ({
     return { data: null, error: 'Missing required action parameter' };
   }
   
-  // Use mock data in development mode if requested or if devUseMockApi is true in the config
-  const shouldUseMock = (useMock || (BedrockConfig.isLocalDevelopment && BedrockConfig.devUseMockApi === true));
+  // Use mock data in development mode if requested or if configured to use mock data
+  const shouldUseMock = (useMock || (BedrockConfig.isLocalDevelopment && BedrockConfig.useMockData));
   
   // If in development and using mock data, return mock data immediately
   if (shouldUseMock) {
@@ -246,233 +251,148 @@ const callEdgeFunction = async ({
       throw new Error('API is not properly configured');
     }
     
-    // Authentication check if required
-    if (requireAuth) {
-      // First refresh token if needed
-      await refreshTokenIfNeeded();
-      
-      // Then verify authentication
-      const isUserAuthenticated = await isAuthenticated();
-      if (!isUserAuthenticated) {
-        throw new Error('User is not authenticated. Please sign in to access this feature.');
-      }
+    // Authentication check - always required for Bedrock operations
+    const token = await refreshTokenIfNeeded();
+    if (!token) {
+      throw new Error('Authentication required. Please log in to access this feature.');
     }
     
-    // Final payload preparation
-    const finalPayload = { 
-      ...payload, 
-      action 
+    // Prepare the payload
+    const requestPayload = {
+      action,
+      data
     };
     
-    // Add API key if needed
-    if (useApiKey) {
-      const apiKey = getApiKey();
-      if (apiKey) {
-        finalPayload.apiKey = apiKey;
-      }
-    }
-    
-    console.log(`[Bedrock] Invoking edge function '${functionName}' with action: ${action}`);
-    
-    let response;
-    
-    // In local development with a proxy URL, use direct fetch with auth header
-    if (BedrockConfig.isLocalDevelopment && BedrockConfig.edgeFunctionUrl.startsWith('/api/')) {
-      // Get auth token for the request
-      const authToken = await getAuthToken();
-      
-      // Make direct fetch call to the proxy URL
-      const fetchResponse = await fetch(BedrockConfig.edgeFunctionUrl, {
-        method: 'POST',
+    // Call the Edge Function with authentication
+    const { data: responseData, error } = await supabase.functions.invoke(
+      functionName,
+      {
+        body: requestPayload,
         headers: {
-          'Content-Type': 'application/json',
-          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
-        },
-        body: JSON.stringify(finalPayload),
-      });
-      
-      if (!fetchResponse.ok) {
-        const errorText = await fetchResponse.text();
-        
-        // If in development and hitting 404 errors, suggest using mock data
-        if (BedrockConfig.isLocalDevelopment && (fetchResponse.status === 404 || fetchResponse.status === 403)) {
-          console.warn('[Bedrock] Edge function not available in development. Consider using mock data with useMock:true');
-          console.warn('[Bedrock] Or add devUseMockApi:true to BedrockConfig to always use mock data in development');
-          
-          // If configured to fall back to mock data, do so
-          if (BedrockConfig.devFallbackToMock) {
-            console.log('[Bedrock] Falling back to mock data due to Edge Function error');
-            
-            if (devMockData[action]) {
-              return { data: devMockData[action], error: null };
-            }
-          }
+          Authorization: `Bearer ${token}`
         }
-        
-        throw new Error(`Edge Function Error (${fetchResponse.status}): ${errorText}`);
       }
-      
-      response = { data: await fetchResponse.json(), error: null };
-    } else {
-      // Use Supabase client for regular edge function invocation
-      response = await supabase.functions.invoke(functionName, {
-        body: finalPayload
-      });
-      
-      if (response.error) {
-        // Enhanced authentication error handling
-        if (response.error.message?.includes('JWT') || 
-            response.error.message?.includes('auth') || 
-            response.error.message?.includes('unauthorized') || 
-            response.error.status === 401) {
-          
-          // Specific error messaging for authentication issues
-          if (response.error.message?.includes('expired')) {
-            throw new Error('Your authentication session has expired. Please sign in again.');
-          } else {
-            throw new Error(`Authentication error: ${response.error.message}. Please sign in again.`);
-          }
-        }
-        
-        // Specific error handling for common errors
-        if (response.error.status === 404) {
-          // If in development and the edge function is not found, suggest using mock data
-          if (BedrockConfig.isLocalDevelopment && BedrockConfig.devFallbackToMock) {
-            console.log('[Bedrock] Edge function not found, falling back to mock data');
-            
-            if (devMockData[action]) {
-              return { data: devMockData[action], error: null };
-            }
-          }
-          
-          throw new Error(`Edge function '${functionName}' not found. Please check your deployment.`);
-        } else if (response.error.status === 500) {
-          throw new Error(`Server error: ${response.error.message}. The edge function encountered an internal error.`);
-        } else if (response.error.status === 429) {
-          throw new Error('Rate limit exceeded. Please try again later.');
-        }
-        
-        throw new Error(`Edge Function Error: ${response.error.message}`);
-      }
+    );
+    
+    if (error) {
+      console.error(`[Bedrock] Edge function error for action ${action}:`, error);
+      return { data: null, error: error.message || 'Error calling Edge Function' };
     }
     
-    return { data: response.data, error: null };
+    // Handle API-level errors returned in the response
+    if (responseData?.error) {
+      console.error(`[Bedrock] API error for action ${action}:`, responseData.error);
+      return { data: null, error: responseData.error };
+    }
+    
+    return { data: responseData, error: null };
   } catch (error) {
-    console.error(`[Bedrock] Error invoking function (${action}):`, error);
-    
-    // If in development and configured to fall back to mock data on error, do so
-    if (BedrockConfig.isLocalDevelopment && BedrockConfig.devFallbackToMock && devMockData[action]) {
-      console.log('[Bedrock] Falling back to mock data due to error');
-      return { data: devMockData[action], error: null };
-    }
-    
-    return { data: null, error: error.message };
+    console.error(`[Bedrock] Exception during action ${action}:`, error);
+    return { data: null, error: error.message || 'Unknown error occurred' };
   }
 };
 
 /**
- * Get a list of all Bedrock model throughput instances
+ * Get all Bedrock instances for the authenticated user
+ * @returns {Promise<{data: Array, error: string|null}>} Bedrock instances or error
  */
 const listInstances = async () => {
-  try {
-    const { data, error } = await callEdgeFunction({
-      action: 'listInstances'
-    });
-    
-    if (error) {
-      throw new Error(error);
-    }
-    
-    return { instances: data?.instances || [], error: null };
-  } catch (error) {
-    console.error('[Bedrock] Error listing instances:', error);
-    return { instances: [], error: error.message };
-  }
+  return callEdgeFunction({
+    action: 'listInstances'
+  });
 };
 
 /**
- * Create a new Bedrock model throughput instance
- * @param {Object} modelInfo - Model information including modelId, commitmentDuration, modelUnits
+ * Create a new Bedrock instance
+ * 
+ * @param {Object} modelInfo - Instance configuration
+ * @param {string} modelInfo.modelId - The model ID
+ * @param {string} modelInfo.commitmentDuration - Commitment duration
+ * @param {number} modelInfo.modelUnits - Number of model units
+ * @returns {Promise<{data: Object, error: string|null}>} New instance or error
  */
 const createInstance = async (modelInfo) => {
-  try {
-    const { data, error } = await callEdgeFunction({
-      action: 'provisionInstance', 
-      payload: { modelInfo }
-    });
-    
-    if (error) {
-      throw new Error(error);
-    }
-    
-    return { instance: data?.instance, error: null };
-  } catch (error) {
-    console.error('[Bedrock] Error creating instance:', error);
-    return { instance: null, error: error.message };
-  }
+  return callEdgeFunction({
+    action: 'provisionInstance',
+    data: modelInfo
+  });
 };
 
 /**
- * Delete a Bedrock model throughput instance
- * @param {string} instanceId - The instance ID to delete
+ * Delete a Bedrock instance
+ * 
+ * @param {string} instanceId - ID of the instance to delete
+ * @returns {Promise<{data: Object, error: string|null}>} Success status or error
  */
 const deleteInstance = async (instanceId) => {
-  try {
-    const { data, error } = await callEdgeFunction({
-      action: 'deleteInstance', 
-      payload: { instanceId }
-    });
-    
-    if (error) {
-      throw new Error(error);
-    }
-    
-    return { success: data?.success, error: null };
-  } catch (error) {
-    console.error('[Bedrock] Error deleting instance:', error);
-    return { success: false, error: error.message };
-  }
+  return callEdgeFunction({
+    action: 'deleteInstance',
+    data: { instanceId }
+  });
 };
 
 /**
- * Test API environment and connectivity
+ * Test API environment and configuration
+ * @returns {Promise<{data: Object, error: string|null}>} Environment diagnostics or error
  */
 const testEnvironment = async () => {
-  try {
-    const { data, error } = await callEdgeFunction({
-      action: 'testEnv'
-    });
-    
-    if (error) {
-      throw new Error(error);
-    }
-    
-    return { 
-      environment: data, 
-      error: null 
-    };
-  } catch (error) {
-    console.error('[Bedrock] Error testing environment:', error);
-    return { 
-      environment: null, 
-      error: error.message
-    };
-  }
+  return callEdgeFunction({
+    action: 'testEnvironment'
+  });
 };
 
-// Export all client functions
+/**
+ * Send a message to a Bedrock AI model
+ * 
+ * @param {Object} options - Invoke options
+ * @param {number} options.instance_id - Instance ID
+ * @param {string} options.prompt - The message to send
+ * @param {number} options.max_tokens - Maximum tokens to generate
+ * @returns {Promise<{data: Object, error: string|null}>} AI response or error
+ */
+const invokeModel = async ({ instance_id, prompt, max_tokens = 500 }) => {
+  return callEdgeFunction({
+    action: 'invokeModel',
+    data: { 
+      instance_id, 
+      prompt, 
+      max_tokens 
+    }
+  });
+};
+
+/**
+ * Get usage statistics for Bedrock instances
+ * 
+ * @param {Object} options - Optional parameters
+ * @param {number} options.instance_id - Optional instance ID to filter stats
+ * @param {string} options.timeframe - Optional timeframe (day, week, month, year)
+ * @returns {Promise<{data: Object, error: string|null}>} Usage statistics or error
+ */
+const getUsageStats = async (options = {}) => {
+  return callEdgeFunction({
+    action: 'getUsageStats',
+    data: options
+  });
+};
+
+// Expose client functions
 export const BedrockClient = {
+  // Authentication
+  getAuthSession,
+  getAuthToken,
+  refreshTokenIfNeeded,
+  isAuthenticated,
+  validateApiConfiguration,
+  
+  // API operations
+  callEdgeFunction,
   listInstances,
   createInstance,
   deleteInstance,
   testEnvironment,
-  getApiKey,
-  getAuthToken,
-  getAuthSession,
-  refreshTokenIfNeeded,
-  isAuthenticated,
-  validateApiConfiguration,
-  callEdgeFunction
+  invokeModel,
+  getUsageStats
 };
 
 export default BedrockClient; 

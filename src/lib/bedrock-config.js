@@ -42,13 +42,6 @@ const getApiUrl = () => {
 };
 
 /**
- * Get API key from environment variables
- */
-const getApiKey = () => {
-  return import.meta.env.VITE_BEDROCK_API_KEY || '';
-};
-
-/**
  * Determine if we're using Supabase Edge Functions
  * Default behavior is to use Edge Functions in all environments
  * unless explicitly disabled via environment variable
@@ -71,11 +64,11 @@ const useEdgeFunctions = () => {
 const getEdgeFunctionUrl = () => {
   // In local development, use the Vite proxy to avoid CORS issues
   if (isLocalDevelopment) {
-    return '/api/bedrock';
+    return '/api/super-action';
   }
   
   // Use custom domain for production (as specified by user)
-  return 'https://api.akii.com/functions/v1/bedrock';
+  return 'https://api.akii.com/functions/v1/super-action';
 };
 
 /**
@@ -83,7 +76,7 @@ const getEdgeFunctionUrl = () => {
  * This is the name used when invoking the function via Supabase client
  */
 const getEdgeFunctionName = () => {
-  return 'bedrock';
+  return 'super-action';
 };
 
 /**
@@ -94,15 +87,23 @@ const isDebugMode = () => {
   return debugSetting === 'true' || isLocalDevelopment;
 };
 
+/**
+ * Determine if mock data should be used in development
+ */
+const shouldUseMockData = () => {
+  const mockSetting = import.meta.env.VITE_USE_MOCK_BEDROCK;
+  return mockSetting === 'true' || isLocalDevelopment;
+};
+
 // Export configuration object
 export const BedrockConfig = {
   apiUrl: getApiUrl(),
-  apiKey: getApiKey(),
   useEdgeFunctions: useEdgeFunctions(),
   edgeFunctionUrl: getEdgeFunctionUrl(),
   edgeFunctionName: getEdgeFunctionName(),
   isLocalDevelopment,
   isProduction,
+  isDev: isLocalDevelopment,
   
   // Authentication configuration
   auth: authConfig,
@@ -110,9 +111,8 @@ export const BedrockConfig = {
   // Debug configuration
   debug: isDebugMode(),
   
-  // Development mock API options
-  devUseMockApi: isLocalDevelopment, // Always use mock data in development
-  devFallbackToMock: true, // Fall back to mock data if edge function fails
+  // Development mock data settings
+  useMockData: shouldUseMockData(),
   
   // Default model settings
   defaultModel: 'amazon.titan-text-express-v1',

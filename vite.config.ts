@@ -86,62 +86,12 @@ export default defineConfig({
     // @ts-ignore
     allowedHosts: process.env.TEMPO === "true" ? true : undefined,
     proxy: {
-      '/api/bedrock': {
-        target: 'http://localhost:3000',
+      '/api/super-action': {
+        target: 'http://localhost:54321/functions/v1/super-action',
         changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path,
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('Proxy error:', err);
-          });
-          
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log(`[Proxy] ${req.method} ${req.url}`);
-            
-            // Set headers for JSON
-            proxyReq.setHeader('Accept', 'application/json');
-            
-            // If request has a body, make sure it's properly sent
-            const reqWithBody = req as any;
-            if (reqWithBody.body && typeof reqWithBody.body === 'object' && Object.keys(reqWithBody.body).length > 0) {
-              const bodyData = JSON.stringify(reqWithBody.body);
-              console.log('[Proxy] Request body:', bodyData);
-              
-              // Update headers
-              proxyReq.setHeader('Content-Type', 'application/json');
-              proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-              
-              // Write body to request
-              proxyReq.write(bodyData);
-            }
-          });
-          
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log(`[Proxy] Response ${proxyRes.statusCode} for ${req.method} ${req.url}`);
-            console.log(`[Proxy] Response headers:`, JSON.stringify(proxyRes.headers));
-            
-            // Force the content type to be application/json
-            proxyRes.headers['content-type'] = 'application/json';
-            
-            // Log full response body (useful for debugging)
-            let responseBody = '';
-            proxyRes.on('data', (chunk) => {
-              responseBody += chunk;
-            });
-            
-            proxyRes.on('end', () => {
-              console.log(`[Proxy] Response body (first 200 chars): ${responseBody.substring(0, 200)}`);
-              try {
-                JSON.parse(responseBody);
-                console.log('[Proxy] Response is valid JSON');
-              } catch (e) {
-                console.error('[Proxy] Response is NOT valid JSON:', e);
-              }
-            });
-          });
-        }
-      }
+        rewrite: (path) => path.replace(/^\/api\/super-action/, ''),
+      },
+      // Additional proxy configurations can be added here as needed
     }
   },
   define: {

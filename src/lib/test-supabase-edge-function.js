@@ -1,68 +1,48 @@
 // Test script for Supabase Edge Function
-async function testSupabaseEdgeFunction() {
-  const apiKey = localStorage.getItem('bedrock-api-key');
-  
-  if (!apiKey) {
-    console.error('No API key found in localStorage');
-    return {
-      success: false,
-      error: 'No API key found'
-    };
-  }
-  
+import supabase from './supabase-client';
+import { BedrockConfig } from './bedrock-config';
+
+async function testEdgeFunction() {
   try {
-    // First attempt with x-api-key header
-    console.log('Testing with x-api-key header...');
-    const response1 = await fetch('https://hndbdiquvotjxcmjzlgu.supabase.co/functions/v1/bedrock/test-env', {
+    // Get the current JWT token
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError || !session) {
+      console.error('No authenticated session found:', sessionError?.message || 'Not logged in');
+      return {
+        success: false,
+        error: 'Authentication required. Please log in.'
+      };
+    }
+    
+    const token = session.access_token;
+    
+    // Test the edge function directly
+    const response = await fetch(`${BedrockConfig.edgeFunctionUrl}/test-env`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'x-api-key': apiKey
+        'Authorization': `Bearer ${token}`
       }
     });
     
-    // Check first response
-    if (response1.ok) {
-      const data1 = await response1.json();
-      console.log('Edge Function environment (x-api-key):', data1);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Failed to test environment: ${response.status} ${errorText}`);
       return {
-        success: true,
-        method: 'x-api-key',
-        data: data1
-      };
-    } else {
-      console.log(`x-api-key attempt failed with status: ${response1.status}`);
-      
-      // Second attempt with Authorization header
-      console.log('Testing with Authorization header...');
-      const response2 = await fetch('https://hndbdiquvotjxcmjzlgu.supabase.co/functions/v1/bedrock/test-env', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        }
-      });
-      
-      if (!response2.ok) {
-        const errorText = await response2.text();
-        console.error(`Both header approaches failed. Last error: ${response2.status} ${errorText}`);
-        return {
-          success: false,
-          status: response2.status,
-          error: errorText
-        };
-      }
-      
-      const data2 = await response2.json();
-      console.log('Edge Function environment (Authorization):', data2);
-      return {
-        success: true,
-        method: 'Authorization',
-        data: data2
+        success: false,
+        status: response.status,
+        error: errorText
       };
     }
+    
+    const data = await response.json();
+    console.log('Edge Function environment:', data);
+    return {
+      success: true,
+      data
+    };
   } catch (error) {
     console.error('Error testing edge function:', error);
     return {
@@ -73,6 +53,6 @@ async function testSupabaseEdgeFunction() {
 }
 
 // Export function for console testing
-window.testSupabaseEdgeFunction = testSupabaseEdgeFunction;
+window.testSupabaseEdgeFunction = testEdgeFunction;
 
-export default testSupabaseEdgeFunction; 
+export default testEdgeFunction; 

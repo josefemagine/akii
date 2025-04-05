@@ -344,7 +344,7 @@
             }
             
             const testEndpoint = localStorage.getItem('test-endpoint') || 'test-env';
-            const url = `https://${projectRef}.supabase.co/functions/v1/bedrock/${testEndpoint}`;
+            const url = `https://api.akii.com/functions/v1/super-action/${testEndpoint}`;
             document.getElementById('endpointUrl').value = url;
             localStorage.setItem('edge-function-url', url);
             alert('Edge Function URL generated and saved');
@@ -473,7 +473,7 @@
                     const testEndpoint = localStorage.getItem('test-endpoint') || 'test-env';
                     
                     if (projectRef) {
-                        testUrl = `https://${projectRef}.supabase.co/functions/v1/bedrock/${testEndpoint}`;
+                        testUrl = `https://api.akii.com/functions/v1/super-action/${testEndpoint}`;
                     } else {
                         return {
                             success: false,
@@ -607,7 +607,7 @@
             } else if (savedProjectRef) {
                 // Try to build URL if we have project ref
                 const testEndpoint = localStorage.getItem('test-endpoint') || 'test-env';
-                document.getElementById('endpointUrl').value = `https://${savedProjectRef}.supabase.co/functions/v1/bedrock/${testEndpoint}`;
+                document.getElementById('endpointUrl').value = `https://api.akii.com/functions/v1/super-action/${testEndpoint}`;
             }
             
             const savedSuperAction = localStorage.getItem('super-action-url');

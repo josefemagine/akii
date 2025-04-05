@@ -144,4 +144,11 @@ Use the diagnostic tab in the admin interface to:
 
 - `VITE_BEDROCK_API_URL`: The base URL for the Bedrock API
   - For API proxy: `/api/bedrock` (default)
-  - For direct Edge Function access: `https://{project-id}.supabase.co/functions/v1/bedrock` 
+  - For direct Edge Function access: `https://{project-id}.supabase.co/functions/v1/bedrock`
+
+## API Access
+
+You can access the Bedrock API through the following endpoints:
+
+- For local development with Vite proxy: `/api/super-action`
+- For direct Edge Function access: `https://api.akii.com/functions/v1/super-action` 

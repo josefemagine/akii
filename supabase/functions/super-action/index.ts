@@ -1,5 +1,7 @@
 // Supabase Edge Function for AWS Bedrock operations
+// @ts-ignore - Deno-specific import
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// @ts-ignore - Deno-specific import
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // CORS headers for all responses
@@ -10,10 +12,15 @@ const CORS_HEADERS = {
 };
 
 // Environment setup
+// @ts-ignore - Deno global
 const AWS_ACCESS_KEY_ID = Deno.env.get("AWS_ACCESS_KEY_ID") || "";
+// @ts-ignore - Deno global
 const AWS_SECRET_ACCESS_KEY = Deno.env.get("AWS_SECRET_ACCESS_KEY") || "";
+// @ts-ignore - Deno global
 const AWS_REGION = Deno.env.get("AWS_REGION") || "us-east-1";
+// @ts-ignore - Deno global
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+// @ts-ignore - Deno global
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 // Initialize Supabase client
@@ -69,6 +76,7 @@ async function handleTestEnv(request: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
         environment: {
+          // @ts-ignore - Deno global
           isProduction: Deno.env.get("DENO_ENV") !== "development",
           aws: {
             region: AWS_REGION,
@@ -76,6 +84,7 @@ async function handleTestEnv(request: Request): Promise<Response> {
             hasSecretKey: Boolean(AWS_SECRET_ACCESS_KEY),
             accessKeyFormat: AWS_ACCESS_KEY_ID ? (AWS_ACCESS_KEY_ID.startsWith("AKIA") ? "valid" : "invalid") : "missing",
           },
+          // @ts-ignore - Deno global
           platform: Deno.build.os,
           supabase: {
             hasUrl: Boolean(SUPABASE_URL),

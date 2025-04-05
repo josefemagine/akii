@@ -1,25 +1,28 @@
 // Test script for Supabase Edge Function
+import supabase from './supabase-client';
+
 async function testEdgeFunction() {
-  const apiKey = localStorage.getItem('bedrock-api-key');
-  
-  if (!apiKey) {
-    console.error('No API key found in localStorage');
-    return {
-      success: false,
-      error: 'No API key found'
-    };
-  }
-  
   try {
+    // Get the current JWT token
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError || !session) {
+      console.error('No authenticated session found:', sessionError?.message || 'Not logged in');
+      return {
+        success: false,
+        error: 'Authentication required. Please log in.'
+      };
+    }
+    
+    const token = session.access_token;
+    
     // Test the edge function directly
     const response = await fetch('https://api.akii.com/functions/v1/super-action/test-env', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'x-api-key': apiKey,
-        // Also try with authorization header
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${token}`
       }
     });
     

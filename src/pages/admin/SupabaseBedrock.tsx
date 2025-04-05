@@ -10,7 +10,6 @@ import { AlertCircle, RefreshCw, Trash2, Code, AlertTriangle, Settings, Loader2,
 import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Switch } from "@/components/ui/switch";
 import { useNavigate } from 'react-router-dom';
 import { EnvConfig } from "@/lib/env-config";
 import { BedrockClient } from "@/lib/supabase-bedrock-client";
@@ -156,7 +155,7 @@ const AuthStatusBadge = ({ status }: { status: AuthStatus }) => {
 
 // After imports, add this component for the mock data notice
 const MockDataNotice = () => {
-  if (!BedrockConfig.isLocalDevelopment || !BedrockConfig.devUseMockApi) {
+  if (!BedrockConfig.isLocalDevelopment || !BedrockConfig.useMockData) {
     return null;
   }
   
@@ -185,10 +184,6 @@ const SupabaseBedrock = () => {
   // Form state
   const [selectedPlan, setSelectedPlan] = useState('starter');
   const [submitting, setSubmitting] = useState(false);
-  
-  // API key state
-  const [manualApiKey, setManualApiKey] = useState('');
-  const [isUsingManualKey, setIsUsingManualKey] = useState(false);
   
   // Environment diagnostics
   const [envDiagnostics, setEnvDiagnostics] = useState<EnvironmentDiagnostics | null>(null);
@@ -250,262 +245,131 @@ const SupabaseBedrock = () => {
     }
   };
   
-  // Load manual API key from localStorage if available
-  useEffect(() => {
-    const savedKey = localStorage.getItem('bedrock-api-key');
-    if (savedKey) {
-      console.log('Found saved API key in localStorage');
-      setManualApiKey(savedKey);
-      setIsUsingManualKey(true);
-    }
-    
-    // Check authentication status
-    checkAuthStatus().then(isAuthenticated => {
-      if (isAuthenticated) {
-        // Initial fetch only if authenticated
-        fetchInstances();
-      } else if (BedrockConfig.auth.requireAuth) {
-        setError('Authentication required. Please log in to access this feature.');
-      }
-    });
-    
-    // Check API configuration
-    const isConfigured = BedrockClient.validateApiConfiguration();
-    if (!isConfigured) {
-      setError('API is not properly configured. Check the environment settings and try again.');
-      setConnectionStatus('error');
-    }
-    
-    // Listen for auth state changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
-      
-      if (event === 'SIGNED_IN' && session) {
-        setAuthStatus('authenticated');
-        fetchInstances();
-      } else if (event === 'SIGNED_OUT') {
-        setAuthStatus('unauthenticated');
-        setInstances([]);
-      } else if (event === 'TOKEN_REFRESHED') {
-        setAuthStatus('authenticated');
-      }
-    });
-    
-    // Cleanup listener
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, []);
-  
-  // API key management
-  const handleSaveApiKey = () => {
-    if (!manualApiKey) {
-      toast({
-        title: "Error",
-        description: "Please enter an API key",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Save to localStorage
-    localStorage.setItem('bedrock-api-key', manualApiKey);
-    setIsUsingManualKey(true);
-    
-    toast({
-      title: "Success",
-      description: "API key saved successfully. Will be used for future requests.",
-    });
-    
-    // Refresh instances with the new key
-    fetchInstances();
-  };
-  
-  // Clear API key
-  const handleClearApiKey = () => {
-    localStorage.removeItem('bedrock-api-key');
-    setManualApiKey('');
-    setIsUsingManualKey(false);
-    
-    toast({
-      title: "Success",
-      description: "API key has been cleared. Using environment defaults.",
-    });
-    
-    // Refresh instances with default key
-    fetchInstances();
-  };
-  
-  // Fetch instances
+  // Fetch instances from the API
   const fetchInstances = async () => {
     setLoading(true);
-    setRefreshing(true);
     setError(null);
-    setConnectionStatus('checking');
     
     try {
-      // Check authentication if required
-      if (BedrockConfig.auth.requireAuth) {
-        const isAuthenticated = await checkAuthStatus();
-        if (!isAuthenticated) {
-          throw new Error('Authentication required. Please log in to access this feature.');
-        }
-      }
-      
-      // Use the direct callEdgeFunction method for more control
-      const { data, error } = await BedrockClient.callEdgeFunction({
-        action: 'listInstances',
-        requireAuth: BedrockConfig.auth.requireAuth,
-        useApiKey: isUsingManualKey
-      });
+      const { data, error } = await BedrockClient.listInstances();
       
       if (error) {
-        // Check for authentication errors
-        if (error.includes('authentication') || error.includes('JWT') || 
-            error.includes('sign in') || error.includes('auth')) {
-          setAuthStatus('expired');
-          throw new Error('Authentication error: ' + error);
-        }
-        throw new Error(error);
+        console.error("Error fetching instances:", error);
+        setError(`Failed to fetch instances: ${error}`);
+        setConnectionStatus('error');
+        return;
       }
       
-      setInstances(data?.instances || []);
       setConnectionStatus('connected');
-      
-      // Calculate stats
-      const stats = {
-        total: data?.instances?.length || 0,
-        active: data?.instances?.filter(i => i.status.toLowerCase() === 'inservice').length || 0,
-        pending: data?.instances?.filter(i => i.status.toLowerCase() === 'creating').length || 0,
-        failed: data?.instances?.filter(i => ['failed', 'deleted'].includes(i.status.toLowerCase())).length || 0
-      };
-      
-      setStats(stats);
+      setInstances(data?.instances || []);
     } catch (error) {
-      console.error('Error in fetchInstances:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load instances. Please try again.');
+      console.error("Exception fetching instances:", error);
+      setError(`Exception fetching instances: ${error instanceof Error ? error.message : String(error)}`);
       setConnectionStatus('error');
-      
-      // Show toast for authentication errors
-      if (error instanceof Error && (
-          error.message.includes('authentication') || 
-          error.message.includes('JWT') || 
-          error.message.includes('sign in'))) {
-        toast({
-          title: "Authentication Error",
-          description: "Your session has expired or you're not authenticated. Please log in again.",
-          variant: "destructive",
-        });
-      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
   
-  // Test environment
+  // Refresh instances list
+  const refreshInstances = async () => {
+    setRefreshing(true);
+    await fetchInstances();
+  };
+  
+  // Fetch environment diagnostics
   const fetchEnvironmentDiagnostics = async () => {
+    setConnectionStatus('checking');
+    setError(null);
+    
     try {
-      setConnectionStatus('checking');
-      
-      // Check authentication if required
-      if (BedrockConfig.auth.requireAuth) {
-        const isAuthenticated = await checkAuthStatus();
-        if (!isAuthenticated) {
-          throw new Error('Authentication required. Please log in to access this feature.');
-        }
-      }
-      
-      // Use the direct callEdgeFunction method
-      const { data, error } = await BedrockClient.callEdgeFunction({
-        action: 'testEnv',
-        requireAuth: BedrockConfig.auth.requireAuth,
-        useApiKey: isUsingManualKey
-      });
+      const { data, error } = await BedrockClient.testEnvironment();
       
       if (error) {
+        console.error("Environment diagnostics error:", error);
         setConnectionStatus('error');
-        setEnvDiagnostics({
-          error,
-          timestamp: new Date().toISOString()
-        });
-        setShowDiagnostics(true);
-        throw new Error(error);
+        setError(`Failed to get environment diagnostics: ${error}`);
+        return;
       }
       
       setConnectionStatus('connected');
       setEnvDiagnostics(data);
-      setShowDiagnostics(true);
     } catch (error) {
-      console.error('Error testing environment:', error);
-      toast({
-        title: "Error",
-        description: "Failed to test environment. Check diagnostic details.",
-        variant: "destructive",
-      });
+      console.error("Exception getting environment diagnostics:", error);
+      setConnectionStatus('error');
+      setError(`Exception getting environment diagnostics: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
   
-  // Stats
-  const [stats, setStats] = useState({
-    total: 0,
-    active: 0,
-    pending: 0,
-    failed: 0
-  });
+  // Initialize on component mount
+  useEffect(() => {
+    // Check authentication status on mount
+    checkAuthStatus().then(isAuth => {
+      if (isAuth) {
+        fetchInstances();
+        fetchEnvironmentDiagnostics();
+      }
+    });
+  }, []);
   
-  // Handle form submission
+  // Create a new Bedrock instance
   const handleProvisionInstance = async () => {
     setSubmitting(true);
     setError(null);
     
     try {
-      // Check authentication if required
-      if (BedrockConfig.auth.requireAuth) {
-        const isAuthenticated = await checkAuthStatus();
-        if (!isAuthenticated) {
-          throw new Error('Authentication required. Please log in to access this feature.');
-        }
+      // First authenticate if needed
+      const isAuth = await checkAuthStatus();
+      if (!isAuth) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to provision a Bedrock instance.",
+          variant: "destructive",
+        });
+        setSubmitting(false);
+        return;
       }
       
-      const planDetails = planConfig[selectedPlan as keyof typeof planConfig];
-      
-      if (!planDetails) {
-        throw new Error(`Invalid plan selected: ${selectedPlan}`);
+      // Get the plan configuration
+      const plan = planConfig[selectedPlan as keyof typeof planConfig];
+      if (!plan) {
+        setError(`Invalid plan selected: ${selectedPlan}`);
+        setSubmitting(false);
+        return;
       }
       
-      // Use the direct callEdgeFunction method
-      const { data, error } = await BedrockClient.callEdgeFunction({
-        action: 'provisionInstance',
-        payload: {
-          modelInfo: {
-            modelId: planDetails.modelId,
-            commitmentDuration: planDetails.commitmentDuration,
-            modelUnits: planDetails.modelUnits
-          }
-        },
-        requireAuth: BedrockConfig.auth.requireAuth,
-        useApiKey: isUsingManualKey
+      // Create instance request
+      const { data, error } = await BedrockClient.createInstance({
+        model_id: plan.modelId,
+        model_type: selectedPlan,
+        commitment_term: plan.commitmentDuration === 'ONE_MONTH' ? 1 : 3,
+        model_units: plan.modelUnits
       });
       
       if (error) {
-        throw new Error(error);
+        setError(`Failed to provision instance: ${error}`);
+        toast({
+          title: "Provisioning Failed",
+          description: `Failed to provision Bedrock instance: ${error}`,
+          variant: "destructive",
+        });
+        return;
       }
       
       toast({
-        title: "Success",
-        description: "New AI instance has been provisioned successfully. It may take a few minutes to become available.",
+        title: "Instance Provisioned",
+        description: "Your Bedrock instance is being provisioned. This may take a few minutes to complete.",
       });
       
-      // Refresh instances
+      // Refresh the instances list
       fetchInstances();
-    } catch (err) {
-      console.error('Error creating instance:', err);
-      setError(err instanceof Error ? err.message : 'Failed to provision instance. Please try again.');
-      
+    } catch (error) {
+      console.error("Provision error:", error);
+      setError(`Exception provisioning instance: ${error instanceof Error ? error.message : String(error)}`);
       toast({
-        title: "Error",
-        description: "Failed to provision AI instance. Please check the API configuration.",
+        title: "Provisioning Failed",
+        description: `An error occurred: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive",
       });
     } finally {
@@ -513,476 +377,371 @@ const SupabaseBedrock = () => {
     }
   };
   
-  // Handle instance deletion
+  // Delete a Bedrock instance
   const handleDeleteInstance = async (instanceId: string) => {
-    if (!window.confirm("Are you sure you want to delete this instance? This action cannot be undone.")) {
+    if (!confirm('Are you sure you want to delete this instance? This action cannot be undone.')) {
       return;
     }
     
+    setError(null);
+    
     try {
-      // Check authentication if required
-      if (BedrockConfig.auth.requireAuth) {
-        const isAuthenticated = await checkAuthStatus();
-        if (!isAuthenticated) {
-          throw new Error('Authentication required. Please log in to access this feature.');
-        }
-      }
-      
-      // Use the direct callEdgeFunction method
-      const { data, error } = await BedrockClient.callEdgeFunction({
-        action: 'deleteInstance',
-        payload: { instanceId },
-        requireAuth: BedrockConfig.auth.requireAuth,
-        useApiKey: isUsingManualKey
-      });
+      const { data, error } = await BedrockClient.deleteInstance(instanceId);
       
       if (error) {
-        throw new Error(error);
-      }
-      
-      if (!data?.success) {
-        throw new Error("Unknown error while deleting instance");
+        setError(`Failed to delete instance: ${error}`);
+        toast({
+          title: "Deletion Failed",
+          description: `Failed to delete Bedrock instance: ${error}`,
+          variant: "destructive",
+        });
+        return;
       }
       
       toast({
-        title: "Success",
-        description: "AI instance has been deleted successfully",
+        title: "Instance Deleted",
+        description: "The Bedrock instance has been deleted successfully.",
       });
       
-      // Refresh instances
+      // Refresh the instances list
       fetchInstances();
-    } catch (err) {
-      console.error('Error deleting instance:', err);
+    } catch (error) {
+      console.error("Delete error:", error);
+      setError(`Exception deleting instance: ${error instanceof Error ? error.message : String(error)}`);
       toast({
-        title: "Error",
-        description: "Failed to delete AI instance. Please try again.",
+        title: "Deletion Failed",
+        description: `An error occurred: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive",
       });
     }
   };
   
-  // Main component render
-  return (
-    <div className="container mx-auto py-6 space-y-8">
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold">Bedrock AI Instances</h1>
-            <ConnectionStatusBadge status={connectionStatus} />
-            <AuthStatusBadge status={authStatus} />
-            {BedrockConfig.devUseMockApi && (
-              <Badge variant="outline" className="bg-purple-100 text-purple-800 hover:bg-purple-100">Mock Data</Badge>
-            )}
+  // Show an API config section in the UI
+  const ApiConfiguration = () => (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle>API Configuration</CardTitle>
+        <CardDescription>Current configuration and connection status</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <Label className="mb-1 block text-sm font-medium">API URL:</Label>
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              {BedrockConfig.isLocalDevelopment ? '/api/super-action' : BedrockConfig.edgeFunctionUrl}
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            {/* Authentication actions */}
-            {(['unauthenticated', 'expired'].includes(authStatus)) && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleLogin} 
-              >
-                <LogIn className="mr-2 h-4 w-4" />
-                Sign In
-              </Button>
-            )}
-            
-            {authStatus === 'authenticated' && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={refreshToken} 
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh Token
-              </Button>
-            )}
-            
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={fetchInstances} 
-              disabled={refreshing || !['authenticated'].includes(authStatus)}
-            >
-              {refreshing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchEnvironmentDiagnostics}
-              disabled={refreshing || !['authenticated'].includes(authStatus)}
-            >
-              <Code className="mr-2 h-4 w-4" />
-              Test Environment
-            </Button>
+          
+          <div>
+            <Label className="mb-1 block text-sm font-medium">Edge Functions:</Label>
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              {BedrockConfig.useEdgeFunctions ? 'Enabled' : 'Disabled'}
+            </div>
+          </div>
+          
+          <div>
+            <Label className="mb-1 block text-sm font-medium">Environment:</Label>
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              {BedrockConfig.isProduction ? 'Production' : 'Development'}
+            </div>
+          </div>
+          
+          <div>
+            <Label className="mb-1 block text-sm font-medium">Function Name:</Label>
+            <div className="text-sm text-gray-700 dark:text-gray-300">{BedrockConfig.edgeFunctionName}</div>
+          </div>
+          
+          <div>
+            <Label className="mb-1 block text-sm font-medium">Authentication:</Label>
+            <div className="text-sm text-gray-700 dark:text-gray-300">Supabase JWT</div>
+          </div>
+          
+          <div>
+            <Label className="mb-1 block text-sm font-medium">Edge Function URL:</Label>
+            <div className="text-sm text-gray-700 dark:text-gray-300">{BedrockConfig.edgeFunctionUrl}</div>
           </div>
         </div>
         
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-            {(error.includes('authentication') || error.includes('sign in')) && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleLogin}
-                className="mt-2"
-              >
-                <LogIn className="mr-2 h-4 w-4" />
-                Sign In
-              </Button>
-            )}
-          </Alert>
-        )}
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <Label className="mb-1 block text-sm font-medium">Connection:</Label>
+            <ConnectionStatusBadge status={connectionStatus} />
+          </div>
+          
+          <div>
+            <Label className="mb-1 block text-sm font-medium">Auth Status:</Label>
+            <div className="flex items-center gap-2">
+              <AuthStatusBadge status={authStatus} />
+              {authStatus === 'unauthenticated' && (
+                <Button variant="outline" size="sm" onClick={handleLogin}>
+                  <LogIn className="h-4 w-4 mr-2" /> Log In
+                </Button>
+              )}
+              {(authStatus === 'authenticated' || authStatus === 'expired') && (
+                <Button variant="outline" size="sm" onClick={refreshToken}>
+                  <RefreshCw className="h-4 w-4 mr-2" /> Refresh Token
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
         
-        {/* Authentication Status Card - show when not authenticated */}
-        {(['unauthenticated', 'expired'].includes(authStatus) && BedrockConfig.auth.requireAuth) && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Authentication Required</CardTitle>
-              <CardDescription>
-                You need to be authenticated to access Bedrock features
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                This page requires a valid JWT token. Please sign in to continue.
-              </p>
-              <Button onClick={handleLogin}>
-                <LogIn className="mr-2 h-4 w-4" />
-                Sign In
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* API Configuration Info */}
-        <Card>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={fetchEnvironmentDiagnostics}>
+            <Settings className="h-4 w-4 mr-2" /> Test Environment
+          </Button>
+          <Button variant="outline" size="sm" onClick={refreshInstances} disabled={refreshing}>
+            {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Refresh
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+  
+  // Render loading state
+  if (loading && !refreshing) {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">Bedrock AI Instances</h1>
+        <InstanceSkeleton />
+      </div>
+    );
+  }
+  
+  // Render auth required state
+  if (authStatus === 'unauthenticated' || authStatus === 'expired') {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">Bedrock AI Instances</h1>
+        <Card className="mb-4">
           <CardHeader>
-            <CardTitle>API Configuration</CardTitle>
+            <CardTitle>Authentication Required</CardTitle>
             <CardDescription>
-              Current configuration and connection status
+              You need to be logged in to access Bedrock AI instances.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium mb-1">API URL:</p>
-                  <p className="text-sm text-muted-foreground">{BedrockConfig.apiUrl}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-1">Edge Functions:</p>
-                  <p className="text-sm text-muted-foreground">
-                    {BedrockConfig.useEdgeFunctions ? 
-                      (BedrockConfig.edgeFunctionUrl ? 'Enabled' : 'Enabled (but URL missing)') : 
-                      'Disabled'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-1">Edge Function URL:</p>
-                  <p className="text-sm text-muted-foreground">{BedrockConfig.edgeFunctionUrl || 'Not configured'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-1">Environment:</p>
-                  <p className="text-sm text-muted-foreground">
-                    {BedrockConfig.isProduction ? 'Production' : 'Development'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-1">Auth Required:</p>
-                  <p className="text-sm text-muted-foreground">
-                    {BedrockConfig.auth.requireAuth ? 'Yes' : 'No'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-1">Function Name:</p>
-                  <p className="text-sm text-muted-foreground">
-                    {BedrockConfig.edgeFunctionName}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="pt-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="use-manual-key"
-                    checked={isUsingManualKey}
-                    onCheckedChange={setIsUsingManualKey}
-                  />
-                  <Label htmlFor="use-manual-key">Use custom API key</Label>
-                </div>
-                
-                {isUsingManualKey && (
-                  <div className="grid gap-2 mt-2">
-                    <Label htmlFor="api-key">API Key</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="api-key"
-                        type="password"
-                        placeholder="Enter your Bedrock API key"
-                        value={manualApiKey}
-                        onChange={(e) => setManualApiKey(e.target.value)}
-                      />
-                      <Button onClick={handleSaveApiKey}>Save</Button>
-                      <Button variant="outline" onClick={handleClearApiKey}>Clear</Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <p className="mb-4">
+              Please log in with your Supabase account to access Bedrock AI instances.
+            </p>
+            <Button onClick={handleLogin}>
+              <LogIn className="mr-2 h-4 w-4" /> Log In
+            </Button>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Bedrock AI Instances</h1>
         
-        {/* Stats Cards */}
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-4">
-          <Card>
-            <CardHeader className="p-4">
-              <CardTitle className="text-xl">Total Instances</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 px-4 pb-4">
-              <div className="text-3xl font-bold">{stats.total}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="p-4">
-              <CardTitle className="text-xl">Active</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 px-4 pb-4">
-              <div className="text-3xl font-bold text-green-600">{stats.active}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="p-4">
-              <CardTitle className="text-xl">Pending</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 px-4 pb-4">
-              <div className="text-3xl font-bold text-amber-600">{stats.pending}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="p-4">
-              <CardTitle className="text-xl">Failed/Deleted</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 px-4 pb-4">
-              <div className="text-3xl font-bold text-red-600">{stats.failed}</div>
-            </CardContent>
-          </Card>
+        <div className="flex items-center gap-2">
+          <ConnectionStatusBadge status={connectionStatus} />
+          <AuthStatusBadge status={authStatus} />
+          <Button variant="outline" size="sm" onClick={refreshToken} disabled={authStatus === 'checking'}>
+            {authStatus === 'checking' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            <span className="sr-only">Refresh Auth</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={refreshInstances} disabled={refreshing}>
+            {refreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            <span className="sr-only">Refresh</span>
+          </Button>
         </div>
+      </div>
+      
+      <MockDataNotice />
+      
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      
+      <Tabs defaultValue="instances">
+        <TabsList className="mb-4">
+          <TabsTrigger value="instances">Instances</TabsTrigger>
+          <TabsTrigger value="create">Create Instance</TabsTrigger>
+          {showDiagnostics && (
+            <TabsTrigger value="diagnostics">API Diagnostics</TabsTrigger>
+          )}
+        </TabsList>
         
-        {/* Environment test results */}
-        {showDiagnostics && envDiagnostics && (
+        <TabsContent value="instances">
           <Card>
             <CardHeader>
-              <CardTitle>Environment Diagnostics</CardTitle>
+              <CardTitle>Bedrock Instances</CardTitle>
               <CardDescription>
-                Results from API environment test
+                Manage your provisioned AWS Bedrock AI models
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {envDiagnostics.error ? (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Connection Error</AlertTitle>
-                  <AlertDescription>{envDiagnostics.error}</AlertDescription>
-                </Alert>
-              ) : null}
-              
-              <div className="bg-muted rounded-md p-4 overflow-auto max-h-60">
-                <pre className="text-xs">{JSON.stringify(envDiagnostics, null, 2)}</pre>
-              </div>
+              {instances.length === 0 ? (
+                <div className="text-center p-4">
+                  <p className="text-muted-foreground">No instances found. Create a new instance to get started.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">ID</th>
+                        <th className="text-left p-2">Model</th>
+                        <th className="text-left p-2">Status</th>
+                        <th className="text-left p-2">Units</th>
+                        <th className="text-left p-2">Created</th>
+                        <th className="text-left p-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {instances.map((instance) => (
+                        <tr key={instance.id} className="border-b hover:bg-muted/50">
+                          <td className="p-2">{instance.id}</td>
+                          <td className="p-2">{instance.model_id.split('.').pop()}</td>
+                          <td className="p-2"><StatusBadge status={instance.status} /></td>
+                          <td className="p-2">{instance.model_units}</td>
+                          <td className="p-2">{new Date(instance.created_at).toLocaleString()}</td>
+                          <td className="p-2">
+                            <Button variant="destructive" size="sm" onClick={() => handleDeleteInstance(instance.instance_id)}>
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
-        )}
+        </TabsContent>
         
-        {/* Main content tabs */}
-        <Tabs defaultValue="instances">
-          <TabsList>
-            <TabsTrigger value="instances">Instances</TabsTrigger>
-            <TabsTrigger value="provision">Provision New</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="instances">
-            <Card>
-              <CardHeader>
-                <CardTitle>Provisioned Instances</CardTitle>
-                <CardDescription>
-                  Your active AWS Bedrock model instances
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading && !refreshing ? (
-                  <div className="space-y-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
+        <TabsContent value="create">
+          <Card>
+            <CardHeader>
+              <CardTitle>Create Bedrock Instance</CardTitle>
+              <CardDescription>
+                Provision a new AWS Bedrock AI model
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid w-full gap-2">
+                <Label htmlFor="plan">Plan Type</Label>
+                <Select defaultValue={selectedPlan} onValueChange={setSelectedPlan}>
+                  <SelectTrigger id="plan">
+                    <SelectValue placeholder="Select a plan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="starter">Starter - Titan Text Lite</SelectItem>
+                    <SelectItem value="pro">Pro - Titan Text Express</SelectItem>
+                    <SelectItem value="business">Business - Claude Instant</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Select the AI model plan you want to provision.
+                </p>
+              </div>
+              
+              <div className="grid w-full gap-2">
+                <Label htmlFor="model-details">Model Details</Label>
+                <div className="bg-muted rounded-md p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-sm font-medium">Model:</span>
+                    </div>
+                    <div>
+                      <span className="text-sm">{planConfig[selectedPlan as keyof typeof planConfig]?.modelId || 'Unknown'}</span>
+                    </div>
+                    
+                    <div>
+                      <span className="text-sm font-medium">Commitment:</span>
+                    </div>
+                    <div>
+                      <span className="text-sm">1 Month</span>
+                    </div>
+                    
+                    <div>
+                      <span className="text-sm font-medium">Model Units:</span>
+                    </div>
+                    <div>
+                      <span className="text-sm">{planConfig[selectedPlan as keyof typeof planConfig]?.modelUnits || 'Unknown'}</span>
+                    </div>
                   </div>
-                ) : error && instances.length === 0 ? (
-                  <div className="text-center py-8">
-                    <AlertTriangle className="mx-auto h-12 w-12 text-amber-500 mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No instances available</h3>
-                    <p className="text-muted-foreground mb-4">
-                      {connectionStatus === 'error' 
-                        ? "Could not connect to the API. Check your configuration."
-                        : "No Bedrock instances found. You can provision a new instance below."}
-                    </p>
-                    <Button 
-                      variant="outline" 
-                      onClick={fetchEnvironmentDiagnostics}
-                    >
-                      <Settings className="mr-2 h-4 w-4" />
-                      Test Connection
-                    </Button>
-                  </div>
-                ) : instances.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">No instances found. You can provision a new instance using the "Provision New" tab.</p>
-                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  These details will be used to provision your Bedrock instance.
+                </p>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleProvisionInstance} disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Provisioning...
+                  </>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-2">ID</th>
-                          <th className="text-left p-2">Model</th>
-                          <th className="text-left p-2">Plan</th>
-                          <th className="text-left p-2">Status</th>
-                          <th className="text-left p-2">Created</th>
-                          <th className="text-right p-2">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {instances.map((instance) => (
-                          <tr key={instance.instance_id} className="border-b hover:bg-muted/50">
-                            <td className="p-2 font-mono text-xs">
-                              {instance.instance_id.substring(0, 8)}...
-                            </td>
-                            <td className="p-2">
-                              {instance.model_id.split('.')[1] || instance.model_id}
-                            </td>
-                            <td className="p-2 capitalize">
-                              {getPlanFromModelId(instance.model_id)}
-                            </td>
-                            <td className="p-2">
-                              <StatusBadge status={instance.status} />
-                            </td>
-                            <td className="p-2 text-sm">
-                              {new Date(instance.created_at).toLocaleDateString()}
-                            </td>
-                            <td className="p-2 text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteInstance(instance.instance_id)}
-                                disabled={instance.status.toLowerCase() === 'deleted'}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  'Create Instance'
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="provision">
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        {showDiagnostics && (
+          <TabsContent value="diagnostics">
             <Card>
               <CardHeader>
-                <CardTitle>Provision New Instance</CardTitle>
+                <CardTitle>API Diagnostics</CardTitle>
                 <CardDescription>
-                  Create a new AWS Bedrock model throughput instance
+                  Technical details about the API environment
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 max-w-md">
-                  <div>
-                    <Label htmlFor="plan">Select Plan</Label>
-                    <Select 
-                      value={selectedPlan} 
-                      onValueChange={setSelectedPlan}
-                    >
-                      <SelectTrigger id="plan">
-                        <SelectValue placeholder="Select a plan" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="starter">Starter - Titan Text Lite</SelectItem>
-                        <SelectItem value="pro">Pro - Titan Text Express</SelectItem>
-                        <SelectItem value="business">Business - Claude Instant</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Choose a plan based on your throughput and model requirements.
-                    </p>
-                  </div>
-                  
-                  <div className="mt-4">
-                    <Button 
-                      onClick={handleProvisionInstance} 
-                      disabled={submitting || connectionStatus === 'error'}
-                      className="w-full"
-                    >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Provisioning...
-                        </>
-                      ) : (
-                        "Provision Instance"
-                      )}
-                    </Button>
-                  </div>
-                </div>
+                <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96">
+                  {JSON.stringify(envDiagnostics, null, 2)}
+                </pre>
               </CardContent>
-              <CardFooter className="flex flex-col items-start">
-                <div className="text-sm text-muted-foreground">
-                  <h4 className="font-medium mb-1">Important Notes:</h4>
-                  <ul className="list-disc pl-5 space-y-1">
-                    <li>Provisioning a new instance may take up to 10 minutes to complete.</li>
-                    <li>You will be billed according to AWS Bedrock pricing for provisioned throughput.</li>
-                    <li>Instances are billed hourly until deleted.</li>
-                  </ul>
-                </div>
-              </CardFooter>
             </Card>
           </TabsContent>
-        </Tabs>
-      </div>
+        )}
+      </Tabs>
+      
+      <ApiConfiguration />
     </div>
   );
 };
 
-// Skeleton component for loading state
+// Skeleton loader for the instances table
 const InstanceSkeleton = () => (
   <Card>
     <CardHeader>
-      <div className="flex justify-between items-start">
-        <div>
-          <Skeleton className="h-6 w-[200px]" />
-          <Skeleton className="h-4 w-[150px] mt-2" />
-        </div>
-        <Skeleton className="h-6 w-[80px]" />
-      </div>
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-4 w-full" />
     </CardHeader>
     <CardContent>
       <div className="space-y-2">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-6 w-full" />
+        <Skeleton className="h-6 w-full" />
+        <Skeleton className="h-6 w-full" />
+        <Skeleton className="h-6 w-full" />
+        <Skeleton className="h-6 w-full" />
       </div>
     </CardContent>
-    <CardFooter>
-      <Skeleton className="h-9 w-[100px] ml-auto" />
-    </CardFooter>
   </Card>
 );
 
