@@ -238,16 +238,17 @@ const callEdgeFunction = async ({
   useMock = false
 }) => {
   // Check for mock mode via environment variable
-  const useMockFromEnv = import.meta.env.VITE_USE_MOCK_SUPER_ACTION === 'true' || 
-                          (typeof window !== 'undefined' && window.USE_MOCK_SUPER_ACTION === 'true');
+  const useMockFromEnv = import.meta.env.VITE_USE_MOCK_SUPER_ACTION === 'true';
   
   // Validate API config
   if (!validateApiConfiguration()) {
     return { data: null, error: 'API configuration invalid' };
   }
   
-  // Use mock data in development, if force-enabled with useMock, or if env variable is set
-  if ((BedrockConfig.isLocalDevelopment && BedrockConfig.useMockData) || useMock || useMockFromEnv) {
+  // Only use mock data when explicitly forced, never in production
+  const shouldUseMock = !BedrockConfig.isProduction && (useMock || useMockFromEnv);
+  
+  if (shouldUseMock && devMockData[action]) {
     console.log(`[Bedrock] Using mock data for action: ${action}`);
     console.log(`[Bedrock] useMock:${useMock}, useMockFromEnv:${useMockFromEnv}`);
     
@@ -255,14 +256,10 @@ const callEdgeFunction = async ({
     await new Promise(resolve => setTimeout(resolve, 500));
     
     // Return appropriate mock data based on action
-    if (devMockData[action]) {
-      return { data: devMockData[action], error: null };
-    } else {
-      console.warn(`[Bedrock] No mock data available for action: ${action}`);
-      return { data: null, error: 'No mock data for this action' };
-    }
+    return { data: devMockData[action], error: null };
   }
   
+  // In all other cases, including if no mock data available, use the real API
   try {
     // Get and refresh auth token if needed
     const token = await refreshTokenIfNeeded();
@@ -388,6 +385,9 @@ const getUsageStats = async (options = {}) => {
 const testAwsPermissions = async () => {
   console.log('[Bedrock] Starting AWS permission test');
   try {
+    // Never use mock data for permission tests
+    const useMock = false;
+    
     // First get token to verify authentication
     const token = await getAuthToken();
     if (!token) {
@@ -397,107 +397,20 @@ const testAwsPermissions = async () => {
     
     console.log('[Bedrock] Auth token obtained, proceeding with test');
     
-    // Try with standard client first
+    // Try to call the edge function with standard client first
     try {
-      console.log('[Bedrock] Calling edge function with standard client method');
-      console.log(`[Bedrock] Function name: ${BedrockConfig.edgeFunctionName}`);
-      
-      const { data, error } = await supabase.functions.invoke(BedrockConfig.edgeFunctionName, {
-        body: { 
-          action: 'aws-permission-test',
-          data: {}
-        }
+      return await callEdgeFunction({
+        action: 'aws-permission-test',
+        data: {},
+        useMock: false // Explicitly disable mocks for AWS permission tests
       });
-      
-      if (error) {
-        console.error(`[Bedrock] Error from standard client during permission test:`, error);
-        throw new Error(`Standard client error: ${error.message || 'Unknown error'}`);
-      }
-      
-      console.log('[Bedrock] Received response from standard client:', data);
-      
-      if (data?.error) {
-        return { success: false, error: data.error };
-      }
-      
+    } catch (error) {
+      console.error(`[Bedrock] Exception during AWS permission test:`, error);
       return { 
-        success: true, 
-        test_results: data.test_results || data 
-      };
-    } catch (clientError) {
-      console.warn(`[Bedrock] Standard client failed for AWS permission test, trying direct fetch. Error: ${clientError.message}`);
-      
-      // If standard client fails, try direct fetch
-      // Get the Edge Function URL, ensure it's properly formatted
-      const baseUrl = BedrockConfig.edgeFunctionUrl;
-      console.log(`[Bedrock] Edge Function base URL: ${baseUrl}`);
-      
-      // Create URL object to work with
-      const url = new URL(baseUrl.startsWith('http') ? baseUrl : `${window.location.origin}${baseUrl}`);
-      
-      // Add action as query parameter for Supabase Functions
-      if (url.hostname.includes('supabase.co')) {
-        url.searchParams.set('action', 'aws-permission-test');
-      }
-      
-      console.log(`[Bedrock] Making direct fetch to: ${url.toString()}`);
-      
-      // Prepare headers including apikey if available
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      };
-      
-      // Add apikey for Supabase Functions if available
-      if (url.hostname.includes('supabase.co') && import.meta.env.VITE_SUPABASE_ANON_KEY) {
-        headers['apikey'] = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      }
-      
-      // Prepare the request body - for Supabase Functions direct calls, only include data
-      const body = url.hostname.includes('supabase.co')
-        ? JSON.stringify({ data: {} })
-        : JSON.stringify({ action: 'aws-permission-test', data: {} });
-      
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers,
-        body
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[Bedrock] Direct fetch error (${response.status}) for AWS permission test:`, errorText);
-        return { 
-          success: false, 
-          error: `API error: ${response.status} ${errorText}`,
-          debug: {
-            url: url.toString(),
-            status: response.status,
-            statusText: response.statusText,
-            headers: Object.fromEntries([...response.headers.entries()]),
-            responseText: errorText
-          }
-        };
-      }
-      
-      const responseData = await response.json();
-      console.log('[Bedrock] Received response from direct fetch:', responseData);
-      
-      if (responseData?.error) {
-        console.error(`[Bedrock] API error in direct fetch for AWS permission test:`, responseData.error);
-        return { 
-          success: false, 
-          error: responseData.error,
-          debug: {
-            url: url.toString(),
-            responseData
-          }
-        };
-      }
-      
-      return { 
-        success: true, 
-        test_results: responseData.test_results || responseData 
+        success: false, 
+        error: error.message || 'Error during AWS permission test',
+        stack: error.stack,
+        name: error.name
       };
     }
   } catch (error) {

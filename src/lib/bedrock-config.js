@@ -113,11 +113,17 @@ const isDebugMode = () => {
  * Determine if mock data should be used in development
  */
 const shouldUseMockData = () => {
+  // Never use mock data in production
+  if (isProduction) {
+    return false;
+  }
+  
+  // Only use mock data if explicitly enabled via environment variables
   const mockSetting = import.meta.env.VITE_USE_MOCK_BEDROCK;
   const mockSuperAction = import.meta.env.VITE_USE_MOCK_SUPER_ACTION;
   
-  // Use mock data if either variable is true
-  return mockSetting === 'true' || mockSuperAction === 'true' || isLocalDevelopment;
+  // Use mock data only if explicitly enabled, never by default
+  return mockSetting === 'true' || mockSuperAction === 'true';
 };
 
 // Export configuration object

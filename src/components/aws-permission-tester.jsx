@@ -39,7 +39,7 @@ const AwsPermissionTester = () => {
     addLog("Starting AWS permission test...");
     
     try {
-      addLog("Calling BedrockClient.testAwsPermissions()");
+      addLog("Calling BedrockClient.testAwsPermissions() with real AWS API calls");
       const response = await BedrockClient.testAwsPermissions();
       addLog(`Received response: ${JSON.stringify(response, null, 2)}`);
       
@@ -48,6 +48,12 @@ const AwsPermissionTester = () => {
       if (!success) {
         addLog(`Error in response: ${error}`);
         setError(error || 'Unknown error testing AWS permissions');
+        return;
+      }
+      
+      if (!test_results) {
+        addLog("Warning: Received empty test results");
+        setError("No test results received from the API. Check that AWS credentials are properly configured.");
         return;
       }
       
@@ -206,130 +212,19 @@ const AwsPermissionTester = () => {
         return;
       }
       
-      setResults(responseData.test_results);
+      // Check for empty or mock response
+      if (!responseData.test_results && !responseData.success) {
+        addLog("Warning: Received response without test results");
+        setError("No valid test results received from API. Check AWS configuration.");
+        return;
+      }
+      
+      setResults(responseData.test_results || responseData);
     } catch (e) {
       addLog(`Error parsing JSON response: ${e.message}`);
       setError(`Failed to parse response: ${e.message}`);
     }
   };
-
-  return (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle>AWS Permissions Diagnostic</CardTitle>
-        <CardDescription>
-          Test AWS IAM permissions to identify what operations are allowed with your credentials
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="mb-4 flex gap-2">
-          <Button 
-            onClick={runPermissionTests} 
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <RotateCw className="mr-2 h-4 w-4 animate-spin" />
-                Testing...
-              </>
-            ) : 'Test AWS Permissions'}
-          </Button>
-          
-          <Button 
-            onClick={runManualTest} 
-            disabled={isLoading}
-            variant="outline"
-          >
-            <Wrench className="mr-2 h-4 w-4" />
-            Manual Test
-          </Button>
-        </div>
-        
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        
-        {results && (
-          <div className="space-y-4">
-            <h3 className="font-medium">Test Results</h3>
-            
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <span className="mr-2">
-                  {results.summary.readPermission ? (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-red-500" />
-                  )}
-                </span>
-                <span>List Foundation Models: {results.summary.readPermission ? 'Allowed' : 'Denied'}</span>
-              </div>
-              
-              <div className="flex items-center">
-                <span className="mr-2">
-                  {results.summary.listProvisionedPermission ? (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-red-500" />
-                  )}
-                </span>
-                <span>List Provisioned Models: {results.summary.listProvisionedPermission ? 'Allowed' : 'Denied'}</span>
-              </div>
-              
-              <div className="flex items-center">
-                <span className="mr-2">
-                  {results.summary.createPermission ? (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-red-500" />
-                  )}
-                </span>
-                <span>Create Provisioned Models: {results.summary.createPermission ? 'Allowed' : 'Denied'}</span>
-              </div>
-            </div>
-            
-            {!results.summary.createPermission && (
-              <Alert className="mt-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Missing Permissions</AlertTitle>
-                <AlertDescription>
-                  The AWS IAM user lacks necessary permissions to create provisioned models. 
-                  Ensure your IAM policy includes <code>bedrock:CreateProvisionedModelThroughput</code> permission.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            <div className="mt-4 text-xs text-gray-500">
-              <p>AWS Region: {results.region}</p>
-              <p>Has Access Key: {results.hasAccessKey ? 'Yes' : 'No'}</p>
-              <p>Has Secret Key: {results.hasSecretKey ? 'Yes' : 'No'}</p>
-            </div>
-          </div>
-        )}
-        
-        {logs.length > 0 && (
-          <div className="mt-4">
-            <h3 className="text-sm font-medium mb-2">Debug Logs</h3>
-            <div className="border border-gray-700 rounded-md">
-              <div className="bg-gray-800 px-3 py-1 text-xs text-gray-200 font-mono border-b border-gray-700 rounded-t-md flex items-center">
-                <span className="mr-2">●</span>
-                <span>Console Output</span>
-              </div>
-              <pre className="bg-gray-900 p-3 rounded-b-md text-xs max-h-40 overflow-auto text-gray-300 font-mono">
-                {logs.map((log, i) => (
-                  <div key={i} className="pb-1">{log}</div>
-                ))}
-              </pre>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
 };
 
-export default AwsPermissionTester; 
+export default AwsPermissionTester;
