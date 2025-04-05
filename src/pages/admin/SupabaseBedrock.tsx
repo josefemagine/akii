@@ -16,6 +16,7 @@ import { BedrockClient } from "@/lib/supabase-bedrock-client";
 import { BedrockConfig } from "@/lib/bedrock-config";
 import supabase from "@/lib/supabase-client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import AwsPermissionTester from '../../components/aws-permission-tester';
 
 // Plan configuration - maps to AWS Bedrock models and commitment options
 const planConfig = {
@@ -929,6 +930,9 @@ const SupabaseBedrock = () => {
       </Tabs>
       
       <ApiConfiguration />
+      
+      {/* Add the AWS Permission Tester component */}
+      <AwsPermissionTester />
       
       {/* Add the test modal */}
       <TestModal 

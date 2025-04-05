@@ -210,6 +210,31 @@ export async function createProvisionedModelThroughput(params: {
 }) {
   try {
     console.log(`[AWS] Creating provisioned model for ${params.modelId}`);
+    
+    // First check if AWS credentials have sufficient permissions
+    try {
+      console.log("[AWS] Checking permissions for AWS credentials");
+      const client = getBedrockClient();
+      
+      // First list models to verify read permissions
+      console.log("[AWS] Testing read permissions by listing foundation models");
+      const listCommand = new ListFoundationModelsCommand({});
+      await client.send(listCommand);
+      
+      console.log("[AWS] Read permissions confirmed for AWS Bedrock");
+    } catch (permError) {
+      console.error("[AWS] Permission error during AWS credentials check:", permError);
+      return {
+        success: false,
+        error: `AWS credentials lack sufficient permissions: ${permError instanceof Error ? permError.message : String(permError)}`,
+        details: permError instanceof Error ? { 
+          name: permError.name,
+          message: permError.message,
+          stack: permError.stack
+        } : String(permError)
+      };
+    }
+    
     const client = getBedrockClient();
     
     // Generate a unique name for the provisioned model
@@ -237,33 +262,77 @@ export async function createProvisionedModelThroughput(params: {
     });
     
     // Create and send the command
-    const command = new CreateProvisionedModelThroughputCommand({
-      modelId: params.modelId,
-      provisionedModelName: modelName,
-      commitmentDuration: commitmentDurationEnum,
-      modelUnits: params.modelUnits
-    });
-    
-    console.log("[AWS] Command created, sending to AWS");
-    const result = await client.send(command);
-    
-    console.log(`[AWS] Created provisioned model:`, result);
-    
-    return {
-      success: true,
-      instance: {
+    try {
+      const command = new CreateProvisionedModelThroughputCommand({
         modelId: params.modelId,
-        commitmentDuration: params.commitmentDuration,
-        provisionedModelThroughput: params.modelUnits,
-        provisionedModelArn: result.provisionedModelArn || ''
-      },
-      instance_id: result.provisionedModelArn || ''
-    };
+        provisionedModelName: modelName,
+        commitmentDuration: commitmentDurationEnum,
+        modelUnits: params.modelUnits
+      });
+      
+      console.log("[AWS] Command created, sending to AWS");
+      const result = await client.send(command);
+      
+      console.log(`[AWS] Created provisioned model:`, result);
+      
+      return {
+        success: true,
+        instance: {
+          modelId: params.modelId,
+          commitmentDuration: params.commitmentDuration,
+          provisionedModelThroughput: params.modelUnits,
+          provisionedModelArn: result.provisionedModelArn || ''
+        },
+        instance_id: result.provisionedModelArn || ''
+      };
+    } catch (commandError) {
+      // Handle specific AWS SDK errors
+      let errorMessage = "Unknown error creating provisioned model";
+      let errorType = "UnknownError";
+      
+      if (commandError instanceof Error) {
+        errorMessage = commandError.message;
+        errorType = commandError.name;
+        
+        // Look for specific error cases
+        if (errorMessage.includes("AccessDenied")) {
+          errorMessage = "Access denied. The AWS credentials don't have permission to create provisioned models.";
+          errorType = "AccessDeniedError";
+        } else if (errorMessage.includes("ValidationException")) {
+          errorMessage = "Invalid parameters for creating provisioned model. Please check your model ID and other parameters.";
+          errorType = "ValidationError";
+        } else if (errorMessage.includes("ResourceNotFoundException")) {
+          errorMessage = "The requested model ID doesn't exist or is not available for provisioning.";
+          errorType = "ResourceNotFoundError";
+        } else if (errorMessage.includes("ServiceQuotaExceededException")) {
+          errorMessage = "Service quota exceeded. You may have reached your limit for provisioned models.";
+          errorType = "QuotaExceededError";
+        }
+      }
+      
+      console.error(`[AWS] ${errorType}: ${errorMessage}`, commandError);
+      
+      return {
+        success: false,
+        error: errorMessage,
+        errorType: errorType,
+        details: commandError instanceof Error ? { 
+          name: commandError.name,
+          message: commandError.message,
+          stack: commandError.stack
+        } : String(commandError)
+      };
+    }
   } catch (error) {
     console.error("[AWS] Error creating provisioned model:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      details: error instanceof Error ? { 
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : String(error)
     };
   }
 }

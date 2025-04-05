@@ -380,6 +380,18 @@ const getUsageStats = async (options = {}) => {
   });
 };
 
+/**
+ * Test AWS permissions for different Bedrock operations
+ * 
+ * @returns {Promise<{success: boolean, test_results: Object, error: string|null}>} Test results or error
+ */
+const testAwsPermissions = async () => {
+  return callEdgeFunction({
+    action: 'aws-permission-test',
+    data: {}
+  });
+};
+
 // Expose client functions
 export const BedrockClient = {
   // Authentication
@@ -396,7 +408,8 @@ export const BedrockClient = {
   deleteInstance,
   testEnvironment,
   invokeModel,
-  getUsageStats
+  getUsageStats,
+  testAwsPermissions
 };
 
 export default BedrockClient; 

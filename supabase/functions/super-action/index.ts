@@ -24,6 +24,9 @@ import {
 // Import configuration
 import { CONFIG, validateConfig } from "./config.ts";
 
+// Import AWS test module
+import { runAwsBedrockTests } from "./aws-test.ts";
+
 // CORS headers for all responses
 const CORS_HEADERS = CONFIG.CORS_HEADERS;
 
@@ -265,138 +268,165 @@ async function handleCreateInstance(request: Request): Promise<Response> {
   }
 
   try {
-    // Get the request data
-    console.log("[API] Processing create instance request");
-    let requestBody;
-    try {
-      requestBody = await request.json();
-      console.log("[API] Parsed request body:", JSON.stringify(requestBody));
-    } catch (e) {
-      console.error("[API] Error parsing request JSON:", e);
-      return new Response(
-        JSON.stringify({ error: "Bad Request", message: "Invalid JSON in request body" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // Extract the data payload - could be directly in requestBody or in requestBody.data
-    const requestData = requestBody.data || requestBody;
-    console.log("[API] Request data for createInstance:", JSON.stringify(requestData));
-    
+    // Parse request data
+    const requestData = await request.json();
     const { modelId, commitmentDuration, modelUnits } = requestData;
-    console.log("[API] Extracted parameters:", { modelId, commitmentDuration, modelUnits });
-
-    if (!modelId || !commitmentDuration || !modelUnits) {
-      console.error("[API] Missing required fields:", { 
-        hasModelId: Boolean(modelId), 
-        hasCommitmentDuration: Boolean(commitmentDuration), 
-        hasModelUnits: Boolean(modelUnits)
-      });
+    
+    // Validate required fields
+    if (!modelId) {
       return new Response(
-        JSON.stringify({ 
-          error: "Bad Request", 
-          message: "Missing required fields (modelId, commitmentDuration, or modelUnits)",
-          receivedData: requestData
-        }),
+        JSON.stringify({ error: "Missing required field", message: "modelId is required" }),
         { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
+    
+    if (!commitmentDuration) {
+      return new Response(
+        JSON.stringify({ error: "Missing required field", message: "commitmentDuration is required" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    
+    if (!modelUnits || modelUnits <= 0) {
+      return new Response(
+        JSON.stringify({ error: "Invalid field", message: "modelUnits must be a positive number" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Log the request for debugging
+    console.log("[API] Create instance request:", {
+      modelId,
+      commitmentDuration,
+      modelUnits,
+      userId: user.id
+    });
 
     // Verify AWS credentials are present and valid
     console.log("[API] Verifying AWS credentials before proceeding");
     const credentialCheck = await verifyAwsCredentials();
     if (!credentialCheck.success) {
-      console.error("[API] AWS credentials verification failed:", credentialCheck.message);
+      console.error("[API] AWS credentials verification failed:", credentialCheck.message, credentialCheck);
       return new Response(
         JSON.stringify({ 
           error: "AWS Configuration Error", 
-          message: credentialCheck.message || "AWS credentials are not properly configured"
+          message: credentialCheck.message || "AWS credentials are not properly configured",
+          details: credentialCheck
         }),
         { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
-    console.log("[API] AWS credentials verified successfully");
+    console.log("[API] AWS credentials verified successfully:", credentialCheck);
 
     // Call AWS Bedrock API to create provisioned model throughput
-    console.log("[API] Calling AWS Bedrock to create model throughput");
-    const awsResponse = await createProvisionedModelThroughput({
+    console.log("[API] Calling AWS Bedrock to create model throughput with params:", {
       modelId,
       commitmentDuration,
       modelUnits
     });
     
-    if (!awsResponse.success) {
-      console.error("[API] AWS API call failed:", awsResponse.error);
-      throw new Error(awsResponse.error || "Failed to create instance in AWS Bedrock");
-    }
-    
-    // Extract instance ID from the AWS response
-    const instanceId = awsResponse.instance_id || (awsResponse.instance && awsResponse.instance.provisionedModelArn);
-    
-    // Check if we have a valid instance ID
-    if (!instanceId) {
-      console.error("[API] No instance ID returned from AWS:", awsResponse);
-      return new Response(
-        JSON.stringify({ 
-          error: "AWS API Error", 
-          message: "AWS did not return a valid instance ID",
-          aws_response: awsResponse
-        }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-    
-    console.log(`[API] Created AWS Bedrock instance: ${instanceId}`);
-    
     try {
-      // Store AWS data in Supabase with user_id
-      console.log(`[API] Storing instance data in Supabase for user ${user.id}`);
-      const { data, error: dbError } = await supabaseClient
-        .from('bedrock_instances')
-        .insert({
-          instance_id: instanceId,
-          model_id: modelId,
-          commitment_duration: commitmentDuration,
-          model_units: modelUnits,
-          status: 'CREATING', // Initial status
-          created_at: new Date().toISOString(),
-          user_id: user.id  // Associate with the authenticated user
-        })
-        .select()
-        .single();
-
-      if (dbError) {
-        console.error("[API] Database error creating instance:", dbError);
+      const awsResponse = await createProvisionedModelThroughput({
+        modelId,
+        commitmentDuration,
+        modelUnits
+      });
+      
+      if (!awsResponse.success) {
+        console.error("[API] AWS API call failed:", awsResponse.error, awsResponse);
+        return new Response(
+          JSON.stringify({
+            error: "AWS API Error",
+            message: awsResponse.error || "Failed to create instance in AWS Bedrock",
+            details: awsResponse
+          }),
+          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // Extract instance ID from the AWS response
+      const instanceId = awsResponse.instance_id || (awsResponse.instance && awsResponse.instance.provisionedModelArn);
+      
+      // Check if we have a valid instance ID
+      if (!instanceId) {
+        console.error("[API] No instance ID returned from AWS:", awsResponse);
         return new Response(
           JSON.stringify({ 
-            error: "Database Error", 
-            message: dbError.message || "Failed to create instance in database",
-            details: dbError,
+            error: "AWS API Error", 
+            message: "AWS did not return a valid instance ID",
+            aws_response: awsResponse
+          }),
+          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+      
+      console.log(`[API] Created AWS Bedrock instance: ${instanceId}`);
+      
+      // Store in Supabase for user association
+      try {
+        const { data: dbInstance, error: dbError } = await supabaseClient
+          .from('bedrock_instances')
+          .insert({
+            instance_id: instanceId,
+            model_id: modelId,
+            commitment_duration: commitmentDuration,
+            model_units: modelUnits,
+            status: "CREATING", // Initial status
+            created_at: new Date().toISOString(),
+            user_id: user.id
+          })
+          .select()
+          .single();
+          
+        if (dbError) {
+          console.error("[API] Database error:", dbError);
+          return new Response(
+            JSON.stringify({ 
+              error: "Database Error", 
+              message: dbError.message,
+              aws_instance: awsResponse.instance,
+              instance_id: instanceId
+            }),
+            { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          );
+        }
+        
+        // Return the combined data
+        return new Response(
+          JSON.stringify({ 
+            instance: {
+              id: dbInstance.id,
+              instance_id: instanceId,
+              model_id: modelId,
+              status: "CREATING",
+              model_units: modelUnits,
+              commitment_duration: commitmentDuration,
+              created_at: dbInstance.created_at,
+              user_id: user.id
+            },
+            aws_response: awsResponse.instance 
+          }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      } catch (dbException) {
+        console.error("[API] Database exception:", dbException);
+        return new Response(
+          JSON.stringify({ 
+            error: "Database Exception", 
+            message: dbException instanceof Error ? dbException.message : String(dbException),
             aws_instance: awsResponse.instance,
             instance_id: instanceId
           }),
           { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
-
-      console.log(`[API] Successfully created instance in database with ID: ${data.id}`);
+    } catch (awsException) {
+      console.error("[API] AWS Exception:", awsException);
       return new Response(
-        JSON.stringify({ 
-          instance: data,
-          info: "Created instance in AWS Bedrock and database",
-          aws_instance: awsResponse.instance,
-          instance_id: instanceId
-        }),
-        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    } catch (dbException) {
-      console.error("[API] Database exception:", dbException);
-      return new Response(
-        JSON.stringify({ 
-          error: "Database Exception", 
-          message: dbException instanceof Error ? dbException.message : String(dbException),
-          aws_instance: awsResponse.instance,
-          instance_id: instanceId
+        JSON.stringify({
+          error: "AWS Exception",
+          message: awsException instanceof Error ? awsException.message : String(awsException),
+          stack: awsException instanceof Error ? awsException.stack : undefined
         }),
         { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
@@ -406,7 +436,8 @@ async function handleCreateInstance(request: Request): Promise<Response> {
     return new Response(
       JSON.stringify({ 
         error: "Internal Error", 
-        message: error instanceof Error ? error.message : String(error)
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       }),
       { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
@@ -908,6 +939,36 @@ async function handleVerifyAwsCredentials(request: Request): Promise<Response> {
   }
 }
 
+// Handle AWS permission diagnostics
+async function handleAwsPermissionsTest(request: Request): Promise<Response> {
+  try {
+    console.log("[API] Running AWS Bedrock permission diagnostic tests");
+    
+    // Run the AWS permission tests
+    const testResults = await runAwsBedrockTests();
+    
+    console.log("[API] AWS permission tests completed");
+    
+    return new Response(
+      JSON.stringify({ 
+        success: true,
+        test_results: testResults 
+      }),
+      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("[API] Error running AWS permission tests:", error);
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }),
+      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+}
+
 // Main handler for all requests
 serve(async (req: Request) => {
   // Handle preflight requests
@@ -1165,12 +1226,16 @@ serve(async (req: Request) => {
       case "verify-aws-credentials":
         return await handleVerifyAwsCredentials(req);
         
+      case "aws-permission-test":
+        console.log(`[API] Running AWS permission tests`);
+        return await handleAwsPermissionsTest(req);
+        
       default:
         console.log(`[API] Unknown action: ${action}`);
         return new Response(
           JSON.stringify({ 
             error: "Invalid action", 
-            validActions: ["test", "aws-diagnostics", "aws-credential-test", "emergency-debug", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats", "verify-aws-credentials"],
+            validActions: ["test", "aws-diagnostics", "aws-credential-test", "emergency-debug", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats", "verify-aws-credentials", "aws-permission-test"],
             received: action
           }),
           { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
