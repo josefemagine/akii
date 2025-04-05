@@ -1,19 +1,12 @@
 // AWS Bedrock Integration using the official AWS SDK
 import { CONFIG } from "./config.ts";
 
-// Import AWS SDK for Bedrock - correct imports based on available exports
+// Import AWS SDK for Bedrock - more focused import
 import { 
   BedrockClient, 
   ListFoundationModelsCommand
 } from "@aws-sdk/client-bedrock";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-
-// Helper function to determine if we should use real AWS or mock
-function useRealAws() {
-  // Always use real AWS - no more mock mode
-  console.log(`[AWS] Using real AWS: true (mock mode disabled)`);
-  return true;
-}
 
 // Initialize the Bedrock client properly for production
 function getBedrockClient() {
@@ -90,7 +83,8 @@ function getBedrockRuntimeClient() {
   }
 }
 
-// List provisioned models - Using only ListFoundationModels for now
+// List all foundation models when provisioned model list is requested
+// Note: Once the API is properly working, this should use ListProvisionedModelThroughputsCommand
 export async function listProvisionedModelThroughputs(): Promise<{
   success: boolean,
   instances?: Array<{
@@ -111,7 +105,7 @@ export async function listProvisionedModelThroughputs(): Promise<{
     // Create the client
     const client = getBedrockClient();
     
-    // Use the ListFoundationModelsCommand for AWS Bedrock
+    // Use ListFoundationModelsCommand since the other is currently having type issues
     console.log("[AWS] Sending ListFoundationModelsCommand");
     const command = new ListFoundationModelsCommand({});
     const result = await client.send(command);
@@ -119,7 +113,7 @@ export async function listProvisionedModelThroughputs(): Promise<{
     console.log(`[AWS] Got result: ${result.modelSummaries?.length || 0} models found`);
 
     // Map the result to our expected format
-    const instances = result.modelSummaries?.map(model => ({
+    const instances = (result.modelSummaries || []).map(model => ({
       provisionedModelArn: model.modelArn || `arn:aws:bedrock:${CONFIG.AWS_REGION}:model/${model.modelId}`,
       modelId: model.modelId || "unknown",
       provisionedModelStatus: "ACTIVE",
@@ -128,14 +122,14 @@ export async function listProvisionedModelThroughputs(): Promise<{
         provisionedModelThroughput: 1
       },
       creationTime: new Date().toISOString()
-    })) || [];
+    }));
 
     return {
       success: true,
-      instances: instances
+      instances
     };
   } catch (error) {
-    console.error("[AWS] Error listing provisioned models:", error);
+    console.error("[AWS] Error listing models:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error)
@@ -143,9 +137,7 @@ export async function listProvisionedModelThroughputs(): Promise<{
   }
 }
 
-// Create a provisioned model - Using real AWS implementation
-// Note: We're still using a temporary implementation as the exact AWS commands
-// are not available in the current SDK version
+// Create a provisioned model - Using real API structure but with direct API calls
 export async function createProvisionedModelThroughput(params: {
   modelId: string,
   commitmentDuration: string,
@@ -153,17 +145,26 @@ export async function createProvisionedModelThroughput(params: {
 }) {
   try {
     console.log(`[AWS] Creating provisioned model for ${params.modelId}`);
-    
-    // Since we don't have direct access to CreateProvisionedModelCommand,
-    // we'll use a more compatible approach by creating a client and making
-    // a direct API call to the provisioned model endpoint
     const client = getBedrockClient();
     
-    // Generate a unique ARN for this provisioned model
-    const modelId = params.modelId.split('/').pop() || params.modelId;
-    const provisionedModelArn = `arn:aws:bedrock:${CONFIG.AWS_REGION}:model/${modelId}-${Date.now()}`;
+    // Make a direct API call with the client
+    console.log(`[AWS] Using client.createProvisionedModelThroughput with params:`, {
+      modelId: params.modelId,
+      commitmentDuration: params.commitmentDuration,
+      modelUnits: params.modelUnits
+    });
     
-    console.log(`[AWS] Using real AWS client to create provisioned model, but with temporary implementation`);
+    // Use the client's direct method
+    // @ts-ignore - calling the method directly
+    const result = await client.createProvisionedModelThroughput({
+      modelId: params.modelId,
+      commitmentDuration: params.commitmentDuration,
+      modelUnits: params.modelUnits,
+      // Include a default name if required by the API
+      provisionedModelName: `model-${params.modelId.split('/').pop()}-${Date.now()}`
+    });
+    
+    console.log(`[AWS] Created provisioned model:`, result);
     
     return {
       success: true,
@@ -171,9 +172,9 @@ export async function createProvisionedModelThroughput(params: {
         modelId: params.modelId,
         commitmentDuration: params.commitmentDuration,
         provisionedModelThroughput: params.modelUnits,
-        provisionedModelArn: provisionedModelArn
+        provisionedModelArn: result.provisionedModelArn || ''
       },
-      instance_id: provisionedModelArn
+      instance_id: result.provisionedModelArn || ''
     };
   } catch (error) {
     console.error("[AWS] Error creating provisioned model:", error);
@@ -184,33 +185,41 @@ export async function createProvisionedModelThroughput(params: {
   }
 }
 
-// Get a specific provisioned model - Using real AWS implementation
-// Note: We're still using a temporary implementation as the exact AWS commands
-// are not available in the current SDK version
+// Get a specific provisioned model
 export async function getProvisionedModelThroughput(provisionedModelId: string) {
   try {
     console.log(`[AWS] Getting provisioned model ${provisionedModelId}`);
-    
-    // Since we don't have direct access to GetProvisionedModelCommand,
-    // we'll create a compatible response format
     const client = getBedrockClient();
     
-    // Extract model ID from ARN if possible
-    const modelId = provisionedModelId.split('/').pop() || '';
+    // Make a direct API call with the client
+    console.log(`[AWS] Using client.getProvisionedModelThroughput for ${provisionedModelId}`);
     
-    console.log(`[AWS] Using real AWS client to get provisioned model, but with temporary implementation`);
+    // Use the client's direct method
+    // @ts-ignore - calling the method directly
+    const result = await client.getProvisionedModelThroughput({
+      provisionedModelId: provisionedModelId
+    });
+    
+    console.log(`[AWS] Got provisioned model details:`, result);
+    
+    // Check if the result contains the expected data
+    if (!result) {
+      throw new Error("No provisioned model details returned from AWS");
+    }
     
     return {
       success: true,
       instance: {
         provisionedModelArn: provisionedModelId,
-        modelId: modelId,
-        provisionedModelStatus: "ACTIVE",
+        modelId: result.baseModelIdentifier || result.modelId || "",
+        provisionedModelStatus: result.status || "UNKNOWN",
         provisionedThroughput: {
-          commitmentDuration: "1m",
-          provisionedModelThroughput: 1
+          commitmentDuration: result.commitmentDuration || "1m",
+          provisionedModelThroughput: result.modelUnits || 1
         },
-        creationTime: new Date().toISOString()
+        creationTime: typeof result.creationTime === 'string' 
+          ? result.creationTime 
+          : new Date().toISOString()
       }
     };
   } catch (error) {
@@ -222,18 +231,22 @@ export async function getProvisionedModelThroughput(provisionedModelId: string) 
   }
 }
 
-// Delete a provisioned model - Using real AWS implementation
-// Note: We're still using a temporary implementation as the exact AWS commands
-// are not available in the current SDK version
+// Delete a provisioned model
 export async function deleteProvisionedModelThroughput(provisionedModelId: string) {
   try {
     console.log(`[AWS] Deleting provisioned model ${provisionedModelId}`);
-    
-    // Since we don't have direct access to DeleteProvisionedModelCommand,
-    // we'll create a compatible response format
     const client = getBedrockClient();
     
-    console.log(`[AWS] Using real AWS client to delete provisioned model, but with temporary implementation`);
+    // Make a direct API call with the client
+    console.log(`[AWS] Using client.deleteProvisionedModelThroughput for ${provisionedModelId}`);
+    
+    // Use the client's direct method
+    // @ts-ignore - calling the method directly
+    const result = await client.deleteProvisionedModelThroughput({
+      provisionedModelId: provisionedModelId
+    });
+    
+    console.log(`[AWS] Deleted provisioned model:`, result);
     
     return {
       success: true,
