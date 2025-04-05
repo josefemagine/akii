@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/api/super-action-test", "destination": "/api/super-action-test" },
+    { "source": "/api/health", "destination": "/api/health" },
     { "source": "/api/super-action", "destination": "/api/super-action/index" },
     { "source": "/api/super-action/(.*)", "destination": "/api/super-action/$1" },
     { "source": "/api/bedrock", "destination": "/api/bedrock-next" },
@@ -8,7 +10,7 @@
     { "source": "/api/bedrock/delete-instance", "destination": "/api/bedrock-next/delete-instance" },
     { "source": "/api/bedrock/test-env", "destination": "/api/bedrock-next/test-env" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!api/.*).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
@@ -17,6 +19,23 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/api/super-action-test",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization, x-client-info, apikey, X-Client-Info"
         }
       ]
     },

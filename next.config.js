@@ -3,6 +3,11 @@ const nextConfig = {
   // Configure rewrites to direct /api paths to their respective handlers
   async rewrites() {
     return [
+      // Simple health check endpoint
+      {
+        source: '/api/health',
+        destination: '/api/health',
+      },
       // Add super-action route with proper handling
       {
         source: '/api/super-action',
