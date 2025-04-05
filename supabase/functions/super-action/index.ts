@@ -736,9 +736,6 @@ serve(async (req: Request) => {
     return new Response(null, { headers: CORS_HEADERS });
   }
   
-  // Log headers for debugging
-  console.log(`[API] Request headers: Authorization present = ${Boolean(req.headers.get("authorization"))}`);
-  
   // Extract action from request - can be in URL or body
   const url = new URL(req.url);
   let action = url.searchParams.get("action") || '';
@@ -750,9 +747,6 @@ serve(async (req: Request) => {
       const clonedReq = req.clone();
       const body = await clonedReq.json();
       action = body.action || '';
-      
-      // Log the parsed body
-      console.log(`[API] Request body:`, JSON.stringify(body).substring(0, 200));
     } catch (e) {
       // If there's an error parsing the body, we'll proceed with empty action
       console.log("[API] Error parsing request JSON:", e);
@@ -772,9 +766,14 @@ serve(async (req: Request) => {
   
   try {
     // Validate AWS credentials before proceeding
-    const credResult = checkAwsCredentials();
-    if (credResult) {
-      return credResult;
+    if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Service Misconfigured", 
+          message: "AWS credentials are not properly configured. Contact your administrator." 
+        }),
+        { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
     }
     
     // Route the request based on action
@@ -811,28 +810,31 @@ serve(async (req: Request) => {
         );
     }
   } catch (error) {
-    console.error(`[API] Unhandled error processing request for action ${action}:`, error);
+    // Handle AWS SDK specific errors
+    let errorMessage = error instanceof Error ? error.message : String(error);
+    let statusCode = 500;
+    
+    // More specific error handling based on AWS error patterns
+    if (errorMessage.includes("The security token included in the request is invalid") || 
+        errorMessage.includes("request signature we calculated does not match")) {
+      errorMessage = "AWS authentication failed. The access credentials are invalid or expired.";
+      statusCode = 401;
+    } else if (errorMessage.includes("Missing Authentication Token")) {
+      errorMessage = "AWS request is missing proper authentication. Check AWS configuration.";
+      statusCode = 401;
+    } else if (errorMessage.includes("AccessDenied") || errorMessage.includes("not authorized")) {
+      errorMessage = "AWS access denied. The credentials don't have permission to perform this action.";
+      statusCode = 403;
+    }
+    
+    console.error(`[API] Error processing request for action ${action}:`, error);
     return new Response(
       JSON.stringify({ 
-        error: "Internal server error", 
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
+        error: "AWS API Error", 
+        message: errorMessage,
+        action: action
       }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: statusCode, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
-});
-
-// Helper for checking AWS credentials
-function checkAwsCredentials(): Response | null {
-  if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
-    return new Response(
-      JSON.stringify({ 
-        error: "Service Misconfigured", 
-        message: "AWS credentials are not configured on the server" 
-      }),
-      { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
-  }
-  return null;
-} 
+}); 

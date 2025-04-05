@@ -4,9 +4,6 @@ import { CONFIG } from "./config.ts";
 // Import AWS SDK for Bedrock
 import {
   BedrockClient,
-  CreateModelCustomizationJobCommand,
-  GetModelCustomizationJobCommand,
-  ListModelCustomizationJobsCommand,
   ListFoundationModelsCommand
 } from "@aws-sdk/client-bedrock";
 
@@ -15,18 +12,17 @@ import {
   InvokeModelCommand
 } from "@aws-sdk/client-bedrock-runtime";
 
-// Initialize the Bedrock and BedrockRuntime clients
+// Initialize the Bedrock client properly for production
 function getBedrockClient() {
   console.log("[AWS] Initializing Bedrock client with region:", CONFIG.AWS_REGION);
   
-  // Log credential details for debugging (safely)
-  console.log("[AWS] Access Key ID: " + 
-    (CONFIG.AWS_ACCESS_KEY_ID ? 
-      `${CONFIG.AWS_ACCESS_KEY_ID.substring(0, 4)}...${CONFIG.AWS_ACCESS_KEY_ID.substring(CONFIG.AWS_ACCESS_KEY_ID.length - 4)}` : 
-      "missing"));
+  // For production, ensure we have the required credentials
+  if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
+    throw new Error("AWS credentials are not properly configured. Both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set.");
+  }
   
-  // Create client with explicit credentials
   try {
+    // Initialize with proper credentials and settings
     return new BedrockClient({
       region: CONFIG.AWS_REGION,
       credentials: {
@@ -43,8 +39,13 @@ function getBedrockClient() {
 function getBedrockRuntimeClient() {
   console.log("[AWS] Initializing BedrockRuntime client with region:", CONFIG.AWS_REGION);
   
-  // Create client with explicit credentials
+  // For production, ensure we have the required credentials
+  if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
+    throw new Error("AWS credentials are not properly configured. Both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set.");
+  }
+  
   try {
+    // Initialize with proper credentials and settings
     return new BedrockRuntimeClient({
       region: CONFIG.AWS_REGION,
       credentials: {
@@ -55,40 +56,6 @@ function getBedrockRuntimeClient() {
   } catch (error) {
     console.error("[AWS] Error creating BedrockRuntimeClient:", error);
     throw error;
-  }
-}
-
-// Create a provisioned model
-export async function createProvisionedModelThroughput(params: {
-  modelId: string,
-  commitmentDuration: string,
-  modelUnits: number
-}) {
-  try {
-    console.log(`[AWS] Creating provisioned model for ${params.modelId}`);
-
-    // Create a unique ID for this instance that we'll track in our database
-    const instanceId = `arn:aws:bedrock:${CONFIG.AWS_REGION}:custom:model/${params.modelId.split('/').pop()}-${Date.now()}`;
-    
-    // For now, we'll create a simulated instance since we can't verify the exact API 
-    // structure without AWS documentation
-    
-    return {
-      success: true,
-      instance: {
-        modelId: params.modelId,
-        commitmentDuration: params.commitmentDuration,
-        provisionedModelThroughput: params.modelUnits,
-        provisionedModelArn: instanceId
-      },
-      instance_id: instanceId
-    };
-  } catch (error) {
-    console.error("[AWS] Error creating provisioned model:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    };
   }
 }
 
@@ -110,52 +77,32 @@ export async function listProvisionedModelThroughputs(): Promise<{
   try {
     console.log(`[AWS] Listing provisioned models with client config: region=${CONFIG.AWS_REGION}`);
 
-    // Log credentials state (but not the actual values)
-    console.log(`[AWS] Access Key ID status: ${CONFIG.AWS_ACCESS_KEY_ID ? 'provided' : 'missing'} (${typeof CONFIG.AWS_ACCESS_KEY_ID})`);
-    console.log(`[AWS] Secret Access Key status: ${CONFIG.AWS_SECRET_ACCESS_KEY ? 'provided' : 'missing'} (${typeof CONFIG.AWS_SECRET_ACCESS_KEY})`);
-    
-    // Check if we should use mock mode
-    // @ts-ignore - Deno global
-    const useMock = Deno?.env?.get("USE_MOCK_AWS") === "true";
-    if (useMock) {
-      console.log("[AWS] Using mock implementation for listProvisionedModelThroughputs");
-      return getMockModelList();
-    }
-
-    // Create the client 
+    // Create the client
     const client = getBedrockClient();
     
-    try {
-      // Use a simpler command first to test connectivity
-      console.log("[AWS] Sending ListFoundationModelsCommand");
-      const command = new ListFoundationModelsCommand({});
-      const result = await client.send(command);
+    // Use the ListFoundationModelsCommand for AWS Bedrock
+    console.log("[AWS] Sending ListFoundationModelsCommand");
+    const command = new ListFoundationModelsCommand({});
+    const result = await client.send(command);
 
-      console.log(`[AWS] Got result: ${result.modelSummaries?.length || 0} models found`);
+    console.log(`[AWS] Got result: ${result.modelSummaries?.length || 0} models found`);
 
-      // Map the result to our expected format
-      const instances = result.modelSummaries?.map(model => ({
-        provisionedModelArn: model.modelArn || `arn:aws:bedrock:${CONFIG.AWS_REGION}:model/${model.modelId}`,
-        modelId: model.modelId || "unknown",
-        provisionedModelStatus: "ACTIVE",
-        provisionedThroughput: {
-          commitmentDuration: "1m",
-          provisionedModelThroughput: 1
-        },
-        creationTime: new Date().toISOString()
-      })) || [];
+    // Map the result to our expected format
+    const instances = result.modelSummaries?.map(model => ({
+      provisionedModelArn: model.modelArn || `arn:aws:bedrock:${CONFIG.AWS_REGION}:model/${model.modelId}`,
+      modelId: model.modelId || "unknown",
+      provisionedModelStatus: "ACTIVE",
+      provisionedThroughput: {
+        commitmentDuration: "1m",
+        provisionedModelThroughput: 1
+      },
+      creationTime: new Date().toISOString()
+    })) || [];
 
-      return {
-        success: true,
-        instances: instances
-      };
-    } catch (error) {
-      console.error("[AWS] Error sending command:", error);
-      
-      // For now, fallback to mock implementation if real API call fails
-      console.log("[AWS] Falling back to mock implementation due to error");
-      return getMockModelList();
-    }
+    return {
+      success: true,
+      instances: instances
+    };
   } catch (error) {
     console.error("[AWS] Error listing provisioned models:", error);
     return {
@@ -165,33 +112,38 @@ export async function listProvisionedModelThroughputs(): Promise<{
   }
 }
 
-// Mock implementation for testing
-function getMockModelList() {
-  return {
-    success: true,
-    instances: [
-      {
-        provisionedModelArn: `arn:aws:bedrock:${CONFIG.AWS_REGION}:model/anthropic.claude-v2`,
-        modelId: "anthropic.claude-v2",
-        provisionedModelStatus: "ACTIVE",
-        provisionedThroughput: {
-          commitmentDuration: "1m",
-          provisionedModelThroughput: 1
-        },
-        creationTime: new Date().toISOString()
+// Create a provisioned model
+export async function createProvisionedModelThroughput(params: {
+  modelId: string,
+  commitmentDuration: string,
+  modelUnits: number
+}) {
+  try {
+    console.log(`[AWS] Creating provisioned model for ${params.modelId}`);
+
+    // Create a unique ID for this instance that we'll track in our database
+    const instanceId = `arn:aws:bedrock:${CONFIG.AWS_REGION}:custom:model/${params.modelId.split('/').pop()}-${Date.now()}`;
+    
+    // Integration with real AWS API would go here
+    // This is a placeholder until you have the exact API commands for provisioned throughput
+
+    return {
+      success: true,
+      instance: {
+        modelId: params.modelId,
+        commitmentDuration: params.commitmentDuration,
+        provisionedModelThroughput: params.modelUnits,
+        provisionedModelArn: instanceId
       },
-      {
-        provisionedModelArn: `arn:aws:bedrock:${CONFIG.AWS_REGION}:model/amazon.titan-text-express-v1`,
-        modelId: "amazon.titan-text-express-v1",
-        provisionedModelStatus: "ACTIVE",
-        provisionedThroughput: {
-          commitmentDuration: "1m",
-          provisionedModelThroughput: 1
-        },
-        creationTime: new Date().toISOString()
-      }
-    ]
-  };
+      instance_id: instanceId
+    };
+  } catch (error) {
+    console.error("[AWS] Error creating provisioned model:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
 
 // Get a specific provisioned model
@@ -199,8 +151,8 @@ export async function getProvisionedModelThroughput(provisionedModelId: string) 
   try {
     console.log(`[AWS] Getting provisioned model ${provisionedModelId}`);
 
-    // Since we don't have a direct GetProvisionedModel equivalent,
-    // we'll simulate the response based on the ID
+    // Implement the actual AWS API call when available
+    // This is a placeholder
     const modelId = provisionedModelId.split('/').pop() || '';
     
     return {
@@ -230,8 +182,8 @@ export async function deleteProvisionedModelThroughput(provisionedModelId: strin
   try {
     console.log(`[AWS] Deleting provisioned model ${provisionedModelId}`);
 
-    // Since we don't have a direct DeleteProvisionedModel equivalent,
-    // we'll simulate a successful deletion
+    // Implement the actual AWS API call when available
+    // This is a placeholder
     
     return {
       success: true,
