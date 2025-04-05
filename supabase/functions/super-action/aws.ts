@@ -6,6 +6,9 @@ import {
   BedrockClient, 
   ListFoundationModelsCommand,
   CreateProvisionedModelThroughputCommand,
+  GetProvisionedModelThroughputCommand,
+  DeleteProvisionedModelThroughputCommand,
+  ListProvisionedModelThroughputsCommand,
   CommitmentDuration
 } from "@aws-sdk/client-bedrock";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
@@ -86,7 +89,6 @@ function getBedrockRuntimeClient() {
 }
 
 // List all foundation models when provisioned model list is requested
-// Note: Once the API is properly working, this should use ListProvisionedModelThroughputsCommand
 export async function listProvisionedModelThroughputs(): Promise<{
   success: boolean,
   instances?: Array<{
@@ -99,28 +101,88 @@ export async function listProvisionedModelThroughputs(): Promise<{
     },
     creationTime: string
   }>,
-  error?: string
+  error?: string,
+  note?: string
 }> {
   try {
-    console.log(`[AWS] Listing foundation models with client config: region=${CONFIG.AWS_REGION}`);
+    console.log(`[AWS] Listing provisioned model throughputs`);
 
     // Create the client
     const client = getBedrockClient();
     
-    // Use ListFoundationModelsCommand since the other is currently having type issues
+    try {
+      // Use ListProvisionedModelThroughputsCommand
+      console.log("[AWS] Sending ListProvisionedModelThroughputsCommand");
+      const command = new ListProvisionedModelThroughputsCommand({});
+      const result = await client.send(command);
+
+      console.log(`[AWS] Got throughputs result:`, result);
+
+      if (result.provisionedModelSummaries && result.provisionedModelSummaries.length > 0) {
+        // Map the result to our expected format
+        const instances = result.provisionedModelSummaries.map(model => {
+          // Extract model ID from modelArn (e.g., 'arn:aws:bedrock:us-west-2:123456789012:provisioned-model/modelId')
+          const modelIdMatch = (model.modelArn || '').match(/model\/([^\/]+)$/);
+          const extractedModelId = modelIdMatch ? modelIdMatch[1] : 'unknown';
+          
+          return {
+            provisionedModelArn: model.provisionedModelArn || '',
+            modelId: extractedModelId,
+            provisionedModelStatus: model.status || 'UNKNOWN',
+            provisionedThroughput: {
+              commitmentDuration: model.commitmentDuration || 'ONE_MONTH',
+              provisionedModelThroughput: model.modelUnits || 1
+            },
+            creationTime: model.creationTime instanceof Date ? 
+              model.creationTime.toISOString() : 
+              new Date().toISOString()
+          };
+        });
+
+        return {
+          success: true,
+          instances
+        };
+      } else {
+        // Fall back to listing foundation models if no provisioned models exist
+        console.log("[AWS] No provisioned models found, fetching foundation models instead");
+        return await listFoundationModelsAsFallback();
+      }
+    } catch (error) {
+      console.error("[AWS] Error listing provisioned models, falling back to foundation models:", error);
+      return await listFoundationModelsAsFallback();
+    }
+  } catch (error) {
+    console.error("[AWS] Error in listProvisionedModelThroughputs:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Fallback function to list foundation models if no provisioned models exist
+async function listFoundationModelsAsFallback() {
+  try {
+    console.log(`[AWS] Listing foundation models as fallback`);
+
+    // Create the client
+    const client = getBedrockClient();
+    
+    // Use ListFoundationModelsCommand as fallback
     console.log("[AWS] Sending ListFoundationModelsCommand");
     const command = new ListFoundationModelsCommand({});
     const result = await client.send(command);
 
-    console.log(`[AWS] Got result: ${result.modelSummaries?.length || 0} models found`);
+    console.log(`[AWS] Got foundation models result: ${result.modelSummaries?.length || 0} models found`);
 
     // Map the result to our expected format
     const instances = (result.modelSummaries || []).map(model => ({
       provisionedModelArn: model.modelArn || `arn:aws:bedrock:${CONFIG.AWS_REGION}:model/${model.modelId}`,
       modelId: model.modelId || "unknown",
-      provisionedModelStatus: "ACTIVE",
+      provisionedModelStatus: "AVAILABLE", // Foundation models are generally available
       provisionedThroughput: {
-        commitmentDuration: "1m",
+        commitmentDuration: "ONE_MONTH",
         provisionedModelThroughput: 1
       },
       creationTime: new Date().toISOString()
@@ -128,10 +190,11 @@ export async function listProvisionedModelThroughputs(): Promise<{
 
     return {
       success: true,
-      instances
+      instances,
+      note: "These are foundation models. No provisioned models found."
     };
   } catch (error) {
-    console.error("[AWS] Error listing models:", error);
+    console.error("[AWS] Error in foundation models fallback:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error)
@@ -173,59 +236,29 @@ export async function createProvisionedModelThroughput(params: {
       modelUnits: params.modelUnits
     });
     
-    // Debug the command constructor
-    console.log("[AWS] Command class:", CreateProvisionedModelThroughputCommand.name);
+    // Create and send the command
+    const command = new CreateProvisionedModelThroughputCommand({
+      modelId: params.modelId,
+      provisionedModelName: modelName,
+      commitmentDuration: commitmentDurationEnum,
+      modelUnits: params.modelUnits
+    });
     
-    try {
-      // Create and send the command explicitly
-      const command = new CreateProvisionedModelThroughputCommand({
+    console.log("[AWS] Command created, sending to AWS");
+    const result = await client.send(command);
+    
+    console.log(`[AWS] Created provisioned model:`, result);
+    
+    return {
+      success: true,
+      instance: {
         modelId: params.modelId,
-        provisionedModelName: modelName,
-        commitmentDuration: commitmentDurationEnum,
-        modelUnits: params.modelUnits
-      });
-      
-      console.log("[AWS] Command created, sending to AWS");
-      const result = await client.send(command);
-      
-      console.log(`[AWS] Created provisioned model:`, result);
-      
-      return {
-        success: true,
-        instance: {
-          modelId: params.modelId,
-          commitmentDuration: params.commitmentDuration,
-          provisionedModelThroughput: params.modelUnits,
-          provisionedModelArn: result.provisionedModelArn || ''
-        },
-        instance_id: result.provisionedModelArn || ''
-      };
-    } catch (commandError) {
-      console.error("[AWS] Error executing CreateProvisionedModelThroughputCommand:", commandError);
-      
-      // If the command approach fails, use a simulated response
-      // Important: This is a fallback to maintain functionality when the API changes
-      console.log("[AWS] Command approach failed - using simulated response as fallback");
-      
-      // Generate a mock ARN that looks similar to a real one
-      const mockArn = `arn:aws:bedrock:${CONFIG.AWS_REGION}:${Date.now()}:provisioned-model/${params.modelId.split('/').pop()}-${Date.now()}`;
-      
-      // Log the mock solution being used
-      console.log(`[AWS] Using mock ARN in fallback mode: ${mockArn}`);
-      
-      // Return a simulated success response
-      return {
-        success: true,
-        instance: {
-          modelId: params.modelId,
-          commitmentDuration: params.commitmentDuration,
-          provisionedModelThroughput: params.modelUnits,
-          provisionedModelArn: mockArn
-        },
-        instance_id: mockArn,
-        _mock: true // Flag to indicate this is a mock response
-      };
-    }
+        commitmentDuration: params.commitmentDuration,
+        provisionedModelThroughput: params.modelUnits,
+        provisionedModelArn: result.provisionedModelArn || ''
+      },
+      instance_id: result.provisionedModelArn || ''
+    };
   } catch (error) {
     console.error("[AWS] Error creating provisioned model:", error);
     return {
@@ -241,46 +274,37 @@ export async function getProvisionedModelThroughput(provisionedModelId: string) 
     console.log(`[AWS] Getting provisioned model ${provisionedModelId}`);
     const client = getBedrockClient();
     
-    try {
-      // Try to make a real API call using ListFoundationModelsCommand to validate credentials
-      console.log("[AWS] Testing API connectivity first");
-      const testCommand = new ListFoundationModelsCommand({});
-      await client.send(testCommand);
-      
-      console.log("[AWS] API connectivity test passed");
-      
-      // Extract model ID from ARN if possible
-      let modelId = "unknown";
-      const modelIdMatch = provisionedModelId.match(/model\/([^/]+)/);
-      if (modelIdMatch && modelIdMatch[1]) {
-        modelId = modelIdMatch[1];
-      }
-      
-      // Create a simulated response for now
-      console.log(`[AWS] Using simulated get response for ${provisionedModelId}`);
-      
-      // Return a simulated success response
-      return {
-        success: true,
-        instance: {
-          provisionedModelArn: provisionedModelId,
-          modelId: modelId,
-          provisionedModelStatus: "ACTIVE", // We assume it's active
-          provisionedThroughput: {
-            commitmentDuration: "ONE_MONTH",
-            provisionedModelThroughput: 1
-          },
-          creationTime: new Date().toISOString(),
+    // Use GetProvisionedModelThroughputCommand
+    const command = new GetProvisionedModelThroughputCommand({
+      provisionedModelId: provisionedModelId
+    });
+    
+    console.log("[AWS] Sending GetProvisionedModelThroughputCommand");
+    const result = await client.send(command);
+    
+    console.log(`[AWS] Got provisioned model details:`, result);
+    
+    // Extract model ID from modelArn (e.g., 'arn:aws:bedrock:us-west-2:123456789012:provisioned-model/modelId')
+    const modelIdMatch = (result.modelArn || '').match(/model\/([^\/]+)$/);
+    const extractedModelId = modelIdMatch ? modelIdMatch[1] : '';
+    
+    return {
+      success: true,
+      instance: {
+        provisionedModelArn: provisionedModelId,
+        modelId: extractedModelId,
+        provisionedModelStatus: result.status || "UNKNOWN",
+        provisionedThroughput: {
+          commitmentDuration: result.commitmentDuration || "ONE_MONTH",
+          provisionedModelThroughput: result.modelUnits || 1
         },
-        _mock: true // Flag to indicate this is a mock response
-      };
-    } catch (apiError) {
-      console.error("[AWS] API error getting provisioned model:", apiError);
-      return {
-        success: false,
-        error: apiError instanceof Error ? apiError.message : String(apiError)
-      };
-    }
+        creationTime: result.creationTime instanceof Date ? 
+          result.creationTime.toISOString() : 
+          typeof result.creationTime === 'string' ? 
+            result.creationTime : 
+            new Date().toISOString()
+      }
+    };
   } catch (error) {
     console.error(`[AWS] Error getting provisioned model ${provisionedModelId}:`, error);
     return {
@@ -296,34 +320,24 @@ export async function deleteProvisionedModelThroughput(provisionedModelId: strin
     console.log(`[AWS] Deleting provisioned model ${provisionedModelId}`);
     const client = getBedrockClient();
     
-    try {
-      // Try to make a real API call using ListFoundationModelsCommand to validate credentials
-      console.log("[AWS] Testing API connectivity first");
-      const testCommand = new ListFoundationModelsCommand({});
-      await client.send(testCommand);
-      
-      console.log("[AWS] API connectivity test passed");
-      
-      // For now, we'll simulate a successful deletion
-      console.log(`[AWS] Using simulated delete response for ${provisionedModelId}`);
-      
-      // Return a simulated success response
-      return {
+    // Use DeleteProvisionedModelThroughputCommand
+    const command = new DeleteProvisionedModelThroughputCommand({
+      provisionedModelId: provisionedModelId
+    });
+    
+    console.log("[AWS] Sending DeleteProvisionedModelThroughputCommand");
+    const result = await client.send(command);
+    
+    console.log(`[AWS] Deleted provisioned model:`, result);
+    
+    return {
+      success: true,
+      result: {
         success: true,
-        result: {
-          success: true,
-          provisionedModelArn: provisionedModelId,
-          status: "DELETED"
-        },
-        _mock: true // Flag to indicate this is a mock response
-      };
-    } catch (apiError) {
-      console.error("[AWS] API error deleting provisioned model:", apiError);
-      return {
-        success: false,
-        error: apiError instanceof Error ? apiError.message : String(apiError)
-      };
-    }
+        provisionedModelArn: provisionedModelId,
+        status: "DELETED"
+      }
+    };
   } catch (error) {
     console.error(`[AWS] Error deleting provisioned model ${provisionedModelId}:`, error);
     return {
