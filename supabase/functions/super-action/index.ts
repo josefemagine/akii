@@ -736,6 +736,9 @@ serve(async (req: Request) => {
     return new Response(null, { headers: CORS_HEADERS });
   }
   
+  // Log headers for debugging
+  console.log(`[API] Request headers: Authorization present = ${Boolean(req.headers.get("authorization"))}`);
+  
   // Extract action from request - can be in URL or body
   const url = new URL(req.url);
   let action = url.searchParams.get("action") || '';
@@ -747,6 +750,9 @@ serve(async (req: Request) => {
       const clonedReq = req.clone();
       const body = await clonedReq.json();
       action = body.action || '';
+      
+      // Log the parsed body
+      console.log(`[API] Request body:`, JSON.stringify(body).substring(0, 200));
     } catch (e) {
       // If there's an error parsing the body, we'll proceed with empty action
       console.log("[API] Error parsing request JSON:", e);
@@ -755,7 +761,22 @@ serve(async (req: Request) => {
   
   console.log(`[API] Processing request for action: ${action}`);
   
+  // Map legacy action names to new ones
+  if (action === 'testEnvironment') {
+    console.log(`[API] Mapping legacy action 'testEnvironment' to 'test'`);
+    action = 'test';
+  } else if (action === 'provisionInstance') {
+    console.log(`[API] Mapping legacy action 'provisionInstance' to 'createInstance'`);
+    action = 'createInstance';
+  }
+  
   try {
+    // Validate AWS credentials before proceeding
+    const credResult = checkAwsCredentials();
+    if (credResult) {
+      return credResult;
+    }
+    
     // Route the request based on action
     switch (action) {
       case "test":
@@ -800,7 +821,7 @@ serve(async (req: Request) => {
       { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
-}); 
+});
 
 // Helper for checking AWS credentials
 function checkAwsCredentials(): Response | null {
