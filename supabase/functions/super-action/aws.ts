@@ -344,4 +344,89 @@ export async function getBedrockUsageStats(options = {}) {
       error: error instanceof Error ? error.message : String(error)
     };
   }
+}
+
+// Verify AWS credentials functionality
+export async function verifyAwsCredentials() {
+  try {
+    console.log('Verifying AWS Credentials');
+    // Check if we're using real AWS
+    const useRealAws = CONFIG.USE_REAL_AWS === true;
+    console.log(`Using real AWS: ${useRealAws}`);
+    
+    // Check if AWS credentials are configured
+    if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY || !CONFIG.AWS_REGION) {
+      return {
+        success: false,
+        message: "AWS credentials are not properly configured",
+        details: {
+          hasRegion: Boolean(CONFIG.AWS_REGION),
+          hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
+          hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+          useRealAws: useRealAws
+        }
+      };
+    }
+    
+    // Only try to verify real credentials when using real AWS
+    if (!useRealAws) {
+      return {
+        success: true,
+        message: "Mock mode enabled, AWS credentials not verified",
+        details: {
+          mockMode: true,
+          hasRegion: Boolean(CONFIG.AWS_REGION),
+          hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
+          hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY)
+        }
+      };
+    }
+    
+    // Create a Bedrock client to test credentials
+    // @ts-ignore
+    const bedrockClient = new BedrockClient({
+      region: CONFIG.AWS_REGION,
+      credentials: {
+        accessKeyId: CONFIG.AWS_ACCESS_KEY_ID,
+        secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY
+      }
+    });
+    
+    // List foundation models as a simple call to verify credentials
+    try {
+      // @ts-ignore
+      const command = new ListFoundationModelsCommand({});
+      // @ts-ignore
+      const response = await bedrockClient.send(command);
+      
+      return {
+        success: true,
+        message: "AWS credentials verified successfully",
+        details: {
+          models: response?.modelSummaries?.length || 0,
+          firstModel: response?.modelSummaries && response.modelSummaries.length > 0 
+            ? response.modelSummaries[0].modelId 
+            : null
+        }
+      };
+    } catch (error) {
+      console.error('Error verifying AWS credentials:', error);
+      return {
+        success: false,
+        message: "AWS credentials failed verification",
+        error: error instanceof Error ? error.message : String(error),
+        details: {
+          errorType: error instanceof Error ? error.name : 'UnknownError',
+          credentialsProvided: true
+        }
+      };
+    }
+  } catch (error) {
+    console.error('Exception during AWS credential verification:', error);
+    return {
+      success: false,
+      message: "Exception during AWS credential verification",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
 } 

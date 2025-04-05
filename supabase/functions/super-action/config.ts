@@ -37,6 +37,9 @@ export const CONFIG = {
   SUPABASE_URL: getEnv("SUPABASE_URL"),
   SUPABASE_SERVICE_ROLE_KEY: getEnv("SUPABASE_SERVICE_ROLE_KEY"),
   
+  // Feature flags
+  USE_REAL_AWS: getEnv("USE_REAL_AWS") === "true" || false,
+  
   // CORS Headers
   CORS_HEADERS: {
     "Access-Control-Allow-Origin": "*",

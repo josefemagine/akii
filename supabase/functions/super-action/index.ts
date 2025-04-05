@@ -23,6 +23,9 @@ import {
 // Import configuration
 import { CONFIG, validateConfig } from "./config.ts";
 
+// Import AWS credential verification
+import { verifyAwsCredentials } from './aws.ts';
+
 // CORS headers for all responses
 const CORS_HEADERS = CONFIG.CORS_HEADERS;
 
@@ -841,6 +844,45 @@ async function handleAwsCredentialTest(request: Request): Promise<Response> {
   }
 }
 
+// Handle verify AWS credentials endpoint
+async function handleVerifyAwsCredentials(request: Request): Promise<Response> {
+  try {
+    // Validate JWT token
+    const { user, error } = await validateJwtToken(request);
+    
+    if (error) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", message: error }),
+        { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("[API] Verifying AWS credentials");
+    
+    // Run the verification
+    const result = await verifyAwsCredentials();
+    
+    return new Response(
+      JSON.stringify({
+        message: result.message,
+        success: result.success,
+        details: result.details,
+        error: result.error
+      }),
+      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("[API] Error verifying AWS credentials:", error);
+    return new Response(
+      JSON.stringify({ 
+        error: "AWS Verification Error", 
+        message: error instanceof Error ? error.message : String(error)
+      }),
+      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+}
+
 // Main handler for all requests
 serve(async (req: Request) => {
   // Handle preflight requests
@@ -851,6 +893,61 @@ serve(async (req: Request) => {
   // Extract action from request - can be in URL or body
   const url = new URL(req.url);
   let action = url.searchParams.get("action") || '';
+  
+  // EMERGENCY DEBUG CODE - Placed at the very beginning to bypass all other checks
+  // SECURITY WARNING: REMOVE THIS IN PRODUCTION
+  if (action === "emergency-debug") {
+    console.log("[EMERGENCY] Running debug endpoint with no auth or credential checks");
+    try {
+      // Load environment variables directly from Deno for debugging
+      const envInfo = {
+        // Global config vars
+        config: {
+          aws_region: CONFIG.AWS_REGION || "<not-set-in-config>",
+          has_access_key: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
+          has_secret_key: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+          access_key_valid_format: CONFIG.AWS_ACCESS_KEY_ID?.startsWith('AKIA') || false
+        },
+        // Direct environment access
+        environment: {
+          // @ts-ignore - Deno global
+          AWS_REGION: Deno?.env?.get("AWS_REGION") || "<not-set-in-env>",
+          // Only show first/last chars for security
+          // @ts-ignore - Deno global 
+          AWS_ACCESS_KEY_ID_PREFIX: Deno?.env?.get("AWS_ACCESS_KEY_ID") ? 
+            // @ts-ignore - Deno global
+            Deno.env.get("AWS_ACCESS_KEY_ID")?.substring(0, 4) : "<not-set-in-env>",
+          // @ts-ignore - Deno global
+          AWS_ACCESS_KEY_ID_LENGTH: (Deno?.env?.get("AWS_ACCESS_KEY_ID") || "").length,
+          // @ts-ignore - Deno global
+          AWS_SECRET_ACCESS_KEY_LENGTH: (Deno?.env?.get("AWS_SECRET_ACCESS_KEY") || "").length,
+          // @ts-ignore - Deno global
+          USE_REAL_AWS: Deno?.env?.get("USE_REAL_AWS") || "<not-set-in-env>",
+        },
+        // Configuration validation results
+        validation: validateConfig(),
+        timestamp: new Date().toISOString()
+      };
+      
+      return new Response(
+        JSON.stringify({
+          message: "Emergency debug information (AWS credentials)",
+          env: envInfo
+        }),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    } catch (error) {
+      console.error("[EMERGENCY-DEBUG] Error:", error);
+      return new Response(
+        JSON.stringify({ 
+          error: "Emergency Debug Error",
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined 
+        }),
+        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+  }
   
   // If there's no action in the URL params, try to get it from body
   if (!action) {
@@ -877,7 +974,7 @@ serve(async (req: Request) => {
   }
   
   try {
-    // Validate AWS credentials before proceeding
+    // Validate AWS credentials before proceeding (EXCEPT for emergency debug)
     if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
       return new Response(
         JSON.stringify({ 
@@ -917,10 +1014,13 @@ serve(async (req: Request) => {
       case "getUsageStats":
         return await handleGetUsageStats(req);
         
+      case "verify-aws-credentials":
+        return await handleVerifyAwsCredentials(req);
+        
       default:
         console.log(`[API] Unknown action: ${action}`);
         return new Response(
-          JSON.stringify({ error: "Invalid action", validActions: ["test", "aws-diagnostics", "aws-credential-test", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats"] }),
+          JSON.stringify({ error: "Invalid action", validActions: ["test", "aws-diagnostics", "aws-credential-test", "emergency-debug", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats", "verify-aws-credentials"] }),
           { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
     }
