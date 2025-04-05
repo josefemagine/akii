@@ -386,10 +386,108 @@ const getUsageStats = async (options = {}) => {
  * @returns {Promise<{success: boolean, test_results: Object, error: string|null}>} Test results or error
  */
 const testAwsPermissions = async () => {
-  return callEdgeFunction({
-    action: 'aws-permission-test',
-    data: {}
-  });
+  console.log('[Bedrock] Starting AWS permission test');
+  try {
+    // First get token to verify authentication
+    const token = await getAuthToken();
+    if (!token) {
+      console.error('[Bedrock] No valid auth token available for AWS permission test');
+      return { success: false, error: 'Authentication required' };
+    }
+    
+    console.log('[Bedrock] Auth token obtained, proceeding with test');
+    
+    // Try with standard client first
+    try {
+      console.log('[Bedrock] Calling edge function with standard client method');
+      console.log(`[Bedrock] Function name: ${BedrockConfig.edgeFunctionName}`);
+      
+      const { data, error } = await supabase.functions.invoke(BedrockConfig.edgeFunctionName, {
+        body: { 
+          action: 'aws-permission-test',
+          data: {}
+        }
+      });
+      
+      if (error) {
+        console.error(`[Bedrock] Error from standard client during permission test:`, error);
+        throw new Error(`Standard client error: ${error.message || 'Unknown error'}`);
+      }
+      
+      console.log('[Bedrock] Received response from standard client:', data);
+      
+      if (data?.error) {
+        return { success: false, error: data.error };
+      }
+      
+      return { 
+        success: true, 
+        test_results: data.test_results || data 
+      };
+    } catch (clientError) {
+      console.warn(`[Bedrock] Standard client failed for AWS permission test, trying direct fetch. Error: ${clientError.message}`);
+      
+      // If standard client fails, try direct fetch
+      const url = `${BedrockConfig.edgeFunctionUrl}`;
+      console.log(`[Bedrock] Making direct fetch to: ${url} for AWS permission test`);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'aws-permission-test',
+          data: {}
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[Bedrock] Direct fetch error (${response.status}) for AWS permission test:`, errorText);
+        return { 
+          success: false, 
+          error: `API error: ${response.status} ${errorText}`,
+          debug: {
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries([...response.headers.entries()]),
+            responseText: errorText
+          }
+        };
+      }
+      
+      const responseData = await response.json();
+      console.log('[Bedrock] Received response from direct fetch:', responseData);
+      
+      if (responseData?.error) {
+        console.error(`[Bedrock] API error in direct fetch for AWS permission test:`, responseData.error);
+        return { 
+          success: false, 
+          error: responseData.error,
+          debug: {
+            url,
+            responseData
+          }
+        };
+      }
+      
+      return { 
+        success: true, 
+        test_results: responseData.test_results || responseData 
+      };
+    }
+  } catch (error) {
+    console.error(`[Bedrock] Exception during AWS permission test:`, error);
+    return { 
+      success: false, 
+      error: error.message || 'Error during AWS permission test',
+      stack: error.stack,
+      name: error.name
+    };
+  }
 };
 
 // Expose client functions

@@ -62,9 +62,15 @@ const useEdgeFunctions = () => {
  * Get the Edge Function URL for Bedrock
  */
 const getEdgeFunctionUrl = () => {
-  // In local development, use the Vite proxy to avoid CORS issues
+  // In local development, use the local Supabase URL with functions endpoint
   if (isLocalDevelopment) {
-    return '/api/super-action';
+    // First check if we have a specific URL in env variable
+    if (import.meta.env.VITE_BEDROCK_API_URL) {
+      return import.meta.env.VITE_BEDROCK_API_URL;
+    }
+    
+    // Otherwise use the local proxy
+    return '/functions/super-action';
   }
   
   // For production, check if there's an environment variable
@@ -72,8 +78,15 @@ const getEdgeFunctionUrl = () => {
     return import.meta.env.VITE_BEDROCK_API_URL;
   }
   
-  // For production, use the API route at /api/super-action
-  return '/api/super-action';
+  // If we have a Supabase URL, build the functions endpoint
+  if (supabaseUrl) {
+    // Replace the Supabase project URL with the functions endpoint
+    // e.g., https://yourproject.supabase.co → https://yourproject.functions.supabase.co
+    return supabaseUrl.replace('.supabase.co', '.functions.supabase.co') + '/super-action';
+  }
+  
+  // Fallback to a relative URL
+  return '/functions/super-action';
 };
 
 /**
