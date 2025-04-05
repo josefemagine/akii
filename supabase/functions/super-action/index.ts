@@ -11,7 +11,8 @@ import {
   getProvisionedModelThroughput,
   deleteProvisionedModelThroughput,
   invokeBedrockModel,
-  getBedrockUsageStats
+  getBedrockUsageStats,
+  verifyAwsCredentials
 } from "./aws.ts";
 
 // Import AWS SDK directly for credential testing
@@ -22,9 +23,6 @@ import {
 
 // Import configuration
 import { CONFIG, validateConfig } from "./config.ts";
-
-// Import AWS credential verification
-import { verifyAwsCredentials } from './aws.ts';
 
 // CORS headers for all responses
 const CORS_HEADERS = CONFIG.CORS_HEADERS;
@@ -268,9 +266,11 @@ async function handleCreateInstance(request: Request): Promise<Response> {
 
   try {
     // Get the request data
+    console.log("[API] Processing create instance request");
     let requestBody;
     try {
       requestBody = await request.json();
+      console.log("[API] Parsed request body:", JSON.stringify(requestBody));
     } catch (e) {
       console.error("[API] Error parsing request JSON:", e);
       return new Response(
@@ -281,11 +281,17 @@ async function handleCreateInstance(request: Request): Promise<Response> {
     
     // Extract the data payload - could be directly in requestBody or in requestBody.data
     const requestData = requestBody.data || requestBody;
-    console.log("[API] Request data for provisionInstance:", requestData);
+    console.log("[API] Request data for createInstance:", JSON.stringify(requestData));
     
     const { modelId, commitmentDuration, modelUnits } = requestData;
+    console.log("[API] Extracted parameters:", { modelId, commitmentDuration, modelUnits });
 
     if (!modelId || !commitmentDuration || !modelUnits) {
+      console.error("[API] Missing required fields:", { 
+        hasModelId: Boolean(modelId), 
+        hasCommitmentDuration: Boolean(commitmentDuration), 
+        hasModelUnits: Boolean(modelUnits)
+      });
       return new Response(
         JSON.stringify({ 
           error: "Bad Request", 
@@ -296,7 +302,23 @@ async function handleCreateInstance(request: Request): Promise<Response> {
       );
     }
 
+    // Verify AWS credentials are present and valid
+    console.log("[API] Verifying AWS credentials before proceeding");
+    const credentialCheck = await verifyAwsCredentials();
+    if (!credentialCheck.success) {
+      console.error("[API] AWS credentials verification failed:", credentialCheck.message);
+      return new Response(
+        JSON.stringify({ 
+          error: "AWS Configuration Error", 
+          message: credentialCheck.message || "AWS credentials are not properly configured"
+        }),
+        { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    console.log("[API] AWS credentials verified successfully");
+
     // Call AWS Bedrock API to create provisioned model throughput
+    console.log("[API] Calling AWS Bedrock to create model throughput");
     const awsResponse = await createProvisionedModelThroughput({
       modelId,
       commitmentDuration,
@@ -304,6 +326,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
     });
     
     if (!awsResponse.success) {
+      console.error("[API] AWS API call failed:", awsResponse.error);
       throw new Error(awsResponse.error || "Failed to create instance in AWS Bedrock");
     }
     
@@ -327,6 +350,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
     
     try {
       // Store AWS data in Supabase with user_id
+      console.log(`[API] Storing instance data in Supabase for user ${user.id}`);
       const { data, error: dbError } = await supabaseClient
         .from('bedrock_instances')
         .insert({
@@ -355,6 +379,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
         );
       }
 
+      console.log(`[API] Successfully created instance in database with ID: ${data.id}`);
       return new Response(
         JSON.stringify({ 
           instance: data,
@@ -894,61 +919,6 @@ serve(async (req: Request) => {
   const url = new URL(req.url);
   let action = url.searchParams.get("action") || '';
   
-  // EMERGENCY DEBUG CODE - Placed at the very beginning to bypass all other checks
-  // SECURITY WARNING: REMOVE THIS IN PRODUCTION
-  if (action === "emergency-debug") {
-    console.log("[EMERGENCY] Running debug endpoint with no auth or credential checks");
-    try {
-      // Load environment variables directly from Deno for debugging
-      const envInfo = {
-        // Global config vars
-        config: {
-          aws_region: CONFIG.AWS_REGION || "<not-set-in-config>",
-          has_access_key: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
-          has_secret_key: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
-          access_key_valid_format: CONFIG.AWS_ACCESS_KEY_ID?.startsWith('AKIA') || false
-        },
-        // Direct environment access
-        environment: {
-          // @ts-ignore - Deno global
-          AWS_REGION: Deno?.env?.get("AWS_REGION") || "<not-set-in-env>",
-          // Only show first/last chars for security
-          // @ts-ignore - Deno global 
-          AWS_ACCESS_KEY_ID_PREFIX: Deno?.env?.get("AWS_ACCESS_KEY_ID") ? 
-            // @ts-ignore - Deno global
-            Deno.env.get("AWS_ACCESS_KEY_ID")?.substring(0, 4) : "<not-set-in-env>",
-          // @ts-ignore - Deno global
-          AWS_ACCESS_KEY_ID_LENGTH: (Deno?.env?.get("AWS_ACCESS_KEY_ID") || "").length,
-          // @ts-ignore - Deno global
-          AWS_SECRET_ACCESS_KEY_LENGTH: (Deno?.env?.get("AWS_SECRET_ACCESS_KEY") || "").length,
-          // @ts-ignore - Deno global
-          USE_REAL_AWS: Deno?.env?.get("USE_REAL_AWS") || "<not-set-in-env>",
-        },
-        // Configuration validation results
-        validation: validateConfig(),
-        timestamp: new Date().toISOString()
-      };
-      
-      return new Response(
-        JSON.stringify({
-          message: "Emergency debug information (AWS credentials)",
-          env: envInfo
-        }),
-        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    } catch (error) {
-      console.error("[EMERGENCY-DEBUG] Error:", error);
-      return new Response(
-        JSON.stringify({ 
-          error: "Emergency Debug Error",
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined 
-        }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-  }
-  
   // If there's no action in the URL params, try to get it from body
   if (!action) {
     try {
@@ -956,10 +926,13 @@ serve(async (req: Request) => {
       const clonedReq = req.clone();
       const body = await clonedReq.json();
       action = body.action || '';
+      console.log("[API] Extracted action from body:", action);
     } catch (e) {
       // If there's an error parsing the body, we'll proceed with empty action
       console.log("[API] Error parsing request JSON:", e);
     }
+  } else {
+    console.log("[API] Extracted action from URL params:", action);
   }
   
   console.log(`[API] Processing request for action: ${action}`);
@@ -974,24 +947,27 @@ serve(async (req: Request) => {
   }
   
   try {
-    // Validate AWS credentials before proceeding (EXCEPT for emergency debug)
-    if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
-      console.error("[API] Missing AWS credentials:", { 
-        hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID), 
-        hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
-        configValidation: validateConfig()
-      });
-      
-      return new Response(
-        JSON.stringify({ 
-          error: "Service Misconfigured", 
-          message: "AWS credentials are not properly configured. Contact your administrator." 
-        }),
-        { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
+    // Validate AWS credentials before proceeding (EXCEPT for test endpoints)
+    if (!['test', 'aws-diagnostics', 'aws-credential-test', 'emergency-debug', 'verify-aws-credentials'].includes(action)) {
+      if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
+        console.error("[API] Missing AWS credentials:", { 
+          hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID), 
+          hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+          action: action
+        });
+        
+        return new Response(
+          JSON.stringify({ 
+            error: "Service Misconfigured", 
+            message: "AWS credentials are not properly configured. Contact your administrator." 
+          }),
+          { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
     }
     
     // Route the request based on action
+    console.log(`[API] Routing request to handler for action: ${action}`);
     switch (action) {
       case "test":
         return await handleTestEnv(req);
@@ -1006,6 +982,7 @@ serve(async (req: Request) => {
         return await handleGetInstances(req);
         
       case "createInstance":
+        console.log(`[API] Handling createInstance action`);
         return await handleCreateInstance(req);
         
       case "deleteInstance":
@@ -1026,7 +1003,11 @@ serve(async (req: Request) => {
       default:
         console.log(`[API] Unknown action: ${action}`);
         return new Response(
-          JSON.stringify({ error: "Invalid action", validActions: ["test", "aws-diagnostics", "aws-credential-test", "emergency-debug", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats", "verify-aws-credentials"] }),
+          JSON.stringify({ 
+            error: "Invalid action", 
+            validActions: ["test", "aws-diagnostics", "aws-credential-test", "emergency-debug", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats", "verify-aws-credentials"],
+            received: action
+          }),
           { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
     }
