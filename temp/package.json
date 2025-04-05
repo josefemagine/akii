@@ -1,0 +1,15 @@
+{
+  "name": "temp",
+  "version": "1.0.0",
+  "main": "aws-commands.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@aws-sdk/client-bedrock": "^3.782.0"
+  }
+}

@@ -976,6 +976,12 @@ serve(async (req: Request) => {
   try {
     // Validate AWS credentials before proceeding (EXCEPT for emergency debug)
     if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
+      console.error("[API] Missing AWS credentials:", { 
+        hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID), 
+        hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+        configValidation: validateConfig()
+      });
+      
       return new Response(
         JSON.stringify({ 
           error: "Service Misconfigured", 

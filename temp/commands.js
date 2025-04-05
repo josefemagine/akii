@@ -1,0 +1,1 @@
+const { CreateProvisionedModelThroughputCommand } = require('@aws-sdk/client-bedrock'); console.log(CreateProvisionedModelThroughputCommand.name); console.log(Object.getOwnPropertyNames(CreateProvisionedModelThroughputCommand.prototype));

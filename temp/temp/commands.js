@@ -1,0 +1,1 @@
+const { CreateProvisionedModelThroughputCommand } = require('@aws-sdk/client-bedrock'); console.log(CreateProvisionedModelThroughputCommand.prototype.constructor.name); console.log('Input type:', Object.keys(CreateProvisionedModelThroughputCommand.getInputType().shape));
