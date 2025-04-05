@@ -6,9 +6,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // CORS headers for all responses
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://www.akii.com",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info",
+  "Access-Control-Allow-Credentials": "true"
 };
 
 // Environment setup
@@ -263,18 +264,19 @@ async function handleDeleteInstance(request: Request): Promise<Response> {
 // Handle OPTIONS requests for CORS
 function handleOptionsRequest(request: Request): Response {
   return new Response(null, { 
+    status: 204, // No content but successful
     headers: CORS_HEADERS
   });
 }
 
 // Main request handler
 serve(async (request: Request) => {
-  const url = new URL(request.url);
-  
-  // Handle OPTIONS requests (CORS preflight)
+  // Handle OPTIONS requests first (CORS preflight)
   if (request.method === "OPTIONS") {
     return handleOptionsRequest(request);
   }
+
+  const url = new URL(request.url);
   
   // Route requests based on path and method
   if (url.pathname.endsWith("/test-env")) {

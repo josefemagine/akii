@@ -67,8 +67,13 @@ const getEdgeFunctionUrl = () => {
     return '/api/super-action';
   }
   
-  // Use custom domain for production (as specified by user)
-  return 'https://api.akii.com/functions/v1/super-action';
+  // For production, check if there's an environment variable
+  if (import.meta.env.VITE_BEDROCK_API_URL) {
+    return import.meta.env.VITE_BEDROCK_API_URL;
+  }
+  
+  // Fallback to the Supabase project URL (which we can see from the error logs)
+  return 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action';
 };
 
 /**

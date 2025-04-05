@@ -207,6 +207,48 @@ const devMockData = {
 };
 
 /**
+ * Call the edge function directly using fetch as a fallback
+ * This is used when the Supabase client's invoke method fails due to CORS issues
+ */
+const callEdgeFunctionDirect = async (functionName, action, data, token) => {
+  try {
+    const url = `${BedrockConfig.edgeFunctionUrl}`;
+    
+    console.log(`[Bedrock] Trying direct fetch to: ${url}`);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        action,
+        data
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Bedrock] Direct fetch error (${response.status}):`, errorText);
+      return { data: null, error: `API error: ${response.status} ${errorText}` };
+    }
+    
+    const responseData = await response.json();
+    
+    if (responseData?.error) {
+      console.error(`[Bedrock] API error in direct fetch for action ${action}:`, responseData.error);
+      return { data: null, error: responseData.error };
+    }
+    
+    return { data: responseData, error: null };
+  } catch (error) {
+    console.error(`[Bedrock] Exception in direct fetch for action ${action}:`, error);
+    return { data: null, error: error.message || 'Error in direct fetch' };
+  }
+};
+
+/**
  * Unified edge function invocation with enhanced error handling and auth management
  * 
  * @param {Object} options - Function call options
@@ -263,29 +305,56 @@ const callEdgeFunction = async ({
       data
     };
     
-    // Call the Edge Function with authentication
-    const { data: responseData, error } = await supabase.functions.invoke(
-      functionName,
-      {
-        body: requestPayload,
-        headers: {
-          Authorization: `Bearer ${token}`
+    try {
+      // First attempt: Call the Edge Function using Supabase client
+      const { data: responseData, error } = await supabase.functions.invoke(
+        functionName,
+        {
+          body: requestPayload,
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         }
+      );
+      
+      if (error) {
+        console.error(`[Bedrock] Edge function error for action ${action}:`, error);
+        
+        // If we get a CORS or network error, try the direct fetch method
+        if (error.message && (
+            error.message.includes('CORS') || 
+            error.message.includes('Failed to fetch') ||
+            error.message.includes('Failed to send a request')
+          )) {
+          console.log('[Bedrock] Falling back to direct fetch method due to CORS/network error');
+          return await callEdgeFunctionDirect(functionName, action, data, token);
+        }
+        
+        return { data: null, error: error.message || 'Error calling Edge Function' };
       }
-    );
-    
-    if (error) {
-      console.error(`[Bedrock] Edge function error for action ${action}:`, error);
-      return { data: null, error: error.message || 'Error calling Edge Function' };
+      
+      // Handle API-level errors returned in the response
+      if (responseData?.error) {
+        console.error(`[Bedrock] API error for action ${action}:`, responseData.error);
+        return { data: null, error: responseData.error };
+      }
+      
+      return { data: responseData, error: null };
+    } catch (invokeError) {
+      console.error(`[Bedrock] Exception during function invoke for ${action}:`, invokeError);
+      
+      // If we get a network or CORS error, try direct fetch as fallback
+      if (invokeError.message && (
+          invokeError.message.includes('CORS') || 
+          invokeError.message.includes('Failed to fetch') ||
+          invokeError.message.includes('Failed to send a request')
+        )) {
+        console.log('[Bedrock] Falling back to direct fetch method due to exception');
+        return await callEdgeFunctionDirect(functionName, action, data, token);
+      }
+      
+      throw invokeError; // Re-throw for the outer catch block
     }
-    
-    // Handle API-level errors returned in the response
-    if (responseData?.error) {
-      console.error(`[Bedrock] API error for action ${action}:`, responseData.error);
-      return { data: null, error: responseData.error };
-    }
-    
-    return { data: responseData, error: null };
   } catch (error) {
     console.error(`[Bedrock] Exception during action ${action}:`, error);
     return { data: null, error: error.message || 'Unknown error occurred' };
