@@ -61,7 +61,24 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
   const [showSubElements, setShowSubElements] = React.useState(false);
   const fullText1 = "Your AI.";
   const fullText2 = "Your Data.";
-  const fullText3 = "Plug. Play. Perform.";
+  const staticPrefix = "Plug. Play. ";
+  
+  // Words to cycle through in this order
+  const rotatingWords = [
+    "Perform.",
+    "Support.",
+    "Sell.",
+    "Train.",
+    "Analyze.",
+    "Create.",
+    "Research.",
+    "Learn."
+  ];
+  
+  // State to track current word and animation status
+  const [currentWordIndex, setCurrentWordIndex] = React.useState(0);
+  const [isTyping, setIsTyping] = React.useState(true);
+  const [currentWord, setCurrentWord] = React.useState("");
   
   React.useEffect(() => {
     let typeTimer1: number | null = null;
@@ -87,18 +104,20 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
               if (nextText === fullText2) {
                 clearInterval(typeTimer2!);
                 
-                // Type third line after a small delay
+                // Type third line static part after a small delay
                 typeTimer3 = window.setInterval(() => {
                   setTypedText3((prev) => {
-                    const nextText = fullText3.slice(0, prev.length + 1);
-                    if (nextText === fullText3) {
+                    if (prev.length < staticPrefix.length) {
+                      return staticPrefix.slice(0, prev.length + 1);
+                    } else if (prev === staticPrefix) {
                       clearInterval(typeTimer3!);
-                      // Show subtitle and button after a small delay
-                      setTimeout(() => {
-                        setShowSubElements(true);
-                      }, 300);
+                      // Show subtitle and button after typing the static prefix
+                      setShowSubElements(true);
+                      // Start the word rotation animation
+                      setIsTyping(true);
+                      setCurrentWord('');
                     }
-                    return nextText;
+                    return prev;
                   });
                 }, 100);
               }
@@ -116,8 +135,53 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
       if (typeTimer2) clearInterval(typeTimer2);
       if (typeTimer3) clearInterval(typeTimer3);
     };
-  }, [fullText1, fullText2, fullText3]);
+  }, [fullText1, fullText2, staticPrefix]);
+  
+  // Effect for the rotating words animation
+  React.useEffect(() => {
+    // Skip if static prefix isn't fully typed yet
+    if (typedText3 !== staticPrefix) return;
+    
+    const targetWord = rotatingWords[currentWordIndex];
+    let animationTimer: number | null = null;
+    
+    if (isTyping) {
+      // Typing animation
+      animationTimer = window.setInterval(() => {
+        setCurrentWord((prev) => {
+          const nextText = targetWord.slice(0, prev.length + 1);
+          if (nextText === targetWord) {
+            clearInterval(animationTimer!);
+            // Pause before starting to delete
+            setTimeout(() => setIsTyping(false), 1500);
+          }
+          return nextText;
+        });
+      }, 100);
+    } else {
+      // Deleting animation
+      animationTimer = window.setInterval(() => {
+        setCurrentWord((prev) => {
+          const nextText = prev.slice(0, prev.length - 1);
+          if (nextText === '') {
+            clearInterval(animationTimer!);
+            // Move to next word
+            setCurrentWordIndex((prevIndex) => (prevIndex + 1) % rotatingWords.length);
+            setIsTyping(true);
+          }
+          return nextText;
+        });
+      }, 50); // Deletion is slightly faster
+    }
+    
+    return () => {
+      if (animationTimer) clearInterval(animationTimer);
+    };
+  }, [isTyping, currentWordIndex, typedText3, rotatingWords, staticPrefix]);
 
+  // Combine the static prefix with the current animated word
+  const fullTypedText3 = typedText3 + (typedText3 === staticPrefix ? currentWord : '');
+  
   const fadeInUpVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { 
@@ -148,7 +212,15 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
               <h1 className="text-5xl font-bold tracking-tight sm:text-6xl xl:text-7xl/none flex flex-col space-y-2">
                 <span>{typedText1}<span className={typedText1.length === fullText1.length || typedText1.length === 0 ? "opacity-0" : "animate-blink"}>|</span></span>
                 <span>{typedText2}<span className={typedText2.length === fullText2.length || typedText2.length === 0 ? "opacity-0" : "animate-blink"}>|</span></span>
-                <span className="text-primary">{typedText3}<span className={typedText3.length === fullText3.length || typedText3.length === 0 ? "opacity-0" : "animate-blink"}>|</span></span>
+                <span className="text-primary">
+                  {typedText3}
+                  {typedText3 === staticPrefix && (
+                    <>{currentWord}<span className="animate-blink">|</span></>
+                  )}
+                  {typedText3 !== staticPrefix && typedText3.length > 0 && (
+                    <span className="animate-blink">|</span>
+                  )}
+                </span>
               </h1>
               <motion.p 
                 className="max-w-[600px] text-muted-foreground text-xl"
