@@ -127,29 +127,10 @@ const validateApiConfiguration = () => {
  * This is only used in development mode when edge functions are unavailable
  */
 const devMockData = {
-  // Mock response for listInstances
-  listInstances: [
-    {
-      id: 1,
-      instance_id: "ti-123456789abcdef",
-      model_id: "amazon.titan-text-lite-v1",
-      commitment_duration: "ONE_MONTH",
-      model_units: 1,
-      status: "INSERVICE",
-      created_at: new Date().toISOString(),
-      deleted_at: null
-    },
-    {
-      id: 2,
-      instance_id: "ti-987654321fedcba",
-      model_id: "amazon.titan-text-express-v1",
-      commitment_duration: "ONE_MONTH",
-      model_units: 2,
-      status: "CREATING",
-      created_at: new Date().toISOString(),
-      deleted_at: null
-    }
-  ],
+  // Mock response for listInstances with empty instances array
+  listInstances: {
+    instances: []
+  },
   // Mock response for testEnvironment
   testEnvironment: {
     apiVersion: "1.0.0",
@@ -187,21 +168,14 @@ const devMockData = {
   // Mock response for getUsageStats
   getUsageStats: {
     usage: {
-      total_tokens: 1500,
-      input_tokens: 500,
-      output_tokens: 1000,
-      instances: [
-        {
-          instance_id: 1,
-          total_tokens: 1500,
-          input_tokens: 500,
-          output_tokens: 1000
-        }
-      ]
+      total_tokens: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      instances: []
     },
     limits: {
       max_tokens: 10000,
-      usage_percentage: 15
+      usage_percentage: 0
     }
   }
 };
