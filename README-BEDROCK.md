@@ -1,5 +1,7 @@
 # AWS Bedrock Integration with Supabase
 
+**NEVER USE MOCK DATA, NOT EVEN FOR TESTING. THIS IS A LIVE APP.**
+
 This document describes the implementation of AWS Bedrock within the Akii AI-as-a-Service platform, secured through Supabase authentication and Edge Functions.
 
 ## System Overview
@@ -10,6 +12,7 @@ Akii leverages AWS Bedrock to provision AI instances via throughput, allowing ea
 - **Authentication**: JWT tokens from Supabase Auth are used to authenticate all requests
 - **User Isolation**: Each provisioned model is tied to a specific user
 - **Usage Tracking**: Token usage is monitored and enforced according to plan limits
+- **Real Data**: All interactions use real AWS Bedrock calls with no mocking
 
 ## Architecture
 
@@ -92,9 +95,9 @@ The Edge Function handles:
 
 ## AWS SDK Integration (IMPORTANT)
 
-### Always Use the Official AWS SDK
+### Always Use the Official AWS SDK with Real AWS Services
 
-The AWS Bedrock integration **MUST** use the official AWS SDK packages:
+The AWS Bedrock integration **MUST** use the official AWS SDK packages with real AWS services:
 
 ```typescript
 import { BedrockClient } from "@aws-sdk/client-bedrock";
@@ -108,18 +111,26 @@ Benefits of using the official AWS SDK:
 - Comprehensive error handling
 - Support for all AWS Bedrock operations
 
-### Never Use Mock Data in Production
+### NEVER Use Mock Data Under Any Circumstances
 
-**IMPORTANT**: Mock implementations should never be used in production environments. They are only intended for:
-- Local development without AWS credentials
-- Automated testing environments
-- UI component development
+**CRITICAL**: Mock implementations **MUST NEVER** be used in this application - for production, testing, or development.
+This application connects to real AWS Bedrock services with real billing implications for customers.
 
-For production deployments:
+For all environments:
 - Always connect to the real AWS Bedrock API
 - Properly configure AWS credentials
 - Ensure IAM permissions are correctly set
-- Use proper error handling for production scenarios
+- Use proper error handling for all scenarios
+- Always track actual usage and costs
+
+Any mock or simulated implementations are strictly prohibited and will lead to:
+- Misleading user experiences
+- Incorrect billing data
+- False expectations about model behavior
+- Security vulnerabilities
+- Potential breach of service contracts
+
+This is a production application with real users and financial implications. Always use real AWS services.
 
 ### Implementation Best Practices
 

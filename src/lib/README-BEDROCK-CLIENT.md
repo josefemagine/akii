@@ -1,6 +1,24 @@
 # Bedrock Frontend Client
 
+**NEVER USE MOCK DATA, NOT EVEN FOR TESTING. THIS IS A LIVE APP.**
+
 This document describes the frontend client implementation for integrating with AWS Bedrock through Supabase Edge Functions.
+
+## CRITICAL: Always Use Real AWS Services
+
+The Bedrock client **MUST ALWAYS** connect to real AWS Bedrock services. Mock data is strictly prohibited in all environments including:
+- Production environments
+- Testing environments
+- Development environments
+- UI development
+- QA environments
+
+This is a live application with real users and financial implications. Any use of mock data can lead to:
+- Incorrect billing information
+- Misleading user experiences
+- Security vulnerabilities
+- Service expectation mismatches
+- Potential breach of service contracts
 
 ## Overview
 
@@ -89,15 +107,22 @@ const { data, error } = await bedrockClient.getUsageStats({
 // data = { usage: {...}, limits: {...} }
 ```
 
-## Mock Implementation
+## PROHIBITED: No Mock Implementations
 
-The client includes a mock implementation that can be used during development or when AWS credentials are not available:
+**CRITICAL NOTE: ANY MOCK OR SIMULATED IMPLEMENTATION IS STRICTLY PROHIBITED**
 
-```javascript
-// Mock data is used when:
-// 1. Running in development mode and VITE_USE_MOCK_BEDROCK is set to 'true'
-// 2. Edge Function fails to respond (fallback)
-```
+~~Mock data is used when:~~
+~~1. Running in development mode and VITE_USE_MOCK_BEDROCK is set to 'true'~~
+~~2. Edge Function fails to respond (fallback)~~
+
+The client must ALWAYS:
+- Connect to real AWS Bedrock services
+- Use valid AWS credentials
+- Handle errors appropriately
+- Track actual resource usage
+- Report actual costs
+
+Do not attempt to create simulations, mock data, or fake implementations for ANY reason. This application has real financial and service implications.
 
 ## Error Handling
 

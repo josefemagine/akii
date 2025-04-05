@@ -1,6 +1,24 @@
 # AWS Bedrock Integration with Supabase Edge Functions
 
+**NEVER USE MOCK DATA, NOT EVEN FOR TESTING. THIS IS A LIVE APP.**
+
 This project demonstrates the integration of AWS Bedrock with a React application using Supabase Edge Functions. The integration allows for provisioning and managing AWS Bedrock model throughput instances through a secure and scalable backend.
+
+## CRITICAL: Always Use Real AWS Services
+
+The AWS Bedrock integration **MUST ALWAYS** connect to real AWS Bedrock services. Mock data is strictly prohibited in all environments including:
+- Production environments
+- Testing environments
+- Development environments
+- UI development
+- QA environments
+
+This is a live application with real users and financial implications. Any use of mock data can lead to:
+- Incorrect billing information
+- Misleading user experiences
+- Security vulnerabilities
+- Service expectation mismatches
+- Potential breach of service contracts
 
 ## Architecture
 
