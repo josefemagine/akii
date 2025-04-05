@@ -15,7 +15,7 @@ import {
 } from "./aws.ts";
 
 // Import configuration
-import { CONFIG } from "./config.ts";
+import { CONFIG, validateConfig } from "./config.ts";
 
 // CORS headers for all responses
 const CORS_HEADERS = CONFIG.CORS_HEADERS;
@@ -35,8 +35,8 @@ const SUPABASE_SERVICE_ROLE_KEY = getEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 // Initialize Supabase client
 const supabaseClient = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY
+  CONFIG.SUPABASE_URL,
+  CONFIG.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // JWT token validation
@@ -82,6 +82,9 @@ async function handleTestEnv(request: Request): Promise<Response> {
   }
 
   try {
+    // Validate AWS configuration
+    const awsConfig = validateConfig();
+    
     // Return environment diagnostic information
     return new Response(
       JSON.stringify({
@@ -89,16 +92,18 @@ async function handleTestEnv(request: Request): Promise<Response> {
           // @ts-ignore - Deno global
           isProduction: Deno.env.get("DENO_ENV") !== "development",
           aws: {
-            region: AWS_REGION,
-            hasAccessKey: Boolean(AWS_ACCESS_KEY_ID),
-            hasSecretKey: Boolean(AWS_SECRET_ACCESS_KEY),
-            accessKeyFormat: AWS_ACCESS_KEY_ID ? (AWS_ACCESS_KEY_ID.startsWith("AKIA") ? "valid" : "invalid") : "missing",
+            region: CONFIG.AWS_REGION,
+            hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
+            hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+            accessKeyFormat: CONFIG.AWS_ACCESS_KEY_ID ? (CONFIG.AWS_ACCESS_KEY_ID.startsWith("AKIA") ? "valid" : "invalid") : "missing",
+            configValid: awsConfig.isValid,
+            missingVars: awsConfig.missingVars
           },
           // @ts-ignore - Deno global
           platform: Deno.build.os,
           supabase: {
-            hasUrl: Boolean(SUPABASE_URL),
-            hasServiceKey: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+            hasUrl: Boolean(CONFIG.SUPABASE_URL),
+            hasServiceKey: Boolean(CONFIG.SUPABASE_SERVICE_ROLE_KEY),
           },
           user: {
             id: user.id,
@@ -704,3 +709,17 @@ serve(async (request: Request) => {
     );
   }
 }); 
+
+// Helper for checking AWS credentials
+function checkAwsCredentials(): Response | null {
+  if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
+    return new Response(
+      JSON.stringify({ 
+        error: "Service Misconfigured", 
+        message: "AWS credentials are not configured on the server" 
+      }),
+      { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+  return null;
+} 

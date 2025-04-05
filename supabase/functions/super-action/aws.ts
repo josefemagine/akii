@@ -1,24 +1,19 @@
 // AWS Bedrock Integration
-// This file provides both real and mock implementations of AWS Bedrock API calls
+// This file provides real implementations of AWS Bedrock API calls
 
 import { CONFIG } from "./config.ts";
 
-// Define interfaces for our data types
-interface MockProvisionedThroughput {
-  commitmentDuration: string;
-  provisionedModelThroughput: number;
-}
-
-interface MockInstance {
+// Instance type definition 
+interface ProvisionedModel {
   provisionedModelArn: string;
   modelId: string;
   provisionedModelStatus: string;
-  provisionedThroughput: MockProvisionedThroughput;
+  provisionedThroughput: {
+    commitmentDuration: string;
+    provisionedModelThroughput: number;
+  };
   creationTime: string;
 }
-
-// Mock instance data
-const MOCK_INSTANCES: MockInstance[] = [];
 
 // Helper for environment variables
 const getEnv = (name: string, defaultValue: string = ""): string => {
@@ -26,16 +21,192 @@ const getEnv = (name: string, defaultValue: string = ""): string => {
   return Deno?.env?.get?.(name) || defaultValue;
 };
 
-// Determine if we should use real AWS or mock implementation
-const useRealAws = (): boolean => {
-  return CONFIG.USE_REAL_AWS && 
-         !!CONFIG.AWS_ACCESS_KEY_ID && 
-         !!CONFIG.AWS_SECRET_ACCESS_KEY;
-};
+// AWS API request signing utilities
+async function getAwsSignatureKey(key: string, dateStamp: string, regionName: string, serviceName: string): Promise<ArrayBuffer> {
+  const encoder = new TextEncoder();
+  const kDate = await crypto.subtle.sign(
+    "HMAC",
+    await crypto.subtle.importKey(
+      "raw", 
+      encoder.encode(`AWS4${key}`), 
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    ),
+    encoder.encode(dateStamp)
+  );
+  
+  const kRegion = await crypto.subtle.sign(
+    "HMAC",
+    await crypto.subtle.importKey(
+      "raw", 
+      new Uint8Array(kDate), 
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    ),
+    encoder.encode(regionName)
+  );
+  
+  const kService = await crypto.subtle.sign(
+    "HMAC",
+    await crypto.subtle.importKey(
+      "raw", 
+      new Uint8Array(kRegion), 
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    ),
+    encoder.encode(serviceName)
+  );
+  
+  const kSigning = await crypto.subtle.sign(
+    "HMAC",
+    await crypto.subtle.importKey(
+      "raw", 
+      new Uint8Array(kService), 
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    ),
+    encoder.encode("aws4_request")
+  );
+  
+  return kSigning;
+}
 
-// Common logging function
-function log(message: string, ...args: any[]) {
-  console.log(`[${useRealAws() ? 'AWS' : 'MOCK'}] ${message}`, ...args);
+async function sha256(message: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function signAwsRequest(
+  method: string,
+  url: URL,
+  region: string,
+  service: string,
+  headers: Record<string, string>,
+  body?: string
+): Promise<Record<string, string>> {
+  const accessKey = CONFIG.AWS_ACCESS_KEY_ID;
+  const secretKey = CONFIG.AWS_SECRET_ACCESS_KEY;
+  
+  if (!accessKey || !secretKey) {
+    throw new Error("AWS credentials not found");
+  }
+  
+  const amzdate = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const dateStamp = amzdate.substring(0, 8);
+  
+  // Add required headers
+  headers['host'] = url.host;
+  headers['x-amz-date'] = amzdate;
+  
+  // Sort headers by key
+  const sortedHeaders = Object.keys(headers).sort().reduce((acc, key) => {
+    acc[key.toLowerCase()] = headers[key];
+    return acc;
+  }, {} as Record<string, string>);
+  
+  // Create canonical request
+  const canonicalHeaders = Object.keys(sortedHeaders)
+    .map(key => `${key}:${sortedHeaders[key]}\n`)
+    .join('');
+  
+  const signedHeaders = Object.keys(sortedHeaders)
+    .join(';');
+  
+  const payloadHash = await sha256(body || '');
+  
+  const canonicalRequest = [
+    method,
+    url.pathname,
+    url.search,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash
+  ].join('\n');
+  
+  // Create string to sign
+  const algorithm = 'AWS4-HMAC-SHA256';
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const stringToSign = [
+    algorithm,
+    amzdate,
+    credentialScope,
+    await sha256(canonicalRequest)
+  ].join('\n');
+  
+  // Calculate signature
+  const signature = Array.from(new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      await crypto.subtle.importKey(
+        "raw", 
+        new Uint8Array(await getAwsSignatureKey(secretKey, dateStamp, region, service)), 
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      ),
+      new TextEncoder().encode(stringToSign)
+    )
+  ))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  // Add Authorization header
+  headers['Authorization'] = `${algorithm} Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  
+  return headers;
+}
+
+// Helper function to make AWS API requests
+async function awsApiRequest(
+  method: string,
+  endpoint: string,
+  region: string,
+  service: string,
+  body?: any
+): Promise<any> {
+  const url = new URL(endpoint);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Amz-Target': `Bedrock.${method}`,
+  };
+  
+  const bodyString = body ? JSON.stringify(body) : '';
+  
+  try {
+    const signedHeaders = await signAwsRequest(
+      'POST',
+      url,
+      region,
+      service,
+      headers,
+      bodyString
+    );
+    
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: signedHeaders,
+      body: bodyString,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`AWS API Error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error making AWS API request to ${method}:`, error);
+    throw error;
+  }
 }
 
 // Create a provisioned model throughput
@@ -44,135 +215,125 @@ export async function createProvisionedModelThroughput(params: {
   commitmentDuration: string,
   modelUnits: number
 }) {
-  // Check if we should use real AWS
-  if (useRealAws()) {
-    try {
-      log("Using real AWS implementation for createProvisionedModelThroughput");
-      
-      // In real implementation, we would call AWS API here
-      // For now, create a mock ARN but log that we're in real mode
-      const { modelId } = params;
-      const region = CONFIG.AWS_REGION;
-      const mockInstanceId = `arn:aws:bedrock:${region}:real-account:provisioned-model/${modelId.split('/').pop()}-${Date.now()}`;
-      
-      log("Successfully created provisioned model:", mockInstanceId);
-      return {
-        success: true,
-        instance: {
-          provisionedModelArn: mockInstanceId,
-          status: "CREATING"
-        },
-        instance_id: mockInstanceId
-      };
-    } catch (error) {
-      console.error("[AWS] Error creating provisioned model throughput:", error);
-      return {
-        success: false,
-        error: error.message || "Error creating provisioned model throughput in AWS Bedrock"
-      };
+  try {
+    console.log(`[AWS] Creating provisioned model for ${params.modelId}`);
+    
+    // Convert commitment duration to AWS format
+    let commitmentTerm = "1m"; // default: 1 month
+    if (params.commitmentDuration === "THREE_MONTHS") {
+      commitmentTerm = "3m";
     }
-  } else {
-    // Use mock implementation
-    return createMockProvisionedModelThroughput(params);
+    
+    const result = await awsApiRequest(
+      'CreateProvisionedModel',
+      `https://bedrock.${CONFIG.AWS_REGION}.amazonaws.com/`,
+      CONFIG.AWS_REGION,
+      'bedrock',
+      {
+        modelId: params.modelId,
+        provisionedModelName: `provisioned-${params.modelId.split('/').pop()}-${Date.now()}`,
+        provisionedThroughput: {
+          commitmentDuration: commitmentTerm,
+          provisionedModelThroughput: params.modelUnits
+        }
+      }
+    );
+    
+    console.log(`[AWS] Successfully created provisioned model:`, result);
+    
+    return {
+      success: true,
+      instance: result,
+      instance_id: result.provisionedModelArn
+    };
+  } catch (error) {
+    console.error("[AWS] Error creating provisioned model throughput:", error);
+    return {
+      success: false,
+      error: error.message || "Error creating provisioned model throughput in AWS Bedrock"
+    };
   }
 }
 
 // List provisioned model throughputs
 export async function listProvisionedModelThroughputs() {
-  // Check if we should use real AWS
-  if (useRealAws()) {
-    try {
-      log("Using real AWS implementation for listProvisionedModelThroughputs");
-      
-      // In real implementation, we would call AWS API here
-      // For now, return mock instances array but log that we're in real mode
-      return {
-        success: true,
-        instances: MOCK_INSTANCES
-      };
-    } catch (error) {
-      console.error("[AWS] Error listing provisioned models:", error);
-      return {
-        success: false,
-        error: error.message || "Error listing provisioned models in AWS Bedrock"
-      };
-    }
-  } else {
-    // Use mock implementation
-    return listMockProvisionedModelThroughputs();
+  try {
+    console.log(`[AWS] Listing provisioned models`);
+    
+    const result = await awsApiRequest(
+      'ListProvisionedModels',
+      `https://bedrock.${CONFIG.AWS_REGION}.amazonaws.com/`,
+      CONFIG.AWS_REGION,
+      'bedrock',
+      {}
+    );
+    
+    return {
+      success: true,
+      instances: result.provisionedModelSummaries || []
+    };
+  } catch (error) {
+    console.error("[AWS] Error listing provisioned models:", error);
+    return {
+      success: false,
+      error: error.message || "Error listing provisioned models in AWS Bedrock"
+    };
   }
 }
 
 // Get a specific provisioned model throughput
 export async function getProvisionedModelThroughput(provisionedModelId: string) {
-  // Check if we should use real AWS
-  if (useRealAws()) {
-    try {
-      log("Using real AWS implementation for getProvisionedModelThroughput");
-      
-      // In real implementation, we would call AWS API here
-      // For now, find in mock instances but log that we're in real mode
-      const instance = MOCK_INSTANCES.find(i => i.provisionedModelArn === provisionedModelId);
-      
-      if (!instance) {
-        return {
-          success: false,
-          error: "Instance not found"
-        };
+  try {
+    console.log(`[AWS] Getting provisioned model ${provisionedModelId}`);
+    
+    const result = await awsApiRequest(
+      'GetProvisionedModel',
+      `https://bedrock.${CONFIG.AWS_REGION}.amazonaws.com/`,
+      CONFIG.AWS_REGION,
+      'bedrock',
+      {
+        provisionedModelId
       }
-      
-      return {
-        success: true,
-        instance
-      };
-    } catch (error) {
-      console.error(`[AWS] Error getting provisioned model ${provisionedModelId}:`, error);
-      return {
-        success: false,
-        error: error.message || "Error getting provisioned model details from AWS Bedrock"
-      };
-    }
-  } else {
-    // Use mock implementation
-    return getMockProvisionedModelThroughput(provisionedModelId);
+    );
+    
+    return {
+      success: true,
+      instance: result
+    };
+  } catch (error) {
+    console.error(`[AWS] Error getting provisioned model ${provisionedModelId}:`, error);
+    return {
+      success: false,
+      error: error.message || "Error getting provisioned model details from AWS Bedrock"
+    };
   }
 }
 
 // Delete a provisioned model throughput
 export async function deleteProvisionedModelThroughput(provisionedModelId: string) {
-  // Check if we should use real AWS
-  if (useRealAws()) {
-    try {
-      log("Using real AWS implementation for deleteProvisionedModelThroughput");
-      
-      // In real implementation, we would call AWS API here
-      // For now, delete from mock instances but log that we're in real mode
-      const instanceIndex = MOCK_INSTANCES.findIndex(i => i.provisionedModelArn === provisionedModelId);
-      
-      if (instanceIndex === -1) {
-        return {
-          success: false,
-          error: "Instance not found"
-        };
+  try {
+    console.log(`[AWS] Deleting provisioned model ${provisionedModelId}`);
+    
+    const result = await awsApiRequest(
+      'DeleteProvisionedModel',
+      `https://bedrock.${CONFIG.AWS_REGION}.amazonaws.com/`,
+      CONFIG.AWS_REGION,
+      'bedrock',
+      {
+        provisionedModelId
       }
-      
-      // Mark as deleted
-      MOCK_INSTANCES[instanceIndex].provisionedModelStatus = "DELETED";
-      
-      return {
-        success: true,
-        result: { success: true }
-      };
-    } catch (error) {
-      console.error(`[AWS] Error deleting provisioned model ${provisionedModelId}:`, error);
-      return {
-        success: false,
-        error: error.message || "Error deleting provisioned model from AWS Bedrock"
-      };
-    }
-  } else {
-    // Use mock implementation
-    return deleteMockProvisionedModelThroughput(provisionedModelId);
+    );
+    
+    return {
+      success: true,
+      result
+    };
+  } catch (error) {
+    console.error(`[AWS] Error deleting provisioned model ${provisionedModelId}:`, error);
+    return {
+      success: false,
+      error: error.message || "Error deleting provisioned model from AWS Bedrock"
+    };
   }
 }
 
@@ -185,271 +346,83 @@ export async function invokeBedrockModel({
   topP = 0.9,
   stopSequences = []
 }) {
-  // Check if we should use real AWS
-  if (useRealAws()) {
-    try {
-      log("Using real AWS implementation for invokeBedrockModel");
-      
-      // In real implementation, we would call AWS API here
-      // For now, return mock response but log that we're in real mode
-      const responseText = `This is a REAL response (mock) to your prompt: "${prompt.substring(0, 50)}...". In a production implementation, this would be generated by AWS Bedrock.`;
-      
-      // Simulate token counts
-      const inputTokens = Math.ceil(prompt.length / 4);
-      const outputTokens = Math.ceil(responseText.length / 4);
-      
-      return {
-        success: true,
-        response: responseText,
-        usage: {
-          input_tokens: inputTokens,
-          output_tokens: outputTokens,
-          total_tokens: inputTokens + outputTokens
-        }
-      };
-    } catch (error) {
-      console.error("[AWS] Error invoking model:", error);
-      return {
-        success: false,
-        error: error.message || "Error invoking model in AWS Bedrock"
-      };
-    }
-  } else {
-    // Use mock implementation
-    return invokeMockBedrockModel({ instanceId, prompt, maxTokens, temperature, topP, stopSequences });
-  }
-}
-
-// Get usage statistics for Bedrock instances
-export async function getBedrockUsageStats(options = {}) {
-  // Check if we should use real AWS
-  if (useRealAws()) {
-    try {
-      log("Using real AWS implementation for getBedrockUsageStats");
-      
-      // In real implementation, we would call AWS API here
-      // For now, return mock response but log that we're in real mode
-      
-      // Generate mock usage statistics
-      const usageData = MOCK_INSTANCES.map(instance => ({
-        instance_id: instance.provisionedModelArn,
-        total_tokens: Math.floor(Math.random() * 10000), // Simulated token usage
-        input_tokens: Math.floor(Math.random() * 3000),  // Simulated input tokens
-        output_tokens: Math.floor(Math.random() * 7000)  // Simulated output tokens
-      }));
-      
-      // Calculate total usage
-      const totalUsage = usageData.reduce((acc, cur) => {
-        acc.total_tokens += cur.total_tokens;
-        acc.input_tokens += cur.input_tokens;
-        acc.output_tokens += cur.output_tokens;
-        return acc;
-      }, { total_tokens: 0, input_tokens: 0, output_tokens: 0 });
-      
-      return {
-        success: true,
-        usage: {
-          total_tokens: totalUsage.total_tokens,
-          input_tokens: totalUsage.input_tokens,
-          output_tokens: totalUsage.output_tokens,
-          instances: usageData
-        },
-        limits: {
-          max_tokens: 100000, // Example limit
-          usage_percentage: (totalUsage.total_tokens / 100000) * 100
-        }
-      };
-    } catch (error) {
-      console.error("[AWS] Error getting usage statistics:", error);
-      return {
-        success: false,
-        error: error.message || "Error retrieving usage statistics from AWS Bedrock"
-      };
-    }
-  } else {
-    // Use mock implementation
-    return getMockBedrockUsageStats(options);
-  }
-}
-
-//=============================================
-// MOCK IMPLEMENTATIONS (for development/testing)
-//=============================================
-
-// Create a mock provisioned model throughput
-function createMockProvisionedModelThroughput(params: {
-  modelId: string,
-  commitmentDuration: string,
-  modelUnits: number
-}) {
   try {
-    const { modelId, commitmentDuration, modelUnits } = params;
-    const region = getEnv("AWS_REGION", "us-east-1");
+    console.log(`[AWS] Invoking model ${instanceId}`);
     
-    // Create a mock instance ID
-    const mockInstanceId = `arn:aws:bedrock:${region}:123456789012:provisioned-model/${modelId.split('/').pop()}-${Date.now()}`;
+    // Prepare request body based on model type (assuming Claude)
+    const requestBody = {
+      prompt: prompt,
+      max_tokens_to_sample: maxTokens,
+      temperature: temperature,
+      top_p: topP,
+      stop_sequences: stopSequences
+    };
     
-    // Add to mock data
-    MOCK_INSTANCES.push({
-      provisionedModelArn: mockInstanceId,
-      modelId,
-      provisionedModelStatus: "CREATING",
-      provisionedThroughput: {
-        commitmentDuration,
-        provisionedModelThroughput: modelUnits
+    const response = await fetch(`https://bedrock-runtime.${CONFIG.AWS_REGION}.amazonaws.com/model/${instanceId}/invoke`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
-      creationTime: new Date().toISOString()
+      body: JSON.stringify(requestBody)
     });
     
-    log("Created mock instance:", mockInstanceId);
-    
-    return {
-      success: true,
-      instance: {
-        provisionedModelArn: mockInstanceId,
-        status: "CREATING"
-      },
-      instance_id: mockInstanceId
-    };
-  } catch (error) {
-    console.error("[MOCK] Error creating instance:", error);
-    return {
-      success: false,
-      error: error.message || "Error in mock AWS implementation"
-    };
-  }
-}
-
-// List mock provisioned model throughputs
-function listMockProvisionedModelThroughputs() {
-  try {
-    // Update a random instance to INSERVICE status if it's in CREATING
-    for (const instance of MOCK_INSTANCES) {
-      if (instance.provisionedModelStatus === "CREATING" && Math.random() > 0.7) {
-        instance.provisionedModelStatus = "INSERVICE";
-      }
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`AWS Bedrock Runtime Error: ${response.status} ${response.statusText} - ${errorText}`);
     }
     
-    log("Listing mock instances:", MOCK_INSTANCES.length);
+    const responseData = await response.json();
     
-    return {
-      success: true,
-      instances: MOCK_INSTANCES
-    };
-  } catch (error) {
-    console.error("[MOCK] Error listing instances:", error);
-    return {
-      success: false,
-      error: error.message || "Error in mock AWS implementation"
-    };
-  }
-}
-
-// Get a specific mock provisioned model throughput
-function getMockProvisionedModelThroughput(provisionedModelId: string) {
-  try {
-    const instance = MOCK_INSTANCES.find(i => i.provisionedModelArn === provisionedModelId);
+    // Parse response and token usage
+    const responseText = responseData.completion || responseData.text || responseData.generation;
     
-    if (!instance) {
-      log("Mock instance not found:", provisionedModelId);
-      return {
-        success: false,
-        error: "Instance not found"
-      };
-    }
-    
-    log("Retrieved mock instance:", provisionedModelId);
-    
-    return {
-      success: true,
-      instance
-    };
-  } catch (error) {
-    console.error("[MOCK] Error getting instance:", error);
-    return {
-      success: false,
-      error: error.message || "Error in mock AWS implementation"
-    };
-  }
-}
-
-// Delete a mock provisioned model throughput
-function deleteMockProvisionedModelThroughput(provisionedModelId: string) {
-  try {
-    const instanceIndex = MOCK_INSTANCES.findIndex(i => i.provisionedModelArn === provisionedModelId);
-    
-    if (instanceIndex === -1) {
-      log("Mock instance not found for deletion:", provisionedModelId);
-      return {
-        success: false,
-        error: "Instance not found"
-      };
-    }
-    
-    // Mark as deleted
-    MOCK_INSTANCES[instanceIndex].provisionedModelStatus = "DELETED";
-    
-    log("Deleted mock instance:", provisionedModelId);
-    
-    return {
-      success: true,
-      result: { success: true }
-    };
-  } catch (error) {
-    console.error("[MOCK] Error deleting instance:", error);
-    return {
-      success: false,
-      error: error.message || "Error in mock AWS implementation"
-    };
-  }
-}
-
-// Invoke a mock model to generate AI text
-function invokeMockBedrockModel({
-  instanceId,
-  prompt,
-  maxTokens = 500,
-  temperature = 0.7,
-  topP = 0.9,
-  stopSequences = []
-}) {
-  try {
-    // Generate mock response based on prompt
-    const responseText = `This is a MOCK response to your prompt: "${prompt.substring(0, 50)}...". In a real implementation, this would be generated by AWS Bedrock.`;
-    
-    // Simulate token counts
+    // Estimate token usage (AWS doesn't provide this directly)
     const inputTokens = Math.ceil(prompt.length / 4);
     const outputTokens = Math.ceil(responseText.length / 4);
-    
-    log("Invoked mock model:", instanceId);
     
     return {
       success: true,
       response: responseText,
       usage: {
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        total_tokens: inputTokens + outputTokens
+        input_tokens: responseData.usage?.input_tokens || inputTokens,
+        output_tokens: responseData.usage?.output_tokens || outputTokens,
+        total_tokens: responseData.usage?.total_tokens || (inputTokens + outputTokens)
       }
     };
   } catch (error) {
-    console.error("[MOCK] Error invoking model:", error);
+    console.error("[AWS] Error invoking model:", error);
     return {
       success: false,
-      error: error.message || "Error in mock AWS implementation"
+      error: error.message || "Error invoking model in AWS Bedrock"
     };
   }
 }
 
-// Get mock usage statistics for Bedrock instances
-function getMockBedrockUsageStats(options = {}) {
+// Get usage statistics for Bedrock instances
+export async function getBedrockUsageStats(options = {}) {
   try {
-    // Generate mock usage statistics
-    const usageData = MOCK_INSTANCES.map(instance => ({
+    console.log(`[AWS] Getting usage statistics`);
+    
+    // First, get the list of instances
+    const instancesResponse = await listProvisionedModelThroughputs();
+    
+    if (!instancesResponse.success) {
+      throw new Error(instancesResponse.error || "Failed to list instances for usage statistics");
+    }
+    
+    const instances = instancesResponse.instances || [];
+    
+    // AWS doesn't provide a direct API for token usage, so we'll estimate based on billing data
+    // This would need to be replaced with a call to AWS Cost Explorer API in a real implementation
+    
+    // For now, return a placeholder with the actual instances but estimated usage
+    const usageData = instances.map(instance => ({
       instance_id: instance.provisionedModelArn,
-      total_tokens: Math.floor(Math.random() * 10000), // Simulated token usage
-      input_tokens: Math.floor(Math.random() * 3000),  // Simulated input tokens
-      output_tokens: Math.floor(Math.random() * 7000)  // Simulated output tokens
+      // Placeholders for usage data
+      total_tokens: 0,
+      input_tokens: 0,
+      output_tokens: 0
     }));
     
     // Calculate total usage
@@ -460,8 +433,6 @@ function getMockBedrockUsageStats(options = {}) {
       return acc;
     }, { total_tokens: 0, input_tokens: 0, output_tokens: 0 });
     
-    log("Generated mock usage stats");
-    
     return {
       success: true,
       usage: {
@@ -471,15 +442,15 @@ function getMockBedrockUsageStats(options = {}) {
         instances: usageData
       },
       limits: {
-        max_tokens: 100000, // Example limit
-        usage_percentage: (totalUsage.total_tokens / 100000) * 100
+        max_tokens: 0, // Unknown - would need to be retrieved from AWS service quotas
+        usage_percentage: 0
       }
     };
   } catch (error) {
-    console.error("[MOCK] Error generating usage stats:", error);
+    console.error("[AWS] Error getting usage statistics:", error);
     return {
       success: false,
-      error: error.message || "Error in mock AWS implementation"
+      error: error.message || "Error retrieving usage statistics from AWS Bedrock"
     };
   }
 } 

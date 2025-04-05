@@ -17,10 +17,6 @@ export const CONFIG = {
   SUPABASE_URL: getEnv("SUPABASE_URL"),
   SUPABASE_SERVICE_ROLE_KEY: getEnv("SUPABASE_SERVICE_ROLE_KEY"),
   
-  // Feature flags
-  USE_REAL_AWS: getEnv("USE_REAL_AWS") === "true",
-  MOCK_AWS_CALLS: getEnv("MOCK_AWS_CALLS") === "true",
-  
   // CORS Headers
   CORS_HEADERS: {
     "Access-Control-Allow-Origin": "*",
@@ -32,7 +28,7 @@ export const CONFIG = {
 
 // Validate required configuration
 export function validateConfig() {
-  const missingVars = [];
+  const missingVars: string[] = [];
   
   if (!CONFIG.AWS_REGION) missingVars.push("AWS_REGION");
   if (!CONFIG.AWS_ACCESS_KEY_ID) missingVars.push("AWS_ACCESS_KEY_ID");
