@@ -222,74 +222,98 @@ const callEdgeFunctionDirect = async (functionName, action, data, token) => {
   }
 };
 
+// Get the appropriate API URL based on the environment
+const getApiUrl = () => {
+  return BedrockConfig.edgeFunctionUrl;
+};
+
 /**
- * Call Supabase Edge Function with JWT auth
- * @param {Object} options - Function call options
- * @param {string} options.functionName - Edge function name
- * @param {string} options.action - Action to perform
- * @param {Object} options.data - Data to send
- * @param {boolean} options.useMock - Force use mock data
- * @returns {Promise<{data: any, error: string|null}>} Response or error
+ * Call the Supabase Edge Function
+ * 
+ * @param {Object} options - Call options
+ * @param {string} options.action - The action to perform
+ * @param {Object} options.data - Data to send with the request
+ * @param {boolean} options.useMock - Whether to use mock data
+ * @returns {Promise<{data: any, error: string|null}>} Function response
  */
-const callEdgeFunction = async ({ 
-  functionName = BedrockConfig.edgeFunctionName,
-  action,
-  data = {},
-  useMock = false
-}) => {
-  // Check for mock mode via environment variable
-  const useMockFromEnv = import.meta.env.VITE_USE_MOCK_SUPER_ACTION === 'true';
+const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.useMockData }) => {
+  console.log(`[Bedrock] Calling edge function with action: ${action}`, { data, useMock });
   
-  // Validate API config
-  if (!validateApiConfiguration()) {
-    return { data: null, error: 'API configuration invalid' };
-  }
+  // For non-testing/debugging actions, require authentication
+  const requiresAuth = !['testEnvironment', 'test'].includes(action);
   
-  // Only use mock data when explicitly forced, never in production
-  const shouldUseMock = !BedrockConfig.isProduction && (useMock || useMockFromEnv);
-  
-  if (shouldUseMock && devMockData[action]) {
-    console.log(`[Bedrock] Using mock data for action: ${action}`);
-    console.log(`[Bedrock] useMock:${useMock}, useMockFromEnv:${useMockFromEnv}`);
-    
-    // Mock data delay to simulate network request
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Return appropriate mock data based on action
-    return { data: devMockData[action], error: null };
-  }
-  
-  // In all other cases, including if no mock data available, use the real API
-  try {
-    // Get and refresh auth token if needed
-    const token = await refreshTokenIfNeeded();
-    
+  if (requiresAuth) {
+    const token = await getAuthToken();
     if (!token) {
-      console.error('[Bedrock] Authentication required. No valid token available.');
+      console.error('[Bedrock] No valid auth token available');
       return { data: null, error: 'Authentication required' };
     }
+  }
+  
+  // Use mock data in development mode if enabled and available
+  if (useMock && !BedrockConfig.isProduction && devMockData[action]) {
+    console.log(`[Bedrock] Using mock data for action: ${action}`);
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+    return { data: devMockData[action], error: null };
+  }
+
+  try {
+    // Get a valid token
+    const token = await getAuthToken();
     
-    try {
-      // First try the standard Supabase client method
-      const { data: responseData, error } = await supabase.functions.invoke(functionName, {
-        body: { action, data }
-      });
-      
-      if (error) {
-        console.error(`[Bedrock] Error invoking ${functionName} for action ${action}:`, error);
-        // If this fails, we will try the direct fetch approach below
-        throw new Error(error.message || 'Edge function error');
-      }
-      
-      return { data: responseData, error: null };
-    } catch (error) {
-      console.warn(`[Bedrock] Falling back to direct fetch for action ${action} due to error: ${error.message}`);
-      // Try direct fetch as fallback when Supabase client fails (often due to CORS)
-      return await callEdgeFunctionDirect(functionName, action, data, token);
+    // Determine the API URL
+    const apiUrl = getApiUrl();
+    
+    // Create the properly structured request body
+    const requestBody = {
+      action: action,
+      ...data  // This was spreading data at the top level, causing field name conflicts
+    };
+    
+    // Log complete request details
+    console.log(`[Bedrock] Making API request to ${apiUrl}`, { 
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : undefined
+      },
+      body: requestBody
+    });
+    
+    // Make the API call
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    // Parse the response
+    const result = await response.json();
+    
+    // Log response details
+    console.log(`[Bedrock] API response for ${action}:`, { 
+      status: response.status,
+      result: result
+    });
+    
+    if (!response.ok) {
+      console.error(`[Bedrock] API error for ${action}:`, result);
+      return { 
+        data: null, 
+        error: result.message || result.error || `API error: ${response.status}` 
+      };
     }
+    
+    return { data: result, error: null };
   } catch (error) {
-    console.error(`[Bedrock] Exception calling edge function for action ${action}:`, error);
-    return { data: null, error: error.message || 'Unknown error calling edge function' };
+    console.error(`[Bedrock] Exception during ${action}:`, error);
+    return { 
+      data: null, 
+      error: error.message || 'An unexpected error occurred' 
+    };
   }
 };
 
@@ -313,9 +337,12 @@ const listInstances = async () => {
  * @returns {Promise<{data: Object, error: string|null}>} New instance or error
  */
 const createInstance = async (modelInfo) => {
+  console.log('[Bedrock] Creating instance with parameters:', modelInfo);
+  
+  // Ensure data is properly structured
   return callEdgeFunction({
     action: 'provisionInstance',
-    data: modelInfo
+    data: modelInfo  // This is passed directly as the request body data
   });
 };
 
