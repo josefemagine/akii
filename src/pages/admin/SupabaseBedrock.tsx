@@ -65,6 +65,19 @@ type ConnectionStatus = 'unknown' | 'checking' | 'connected' | 'error';
 // Authentication status states
 type AuthStatus = 'unknown' | 'checking' | 'authenticated' | 'unauthenticated' | 'expired';
 
+// After imports, add this interface for model data
+interface FoundationModel {
+  modelId: string;
+  modelName: string;
+  modelArn: string;
+  providerName: string;
+  inputModalities: string[];
+  outputModalities: string[];
+  inferenceTypesSupported: string[];
+  customizationsSupported: string[];
+  responseStreamingSupported: boolean;
+}
+
 // Map plan to friendly display format
 function getPlanFromModelId(modelId: string): string {
   const planMap: Record<string, string> = {
@@ -220,6 +233,11 @@ const SupabaseBedrock = () => {
   // Form state
   const [selectedPlan, setSelectedPlan] = useState('starter');
   const [submitting, setSubmitting] = useState(false);
+  
+  // Models state
+  const [availableModels, setAvailableModels] = useState<FoundationModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState('');
   
   // Environment diagnostics
   const [envDiagnostics, setEnvDiagnostics] = useState<EnvironmentDiagnostics | null>(null);
@@ -498,6 +516,85 @@ const SupabaseBedrock = () => {
     }
   };
   
+  // Add fetchAvailableModels function after checkAuthStatus
+  const fetchAvailableModels = async () => {
+    if (authStatus !== 'authenticated') {
+      console.log("User must be authenticated to fetch models");
+      return;
+    }
+    
+    setLoadingModels(true);
+    setError(null);
+    
+    try {
+      console.log("Fetching available Bedrock models...");
+      const { data, error } = await BedrockClient.listFoundationModels();
+      
+      if (error) {
+        console.error("Error fetching foundation models:", error);
+        toast({
+          title: "Error loading models",
+          description: `Failed to fetch available models: ${error}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (data?.models && Array.isArray(data.models)) {
+        console.log(`Fetched ${data.models.length} foundation models`);
+        
+        // Sort models by provider and then by name
+        const sortedModels = [...data.models].sort((a, b) => {
+          // First sort by provider
+          if (a.providerName !== b.providerName) {
+            return a.providerName.localeCompare(b.providerName);
+          }
+          // Then by model name
+          return a.modelName.localeCompare(b.modelName);
+        });
+        
+        setAvailableModels(sortedModels);
+        
+        // If no model is selected yet, select the first one
+        if (!selectedModelId && sortedModels.length > 0) {
+          // Find a model matching the current plan if possible
+          const currentPlanModel = sortedModels.find(model => 
+            model.modelId === planConfig[selectedPlan as keyof typeof planConfig]?.modelId
+          );
+          
+          if (currentPlanModel) {
+            setSelectedModelId(currentPlanModel.modelId);
+          } else if (sortedModels.length > 0) {
+            setSelectedModelId(sortedModels[0].modelId);
+          }
+        }
+        
+        // If models loaded successfully, update toast
+        toast({
+          title: "Models loaded",
+          description: `Successfully loaded ${sortedModels.length} AWS Bedrock models.`
+        });
+      } else {
+        console.log("No models received from API");
+        setAvailableModels([]);
+        toast({
+          title: "No models available",
+          description: "No Bedrock models were returned by the API. Using default options.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Exception fetching foundation models:", error);
+      toast({
+        title: "Error",
+        description: `Failed to fetch models: ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+  
   // Initialize on component mount
   useEffect(() => {
     // Check authentication status on mount
@@ -505,6 +602,7 @@ const SupabaseBedrock = () => {
       if (isAuth) {
         fetchInstances();
         fetchEnvironmentDiagnostics();
+        fetchAvailableModels();
       }
     });
   }, []);
@@ -527,19 +625,24 @@ const SupabaseBedrock = () => {
         return;
       }
       
-      // Get the plan configuration
-      const plan = planConfig[selectedPlan as keyof typeof planConfig];
-      if (!plan) {
-        setError(`Invalid plan selected: ${selectedPlan}`);
+      // Get the model information
+      const modelId = selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId;
+      
+      if (!modelId) {
+        setError(`No model selected. Please select a model before provisioning.`);
         setSubmitting(false);
         return;
       }
       
+      // Set default commitment duration and model units
+      const commitmentDuration = "1m"; // 1 month commitment
+      const modelUnits = 1; // Default to 1 unit
+      
       // Create instance request
       const { data, error } = await BedrockClient.createInstance({
-        modelId: plan.modelId,
-        commitmentDuration: plan.commitmentDuration,
-        modelUnits: plan.modelUnits
+        modelId,
+        commitmentDuration,
+        modelUnits
       });
       
       if (error) {
@@ -848,19 +951,51 @@ const SupabaseBedrock = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid w-full gap-2">
-                <Label htmlFor="plan">Plan Type</Label>
-                <Select defaultValue={selectedPlan} onValueChange={setSelectedPlan}>
-                  <SelectTrigger id="plan">
-                    <SelectValue placeholder="Select a plan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="starter">Starter - Titan Text Lite</SelectItem>
-                    <SelectItem value="pro">Pro - Titan Text Express</SelectItem>
-                    <SelectItem value="business">Business - Claude Instant</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="plan">Model</Label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Select 
+                      value={selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId} 
+                      onValueChange={setSelectedModelId}
+                    >
+                      <SelectTrigger id="model">
+                        <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model"} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-80 overflow-auto">
+                        {loadingModels ? (
+                          <SelectItem value="loading" disabled>Loading available models...</SelectItem>
+                        ) : availableModels.length > 0 ? (
+                          availableModels.map((model) => (
+                            <SelectItem key={model.modelId} value={model.modelId}>
+                              {model.providerName} - {model.modelName}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <>
+                            <SelectItem value="amazon.titan-text-lite-v1">Amazon - Titan Text Lite</SelectItem>
+                            <SelectItem value="amazon.titan-text-express-v1">Amazon - Titan Text Express</SelectItem>
+                            <SelectItem value="anthropic.claude-instant-v1">Anthropic - Claude Instant</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={fetchAvailableModels} 
+                    disabled={loadingModels || authStatus !== 'authenticated'}
+                    title="Refresh model list"
+                  >
+                    {loadingModels ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  Select the AI model plan you want to provision.
+                  Select the AI model you want to provision.
                 </p>
               </div>
               
@@ -872,7 +1007,18 @@ const SupabaseBedrock = () => {
                       <span className="text-sm font-medium">Model:</span>
                     </div>
                     <div>
-                      <span className="text-sm">{planConfig[selectedPlan as keyof typeof planConfig]?.modelId || 'Unknown'}</span>
+                      <span className="text-sm">
+                        {selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId || 'None selected'}
+                      </span>
+                    </div>
+                    
+                    <div>
+                      <span className="text-sm font-medium">Provider:</span>
+                    </div>
+                    <div>
+                      <span className="text-sm">
+                        {selectedModelId ? selectedModelId.split('.')[0] : 'Unknown'}
+                      </span>
                     </div>
                     
                     <div>
@@ -886,7 +1032,7 @@ const SupabaseBedrock = () => {
                       <span className="text-sm font-medium">Model Units:</span>
                     </div>
                     <div>
-                      <span className="text-sm">{planConfig[selectedPlan as keyof typeof planConfig]?.modelUnits || 'Unknown'}</span>
+                      <span className="text-sm">1</span>
                     </div>
                   </div>
                 </div>

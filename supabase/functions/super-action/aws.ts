@@ -589,4 +589,51 @@ export async function getBedrockUsageStats(options = {}) {
       error: error instanceof Error ? error.message : String(error)
     };
   }
+}
+
+// Get all available foundation models from AWS Bedrock
+export async function listAvailableFoundationModels() {
+  try {
+    console.log(`[AWS] Listing all available foundation models from AWS Bedrock`);
+
+    // Create the client
+    const client = getBedrockClient();
+    
+    // Use ListFoundationModelsCommand to get all available models
+    console.log("[AWS] Sending ListFoundationModelsCommand");
+    const command = new ListFoundationModelsCommand({});
+    const result = await client.send(command);
+
+    console.log(`[AWS] Found ${result.modelSummaries?.length || 0} foundation models`);
+
+    // Extract and transform the model information for easier consumption
+    const models = (result.modelSummaries || []).map(model => ({
+      modelId: model.modelId || "unknown",
+      modelName: model.modelName || model.modelId?.split('.').pop() || "Unknown",
+      modelArn: model.modelArn || "",
+      providerName: model.providerName || model.modelId?.split('.')[0] || "Unknown",
+      inputModalities: model.inputModalities || [],
+      outputModalities: model.outputModalities || [],
+      inferenceTypesSupported: model.inferenceTypesSupported || [],
+      customizationsSupported: model.customizationsSupported || [],
+      responseStreamingSupported: model.responseStreamingSupported || false
+    }));
+
+    return {
+      success: true,
+      models,
+      count: models.length
+    };
+  } catch (error) {
+    console.error("[AWS] Error listing foundation models:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      details: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : String(error)
+    };
+  }
 } 

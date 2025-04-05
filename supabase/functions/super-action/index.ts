@@ -12,7 +12,8 @@ import {
   deleteProvisionedModelThroughput,
   invokeBedrockModel,
   getBedrockUsageStats,
-  verifyAwsCredentials
+  verifyAwsCredentials,
+  listAvailableFoundationModels
 } from "./aws.ts";
 
 // Import AWS SDK directly for credential testing
@@ -969,6 +970,48 @@ async function handleAwsPermissionsTest(request: Request): Promise<Response> {
   }
 }
 
+// Handle listing all available foundation models
+async function handleListFoundationModels(request: Request): Promise<Response> {
+  // Validate JWT token
+  const { user, error } = await validateJwtToken(request);
+  
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized", message: error }),
+      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    // Call AWS to list all available foundation models
+    console.log("[API] Listing all available foundation models");
+    const awsResponse = await listAvailableFoundationModels();
+    
+    if (!awsResponse.success) {
+      console.error("[API] Failed to list foundation models:", awsResponse.error);
+      return new Response(
+        JSON.stringify({
+          error: "AWS API Error",
+          message: awsResponse.error || "Failed to list foundation models from AWS Bedrock"
+        }),
+        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Return the list of models
+    return new Response(
+      JSON.stringify({ models: awsResponse.models }),
+      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("Error listing foundation models:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+}
+
 // Main handler for all requests
 serve(async (req: Request) => {
   // Handle preflight requests
@@ -1230,12 +1273,15 @@ serve(async (req: Request) => {
         console.log(`[API] Running AWS permission tests`);
         return await handleAwsPermissionsTest(req);
         
+      case "listFoundationModels":
+        return await handleListFoundationModels(req);
+        
       default:
         console.log(`[API] Unknown action: ${action}`);
         return new Response(
           JSON.stringify({ 
             error: "Invalid action", 
-            validActions: ["test", "aws-diagnostics", "aws-credential-test", "emergency-debug", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats", "verify-aws-credentials", "aws-permission-test"],
+            validActions: ["test", "aws-diagnostics", "aws-credential-test", "emergency-debug", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats", "verify-aws-credentials", "aws-permission-test", "listFoundationModels"],
             received: action
           }),
           { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }

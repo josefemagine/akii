@@ -451,6 +451,18 @@ const testAwsPermissions = async () => {
   }
 };
 
+/**
+ * Get all available foundation models from AWS Bedrock
+ * 
+ * @returns {Promise<{data: Array, error: string|null}>} Available models or error
+ */
+const listFoundationModels = async () => {
+  console.log('[Bedrock] Fetching available foundation models');
+  return callEdgeFunction({
+    action: 'listFoundationModels'
+  });
+};
+
 // Expose client functions
 export const BedrockClient = {
   // Authentication
@@ -468,7 +480,8 @@ export const BedrockClient = {
   testEnvironment,
   invokeModel,
   getUsageStats,
-  testAwsPermissions
+  testAwsPermissions,
+  listFoundationModels
 };
 
 export default BedrockClient; 
