@@ -155,12 +155,23 @@ async function handleCreateInstance(request: Request): Promise<Response> {
   }
 
   try {
-    const requestData = await request.json();
+    // Get the request data
+    let requestData;
+    try {
+      requestData = await request.json();
+    } catch (e) {
+      console.error("[API] Error parsing request JSON:", e);
+      return new Response(
+        JSON.stringify({ error: "Bad Request", message: "Invalid JSON in request body" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    
     const { modelId, commitmentDuration, modelUnits } = requestData;
 
     if (!modelId || !commitmentDuration || !modelUnits) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
+        JSON.stringify({ error: "Bad Request", message: "Missing required fields (modelId, commitmentDuration, or modelUnits)" }),
         { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
@@ -168,34 +179,58 @@ async function handleCreateInstance(request: Request): Promise<Response> {
     // Create a mock instance ID
     const mockInstanceId = `arn:aws:bedrock:${AWS_REGION}:123456789012:provisioned-model/${modelId.split('/').pop()}-${Date.now()}`;
     
-    // Store mock data in Supabase with user_id
-    const { data, error: dbError } = await supabaseClient
-      .from('bedrock_instances')
-      .insert({
-        instance_id: mockInstanceId,
-        model_id: modelId,
-        commitment_duration: commitmentDuration,
-        model_units: modelUnits,
-        status: 'CREATING',
-        created_at: new Date().toISOString(),
-        user_id: user.id  // Associate with the authenticated user
-      })
-      .select()
-      .single();
+    try {
+      // Store mock data in Supabase with user_id
+      const { data, error: dbError } = await supabaseClient
+        .from('bedrock_instances')
+        .insert({
+          instance_id: mockInstanceId,
+          model_id: modelId,
+          commitment_duration: commitmentDuration,
+          model_units: modelUnits,
+          status: 'CREATING',
+          created_at: new Date().toISOString(),
+          user_id: user.id  // Associate with the authenticated user
+        })
+        .select()
+        .single();
 
-    if (dbError) throw dbError;
+      if (dbError) {
+        console.error("[API] Database error creating instance:", dbError);
+        return new Response(
+          JSON.stringify({ 
+            error: "Database Error", 
+            message: dbError.message || "Failed to create instance in database",
+            details: dbError
+          }),
+          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
 
+      return new Response(
+        JSON.stringify({ 
+          instance: data,
+          info: "Created instance in database"
+        }),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    } catch (dbException) {
+      console.error("[API] Unexpected database exception:", dbException);
+      return new Response(
+        JSON.stringify({ 
+          error: "Database Exception", 
+          message: dbException instanceof Error ? dbException.message : String(dbException)
+        }),
+        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+  } catch (error) {
+    console.error("[API] General error creating instance:", error);
     return new Response(
       JSON.stringify({ 
-        instance: data,
-        info: "Created instance in database"
+        error: "Internal Error", 
+        message: error instanceof Error ? error.message : String(error)
       }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
-  } catch (error) {
-    console.error("Error creating instance:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }

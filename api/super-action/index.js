@@ -38,8 +38,16 @@ export default async function handler(req, res) {
   // Handle POST requests
   if (req.method === 'POST') {
     try {
+      // Ensure we have a valid body - parse it safely
+      if (!req.body) {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Missing request body'
+        });
+      }
+      
       // Get action and data from request body
-      const { action, data } = req.body || {};
+      const { action, data } = req.body;
       
       console.log(`[API] Processing action: ${action}`);
       
@@ -77,14 +85,43 @@ export default async function handler(req, res) {
         headers['apikey'] = req.headers['apikey'];
       }
 
+      // Create the request body
+      const requestBody = JSON.stringify({ action, data });
+
       // Forward the request to Supabase Edge Function
       const response = await fetch(SUPABASE_FUNCTION_URL, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action, data })
+        body: requestBody
       });
 
-      // Get response data based on content type
+      // Check for error status first
+      if (!response.ok) {
+        const errorStatus = response.status;
+        try {
+          const errorText = await response.text();
+          console.error(`[API] Error response from Supabase (${errorStatus}):`, errorText);
+          
+          // Try to parse as JSON if possible
+          try {
+            const errorJson = JSON.parse(errorText);
+            return res.status(errorStatus).json(errorJson);
+          } catch (e) {
+            // If not JSON, return as text
+            return res.status(errorStatus).json({ 
+              error: 'Edge Function Error', 
+              message: errorText || 'Unknown error'
+            });
+          }
+        } catch (e) {
+          return res.status(errorStatus).json({ 
+            error: 'Edge Function Error', 
+            message: `Status ${errorStatus}`
+          });
+        }
+      }
+
+      // For successful responses, get the response data
       let responseData;
       const contentType = response.headers.get('content-type');
       
@@ -92,18 +129,28 @@ export default async function handler(req, res) {
         responseData = await response.json();
       } else {
         responseData = await response.text();
+        
+        // Try to parse as JSON if it looks like JSON
+        if (responseData.startsWith('{') || responseData.startsWith('[')) {
+          try {
+            responseData = JSON.parse(responseData);
+          } catch (e) {
+            // Keep as text if parsing fails
+          }
+        }
       }
 
-      console.log(`[API] Response from Supabase: ${response.status}`);
+      console.log(`[API] Success response from Supabase: ${response.status}`);
       
-      // Forward the response status and data
-      return res.status(response.status).json(responseData);
+      // Forward the response data
+      return res.status(200).json(responseData);
     } catch (error) {
       console.error('[API] Error processing request:', error);
       
       return res.status(500).json({ 
         error: 'Internal Server Error', 
-        message: error.message || 'An unexpected error occurred'
+        message: error.message || 'An unexpected error occurred',
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   }
