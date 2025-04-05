@@ -1,17 +1,4 @@
 /**
- * Bedrock API Fix - Deploy this file to fix the API route
- * 
- * This script will:
- * 1. Create the necessary directory structure
- * 2. Create the API route file with the correct code
- * 3. Commit and push the changes
- */
-
-const fs = require('fs');
-const { execSync } = require('child_process');
-const path = require('path');
-
-/**
  * API Route: /api/super-action
  * 
  * This route forwards requests to the Supabase Edge Function
@@ -128,27 +115,3 @@ export default async function handler(req, res) {
     message: 'This endpoint only accepts GET and POST requests'
   });
 }
-
-// Create directory structure
-console.log('Creating directory structure...');
-const dirPath = path.join(process.cwd(), 'pages', 'api', 'super-action');
-fs.mkdirSync(dirPath, { recursive: true });
-
-// Create the API route file
-console.log('Creating API route file...');
-const filePath = path.join(dirPath, 'index.js');
-fs.writeFileSync(filePath, apiRouteCode);
-
-// Commit and push changes
-console.log('Committing and pushing changes...');
-try {
-  execSync('git add pages/api/super-action/index.js');
-  execSync('git commit -m "Add API route for Bedrock integration"');
-  execSync('git push');
-  console.log('Changes pushed successfully!');
-} catch (error) {
-  console.error('Error committing or pushing changes:', error.message);
-  console.log('You may need to manually push the changes.');
-}
-
-console.log('Done! Check your Vercel dashboard for deployment status.');
