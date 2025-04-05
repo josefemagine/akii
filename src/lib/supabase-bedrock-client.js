@@ -467,12 +467,19 @@ const testAwsPermissions = async () => {
 /**
  * Get all available foundation models from AWS Bedrock
  * 
+ * @param {Object} filters - Optional filter parameters
+ * @param {string} filters.byProvider - Filter models by provider name
+ * @param {string} filters.byOutputModality - Filter models by output modality (TEXT, IMAGE, etc.)
+ * @param {string} filters.byInputModality - Filter models by input modality
+ * @param {string} filters.byInferenceType - Filter models by inference type (ON_DEMAND, PROVISIONED)
+ * @param {string} filters.byCustomizationType - Filter models by customization type (FINE_TUNING, etc.)
  * @returns {Promise<{data: Array, error: string|null}>} Available models or error
  */
-const listFoundationModels = async () => {
-  console.log('[Bedrock] Fetching available foundation models');
+const listFoundationModels = async (filters = {}) => {
+  console.log('[Bedrock] Fetching available foundation models', filters ? 'with filters:' : '', filters);
   return callEdgeFunction({
-    action: 'listFoundationModels'
+    action: 'listFoundationModels',
+    data: filters  // Send any filters to the server
   });
 };
 

@@ -219,6 +219,46 @@ const TestModal = ({ isOpen, setIsOpen, testData }: {
   );
 };
 
+// Add interfaces for model filtering
+interface ModelFilter {
+  key: string;
+  label: string;
+  options: { value: string; label: string }[];
+}
+
+// Define the available filters
+const modelFilters: ModelFilter[] = [
+  {
+    key: 'byProvider',
+    label: 'Provider',
+    options: [
+      { value: 'amazon', label: 'Amazon' },
+      { value: 'anthropic', label: 'Anthropic' },
+      { value: 'ai21labs', label: 'AI21 Labs' },
+      { value: 'cohere', label: 'Cohere' },
+      { value: 'meta', label: 'Meta' },
+      { value: 'stability', label: 'Stability AI' }
+    ]
+  },
+  {
+    key: 'byOutputModality',
+    label: 'Output Type',
+    options: [
+      { value: 'TEXT', label: 'Text' },
+      { value: 'IMAGE', label: 'Image' },
+      { value: 'EMBEDDING', label: 'Embedding' }
+    ]
+  },
+  {
+    key: 'byInferenceType',
+    label: 'Inference Type',
+    options: [
+      { value: 'ON_DEMAND', label: 'On-Demand' },
+      { value: 'PROVISIONED', label: 'Provisioned' }
+    ]
+  }
+];
+
 // Main component
 const SupabaseBedrock = () => {
   const { toast } = useToast();
@@ -238,6 +278,10 @@ const SupabaseBedrock = () => {
   const [availableModels, setAvailableModels] = useState<FoundationModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState('');
+  
+  // Filter state
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [showFilters, setShowFilters] = useState(false);
   
   // Environment diagnostics
   const [envDiagnostics, setEnvDiagnostics] = useState<EnvironmentDiagnostics | null>(null);
@@ -527,8 +571,8 @@ const SupabaseBedrock = () => {
     setError(null);
     
     try {
-      console.log("Fetching available Bedrock models...");
-      const { data, error } = await BedrockClient.listFoundationModels();
+      console.log("Fetching available Bedrock models with filters:", activeFilters);
+      const { data, error } = await BedrockClient.listFoundationModels(activeFilters);
       
       if (error) {
         console.error("Error fetching foundation models:", error);
@@ -572,7 +616,7 @@ const SupabaseBedrock = () => {
         // If models loaded successfully, update toast
         toast({
           title: "Models loaded",
-          description: `Successfully loaded ${sortedModels.length} AWS Bedrock models.`
+          description: `Successfully loaded ${sortedModels.length} AWS Bedrock models${Object.keys(activeFilters).length > 0 ? ' with filters' : ''}.`
         });
       } else {
         console.log("No models received from API");
@@ -597,7 +641,6 @@ const SupabaseBedrock = () => {
   
   // Initialize on component mount
   useEffect(() => {
-    // Check authentication status on mount
     checkAuthStatus().then(isAuth => {
       if (isAuth) {
         fetchInstances();
@@ -606,6 +649,14 @@ const SupabaseBedrock = () => {
       }
     });
   }, []);
+  
+  // Effect to fetch models when filters change
+  useEffect(() => {
+    // Only refetch if we're already authenticated and not in the initial loading state
+    if (authStatus === 'authenticated' && !loading) {
+      fetchAvailableModels();
+    }
+  }, [activeFilters]);  // This will trigger a fetch whenever filters change
   
   // Create a new Bedrock instance
   const handleProvisionInstance = async () => {
@@ -810,6 +861,85 @@ const SupabaseBedrock = () => {
     </Card>
   );
   
+  // Create a component for model filters
+  const ModelFilters = () => {
+    const handleFilterChange = (filterKey: string, value: string) => {
+      setActiveFilters(prev => {
+        // If value is empty, remove the filter
+        if (!value) {
+          const newFilters = { ...prev };
+          delete newFilters[filterKey];
+          return newFilters;
+        }
+        // Otherwise set the new filter value
+        return { ...prev, [filterKey]: value };
+      });
+    };
+
+    const clearFilters = () => {
+      setActiveFilters({});
+    };
+
+    return (
+      <div className="p-4 border rounded-md mb-4">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium">Filter Models</h3>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={clearFilters}
+            disabled={Object.keys(activeFilters).length === 0}
+          >
+            Clear Filters
+          </Button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {modelFilters.map(filter => (
+            <div key={filter.key} className="space-y-2">
+              <Label htmlFor={filter.key}>{filter.label}</Label>
+              <Select
+                value={activeFilters[filter.key] || ''}
+                onValueChange={(value) => handleFilterChange(filter.key, value)}
+              >
+                <SelectTrigger id={filter.key}>
+                  <SelectValue placeholder={`All ${filter.label}s`} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All {filter.label}s</SelectItem>
+                  {filter.options.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+        </div>
+        
+        <div className="mt-4 flex justify-end">
+          <Button 
+            onClick={() => fetchAvailableModels()} 
+            disabled={loadingModels}
+          >
+            {loadingModels ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Apply Filters
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+  
   // Render loading state
   if (loading && !refreshing) {
     return (
@@ -950,6 +1080,15 @@ const SupabaseBedrock = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-md font-medium">Model Selection</h3>
+                <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+                  {showFilters ? 'Hide Filters' : 'Show Filters'}
+                </Button>
+              </div>
+              
+              {showFilters && <ModelFilters />}
+              
               <div className="grid w-full gap-2">
                 <Label htmlFor="plan">Model</Label>
                 <div className="flex gap-2">
@@ -994,9 +1133,16 @@ const SupabaseBedrock = () => {
                     )}
                   </Button>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Select the AI model you want to provision.
-                </p>
+                <div className="text-sm text-muted-foreground flex justify-between">
+                  <span>Select the AI model you want to provision.</span>
+                  <span>
+                    {availableModels.length > 0 ? (
+                      <>Showing {availableModels.length} model{availableModels.length !== 1 ? 's' : ''}</>
+                    ) : !loadingModels ? (
+                      <>No models found</>
+                    ) : null}
+                  </span>
+                </div>
               </div>
               
               <div className="grid w-full gap-2">
@@ -1020,6 +1166,28 @@ const SupabaseBedrock = () => {
                         {selectedModelId ? selectedModelId.split('.')[0] : 'Unknown'}
                       </span>
                     </div>
+                    
+                    {selectedModelId && availableModels.length > 0 && (
+                      <>
+                        <div>
+                          <span className="text-sm font-medium">Input Types:</span>
+                        </div>
+                        <div>
+                          <span className="text-sm">
+                            {availableModels.find(m => m.modelId === selectedModelId)?.inputModalities?.join(', ') || 'Not specified'}
+                          </span>
+                        </div>
+                        
+                        <div>
+                          <span className="text-sm font-medium">Output Types:</span>
+                        </div>
+                        <div>
+                          <span className="text-sm">
+                            {availableModels.find(m => m.modelId === selectedModelId)?.outputModalities?.join(', ') || 'Not specified'}
+                          </span>
+                        </div>
+                      </>
+                    )}
                     
                     <div>
                       <span className="text-sm font-medium">Commitment:</span>

@@ -1003,9 +1003,32 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
   }
 
   try {
-    // Call AWS to list all available foundation models
-    console.log("[API] Listing all available foundation models");
-    const awsResponse = await listAvailableFoundationModels();
+    // Parse request data to get any filter parameters
+    let requestBody;
+    try {
+      requestBody = await request.json();
+    } catch (e) {
+      // If no JSON body or parsing failed, we'll proceed without filters
+      console.log("[API] No filter parameters provided in request body");
+      requestBody = {};
+    }
+    
+    // Extract filter parameters from the request data
+    const filters: any = {};
+    const data = requestBody.data || requestBody;
+    
+    // Check for each possible filter
+    if (data.byProvider) filters.byProvider = data.byProvider;
+    if (data.byOutputModality) filters.byOutputModality = data.byOutputModality;
+    if (data.byInputModality) filters.byInputModality = data.byInputModality;
+    if (data.byInferenceType) filters.byInferenceType = data.byInferenceType;
+    if (data.byCustomizationType) filters.byCustomizationType = data.byCustomizationType;
+    
+    // Call AWS to list all available foundation models with optional filters
+    console.log("[API] Listing foundation models with filters:", filters);
+    const awsResponse = await listAvailableFoundationModels(
+      Object.keys(filters).length > 0 ? filters : undefined
+    );
     
     if (!awsResponse.success) {
       console.error("[API] Failed to list foundation models:", awsResponse.error);
@@ -1018,9 +1041,13 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
       );
     }
     
-    // Return the list of models
+    // Return the list of models along with applied filters
     return new Response(
-      JSON.stringify({ models: awsResponse.models }),
+      JSON.stringify({ 
+        models: awsResponse.models,
+        appliedFilters: awsResponse.appliedFilters,
+        totalCount: awsResponse.count
+      }),
       { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {

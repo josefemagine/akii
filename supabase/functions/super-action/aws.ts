@@ -591,17 +591,48 @@ export async function getBedrockUsageStats(options = {}) {
   }
 }
 
+// Interface for filter options
+export interface ModelFilters {
+  byProvider?: string;
+  byOutputModality?: string;
+  byInputModality?: string;
+  byInferenceType?: string;
+  byCustomizationType?: string;
+}
+
 // Get all available foundation models from AWS Bedrock
-export async function listAvailableFoundationModels() {
+export async function listAvailableFoundationModels(filters?: ModelFilters) {
   try {
-    console.log(`[AWS] Listing all available foundation models from AWS Bedrock`);
+    console.log(`[AWS] Listing all available foundation models from AWS Bedrock`, filters ? `with filters: ${JSON.stringify(filters)}` : "");
 
     // Create the client
     const client = getBedrockClient();
     
+    // Create command with optional filters
+    const commandParams: any = {};
+    
+    // Apply filters if provided
+    if (filters) {
+      if (filters.byProvider) {
+        commandParams.byProvider = filters.byProvider;
+      }
+      if (filters.byOutputModality) {
+        commandParams.byOutputModality = filters.byOutputModality;
+      }
+      if (filters.byInputModality) {
+        commandParams.byInputModality = filters.byInputModality;
+      }
+      if (filters.byInferenceType) {
+        commandParams.byInferenceType = filters.byInferenceType;
+      }
+      if (filters.byCustomizationType) {
+        commandParams.byCustomizationType = filters.byCustomizationType;
+      }
+    }
+    
     // Use ListFoundationModelsCommand to get all available models
-    console.log("[AWS] Sending ListFoundationModelsCommand");
-    const command = new ListFoundationModelsCommand({});
+    console.log("[AWS] Sending ListFoundationModelsCommand with params:", commandParams);
+    const command = new ListFoundationModelsCommand(commandParams);
     const result = await client.send(command);
 
     console.log(`[AWS] Found ${result.modelSummaries?.length || 0} foundation models`);
@@ -622,7 +653,8 @@ export async function listAvailableFoundationModels() {
     return {
       success: true,
       models,
-      count: models.length
+      count: models.length,
+      appliedFilters: filters || {}
     };
   } catch (error) {
     console.error("[AWS] Error listing foundation models:", error);
