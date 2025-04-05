@@ -1007,6 +1007,7 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
     let requestBody;
     try {
       requestBody = await request.json();
+      console.log("[API] Received listFoundationModels request:", requestBody);
     } catch (e) {
       // If no JSON body or parsing failed, we'll proceed without filters
       console.log("[API] No filter parameters provided in request body");
@@ -1015,7 +1016,12 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
     
     // Extract filter parameters from the request data
     const filters: any = {};
-    const data = requestBody.data || requestBody;
+    // Handle both direct data properties and nested data object for backwards compatibility
+    const data = (requestBody.data && typeof requestBody.data === 'object') 
+      ? requestBody.data 
+      : requestBody;
+    
+    console.log("[API] Extracting filters from data:", data);
     
     // Check for each possible filter
     if (data.byProvider) filters.byProvider = data.byProvider;
@@ -1078,7 +1084,11 @@ serve(async (req: Request) => {
       // Extract action and data from the request body
       if (typeof requestBody === 'object') {
         action = requestBody.action || "";
-        data = requestBody.data || {};
+        // Handle both nested and flat data structures
+        data = requestBody.data !== undefined ? requestBody.data : {};
+        
+        // Log the extracted action and data
+        console.log(`[API] Extracted action: ${action}, data:`, data);
       }
     } catch (error) {
       console.error("[API] Error parsing request body:", error);

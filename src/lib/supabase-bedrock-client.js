@@ -267,7 +267,7 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
     // Create the properly structured request body
     const requestBody = {
       action: action,
-      ...data  // This was spreading data at the top level, causing field name conflicts
+      data: data  // Properly nest data under the data key instead of spreading it
     };
     
     // Log complete request details
@@ -476,10 +476,21 @@ const testAwsPermissions = async () => {
  * @returns {Promise<{data: Array, error: string|null}>} Available models or error
  */
 const listFoundationModels = async (filters = {}) => {
-  console.log('[Bedrock] Fetching available foundation models', filters ? 'with filters:' : '', filters);
+  console.log('[Bedrock] Fetching available foundation models', Object.keys(filters).length > 0 ? `with filters: ${JSON.stringify(filters)}` : 'with no filters');
+  
+  // Validate filters to ensure they're properly formatted
+  const validatedFilters = {};
+  
+  // Only include defined filter values
+  if (filters.byProvider) validatedFilters.byProvider = filters.byProvider;
+  if (filters.byOutputModality) validatedFilters.byOutputModality = filters.byOutputModality;
+  if (filters.byInputModality) validatedFilters.byInputModality = filters.byInputModality;
+  if (filters.byInferenceType) validatedFilters.byInferenceType = filters.byInferenceType;
+  if (filters.byCustomizationType) validatedFilters.byCustomizationType = filters.byCustomizationType;
+  
   return callEdgeFunction({
     action: 'listFoundationModels',
-    data: filters  // Send any filters to the server
+    data: validatedFilters
   });
 };
 
