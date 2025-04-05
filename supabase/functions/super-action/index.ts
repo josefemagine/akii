@@ -156,9 +156,9 @@ async function handleCreateInstance(request: Request): Promise<Response> {
 
   try {
     // Get the request data
-    let requestData;
+    let requestBody;
     try {
-      requestData = await request.json();
+      requestBody = await request.json();
     } catch (e) {
       console.error("[API] Error parsing request JSON:", e);
       return new Response(
@@ -167,11 +167,19 @@ async function handleCreateInstance(request: Request): Promise<Response> {
       );
     }
     
+    // Extract the data payload - could be directly in requestBody or in requestBody.data
+    const requestData = requestBody.data || requestBody;
+    console.log("[API] Request data for provisionInstance:", requestData);
+    
     const { modelId, commitmentDuration, modelUnits } = requestData;
 
     if (!modelId || !commitmentDuration || !modelUnits) {
       return new Response(
-        JSON.stringify({ error: "Bad Request", message: "Missing required fields (modelId, commitmentDuration, or modelUnits)" }),
+        JSON.stringify({ 
+          error: "Bad Request", 
+          message: "Missing required fields (modelId, commitmentDuration, or modelUnits)",
+          receivedData: requestData
+        }),
         { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
@@ -249,12 +257,26 @@ async function handleDeleteInstance(request: Request): Promise<Response> {
   }
 
   try {
-    const requestData = await request.json();
+    let requestBody;
+    try {
+      requestBody = await request.json();
+    } catch (e) {
+      console.error("[API] Error parsing request JSON:", e);
+      return new Response(
+        JSON.stringify({ error: "Bad Request", message: "Invalid JSON in request body" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Extract the data payload - could be directly in requestBody or in requestBody.data
+    const requestData = requestBody.data || requestBody;
+    console.log("[API] Request data for deleteInstance:", requestData);
+    
     const { instanceId } = requestData;
 
     if (!instanceId) {
       return new Response(
-        JSON.stringify({ error: "Missing instanceId" }),
+        JSON.stringify({ error: "Missing instanceId", receivedData: requestData }),
         { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
