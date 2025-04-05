@@ -314,16 +314,45 @@ serve(async (request: Request) => {
   const url = new URL(request.url);
   
   try {
+    console.log(`[super-action] Received ${request.method} request to ${url.pathname}`);
+    
+    // Clone the request for debugging
+    const requestClone = request.clone();
+    
     // For POST requests that use the action parameter
     if (request.method === "POST") {
-      // Try to parse the request body
+      // Try to parse the request body with enhanced error handling
       let requestBody;
+      let requestText;
+      
       try {
-        requestBody = await request.json();
+        // First get the raw text for debugging
+        requestText = await requestClone.text();
+        console.log(`[super-action] Raw request body: ${requestText.substring(0, 200)}${requestText.length > 200 ? '...' : ''}`);
+        
+        // Now try to parse it
+        try {
+          requestBody = JSON.parse(requestText);
+        } catch (jsonError) {
+          console.error("[super-action] JSON parse error:", jsonError);
+          return new Response(
+            JSON.stringify({ 
+              error: "Bad Request", 
+              message: "Invalid JSON in request body",
+              details: String(jsonError),
+              receivedText: requestText.substring(0, 100) 
+            }),
+            { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          );
+        }
       } catch (error) {
-        console.error("Error parsing request body:", error);
+        console.error("[super-action] Error reading request body:", error);
         return new Response(
-          JSON.stringify({ error: "Invalid JSON in request body" }),
+          JSON.stringify({ 
+            error: "Bad Request", 
+            message: "Failed to read request body",
+            details: String(error)
+          }),
           { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
@@ -338,23 +367,35 @@ serve(async (request: Request) => {
         );
       }
       
-      console.log(`[super-action] Processing action: ${action}`);
+      console.log(`[super-action] Processing action: ${action}`, data);
       
       // Route based on action parameter
-      switch (action) {
-        case "testEnvironment":
-          return await handleTestEnv(request);
-        case "listInstances":
-          return await handleGetInstances(request);
-        case "provisionInstance":
-          return await handleCreateInstance(request);
-        case "deleteInstance":
-          return await handleDeleteInstance(request);
-        default:
-          return new Response(
-            JSON.stringify({ error: `Unknown action: ${action}` }),
-            { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-          );
+      try {
+        switch (action) {
+          case "testEnvironment":
+            return await handleTestEnv(request);
+          case "listInstances":
+            return await handleGetInstances(request);
+          case "provisionInstance":
+            return await handleCreateInstance(request);
+          case "deleteInstance":
+            return await handleDeleteInstance(request);
+          default:
+            return new Response(
+              JSON.stringify({ error: `Unknown action: ${action}` }),
+              { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+        }
+      } catch (actionError) {
+        console.error(`[super-action] Error processing ${action}:`, actionError);
+        return new Response(
+          JSON.stringify({ 
+            error: "Action Processing Error", 
+            message: actionError instanceof Error ? actionError.message : String(actionError),
+            action: action
+          }),
+          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
       }
     }
     

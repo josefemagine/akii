@@ -46,10 +46,32 @@ export default async function handler(req, res) {
         });
       }
       
-      // Get action and data from request body
-      const { action, data } = req.body;
+      // Log what we received
+      console.log('[API] Request body type:', typeof req.body);
       
-      console.log(`[API] Processing action: ${action}`);
+      // Get action and data from request body
+      let action, data;
+      
+      // Handle different body formats
+      if (typeof req.body === 'string') {
+        try {
+          const parsedBody = JSON.parse(req.body);
+          action = parsedBody.action;
+          data = parsedBody.data;
+        } catch (e) {
+          console.error('[API] Failed to parse string body:', e);
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: 'Invalid JSON string in request body'
+          });
+        }
+      } else {
+        // Assume it's already an object
+        action = req.body.action;
+        data = req.body.data;
+      }
+      
+      console.log(`[API] Processing action: ${action}`, data);
       
       // Validate required parameters
       if (!action) {
