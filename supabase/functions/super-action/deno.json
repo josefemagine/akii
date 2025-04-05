@@ -7,5 +7,10 @@
     "allowJs": true,
     "lib": ["deno.window"],
     "strict": true
+  },
+  "imports": {
+    "@aws-sdk/client-bedrock": "npm:@aws-sdk/client-bedrock@3.485.0",
+    "@aws-sdk/client-bedrock-runtime": "npm:@aws-sdk/client-bedrock-runtime@3.485.0",
+    "@aws-sdk/credential-providers": "npm:@aws-sdk/credential-providers@3.485.0"
   }
 } 
