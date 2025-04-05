@@ -17,22 +17,30 @@ import {
 
 // Initialize the Bedrock and BedrockRuntime clients
 function getBedrockClient() {
+  console.log("[AWS] Initializing Bedrock client with region:", CONFIG.AWS_REGION);
+  
+  // Create client with explicit credentials
   return new BedrockClient({
     region: CONFIG.AWS_REGION,
     credentials: {
       accessKeyId: CONFIG.AWS_ACCESS_KEY_ID,
       secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY
-    }
+    },
+    maxAttempts: 3 // Add retry logic
   });
 }
 
 function getBedrockRuntimeClient() {
+  console.log("[AWS] Initializing BedrockRuntime client with region:", CONFIG.AWS_REGION);
+  
+  // Create client with explicit credentials
   return new BedrockRuntimeClient({
     region: CONFIG.AWS_REGION,
     credentials: {
       accessKeyId: CONFIG.AWS_ACCESS_KEY_ID,
       secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY
-    }
+    },
+    maxAttempts: 3 // Add retry logic
   });
 }
 
@@ -72,28 +80,43 @@ export async function createProvisionedModelThroughput(params: {
 // List provisioned models
 export async function listProvisionedModelThroughputs() {
   try {
-    console.log(`[AWS] Listing provisioned models`);
+    console.log(`[AWS] Listing provisioned models with client config: region=${CONFIG.AWS_REGION}`);
 
+    // Log credentials state (but not the actual values)
+    console.log(`[AWS] Access Key ID status: ${CONFIG.AWS_ACCESS_KEY_ID ? 'provided' : 'missing'} (${typeof CONFIG.AWS_ACCESS_KEY_ID})`);
+    console.log(`[AWS] Secret Access Key status: ${CONFIG.AWS_SECRET_ACCESS_KEY ? 'provided' : 'missing'} (${typeof CONFIG.AWS_SECRET_ACCESS_KEY})`);
+
+    // Create the client 
     const client = getBedrockClient();
-    const command = new ListFoundationModelsCommand({});
-    const result = await client.send(command);
+    
+    try {
+      // Use a simpler command first to test connectivity
+      console.log("[AWS] Sending ListFoundationModelsCommand");
+      const command = new ListFoundationModelsCommand({});
+      const result = await client.send(command);
 
-    // Map the result to our expected format
-    const instances = result.modelSummaries?.map(model => ({
-      provisionedModelArn: model.modelArn,
-      modelId: model.modelId,
-      provisionedModelStatus: "ACTIVE",
-      provisionedThroughput: {
-        commitmentDuration: "1m",
-        provisionedModelThroughput: 1
-      },
-      creationTime: new Date().toISOString()
-    })) || [];
+      console.log(`[AWS] Got result: ${result.modelSummaries?.length || 0} models found`);
 
-    return {
-      success: true,
-      instances: instances
-    };
+      // Map the result to our expected format
+      const instances = result.modelSummaries?.map(model => ({
+        provisionedModelArn: model.modelArn || `arn:aws:bedrock:${CONFIG.AWS_REGION}:model/${model.modelId}`,
+        modelId: model.modelId || "unknown",
+        provisionedModelStatus: "ACTIVE",
+        provisionedThroughput: {
+          commitmentDuration: "1m",
+          provisionedModelThroughput: 1
+        },
+        creationTime: new Date().toISOString()
+      })) || [];
+
+      return {
+        success: true,
+        instances: instances
+      };
+    } catch (error) {
+      console.error("[AWS] Error sending command:", error);
+      throw error;
+    }
   } catch (error) {
     console.error("[AWS] Error listing provisioned models:", error);
     return {

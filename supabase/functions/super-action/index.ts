@@ -109,6 +109,70 @@ async function handleTestEnv(request: Request): Promise<Response> {
   }
 }
 
+// Handle AWS diagnostics endpoint
+async function handleAwsDiagnostics(request: Request): Promise<Response> {
+  // Validate JWT token
+  const { user, error } = await validateJwtToken(request);
+  
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized", message: error }),
+      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    // Return AWS diagnostic information
+    const awsKeys = {
+      region: CONFIG.AWS_REGION,
+      accessKeyId: CONFIG.AWS_ACCESS_KEY_ID ? `${CONFIG.AWS_ACCESS_KEY_ID.substring(0, 4)}...${CONFIG.AWS_ACCESS_KEY_ID.slice(-4)}` : 'missing',
+      secretKeyPresent: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+      secretKeyLength: CONFIG.AWS_SECRET_ACCESS_KEY ? CONFIG.AWS_SECRET_ACCESS_KEY.length : 0
+    };
+    
+    console.log("[API] AWS diagnostics requested, keys info:", awsKeys);
+    
+    // Test AWS connectivity with a simple call
+    console.log("[API] Testing AWS connectivity...");
+    try {
+      const listResult = await listProvisionedModelThroughputs();
+      return new Response(
+        JSON.stringify({
+          diagnostics: {
+            aws: awsKeys,
+            connectionTest: {
+              success: listResult.success,
+              error: listResult.error || null,
+              modelsCount: listResult.instances?.length || 0
+            }
+          }
+        }),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    } catch (error) {
+      console.error("[API] AWS connectivity test failed:", error);
+      return new Response(
+        JSON.stringify({
+          diagnostics: {
+            aws: awsKeys,
+            connectionTest: {
+              success: false,
+              error: error instanceof Error ? error.message : String(error)
+            }
+          }
+        }),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+  } catch (error) {
+    console.error("Error handling AWS diagnostics request:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+}
+
 // Get all Bedrock model throughput instances
 async function handleGetInstances(request: Request): Promise<Response> {
   // Validate JWT token
@@ -588,127 +652,150 @@ function handleOptionsRequest(request: Request): Response {
   });
 }
 
-// Main request handler
-serve(async (request: Request) => {
-  // Handle OPTIONS requests first (CORS preflight)
-  if (request.method === "OPTIONS") {
-    return handleOptionsRequest(request);
+// Get a specific Bedrock model throughput instance
+async function handleGetInstance(request: Request): Promise<Response> {
+  // Implementation for getting a specific instance
+  // Validate JWT token
+  const { user, error } = await validateJwtToken(request);
+  
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized", message: error }),
+      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
   }
 
-  const url = new URL(request.url);
-  
   try {
-    console.log(`[super-action] Received ${request.method} request to ${url.pathname}`);
-    
-    // Clone the request for debugging
-    const requestClone = request.clone();
-    
-    // For POST requests that use the action parameter
-    if (request.method === "POST") {
-      // Try to parse the request body with enhanced error handling
-      let requestBody;
-      let requestText;
-      
-      try {
-        // First get the raw text for debugging
-        requestText = await requestClone.text();
-        console.log(`[super-action] Raw request body: ${requestText.substring(0, 200)}${requestText.length > 200 ? '...' : ''}`);
-        
-        // Now try to parse it
-        try {
-          requestBody = JSON.parse(requestText);
-        } catch (jsonError) {
-          console.error("[super-action] JSON parse error:", jsonError);
-          return new Response(
-            JSON.stringify({ 
-              error: "Bad Request", 
-              message: "Invalid JSON in request body",
-              details: String(jsonError),
-              receivedText: requestText.substring(0, 100) 
-            }),
-            { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-          );
-        }
-      } catch (error) {
-        console.error("[super-action] Error reading request body:", error);
-        return new Response(
-          JSON.stringify({ 
-            error: "Bad Request", 
-            message: "Failed to read request body",
-            details: String(error)
-          }),
-          { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-        );
-      }
+    // Get the instance ID from the request
+    let instanceId;
+    try {
+      const body = await request.json();
+      instanceId = body.instanceId || body.instance_id;
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: "Bad Request", message: "Invalid JSON or missing instanceId" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
 
-      // Check if we have an action parameter
-      const { action, data } = requestBody;
-      
-      if (!action) {
-        return new Response(
-          JSON.stringify({ error: "Missing required 'action' parameter" }),
-          { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-        );
-      }
-      
-      console.log(`[super-action] Processing action: ${action}`, data);
-      
-      // Route based on action parameter
-      try {
-        switch (action) {
-          case "testEnvironment":
-            return await handleTestEnv(request);
-          case "listInstances":
-            return await handleGetInstances(request);
-          case "provisionInstance":
-            return await handleCreateInstance(request);
-          case "deleteInstance":
-            return await handleDeleteInstance(request);
-          case "invokeModel":
-            return await handleInvokeModel(request);
-          case "getUsageStats":
-            return await handleGetUsageStats(request);
-          default:
-            return new Response(
-              JSON.stringify({ error: `Unknown action: ${action}` }),
-              { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-            );
-        }
-      } catch (actionError) {
-        console.error(`[super-action] Error processing ${action}:`, actionError);
-        return new Response(
-          JSON.stringify({ 
-            error: "Action Processing Error", 
-            message: actionError instanceof Error ? actionError.message : String(actionError),
-            action: action
-          }),
-          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-        );
-      }
+    if (!instanceId) {
+      return new Response(
+        JSON.stringify({ error: "Bad Request", message: "Missing instanceId parameter" }),
+        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get instance details from AWS
+    const awsResponse = await getProvisionedModelThroughput(instanceId);
+    
+    if (!awsResponse.success) {
+      throw new Error(awsResponse.error || "Failed to get instance from AWS Bedrock");
     }
     
-    // Legacy routing based on URL path for backward compatibility
-    if (url.pathname.endsWith("/test-env")) {
-      return await handleTestEnv(request);
-    } else if (url.pathname.endsWith("/instances") && request.method === "GET") {
-      return await handleGetInstances(request);
-    } else if (url.pathname.endsWith("/provision-instance") && request.method === "POST") {
-      return await handleCreateInstance(request);
-    } else if (url.pathname.endsWith("/delete-instance") && request.method === "DELETE") {
-      return await handleDeleteInstance(request);
+    // Get instance metadata from database
+    const { data: dbInstance, error: dbError } = await supabaseClient
+      .from('bedrock_instances')
+      .select('*')
+      .eq('instance_id', instanceId)
+      .eq('user_id', user.id)
+      .single();
+      
+    if (dbError && dbError.code !== 'PGRST116') { // PGRST116 is "not found" which is fine
+      throw dbError;
     }
     
-    // Return 404 for unknown routes
+    // Combine AWS and DB data
+    const instance = {
+      id: dbInstance?.id || null,
+      instance_id: instanceId,
+      model_id: awsResponse.instance?.modelId || null,
+      status: awsResponse.instance?.provisionedModelStatus || "UNKNOWN",
+      model_units: awsResponse.instance?.provisionedThroughput?.provisionedModelThroughput || 0,
+      commitment_duration: awsResponse.instance?.provisionedThroughput?.commitmentDuration || null,
+      created_at: dbInstance?.created_at || awsResponse.instance?.creationTime || null,
+      user_id: user.id
+    };
+    
     return new Response(
-      JSON.stringify({ error: "Not Found", message: "Endpoint not found or method not allowed" }),
-      { status: 404, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      JSON.stringify({ instance }),
+      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Unhandled error in request processing:", error);
+    console.error("Error getting instance details:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+}
+
+// Main handler for all requests
+serve(async (req: Request) => {
+  // Handle preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: CORS_HEADERS });
+  }
+  
+  // Extract action from request - can be in URL or body
+  const url = new URL(req.url);
+  let action = url.searchParams.get("action") || '';
+  
+  // If there's no action in the URL params, try to get it from body
+  if (!action) {
+    try {
+      // Clone the request to read the body without consuming it
+      const clonedReq = req.clone();
+      const body = await clonedReq.json();
+      action = body.action || '';
+    } catch (e) {
+      // If there's an error parsing the body, we'll proceed with empty action
+      console.log("[API] Error parsing request JSON:", e);
+    }
+  }
+  
+  console.log(`[API] Processing request for action: ${action}`);
+  
+  try {
+    // Route the request based on action
+    switch (action) {
+      case "test":
+        return await handleTestEnv(req);
+        
+      case "aws-diagnostics":
+        return await handleAwsDiagnostics(req);
+        
+      case "listInstances":
+        return await handleGetInstances(req);
+        
+      case "createInstance":
+        return await handleCreateInstance(req);
+        
+      case "deleteInstance":
+        return await handleDeleteInstance(req);
+        
+      case "getInstance":
+        return await handleGetInstance(req);
+        
+      case "invokeModel":
+        return await handleInvokeModel(req);
+        
+      case "getUsageStats":
+        return await handleGetUsageStats(req);
+        
+      default:
+        console.log(`[API] Unknown action: ${action}`);
+        return new Response(
+          JSON.stringify({ error: "Invalid action", validActions: ["test", "aws-diagnostics", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats"] }),
+          { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+    }
+  } catch (error) {
+    console.error(`[API] Unhandled error processing request for action ${action}:`, error);
     return new Response(
       JSON.stringify({ 
-        error: "Internal Server Error", 
-        message: error instanceof Error ? error.message : String(error)
+        error: "Internal server error", 
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       }),
       { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
