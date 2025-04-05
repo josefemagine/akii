@@ -1,8 +1,11 @@
 {
-  "name": "api",
+  "name": "akii-api",
   "version": "1.0.0",
-  "description": "API functions for Vercel",
+  "description": "API functions for Akii",
   "type": "module",
+  "engines": {
+    "node": ">=18.x"
+  },
   "main": "index.js",
   "author": "",
   "license": "UNLICENSED",

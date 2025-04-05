@@ -1,5 +1,5 @@
 // Simple health check API for Vercel functions
-module.exports = (req, res) => {
+export default function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -16,4 +16,4 @@ module.exports = (req, res) => {
     message: 'API is working',
     timestamp: new Date().toISOString()
   });
-}; 
+} 

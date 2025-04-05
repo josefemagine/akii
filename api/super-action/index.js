@@ -16,7 +16,7 @@ const CORS_HEADERS = {
  * Main handler function for the API route
  * Compatible with Vercel serverless functions
  */
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // Set CORS headers for all responses
   Object.entries(CORS_HEADERS).forEach(([key, value]) => {
     res.setHeader(key, value);
@@ -113,4 +113,4 @@ module.exports = async (req, res) => {
     error: 'Method Not Allowed',
     message: 'This endpoint only accepts GET and POST requests'
   });
-}; 
+} 
