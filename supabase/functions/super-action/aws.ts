@@ -165,35 +165,69 @@ export async function createProvisionedModelThroughput(params: {
       commitmentDurationEnum = CommitmentDuration.ONE_MONTH;
     }
     
-    console.log(`[AWS] Using CreateProvisionedModelThroughputCommand with params:`, {
+    // For debugging purposes, log the exact parameters we're using
+    console.log(`[AWS] Creating provisioned model with params:`, {
       modelId: params.modelId,
       provisionedModelName: modelName,
       commitmentDuration: commitmentDurationEnum,
       modelUnits: params.modelUnits
     });
     
-    // Create the command with the required parameters
-    const command = new CreateProvisionedModelThroughputCommand({
-      modelId: params.modelId,
-      provisionedModelName: modelName,
-      commitmentDuration: commitmentDurationEnum,
-      modelUnits: params.modelUnits
-    });
+    // Debug the command constructor
+    console.log("[AWS] Command class:", CreateProvisionedModelThroughputCommand.name);
     
-    // Send the command
-    const result = await client.send(command);
-    console.log(`[AWS] Created provisioned model:`, result);
-    
-    return {
-      success: true,
-      instance: {
+    try {
+      // Create and send the command explicitly
+      const command = new CreateProvisionedModelThroughputCommand({
         modelId: params.modelId,
-        commitmentDuration: params.commitmentDuration,
-        provisionedModelThroughput: params.modelUnits,
-        provisionedModelArn: result.provisionedModelArn || ''
-      },
-      instance_id: result.provisionedModelArn || ''
-    };
+        provisionedModelName: modelName,
+        commitmentDuration: commitmentDurationEnum,
+        modelUnits: params.modelUnits
+      });
+      
+      console.log("[AWS] Command created, sending to AWS");
+      const result = await client.send(command);
+      
+      console.log(`[AWS] Created provisioned model:`, result);
+      
+      return {
+        success: true,
+        instance: {
+          modelId: params.modelId,
+          commitmentDuration: params.commitmentDuration,
+          provisionedModelThroughput: params.modelUnits,
+          provisionedModelArn: result.provisionedModelArn || ''
+        },
+        instance_id: result.provisionedModelArn || ''
+      };
+    } catch (commandError) {
+      console.error("[AWS] Error executing CreateProvisionedModelThroughputCommand:", commandError);
+      
+      // Try a fallback approach if the command fails
+      // This is a temporary solution until we resolve the API compatibility issue
+      console.log("[AWS] Attempting fallback approach with direct client method");
+      
+      // @ts-ignore - Using direct method call as fallback
+      const result = await client.createProvisionedModelThroughput({
+        modelId: params.modelId,
+        provisionedModelName: modelName,
+        commitmentDuration: commitmentDurationEnum, 
+        modelUnits: params.modelUnits
+      });
+      
+      console.log(`[AWS] Created provisioned model with fallback:`, result);
+      
+      return {
+        success: true,
+        instance: {
+          modelId: params.modelId,
+          commitmentDuration: params.commitmentDuration,
+          provisionedModelThroughput: params.modelUnits,
+          provisionedModelArn: result.provisionedModelArn || ''
+        },
+        instance_id: result.provisionedModelArn || ''
+      };
+    }
   } catch (error) {
     console.error("[AWS] Error creating provisioned model:", error);
     return {
