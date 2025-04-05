@@ -72,8 +72,8 @@ const getEdgeFunctionUrl = () => {
     return import.meta.env.VITE_BEDROCK_API_URL;
   }
   
-  // Fallback to the Supabase project URL (which we can see from the error logs)
-  return 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action';
+  // For production, use the API route at /api/super-action
+  return '/api/super-action';
 };
 
 /**

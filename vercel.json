@@ -1,9 +1,7 @@
 {
   "rewrites": [
-    { "source": "/api/super-action-test", "destination": "/api/super-action-test" },
+    { "source": "/api/super-action", "destination": "/api/super-action" },
     { "source": "/api/health", "destination": "/api/health" },
-    { "source": "/api/super-action", "destination": "/api/super-action/index" },
-    { "source": "/api/super-action/(.*)", "destination": "/api/super-action/$1" },
     { "source": "/api/bedrock", "destination": "/api/bedrock-next" },
     { "source": "/api/bedrock/instances", "destination": "/api/bedrock-next/instances" },
     { "source": "/api/bedrock/provision-instance", "destination": "/api/bedrock-next/provision-instance" },
