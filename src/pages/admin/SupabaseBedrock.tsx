@@ -341,10 +341,9 @@ const SupabaseBedrock = () => {
       
       // Create instance request
       const { data, error } = await BedrockClient.createInstance({
-        model_id: plan.modelId,
-        model_type: selectedPlan,
-        commitment_term: plan.commitmentDuration === 'ONE_MONTH' ? 1 : 3,
-        model_units: plan.modelUnits
+        modelId: plan.modelId,
+        commitmentDuration: plan.commitmentDuration,
+        modelUnits: plan.modelUnits
       });
       
       if (error) {
