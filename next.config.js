@@ -1,12 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Configure rewrites to direct /api/bedrock paths to pages/api/bedrock-next
+  // Configure rewrites to direct /api paths to their respective handlers
   async rewrites() {
     return [
-      // Add super-action route explicitly to ensure it's properly handled
+      // Add super-action route with proper handling
       {
         source: '/api/super-action',
-        destination: '/api/super-action',
+        destination: '/api/super-action/index',
+      },
+      {
+        source: '/api/super-action/:path*',
+        destination: '/api/super-action/:path*',
       },
       {
         source: '/api/bedrock',

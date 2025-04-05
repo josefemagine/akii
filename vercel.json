@@ -1,11 +1,13 @@
 {
   "rewrites": [
-    { "source": "/api/super-action", "destination": "/api/super-action" },
+    { "source": "/api/super-action", "destination": "/api/super-action/index" },
+    { "source": "/api/super-action/(.*)", "destination": "/api/super-action/$1" },
     { "source": "/api/bedrock", "destination": "/api/bedrock-next" },
     { "source": "/api/bedrock/instances", "destination": "/api/bedrock-next/instances" },
     { "source": "/api/bedrock/provision-instance", "destination": "/api/bedrock-next/provision-instance" },
     { "source": "/api/bedrock/delete-instance", "destination": "/api/bedrock-next/delete-instance" },
     { "source": "/api/bedrock/test-env", "destination": "/api/bedrock-next/test-env" },
+    { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
@@ -31,7 +33,7 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization, x-client-info"
+          "value": "Content-Type, Authorization, x-client-info, apikey, X-Client-Info"
         },
         {
           "key": "Access-Control-Allow-Credentials",
