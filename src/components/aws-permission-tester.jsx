@@ -12,6 +12,20 @@ const AwsPermissionTester = () => {
   const [error, setError] = useState(null);
   const [logs, setLogs] = useState([]);
 
+  // Log environment variables on component mount
+  React.useEffect(() => {
+    const envVars = {
+      VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || 'not set',
+      VITE_SUPABASE_KEY: import.meta.env.VITE_SUPABASE_KEY ? 'set' : 'not set',
+      VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'set' : 'not set',
+      VITE_BEDROCK_API_URL: import.meta.env.VITE_BEDROCK_API_URL || 'not set',
+      MODE: import.meta.env.MODE,
+      DEV: import.meta.env.DEV
+    };
+    
+    console.log('[AWS Test] Environment variables:', envVars);
+  }, []);
+
   const addLog = (message) => {
     console.log(`[AWS Test] ${message}`);
     setLogs(prev => [...prev, `${new Date().toISOString().split('T')[1].split('.')[0]} - ${message}`]);
@@ -111,17 +125,50 @@ const AwsPermissionTester = () => {
   const makeRequest = async (url, token) => {
     addLog(`Making direct fetch to: ${url}`);
     
-    return fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        action: 'aws-permission-test',
-        data: {}
-      })
-    });
+    // If this is a direct call to Supabase Functions endpoint, add query parameter
+    const urlObj = new URL(url);
+    const isSupabaseEndpoint = urlObj.hostname.includes('supabase.co') && 
+                              urlObj.pathname.includes('/functions/');
+    
+    if (isSupabaseEndpoint) {
+      // For Supabase Functions, add action as query parameter
+      addLog('Detected Supabase Functions endpoint, using query parameter for action');
+      urlObj.searchParams.append('action', 'aws-permission-test');
+      
+      // Check if anon key is available
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      if (anonKey) {
+        addLog('Found anon key, will include in request headers');
+      } else {
+        addLog('Warning: No anon key available in environment variables');
+      }
+      
+      return fetch(urlObj.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'apikey': anonKey
+        },
+        body: JSON.stringify({
+          data: {}
+        })
+      });
+    } else {
+      // For custom API endpoints (like your own proxy), use body format
+      addLog('Using standard API format with action in body');
+      return fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'aws-permission-test',
+          data: {}
+        })
+      });
+    }
   };
   
   // Helper function to process the response

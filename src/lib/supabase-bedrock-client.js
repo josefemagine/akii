@@ -428,19 +428,40 @@ const testAwsPermissions = async () => {
       console.warn(`[Bedrock] Standard client failed for AWS permission test, trying direct fetch. Error: ${clientError.message}`);
       
       // If standard client fails, try direct fetch
-      const url = `${BedrockConfig.edgeFunctionUrl}`;
-      console.log(`[Bedrock] Making direct fetch to: ${url} for AWS permission test`);
+      // Get the Edge Function URL, ensure it's properly formatted
+      const baseUrl = BedrockConfig.edgeFunctionUrl;
+      console.log(`[Bedrock] Edge Function base URL: ${baseUrl}`);
       
-      const response = await fetch(url, {
+      // Create URL object to work with
+      const url = new URL(baseUrl.startsWith('http') ? baseUrl : `${window.location.origin}${baseUrl}`);
+      
+      // Add action as query parameter for Supabase Functions
+      if (url.hostname.includes('supabase.co')) {
+        url.searchParams.set('action', 'aws-permission-test');
+      }
+      
+      console.log(`[Bedrock] Making direct fetch to: ${url.toString()}`);
+      
+      // Prepare headers including apikey if available
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+      
+      // Add apikey for Supabase Functions if available
+      if (url.hostname.includes('supabase.co') && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+        headers['apikey'] = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      }
+      
+      // Prepare the request body - for Supabase Functions direct calls, only include data
+      const body = url.hostname.includes('supabase.co')
+        ? JSON.stringify({ data: {} })
+        : JSON.stringify({ action: 'aws-permission-test', data: {} });
+      
+      const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          action: 'aws-permission-test',
-          data: {}
-        })
+        headers,
+        body
       });
       
       if (!response.ok) {
@@ -450,7 +471,7 @@ const testAwsPermissions = async () => {
           success: false, 
           error: `API error: ${response.status} ${errorText}`,
           debug: {
-            url,
+            url: url.toString(),
             status: response.status,
             statusText: response.statusText,
             headers: Object.fromEntries([...response.headers.entries()]),
@@ -468,7 +489,7 @@ const testAwsPermissions = async () => {
           success: false, 
           error: responseData.error,
           debug: {
-            url,
+            url: url.toString(),
             responseData
           }
         };

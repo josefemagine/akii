@@ -70,7 +70,7 @@ const getEdgeFunctionUrl = () => {
     }
     
     // Otherwise use the local proxy with proper path
-    return '/functions/super-action';
+    return '/api/super-action';
   }
   
   // For production, check if there's an environment variable
@@ -80,17 +80,17 @@ const getEdgeFunctionUrl = () => {
   
   // If we have a Supabase URL, build the functions endpoint
   if (supabaseUrl) {
-    // Replace the Supabase project URL with the functions endpoint
-    // e.g., https://yourproject.supabase.co → https://yourproject.functions.supabase.co
+    // Extract the project reference from the URL
     const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1];
     
     if (projectRef) {
-      return `https://${projectRef}.functions.supabase.co/super-action`;
+      // Use the standard Supabase Functions v1 endpoint format
+      return `https://${projectRef}.supabase.co/functions/v1/super-action`;
     }
   }
   
   // Fallback to the known Supabase project reference for this app
-  return 'https://injxxchotrvgvvzelhvj.functions.supabase.co/super-action';
+  return 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action';
 };
 
 /**
