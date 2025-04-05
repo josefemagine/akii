@@ -69,7 +69,7 @@ const getEdgeFunctionUrl = () => {
       return import.meta.env.VITE_BEDROCK_API_URL;
     }
     
-    // Otherwise use the local proxy
+    // Otherwise use the local proxy with proper path
     return '/functions/super-action';
   }
   
@@ -82,11 +82,15 @@ const getEdgeFunctionUrl = () => {
   if (supabaseUrl) {
     // Replace the Supabase project URL with the functions endpoint
     // e.g., https://yourproject.supabase.co → https://yourproject.functions.supabase.co
-    return supabaseUrl.replace('.supabase.co', '.functions.supabase.co') + '/super-action';
+    const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1];
+    
+    if (projectRef) {
+      return `https://${projectRef}.functions.supabase.co/super-action`;
+    }
   }
   
-  // Fallback to a relative URL
-  return '/functions/super-action';
+  // Fallback to the known Supabase project reference for this app
+  return 'https://injxxchotrvgvvzelhvj.functions.supabase.co/super-action';
 };
 
 /**

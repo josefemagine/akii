@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BedrockClient } from '../lib/supabase-bedrock-client';
+import { BedrockConfig } from '../lib/bedrock-config';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
@@ -56,6 +57,10 @@ const AwsPermissionTester = () => {
     addLog("Starting manual AWS permission test...");
     
     try {
+      // Log current environment info
+      addLog(`Mode: ${import.meta.env.MODE}`);
+      addLog(`Supabase URL: ${import.meta.env.VITE_SUPABASE_URL}`);
+      
       // Get auth token
       addLog("Getting auth token...");
       const token = await BedrockClient.getAuthToken();
@@ -69,41 +74,29 @@ const AwsPermissionTester = () => {
       
       addLog(`Token obtained: ${token.substring(0, 5)}...${token.substring(token.length - 5)}`);
       
-      // Make direct fetch
-      const url = `${window.location.origin}/functions/super-action`;
-      addLog(`Making direct fetch to: ${url}`);
+      // Get the Edge Function URL from config
+      const url = BedrockConfig.edgeFunctionUrl;
+      addLog(`Edge Function URL from config: ${url}`);
       
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          action: 'aws-permission-test',
-          data: {}
-        })
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        addLog(`Fetch error (${response.status}): ${errorText}`);
-        setError(`API error: ${response.status} ${errorText}`);
-        setIsLoading(false);
-        return;
+      // Check if URL is properly formed
+      try {
+        new URL(url);
+        addLog("URL is valid");
+      } catch (e) {
+        addLog(`URL validation error: ${e.message}`);
+        // If URL is relative, convert to absolute
+        if (url.startsWith('/')) {
+          const absoluteUrl = `${window.location.origin}${url}`;
+          addLog(`Converting to absolute URL: ${absoluteUrl}`);
+          const response = await makeRequest(absoluteUrl, token);
+          processResponse(response);
+          return;
+        }
       }
       
-      const responseData = await response.json();
-      addLog(`Response received: ${JSON.stringify(responseData, null, 2)}`);
-      
-      if (responseData?.error) {
-        addLog(`API error: ${responseData.error}`);
-        setError(responseData.error);
-        setIsLoading(false);
-        return;
-      }
-      
-      setResults(responseData.test_results);
+      // Make the request with the configured URL
+      const response = await makeRequest(url, token);
+      processResponse(response);
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       addLog(`Exception caught: ${errorMessage}`);
@@ -111,6 +104,65 @@ const AwsPermissionTester = () => {
     } finally {
       setIsLoading(false);
       addLog("Manual test operation completed");
+    }
+  };
+  
+  // Helper function to make the request
+  const makeRequest = async (url, token) => {
+    addLog(`Making direct fetch to: ${url}`);
+    
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        action: 'aws-permission-test',
+        data: {}
+      })
+    });
+  };
+  
+  // Helper function to process the response
+  const processResponse = async (response) => {
+    addLog(`Response status: ${response.status} ${response.statusText}`);
+    
+    const contentType = response.headers.get('content-type');
+    addLog(`Content-Type: ${contentType || 'none'}`);
+    
+    if (!response.ok) {
+      let errorText;
+      try {
+        if (contentType && contentType.includes('application/json')) {
+          const errorJson = await response.json();
+          errorText = JSON.stringify(errorJson);
+        } else {
+          errorText = await response.text();
+        }
+      } catch (e) {
+        errorText = `Could not parse response: ${e.message}`;
+      }
+      
+      addLog(`Fetch error (${response.status}): ${errorText}`);
+      setError(`API error: ${response.status} ${response.statusText}`);
+      return;
+    }
+    
+    try {
+      const responseData = await response.json();
+      addLog(`Response received: ${JSON.stringify(responseData, null, 2)}`);
+      
+      if (responseData?.error) {
+        addLog(`API error: ${responseData.error}`);
+        setError(responseData.error);
+        return;
+      }
+      
+      setResults(responseData.test_results);
+    } catch (e) {
+      addLog(`Error parsing JSON response: ${e.message}`);
+      setError(`Failed to parse response: ${e.message}`);
     }
   };
 
