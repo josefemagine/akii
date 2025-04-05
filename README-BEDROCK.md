@@ -4,6 +4,22 @@
 
 This document describes the implementation of AWS Bedrock within the Akii AI-as-a-Service platform, secured through Supabase authentication and Edge Functions.
 
+## CRITICAL: Always Use Real AWS Services
+
+The AWS Bedrock integration **MUST ALWAYS** connect to real AWS Bedrock services. Mock data is strictly prohibited in all environments including:
+- Production environments
+- Testing environments
+- Development environments
+- UI development
+- QA environments
+
+This is a live application with real users and financial implications. Any use of mock data can lead to:
+- Incorrect billing information
+- Misleading user experiences
+- Security vulnerabilities
+- Service expectation mismatches
+- Potential breach of service contracts
+
 ## System Overview
 
 Akii leverages AWS Bedrock to provision AI instances via throughput, allowing each user to have their own private provisioned AI instances. The implementation follows these core principles:
@@ -30,6 +46,11 @@ Akii leverages AWS Bedrock to provision AI instances via throughput, allowing ea
                    │                 │     │               │
                    └─────────────────┘     └───────────────┘
 ```
+
+The solution consists of three main components:
+1. **Frontend React Application**: Provides a user interface for managing AWS Bedrock instances
+2. **Supabase Edge Functions**: Serverless functions that handle AWS Bedrock API operations
+3. **Supabase Database**: Stores metadata about provisioned AWS Bedrock instances
 
 ## Database Schema
 
@@ -61,17 +82,65 @@ Akii leverages AWS Bedrock to provision AI instances via throughput, allowing ea
 | total_tokens     | integer   | Total tokens consumed                        |
 | created_at       | timestamp | Usage timestamp                              |
 
+## Setup Instructions
+
+### 1. Supabase Configuration
+
+1. Create a Supabase project at [https://supabase.com](https://supabase.com)
+2. Run the database migration to create the `bedrock_instances` table:
+   ```bash
+   supabase migration apply
+   ```
+3. Set up the required secrets in your Supabase project:
+   - `AWS_ACCESS_KEY_ID`: Your AWS access key with Bedrock permissions
+   - `AWS_SECRET_ACCESS_KEY`: Your AWS secret key
+   - `AWS_REGION`: AWS region (e.g., 'us-east-1')
+   - `SUPABASE_URL`: Your Supabase project URL
+   - `SUPABASE_SERVICE_ROLE_KEY`: Service role key for database operations
+
+### 2. Deploy the Edge Function
+
+1. Install the Supabase CLI if you haven't already:
+   ```bash
+   npm install -g supabase
+   ```
+
+2. Login to the Supabase CLI:
+   ```bash
+   supabase login
+   ```
+
+3. Deploy the edge function:
+   ```bash
+   supabase functions deploy super-action
+   ```
+
+### 3. Configure the Frontend
+
+1. Set the following environment variables in your frontend application:
+   ```
+   VITE_SUPABASE_URL=your-supabase-url
+   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
+
+2. Run the development server:
+   ```bash
+   npm run dev
+   ```
+
 ## API Endpoints
 
 The Edge Function provides the following actions:
 
-| Action             | Description                                     | Authentication |
-|--------------------|-------------------------------------------------|---------------|
-| listInstances      | Retrieve user's provisioned instances           | Required      |
-| provisionInstance  | Create a new Bedrock throughput instance        | Required      |
-| deleteInstance     | Delete an existing instance                     | Required      |
-| invokeModel        | Send a prompt to a provisioned model            | Required      |
-| getUsageStats      | Retrieve token usage statistics                  | Required      |
+| Action                | Description                                     | Authentication |
+|-----------------------|-------------------------------------------------|---------------|
+| listInstances         | Retrieve user's provisioned instances           | Required      |
+| provisionInstance     | Create a new Bedrock throughput instance        | Required      |
+| deleteInstance        | Delete an existing instance                     | Required      |
+| invokeModel           | Send a prompt to a provisioned model            | Required      |
+| getUsageStats         | Retrieve token usage statistics                 | Required      |
+| aws-permission-test   | Test AWS IAM permissions                        | Required      |
+| testEnvironment       | Check the API configuration                     | Required      |
 
 ## Security Measures
 
@@ -80,6 +149,7 @@ The Edge Function provides the following actions:
 3. **Isolation**: Users can only access their own provisioned instances 
 4. **Plan Enforcement**: Token usage is tracked and limited based on subscription plan
 5. **AWS Credentials**: Stored securely as environment variables, never exposed to frontend
+6. **Row-Level Security**: Supabase RLS policies protect the database tables
 
 ## Edge Function Implementation
 
@@ -132,55 +202,136 @@ Any mock or simulated implementations are strictly prohibited and will lead to:
 
 This is a production application with real users and financial implications. Always use real AWS services.
 
-### Implementation Best Practices
-
-1. **Initialize clients properly**:
-   ```typescript
-   const client = new BedrockClient({
-     region: CONFIG.AWS_REGION,
-     credentials: {
-       accessKeyId: CONFIG.AWS_ACCESS_KEY_ID,
-       secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY
-     }
-   });
-   ```
-
-2. **Use proper command classes**:
-   ```typescript
-   const command = new ListFoundationModelsCommand({});
-   const result = await client.send(command);
-   ```
-
-3. **Handle errors comprehensively**:
-   ```typescript
-   try {
-     // AWS operation
-   } catch (error) {
-     console.error("[AWS] Error:", error);
-     return {
-       success: false,
-       error: error instanceof Error ? error.message : String(error)
-     };
-   }
-   ```
-
 ## Frontend Client
 
-The frontend client:
+The `supabase-bedrock-client.js` provides a secure way for the frontend application to interact with AWS Bedrock services without directly exposing AWS credentials or endpoints. All operations are authenticated and routed through Supabase Edge Functions using JWT tokens from Supabase Auth.
 
-1. Authenticates users via Supabase Auth
-2. Sends authenticated requests to the Edge Function
-3. Provides UI for managing instances, viewing usage, and testing models
-4. Never directly communicates with AWS Bedrock
+### Client Methods
 
-## Usage Monitoring
+#### Initialize Client
 
-The system tracks token usage per instance and per user, providing:
+```javascript
+import { BedrockClient } from '~/lib/supabase-bedrock-client';
 
-1. Real-time usage statistics
-2. Token limit enforcement based on subscription plan
-3. Alerts when approaching usage limits
-4. Detailed usage history for billing and analytics
+// The client automatically uses the Supabase auth session
+const bedrockClient = new BedrockClient();
+```
+
+#### Get User's Instances
+
+```javascript
+const { data, error } = await bedrockClient.listInstances();
+// data = [{ id, model_type, throughput_name, status, ... }]
+```
+
+#### Create New Instance
+
+```javascript
+const instanceDetails = {
+  model_id: "anthropic.claude-v2",
+  model_type: "Claude",
+  commitment_term: 1, // months
+  model_units: 1
+};
+
+const { data, error } = await bedrockClient.createInstance(instanceDetails);
+// data = { id, instance_id, throughput_name, ... }
+```
+
+#### Delete Instance
+
+```javascript
+const { data, error } = await bedrockClient.deleteInstance(instanceId);
+// data = { success, message }
+```
+
+#### Send Message to Bedrock Model
+
+```javascript
+const message = {
+  instance_id: 1,
+  prompt: "What is the capital of France?",
+  max_tokens: 100
+};
+
+const { data, error } = await bedrockClient.invokeModel(message);
+// data = { response, usage: { input_tokens, output_tokens, total_tokens } }
+```
+
+#### Get Usage Statistics
+
+```javascript
+// For all instances
+const { data, error } = await bedrockClient.getUsageStats();
+
+// For a specific instance
+const { data, error } = await bedrockClient.getUsageStats({
+  instance_id: 1,
+  timeframe: "month" // "day", "week", "month", "year"
+});
+// data = { usage: {...}, limits: {...} }
+```
+
+#### Test AWS Permissions
+
+```javascript
+const { success, test_results, error } = await BedrockClient.testAwsPermissions();
+// test_results = { readPermission: true, listProvisionedPermission: true, createPermission: true }
+```
+
+### Error Handling
+
+The client provides standardized error handling:
+
+```javascript
+const { data, error } = await bedrockClient.listInstances();
+
+if (error) {
+  console.error('Error listing instances:', error.message);
+  // Handle specific error codes
+  if (error.code === 'AUTH_REQUIRED') {
+    // Redirect to login
+  }
+}
+```
+
+### Authentication
+
+The client automatically handles authentication with Supabase:
+
+1. Uses the current user session for authentication
+2. Sends the JWT token with each request to the Edge Function
+3. Handles cases where authentication is missing or expired
+
+## UI Components
+
+### BedrockChat Component
+
+The `BedrockChat` component provides a ready-to-use chat interface for interacting with Bedrock models:
+
+```javascript
+import { BedrockChat } from '~/components/BedrockChat';
+
+// In your component
+return (
+  <BedrockChat
+    instanceId={1}
+    initialMessages={[]}
+    onError={(error) => console.error(error)}
+  />
+);
+```
+
+### BedrockAdmin Component
+
+The `BedrockAdmin` component provides a comprehensive interface for managing Bedrock instances.
+
+Features include:
+- Listing all user instances
+- Creating new instances
+- Deleting instances
+- Viewing usage statistics
+- Testing chat with models
 
 ## IAM Permissions
 
@@ -196,7 +347,9 @@ The AWS IAM role used by the Edge Function has permissions limited to:
         "bedrock:InvokeModelWithProvisionedThroughput",
         "bedrock:CreateProvisionedModelThroughput",
         "bedrock:DeleteProvisionedModelThroughput",
-        "bedrock:ListProvisionedModelThroughputs"
+        "bedrock:ListProvisionedModelThroughputs",
+        "bedrock:GetProvisionedModelThroughput",
+        "bedrock:ListFoundationModels"
       ],
       "Resource": "arn:aws:bedrock:us-east-1:*:provisioned-model-throughput/*"
     }
@@ -209,36 +362,24 @@ The AWS IAM role used by the Edge Function has permissions limited to:
 You can access the Bedrock API through the following endpoints:
 
 - For local development with Vite proxy: `/api/super-action`
-- For production: `/api/super-action` (proxied via Next.js API route)
-- Direct Edge Function access: `https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action`
+- For production: Direct Edge Function access: `https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action`
 
-> **Important**: The `/api/bedrock` path is deprecated and will be removed in future versions. 
-> Please update your code to use `/api/super-action` instead.
+## Usage Monitoring
 
-## Development Tools (Non-Production Only)
+The system tracks token usage per instance and per user, providing:
 
-For development and testing purposes only, the system includes tools that should never be used in production:
-
-1. **Mock API Mode**: For UI development and testing without AWS connectivity
-2. **Development Fallbacks**: Local API simulation for developing without Edge Functions
-3. **Synthetic Responses**: Structured response generation for testing edge cases
-
-### Activating Development Mode
-
-Development mode should ONLY be used in non-production environments:
-```bash
-# Development environment only!
-VITE_USE_MOCK_SUPER_ACTION=true
-```
+1. Real-time usage statistics
+2. Token limit enforcement based on subscription plan
+3. Alerts when approaching usage limits
+4. Detailed usage history for billing and analytics
 
 ## Troubleshooting
 
-### Common Issues
+If you encounter issues with the integration:
 
 1. **CORS Errors**: If you experience CORS issues, check:
-   - CORS headers in `pages/api/super-action/index.js`
-   - CORS settings in `vercel.json`
-   - CORS configuration in the Edge Function
+   - CORS headers in the Edge Function
+   - Browser's developer console for specific error messages
 
 2. **503 Service Unavailable**: If the Edge Function fails to start:
    - Check Supabase logs for errors
@@ -249,27 +390,22 @@ VITE_USE_MOCK_SUPER_ACTION=true
    - Check that the token is being passed in the Authorization header
    - Verify the JWT token has not expired
 
+4. **AWS Permission Issues**:
+   - Use the AWS permission tester component to verify your credentials have the right permissions
+   - Check the IAM policy attached to the AWS user/role
+   - Verify the region settings match the AWS resources
+
 ## Implementation Files
+
+The key files for this implementation include:
 
 - `supabase/functions/super-action/index.ts` - Edge Function implementation
 - `supabase/functions/super-action/aws.ts` - AWS SDK integration
-- `pages/api/super-action/index.js` - Next.js API route for proxying to the Edge Function
+- `supabase/functions/super-action/aws-test.ts` - AWS permissions testing
 - `src/lib/supabase-bedrock-client.js` - Frontend client for Bedrock API
 - `src/lib/bedrock-config.js` - Configuration for Bedrock API
 - `src/pages/admin/SupabaseBedrock.tsx` - Admin interface for Bedrock instances
-- `src/components/BedrockChat.tsx` - Chat interface for testing models
-
-## Environment Variables
-
-The following environment variables are required:
-
-```
-AWS_ACCESS_KEY_ID=xxxxx
-AWS_SECRET_ACCESS_KEY=xxxxx
-AWS_REGION=us-east-1
-SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=xxxxx
-```
+- `src/components/aws-permission-tester.jsx` - AWS permissions testing component
 
 ## Development and Testing
 
@@ -281,24 +417,18 @@ For local development:
 
 To deploy the Edge Function:
 ```
-supabase functions deploy super-action
+supabase functions deploy super-action --project-ref your-project-ref
 ```
-
-## Error Handling
-
-The system provides specific error messages for:
-1. Authentication failures
-2. Resource not found
-3. Insufficient permissions
-4. Exceeded quotas
-5. AWS service errors
 
 ## Best Practices
 
-1. Never expose AWS credentials to the frontend
-2. Always verify user authentication before any AWS operation
-3. Track all token usage for billing and quotas
-4. Implement proper error handling and retries
-5. Use the most restricted IAM permissions possible
-6. Always use the official AWS SDK
-7. Never use mock implementations in production 
+1. Always handle error responses from the client
+2. Implement loading states during API calls
+3. Provide feedback for rate limits and quota exceedances
+4. Never expose AWS credentials to the frontend
+5. Always verify user authentication before any AWS operation
+6. Track all token usage for billing and quotas
+7. Implement proper error handling and retries
+8. Use the most restricted IAM permissions possible
+9. Always use the official AWS SDK
+10. Never use mock implementations under any circumstances 
