@@ -6,7 +6,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // CORS headers for all responses
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "https://www.akii.com",
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info",
   "Access-Control-Allow-Credentials": "true"
@@ -278,20 +278,75 @@ serve(async (request: Request) => {
 
   const url = new URL(request.url);
   
-  // Route requests based on path and method
-  if (url.pathname.endsWith("/test-env")) {
-    return await handleTestEnv(request);
-  } else if (url.pathname.endsWith("/instances") && request.method === "GET") {
-    return await handleGetInstances(request);
-  } else if (url.pathname.endsWith("/provision-instance") && request.method === "POST") {
-    return await handleCreateInstance(request);
-  } else if (url.pathname.endsWith("/delete-instance") && request.method === "DELETE") {
-    return await handleDeleteInstance(request);
+  try {
+    // For POST requests that use the action parameter
+    if (request.method === "POST") {
+      // Try to parse the request body
+      let requestBody;
+      try {
+        requestBody = await request.json();
+      } catch (error) {
+        console.error("Error parsing request body:", error);
+        return new Response(
+          JSON.stringify({ error: "Invalid JSON in request body" }),
+          { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Check if we have an action parameter
+      const { action, data } = requestBody;
+      
+      if (!action) {
+        return new Response(
+          JSON.stringify({ error: "Missing required 'action' parameter" }),
+          { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+      
+      console.log(`[super-action] Processing action: ${action}`);
+      
+      // Route based on action parameter
+      switch (action) {
+        case "testEnvironment":
+          return await handleTestEnv(request);
+        case "listInstances":
+          return await handleGetInstances(request);
+        case "provisionInstance":
+          return await handleCreateInstance(request);
+        case "deleteInstance":
+          return await handleDeleteInstance(request);
+        default:
+          return new Response(
+            JSON.stringify({ error: `Unknown action: ${action}` }),
+            { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          );
+      }
+    }
+    
+    // Legacy routing based on URL path for backward compatibility
+    if (url.pathname.endsWith("/test-env")) {
+      return await handleTestEnv(request);
+    } else if (url.pathname.endsWith("/instances") && request.method === "GET") {
+      return await handleGetInstances(request);
+    } else if (url.pathname.endsWith("/provision-instance") && request.method === "POST") {
+      return await handleCreateInstance(request);
+    } else if (url.pathname.endsWith("/delete-instance") && request.method === "DELETE") {
+      return await handleDeleteInstance(request);
+    }
+    
+    // Return 404 for unknown routes
+    return new Response(
+      JSON.stringify({ error: "Not Found", message: "Endpoint not found or method not allowed" }),
+      { status: 404, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("Unhandled error in request processing:", error);
+    return new Response(
+      JSON.stringify({ 
+        error: "Internal Server Error", 
+        message: error instanceof Error ? error.message : String(error)
+      }),
+      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
   }
-  
-  // Return 404 for unknown routes
-  return new Response(
-    JSON.stringify({ error: "Not Found" }),
-    { status: 404, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-  );
 }); 

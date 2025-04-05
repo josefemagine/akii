@@ -16,6 +16,11 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Credentials': 'true'
 };
 
+// Check if we should use mock data
+const useMockData = () => {
+  return process.env.USE_MOCK_SUPER_ACTION === 'true';
+};
+
 // Mock data for when the Edge Function is unavailable
 const MOCK_DATA = {
   testEnvironment: {
@@ -92,6 +97,21 @@ const MOCK_DATA = {
 };
 
 /**
+ * Parse request body regardless of method
+ * @param {Request} req - The incoming request
+ * @returns {Object} The parsed body or empty object
+ */
+const parseRequestBody = async (req) => {
+  if (req.method === 'POST' || req.method === 'PUT') {
+    return req.body || {};
+  } else if (req.method === 'GET') {
+    // For GET requests, try to parse query parameters
+    return req.query || {};
+  }
+  return {};
+};
+
+/**
  * Main handler function for the API route
  */
 export default async function handler(req, res) {
@@ -105,9 +125,15 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
+  // Log request details for debugging
+  console.log(`[super-action] Received ${req.method} request to ${req.url}`);
+  
   try {
-    // Get the action from the request body
-    const { action, data } = req.method === 'POST' ? req.body : {};
+    // Get the action from the request body or query parameters
+    const body = await parseRequestBody(req);
+    const { action, data } = body;
+    
+    console.log(`[super-action] Action: ${action}, Mock mode: ${useMockData()}`);
     
     // If no action is provided, return error
     if (!action) {
@@ -117,19 +143,27 @@ export default async function handler(req, res) {
       });
     }
 
-    // Check if mock data exists for this action
-    if (MOCK_DATA[action]) {
-      console.log(`Returning mock data for action: ${action}`);
+    // Check if we should use mock data
+    if (useMockData() || MOCK_DATA[action]) {
+      console.log(`[super-action] Returning mock data for action: ${action}`);
       
       // Simulate some delay for a more realistic experience
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Return the mock data
-      return res.status(200).json(MOCK_DATA[action]);
+      // Return the mock data if available, otherwise return a generic mock
+      if (MOCK_DATA[action]) {
+        return res.status(200).json(MOCK_DATA[action]);
+      } else {
+        return res.status(200).json({
+          mock: true,
+          message: `Mock data for ${action} action`,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
 
     // If we don't have mock data, try to forward to the Supabase Function
-    console.log(`Attempting to proxy action ${action} to Supabase Edge Function`);
+    console.log(`[super-action] Attempting to proxy action ${action} to Supabase Edge Function`);
     
     // Extract the authorization header to forward
     const authHeader = req.headers.authorization;
@@ -155,7 +189,7 @@ export default async function handler(req, res) {
     try {
       // Make the request to the Supabase Function
       const response = await fetch(SUPABASE_FUNCTION_URL, {
-        method: 'POST',
+        method: 'POST', // Always use POST for Edge Functions
         headers,
         body: JSON.stringify({ action, data })
       });
@@ -173,8 +207,8 @@ export default async function handler(req, res) {
       // Return the response with the same status code
       return res.status(response.status).json(responseData);
     } catch (fetchError) {
-      console.error('Error calling Supabase Edge Function:', fetchError);
-      console.log('Falling back to mock data');
+      console.error('[super-action] Error calling Supabase Edge Function:', fetchError);
+      console.log('[super-action] Falling back to mock data');
       
       // If fetch fails, fall back to mock data if available
       if (MOCK_DATA[action]) {
@@ -188,7 +222,7 @@ export default async function handler(req, res) {
       });
     }
   } catch (error) {
-    console.error('Error handling request:', error);
+    console.error('[super-action] Error handling request:', error);
     
     // Return a 500 error
     return res.status(500).json({ 

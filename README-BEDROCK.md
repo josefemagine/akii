@@ -141,11 +141,41 @@ You can access the Bedrock API through the following endpoints:
 > **Important**: The `/api/bedrock` path is deprecated and will be removed in future versions. 
 > Please update your code to use `/api/super-action` instead.
 
+## Mock Data Solution
+
+The system includes a robust mock data solution when the Supabase Edge Function is unavailable or during development:
+
+1. **Environment Variable Activation**: Set `VITE_USE_MOCK_SUPER_ACTION=true` in your environment variables or `USE_MOCK_SUPER_ACTION=true` in `vercel.json` to enable mock responses
+2. **Local Fallback API**: The Next.js API route at `/api/super-action` will provide mock responses if the Edge Function fails
+3. **Development Mock Data**: Mock responses for all actions are available in `src/lib/supabase-bedrock-client.js`
+
+This enables development and testing without requiring a live AWS Bedrock connection or functioning Edge Function.
+
+## Troubleshooting
+
+### Common Issues
+
+1. **CORS Errors**: If you experience CORS issues, check:
+   - CORS headers in `pages/api/super-action/index.js`
+   - CORS settings in `vercel.json`
+   - CORS configuration in the Edge Function
+
+2. **503 Service Unavailable**: If the Edge Function fails to start:
+   - Check Supabase logs for errors
+   - Enable mock mode with `USE_MOCK_SUPER_ACTION=true`
+   - Verify your AWS credentials are valid and have the necessary permissions
+
+3. **Authentication Errors**:
+   - Ensure you have a valid JWT token from Supabase Auth
+   - Check that the token is being passed in the Authorization header
+   - Verify the JWT token has not expired
+
 ## Implementation Files
 
 - `supabase/functions/super-action/index.ts` - Edge Function implementation
 - `pages/api/super-action/index.js` - Next.js API route for proxying to the Edge Function
 - `src/lib/supabase-bedrock-client.js` - Frontend client for Bedrock API
+- `src/lib/bedrock-config.js` - Configuration for Bedrock API and mock data
 - `src/pages/admin/SupabaseBedrock.tsx` - Admin interface for Bedrock instances
 - `src/components/BedrockChat.tsx` - Chat interface for testing models
 
