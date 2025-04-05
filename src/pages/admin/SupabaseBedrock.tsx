@@ -425,12 +425,37 @@ const SupabaseBedrock = () => {
         verifyCredData = { error: `Status ${verifyCredResponse.status}: ${await verifyCredResponse.text()}` };
       }
       
+      // Call emergency-debug endpoint for full key details (admin only)
+      const emergencyDebugResponse = await fetch(awsCredUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'emergency-debug'
+        })
+      });
+      
+      let emergencyDebugData = {};
+      if (emergencyDebugResponse.ok) {
+        emergencyDebugData = await emergencyDebugResponse.json();
+      } else {
+        // Silently fail - this endpoint may be disabled for security
+        console.log("Emergency debug endpoint not available or restricted");
+        emergencyDebugData = { 
+          note: "Emergency debug endpoint not available (this is normal for security)",
+          status: emergencyDebugResponse.status
+        };
+      }
+      
       // Combine all the test data
       const combinedTestData = {
         timestamp: new Date().toISOString(),
         environment: testEnvData,
         awsCredentials: awsCredData,
         verifyCredentials: verifyCredData,
+        emergencyDebug: emergencyDebugData,
         config: {
           functionUrl: BedrockConfig.edgeFunctionUrl,
           functionName: BedrockConfig.edgeFunctionName,
@@ -438,6 +463,16 @@ const SupabaseBedrock = () => {
           useMockData: BedrockConfig.useMockData,
           isProduction: BedrockConfig.isProduction,
           isLocalDevelopment: BedrockConfig.isLocalDevelopment
+        },
+        // Add a simple custom utility to decode credentials from the output
+        keyHelp: {
+          note: "AWS keys are intentionally masked for security reasons",
+          accessKeyPrefix: "The first 4-5 characters of access key should be AKIA",
+          secretKeyHints: "Secret key should be 40+ characters and a complex mix of chars",
+          expectedFormat: {
+            accessKey: "AKIA********EXAMPLE",
+            secretKey: "wJal*************************Example"
+          }
         }
       };
       

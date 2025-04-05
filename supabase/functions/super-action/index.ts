@@ -937,6 +937,171 @@ serve(async (req: Request) => {
   
   console.log(`[API] Processing request for action: ${action}`);
   
+  // EMERGENCY DEBUG CODE - With enhanced security
+  if (action === "emergency-debug") {
+    console.log("[API] Running emergency-debug endpoint - this should only be used for diagnostics by administrators");
+    
+    // Always validate the token for security - no unauthenticated access
+    const { user, error } = await validateJwtToken(req);
+    if (error) {
+      console.log("[API] Unauthorized attempt to access emergency-debug endpoint");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", message: "Admin authentication required" }),
+        { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Only proceed if user is authenticated
+    try {
+      // Load environment variables directly from Deno for debugging
+      const accessKeyId = CONFIG.AWS_ACCESS_KEY_ID || "";
+      const secretKey = CONFIG.AWS_SECRET_ACCESS_KEY || "";
+      
+      // Define the interface for the info object
+      interface EnvDebugInfo {
+        config: {
+          aws_region: string;
+          aws_access_key_id_full: string;
+          aws_secret_access_key_parts: string;
+          has_access_key: boolean;
+          has_secret_key: boolean;
+          access_key_valid_format: boolean;
+          access_key_length: number;
+          secret_key_length: number;
+          potential_issues: {
+            access_key_format: boolean;
+            secret_key_too_short: boolean;
+            missing_access_key: boolean;
+            missing_secret_key: boolean;
+          };
+        };
+        environment: {
+          AWS_REGION: string;
+          AWS_ACCESS_KEY_ID: string;
+          AWS_SECRET_ACCESS_KEY: string;
+          AWS_ACCESS_KEY_ID_LENGTH: number;
+          AWS_SECRET_ACCESS_KEY_LENGTH: number;
+        };
+        validation: ReturnType<typeof validateConfig>;
+        timestamps: {
+          current: string;
+          timezone: string;
+        };
+        api_test?: {
+          success: boolean;
+          models_count?: number;
+          first_model?: string | null;
+          error?: string;
+          error_name?: string;
+          stack?: string;
+        };
+      }
+      
+      // Safely format the keys - showing more details but still maintaining security
+      const envInfo: EnvDebugInfo = {
+        config: {
+          aws_region: CONFIG.AWS_REGION,
+          aws_access_key_id_full: accessKeyId ? 
+            // Show first 4 chars and last 4 chars with * in between
+            `${accessKeyId.substring(0, 4)}****${accessKeyId.length > 8 ? accessKeyId.slice(-4) : ''}` : 
+            "<not-set>",
+          aws_secret_access_key_parts: secretKey ? 
+            // Show first 2 chars and last 4 chars with * in between
+            `${secretKey.substring(0, 2)}****${secretKey.length > 6 ? secretKey.slice(-4) : ''}` : 
+            "<not-set>",
+          has_access_key: Boolean(accessKeyId),
+          has_secret_key: Boolean(secretKey),
+          access_key_valid_format: accessKeyId?.startsWith('AKIA') || false,
+          access_key_length: accessKeyId?.length || 0,
+          secret_key_length: secretKey?.length || 0,
+          // Validate common issues with keys
+          potential_issues: {
+            access_key_format: !accessKeyId?.startsWith('AKIA') && accessKeyId?.length > 0,
+            secret_key_too_short: secretKey?.length < 30 && secretKey?.length > 0,
+            missing_access_key: !accessKeyId,
+            missing_secret_key: !secretKey
+          }
+        },
+        environment: {
+          // @ts-ignore - Deno global
+          AWS_REGION: Deno?.env?.get("AWS_REGION") || "<not-set-in-env>",
+          // Only show partial key with masking
+          // @ts-ignore - Deno global 
+          AWS_ACCESS_KEY_ID: Deno?.env?.get("AWS_ACCESS_KEY_ID") ? 
+            // @ts-ignore - Deno global - Show first 4 and last 4 characters with * between
+            `${Deno.env.get("AWS_ACCESS_KEY_ID")?.substring(0, 4)}****${Deno.env.get("AWS_ACCESS_KEY_ID")?.slice(-4)}` : 
+            "<not-set-in-env>",
+          // @ts-ignore - Deno global - Show first 2 and last 4 characters with * between
+          AWS_SECRET_ACCESS_KEY: Deno?.env?.get("AWS_SECRET_ACCESS_KEY") ?
+            // @ts-ignore - Deno global
+            `${Deno.env.get("AWS_SECRET_ACCESS_KEY")?.substring(0, 2)}****${Deno.env.get("AWS_SECRET_ACCESS_KEY")?.slice(-4)}` :
+            "<not-set-in-env>",
+          // @ts-ignore - Deno global
+          AWS_ACCESS_KEY_ID_LENGTH: (Deno?.env?.get("AWS_ACCESS_KEY_ID") || "").length,
+          // @ts-ignore - Deno global
+          AWS_SECRET_ACCESS_KEY_LENGTH: (Deno?.env?.get("AWS_SECRET_ACCESS_KEY") || "").length,
+        },
+        validation: validateConfig(),
+        timestamps: {
+          current: new Date().toISOString(),
+          timezone: "UTC"
+        }
+      };
+      
+      // Test AWS SDK connection
+      try {
+        const client = new BedrockClient({
+          region: CONFIG.AWS_REGION,
+          credentials: {
+            accessKeyId: CONFIG.AWS_ACCESS_KEY_ID || "",
+            secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY || ""
+          }
+        });
+        
+        const command = new ListFoundationModelsCommand({});
+        const result = await client.send(command);
+        
+        // Add API test results to the response
+        envInfo.api_test = {
+          success: true,
+          models_count: result.modelSummaries?.length || 0,
+          first_model: result.modelSummaries && result.modelSummaries.length > 0 ? 
+            result.modelSummaries[0].modelId : null
+        };
+      } catch (apiError) {
+        // Include API errors in the response
+        envInfo.api_test = {
+          success: false,
+          error: apiError instanceof Error ? apiError.message : String(apiError),
+          error_name: apiError instanceof Error ? apiError.name : "Unknown",
+          stack: apiError instanceof Error ? apiError.stack?.split("\n").slice(0, 3).join("\n") : undefined
+        };
+      }
+      
+      return new Response(
+        JSON.stringify({
+          message: "Emergency debug information (AWS credentials)",
+          env: envInfo,
+          user: {
+            id: user.id, 
+            email: user.email
+          }
+        }),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    } catch (error) {
+      console.error("[EMERGENCY-DEBUG] Error:", error);
+      return new Response(
+        JSON.stringify({ 
+          error: "Emergency Debug Error",
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined 
+        }),
+        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+  }
+  
   // Map legacy action names to new ones
   if (action === 'testEnvironment') {
     console.log(`[API] Mapping legacy action 'testEnvironment' to 'test'`);
