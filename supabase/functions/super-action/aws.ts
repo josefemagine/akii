@@ -16,10 +16,25 @@ import {
 function getBedrockClient() {
   console.log("[AWS] Initializing Bedrock client with region:", CONFIG.AWS_REGION);
   
-  // For production, ensure we have the required credentials
-  if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
-    throw new Error("AWS credentials are not properly configured. Both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set.");
+  // For production, ensure we have the required credentials and they're properly formatted
+  if (!CONFIG.AWS_ACCESS_KEY_ID) {
+    throw new Error("AWS_ACCESS_KEY_ID is not configured");
   }
+  
+  if (!CONFIG.AWS_SECRET_ACCESS_KEY) {
+    throw new Error("AWS_SECRET_ACCESS_KEY is not configured");
+  }
+  
+  // Validate the format of AWS credentials
+  if (!CONFIG.AWS_ACCESS_KEY_ID.startsWith('AKIA')) {
+    throw new Error("AWS_ACCESS_KEY_ID appears to be invalid. It should start with 'AKIA'");
+  }
+  
+  if (CONFIG.AWS_SECRET_ACCESS_KEY.length < 30) {
+    throw new Error("AWS_SECRET_ACCESS_KEY appears to be too short");
+  }
+  
+  console.log(`[AWS] Credentials validated: ACCESS KEY ID ${CONFIG.AWS_ACCESS_KEY_ID.substring(0, 4)}... (${CONFIG.AWS_ACCESS_KEY_ID.length} chars), SECRET KEY present (${CONFIG.AWS_SECRET_ACCESS_KEY.length} chars)`);
   
   try {
     // Initialize with proper credentials and settings
@@ -39,9 +54,22 @@ function getBedrockClient() {
 function getBedrockRuntimeClient() {
   console.log("[AWS] Initializing BedrockRuntime client with region:", CONFIG.AWS_REGION);
   
-  // For production, ensure we have the required credentials
-  if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
-    throw new Error("AWS credentials are not properly configured. Both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set.");
+  // For production, use the same validation as the Bedrock client
+  if (!CONFIG.AWS_ACCESS_KEY_ID) {
+    throw new Error("AWS_ACCESS_KEY_ID is not configured");
+  }
+  
+  if (!CONFIG.AWS_SECRET_ACCESS_KEY) {
+    throw new Error("AWS_SECRET_ACCESS_KEY is not configured");
+  }
+  
+  // Validate the format of AWS credentials
+  if (!CONFIG.AWS_ACCESS_KEY_ID.startsWith('AKIA')) {
+    throw new Error("AWS_ACCESS_KEY_ID appears to be invalid. It should start with 'AKIA'");
+  }
+  
+  if (CONFIG.AWS_SECRET_ACCESS_KEY.length < 30) {
+    throw new Error("AWS_SECRET_ACCESS_KEY appears to be too short");
   }
   
   try {

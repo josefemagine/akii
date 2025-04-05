@@ -1,9 +1,29 @@
 // Configuration file for AWS Bedrock Integration
 
-// Helper for environment variables
+// Helper for environment variables with improved error handling
 const getEnv = (name: string, defaultValue: string = ""): string => {
-  // @ts-ignore - Deno.env access
-  return Deno?.env?.get?.(name) || defaultValue;
+  try {
+    // @ts-ignore - Deno.env access
+    const value = Deno?.env?.get?.(name);
+    if (value === undefined || value === null) {
+      console.warn(`[CONFIG] Environment variable ${name} not found, using default: ${defaultValue ? 'provided' : 'empty string'}`);
+      return defaultValue;
+    }
+    
+    // Trim the value to remove any whitespace
+    const trimmedValue = value.trim();
+    
+    // Log that we found the environment variable (but don't show the value)
+    const valuePreview = name.includes('SECRET') || name.includes('KEY') ? 
+      `[redacted, length: ${trimmedValue.length}]` : 
+      (trimmedValue.length > 10 ? `${trimmedValue.substring(0, 10)}...` : trimmedValue);
+    
+    console.log(`[CONFIG] Found environment variable ${name}: ${valuePreview}`);
+    return trimmedValue;
+  } catch (error) {
+    console.error(`[CONFIG] Error accessing environment variable ${name}:`, error);
+    return defaultValue;
+  }
 };
 
 // Define expected environment variables
@@ -26,19 +46,31 @@ export const CONFIG = {
   }
 };
 
-// Validate required configuration
+// Validate required configuration with more detailed errors
 export function validateConfig() {
   const missingVars: string[] = [];
+  const formatErrors: string[] = [];
   
+  // Check for missing variables
   if (!CONFIG.AWS_REGION) missingVars.push("AWS_REGION");
   if (!CONFIG.AWS_ACCESS_KEY_ID) missingVars.push("AWS_ACCESS_KEY_ID");
   if (!CONFIG.AWS_SECRET_ACCESS_KEY) missingVars.push("AWS_SECRET_ACCESS_KEY");
   if (!CONFIG.SUPABASE_URL) missingVars.push("SUPABASE_URL");
   if (!CONFIG.SUPABASE_SERVICE_ROLE_KEY) missingVars.push("SUPABASE_SERVICE_ROLE_KEY");
   
+  // Check for format errors
+  if (CONFIG.AWS_ACCESS_KEY_ID && !CONFIG.AWS_ACCESS_KEY_ID.startsWith('AKIA')) {
+    formatErrors.push("AWS_ACCESS_KEY_ID format is invalid (should start with 'AKIA')");
+  }
+  
+  if (CONFIG.AWS_SECRET_ACCESS_KEY && CONFIG.AWS_SECRET_ACCESS_KEY.length < 30) {
+    formatErrors.push("AWS_SECRET_ACCESS_KEY appears to be too short");
+  }
+  
   return {
-    isValid: missingVars.length === 0,
-    missingVars
+    isValid: missingVars.length === 0 && formatErrors.length === 0,
+    missingVars,
+    formatErrors
   };
 }
 

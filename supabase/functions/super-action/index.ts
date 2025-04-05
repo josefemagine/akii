@@ -14,6 +14,12 @@ import {
   getBedrockUsageStats
 } from "./aws.ts";
 
+// Import AWS SDK directly for credential testing
+import {
+  BedrockClient,
+  ListFoundationModelsCommand
+} from "@aws-sdk/client-bedrock";
+
 // Import configuration
 import { CONFIG, validateConfig } from "./config.ts";
 
@@ -83,8 +89,12 @@ async function handleTestEnv(request: Request): Promise<Response> {
             hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
             hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
             accessKeyFormat: CONFIG.AWS_ACCESS_KEY_ID ? (CONFIG.AWS_ACCESS_KEY_ID.startsWith("AKIA") ? "valid" : "invalid") : "missing",
+            secretKeyLength: CONFIG.AWS_SECRET_ACCESS_KEY ? CONFIG.AWS_SECRET_ACCESS_KEY.length : 0,
+            accessKeyLength: CONFIG.AWS_ACCESS_KEY_ID ? CONFIG.AWS_ACCESS_KEY_ID.length : 0,
+            accessKeyStart: CONFIG.AWS_ACCESS_KEY_ID ? CONFIG.AWS_ACCESS_KEY_ID.substring(0, 4) : "",
             configValid: awsConfig.isValid,
-            missingVars: awsConfig.missingVars
+            missingVars: awsConfig.missingVars,
+            formatErrors: awsConfig.formatErrors
           },
           // @ts-ignore - Deno global
           platform: Deno.build.os,
@@ -103,7 +113,10 @@ async function handleTestEnv(request: Request): Promise<Response> {
   } catch (error) {
     console.error("Error handling test environment request:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined 
+      }),
       { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
@@ -729,6 +742,105 @@ async function handleGetInstance(request: Request): Promise<Response> {
   }
 }
 
+// Handle AWS credential test
+async function handleAwsCredentialTest(request: Request): Promise<Response> {
+  // Validate JWT token
+  const { user, error } = await validateJwtToken(request);
+  
+  if (error) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized", message: error }),
+      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+
+  console.log("[API] Running AWS credential test");
+  
+  try {
+    // Step 1: Check if environment variables are set
+    const credentialResults = {
+      envVars: {
+        AWS_REGION: {
+          exists: Boolean(CONFIG.AWS_REGION),
+          value: CONFIG.AWS_REGION
+        },
+        AWS_ACCESS_KEY_ID: {
+          exists: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
+          format: CONFIG.AWS_ACCESS_KEY_ID.startsWith('AKIA') ? 'valid' : 'invalid',
+          length: CONFIG.AWS_ACCESS_KEY_ID.length,
+          prefix: CONFIG.AWS_ACCESS_KEY_ID.substring(0, 4)
+        },
+        AWS_SECRET_ACCESS_KEY: {
+          exists: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+          length: CONFIG.AWS_SECRET_ACCESS_KEY.length
+        }
+      },
+      clientCreation: { 
+        success: false, 
+        error: null as string | null
+      },
+      apiRequest: { 
+        success: false, 
+        error: null as string | null, 
+        result: null as { modelsCount: number; firstModelId: string | null } | null 
+      }
+    };
+    
+    // Step 2: Try to create the clients
+    try {
+      // First just create the client to see if it works
+      const bedrockClient = new BedrockClient({
+        region: CONFIG.AWS_REGION,
+        credentials: {
+          accessKeyId: CONFIG.AWS_ACCESS_KEY_ID,
+          secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY
+        }
+      });
+      
+      credentialResults.clientCreation.success = true;
+      
+      // Step 3: Try a simple API call
+      try {
+        console.log("[API] Testing AWS SDK with ListFoundationModelsCommand");
+        const command = new ListFoundationModelsCommand({});
+        const result = await bedrockClient.send(command);
+        
+        credentialResults.apiRequest.success = true;
+        credentialResults.apiRequest.result = {
+          modelsCount: result.modelSummaries?.length || 0,
+          firstModelId: result.modelSummaries?.[0]?.modelId || null
+        };
+      } catch (apiError) {
+        console.error("[API] Error making AWS API call:", apiError);
+        credentialResults.apiRequest.success = false;
+        credentialResults.apiRequest.error = apiError instanceof Error ? apiError.message : String(apiError);
+      }
+    } catch (clientError) {
+      console.error("[API] Error creating AWS client:", clientError);
+      credentialResults.clientCreation.success = false;
+      credentialResults.clientCreation.error = clientError instanceof Error ? clientError.message : String(clientError);
+    }
+    
+    // Return diagnostic results
+    return new Response(
+      JSON.stringify({
+        aws_credential_test: credentialResults,
+        validation: validateConfig()
+      }),
+      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("[API] Unhandled error in AWS credential test:", error);
+    return new Response(
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined 
+      }),
+      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    );
+  }
+}
+
 // Main handler for all requests
 serve(async (req: Request) => {
   // Handle preflight requests
@@ -784,6 +896,9 @@ serve(async (req: Request) => {
       case "aws-diagnostics":
         return await handleAwsDiagnostics(req);
         
+      case "aws-credential-test":
+        return await handleAwsCredentialTest(req);
+        
       case "listInstances":
         return await handleGetInstances(req);
         
@@ -805,7 +920,7 @@ serve(async (req: Request) => {
       default:
         console.log(`[API] Unknown action: ${action}`);
         return new Response(
-          JSON.stringify({ error: "Invalid action", validActions: ["test", "aws-diagnostics", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats"] }),
+          JSON.stringify({ error: "Invalid action", validActions: ["test", "aws-diagnostics", "aws-credential-test", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats"] }),
           { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
     }
