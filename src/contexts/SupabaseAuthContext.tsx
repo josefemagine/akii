@@ -5,6 +5,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
 import { User, UserRole } from '@/types/custom-types';
 
+// Declare global window property for circuit breaker state
+declare global {
+  interface Window {
+    circuitBroken?: boolean;
+  }
+}
+
 // Define types
 interface AuthContextType {
   session: Session | null;
@@ -127,9 +134,41 @@ export const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) 
               }
               
               setUser(currentUser);
+              
+              // SYNC: Set the login state for DirectAuth to detect
+              const currentTimestamp = Date.now();
+              const sessionDuration = 8 * 60 * 60 * 1000; // 8 hours
+              const expiryTimestamp = currentTimestamp + sessionDuration;
+              
+              localStorage.setItem('akii-is-logged-in', 'true');
+              localStorage.setItem('akii-auth-user-id', currentUser.id);
+              localStorage.setItem('akii-login-timestamp', currentTimestamp.toString());
+              localStorage.setItem('akii-session-duration', sessionDuration.toString());
+              localStorage.setItem('akii-session-expiry', expiryTimestamp.toString());
+              localStorage.setItem('akii-auth-user-email', currentUser.email || '');
+              
+              // Dispatch an event to notify DirectAuth of the change
+              const loginEvent = new CustomEvent('akii-login-state-changed', { 
+                detail: { isLoggedIn: true, userId: currentUser.id }
+              });
+              window.dispatchEvent(loginEvent);
             } else {
               setUser(null);
               setIsAdmin(false);
+              
+              // SYNC: Clear DirectAuth state
+              localStorage.removeItem('akii-is-logged-in');
+              localStorage.removeItem('akii-auth-user-id');
+              localStorage.removeItem('akii-login-timestamp');
+              localStorage.removeItem('akii-session-duration');
+              localStorage.removeItem('akii-session-expiry');
+              localStorage.removeItem('akii-auth-user-email');
+              
+              // Dispatch an event to notify DirectAuth of the change
+              const logoutEvent = new CustomEvent('akii-login-state-changed', { 
+                detail: { isLoggedIn: false }
+              });
+              window.dispatchEvent(logoutEvent);
             }
             
             // Handle specific auth events
@@ -145,6 +184,17 @@ export const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) 
                 
               // Clear any stored redirect
               sessionStorage.removeItem('redirectAfterLogin');
+              
+              // Clear any circuit breaker or redirect tracking to allow navigation
+              sessionStorage.removeItem('redirect-count');
+              sessionStorage.removeItem('last-redirect-time');
+              sessionStorage.removeItem('navigation-history');
+              sessionStorage.removeItem('login-page-visits');
+              
+              // Reset circuit breaker state if present (for PrivateRoute)
+              if (window.circuitBroken) {
+                window.circuitBroken = false;
+              }
               
               navigate(destination, { replace: true });
             }
@@ -197,6 +247,29 @@ export const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) 
         email,
         password
       });
+
+      if (!error && data.user) {
+        // After successful login, update localStorage to sync with DirectAuth
+        const currentTimestamp = Date.now();
+        const sessionDuration = 8 * 60 * 60 * 1000; // 8 hours
+        const expiryTimestamp = currentTimestamp + sessionDuration;
+        
+        // SYNC: Set the login state for DirectAuth to detect
+        localStorage.setItem('akii-is-logged-in', 'true');
+        localStorage.setItem('akii-auth-user-id', data.user.id);
+        localStorage.setItem('akii-login-timestamp', currentTimestamp.toString());
+        localStorage.setItem('akii-session-duration', sessionDuration.toString());
+        localStorage.setItem('akii-session-expiry', expiryTimestamp.toString());
+        localStorage.setItem('akii-auth-user-email', email);
+        
+        // Dispatch an event to notify DirectAuth of the change
+        const loginEvent = new CustomEvent('akii-login-state-changed', { 
+          detail: { isLoggedIn: true, userId: data.user.id }
+        });
+        window.dispatchEvent(loginEvent);
+        
+        console.log('SupabaseAuth: Successfully logged in and synced with DirectAuth');
+      }
 
       return { data, error };
     } catch (error) {

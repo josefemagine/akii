@@ -17,6 +17,13 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
 
+// Declare global window property for circuit breaker state
+declare global {
+  interface Window {
+    circuitBroken?: boolean;
+  }
+}
+
 // Login form schema
 const formSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -32,6 +39,22 @@ export default function Login() {
   
   // Use the Supabase auth context
   const { signIn, user } = useSupabaseAuth();
+  
+  // Clear any redirect loops on initial load
+  useEffect(() => {
+    // Clear any circuit breaker or redirect tracking
+    sessionStorage.removeItem('redirect-count');
+    sessionStorage.removeItem('last-redirect-time');
+    sessionStorage.removeItem('navigation-history');
+    sessionStorage.removeItem('login-page-visits');
+    
+    // Reset circuit breaker state if present
+    if (window.circuitBroken) {
+      window.circuitBroken = false;
+    }
+    
+    console.log('Login: Cleared any potential redirect loop state');
+  }, []);
   
   // If user is already logged in, redirect to dashboard or the page they came from
   useEffect(() => {
@@ -86,7 +109,10 @@ export default function Login() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      // Keep loading state active for a moment to allow auth sync to happen
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 1000);
     }
   }
 
@@ -115,6 +141,7 @@ export default function Login() {
                         placeholder="Enter your email"
                         type="email"
                         disabled={isLoading}
+                        autoComplete="email"
                         {...field}
                       />
                     </FormControl>
@@ -134,6 +161,7 @@ export default function Login() {
                         placeholder="Enter your password"
                         type="password"
                         disabled={isLoading}
+                        autoComplete="current-password"
                         {...field}
                       />
                     </FormControl>
@@ -166,7 +194,17 @@ export default function Login() {
                 className="w-full"
                 disabled={isLoading}
               >
-                {isLoading ? "Signing in..." : "Sign in"}
+                {isLoading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Signing in...
+                  </span>
+                ) : (
+                  "Sign in"
+                )}
               </Button>
             </form>
           </Form>

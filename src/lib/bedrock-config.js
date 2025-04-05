@@ -1,10 +1,28 @@
 /**
  * Bedrock API Configuration Module
  * Handles environment variables and provides configuration defaults
+ * for working with AWS Bedrock via Supabase Edge Functions.
  */
 
-// Local development feature detection
+// Environment detection
 const isLocalDevelopment = import.meta.env.MODE === 'development';
+const isProduction = import.meta.env.MODE === 'production';
+
+// Get Supabase URL from environment
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+
+/**
+ * Authentication configuration
+ * JWT is required for accessing the Bedrock Edge Function
+ */
+const authConfig = {
+  // JWT refresh settings - refresh token when it's within 5 minutes of expiry
+  refreshTokenThreshold: 5 * 60 * 1000, // 5 minutes in milliseconds
+  // Require authentication for all Bedrock operations
+  requireAuth: true,
+  // JWT expiry time in seconds (defaults to 1 hour = 3600 seconds)
+  tokenExpirySeconds: 3600,
+};
 
 /**
  * API base URL - prioritizes environment variables with fallbacks
@@ -19,9 +37,8 @@ const getApiUrl = () => {
     return envApiUrl.endsWith('/') ? envApiUrl.slice(0, -1) : envApiUrl;
   }
   
-  // Production default - should be '/api/bedrock'
-  // This will route through your application's API proxy
-  return '/api/bedrock';
+  // Production default - using the edge function URL
+  return 'https://api.akii.com/functions/v1/super-action';
 };
 
 /**
@@ -33,7 +50,8 @@ const getApiKey = () => {
 
 /**
  * Determine if we're using Supabase Edge Functions
- * By default, we assume we are in production but not in development
+ * Default behavior is to use Edge Functions in all environments
+ * unless explicitly disabled via environment variable
  */
 const useEdgeFunctions = () => {
   const explicitSetting = import.meta.env.VITE_USE_EDGE_FUNCTIONS;
@@ -43,22 +61,37 @@ const useEdgeFunctions = () => {
     return explicitSetting === 'true';
   }
   
-  // Otherwise, use Edge Functions in production but not in development
-  return !isLocalDevelopment;
+  // By default, use Edge Functions everywhere unless disabled
+  return true;
 };
 
 /**
- * Get the Edge Function URL
+ * Get the Edge Function URL for Bedrock
  */
 const getEdgeFunctionUrl = () => {
-  const supabaseProjectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-  
-  if (!supabaseProjectId) {
-    console.warn('No Supabase project ID configured for Edge Functions');
-    return null;
+  // In local development, use the Vite proxy to avoid CORS issues
+  if (isLocalDevelopment) {
+    return '/api/bedrock';
   }
   
-  return `https://${supabaseProjectId}.supabase.co/functions/v1/bedrock`;
+  // Use custom domain for production (as specified by user)
+  return 'https://api.akii.com/functions/v1/bedrock';
+};
+
+/**
+ * Get the Edge Function name for Bedrock
+ * This is the name used when invoking the function via Supabase client
+ */
+const getEdgeFunctionName = () => {
+  return 'bedrock';
+};
+
+/**
+ * Determine if debug mode is enabled
+ */
+const isDebugMode = () => {
+  const debugSetting = import.meta.env.VITE_DEBUG;
+  return debugSetting === 'true' || isLocalDevelopment;
 };
 
 // Export configuration object
@@ -67,10 +100,19 @@ export const BedrockConfig = {
   apiKey: getApiKey(),
   useEdgeFunctions: useEdgeFunctions(),
   edgeFunctionUrl: getEdgeFunctionUrl(),
+  edgeFunctionName: getEdgeFunctionName(),
   isLocalDevelopment,
+  isProduction,
+  
+  // Authentication configuration
+  auth: authConfig,
   
   // Debug configuration
-  debug: isLocalDevelopment || import.meta.env.VITE_DEBUG === 'true',
+  debug: isDebugMode(),
+  
+  // Development mock API options
+  devUseMockApi: isLocalDevelopment, // Always use mock data in development
+  devFallbackToMock: true, // Fall back to mock data if edge function fails
   
   // Default model settings
   defaultModel: 'amazon.titan-text-express-v1',

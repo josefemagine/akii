@@ -4,13 +4,231 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Akii - Your Company's own AI</title>
+    <title>Private AI Trained on Your Data | Akii</title>
+<meta name="description" content="Launch your own private AI — fully isolated, trained on your data, and ready for multi-platform deployment across web, mobile, and more.">
+    <!-- Redirect Loop Circuit Breaker -->
+    <script>
+      (function() {
+        // Track navigation history
+        var MAX_REDIRECTS = 5;
+        var REDIRECT_WINDOW_MS = 5000;
+        var COOLDOWN_PERIOD_MS = 30000;
+        
+        // Get or initialize navigation history
+        var getHistory = function() {
+          try {
+            var history = sessionStorage.getItem('navigation-history');
+            return history ? JSON.parse(history) : [];
+          } catch (e) {
+            console.error('Error reading navigation history:', e);
+            return [];
+          }
+        };
+        
+        // Save navigation history
+        var saveHistory = function(history) {
+          try {
+            sessionStorage.setItem('navigation-history', JSON.stringify(history));
+          } catch (e) {
+            console.error('Error saving navigation history:', e);
+          }
+        };
+        
+        // Check for redirection loops
+        var checkRedirectLoop = function() {
+          var currentPath = window.location.pathname;
+          var currentTime = Date.now();
+          var history = getHistory();
+          
+          // Clean up old entries
+          history = history.filter(function(entry) {
+            return currentTime - entry.time < REDIRECT_WINDOW_MS;
+          });
+          
+          // Add current navigation
+          history.push({
+            path: currentPath,
+            time: currentTime
+          });
+          
+          // Save updated history
+          saveHistory(history);
+          
+          // Check for loop patterns
+          if (history.length >= MAX_REDIRECTS) {
+            var pathCounts = {};
+            var hasLoop = false;
+            
+            // Count occurrences of each path
+            history.forEach(function(entry) {
+              pathCounts[entry.path] = (pathCounts[entry.path] || 0) + 1;
+              if (pathCounts[entry.path] >= 3) {
+                hasLoop = true;
+              }
+            });
+            
+            // If we detect a loop, show emergency message
+            if (hasLoop) {
+              console.error('CRITICAL: Navigation loop detected before React initialized!');
+              console.error('Navigation history:', history);
+              
+              // Try to prevent further navigation
+              if (window.stop) {
+                window.stop();
+              }
+              
+              // Show emergency message
+              document.body.innerHTML = '<div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 100px auto; padding: 20px; background: #f8f9fa; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">' +
+                '<h1 style="color: #dc3545; margin-top: 0;">Emergency Navigation Circuit Breaker</h1>' +
+                '<p>The application has detected a critical navigation loop and has been emergency stopped to prevent browser crashes.</p>' +
+                '<p>This usually happens when there\'s an issue with authentication state management.</p>' +
+                '<div style="background: #e9ecef; padding: 15px; border-radius: 4px; margin: 20px 0; font-family: monospace; font-size: 12px;">' +
+                'Time: ' + new Date().toISOString() + '<br>' +
+                'Path: ' + currentPath + '<br>' +
+                'Redirects: ' + history.length + '<br>' +
+                '</div>' +
+                '<button id="reset-btn" style="background: #0d6efd; color: white; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;">Reset Application</button>' +
+                '</div>';
+              
+              // Add event listener to reset button
+              document.getElementById('reset-btn').addEventListener('click', function() {
+                // Clear all storage
+                try {
+                  localStorage.clear();
+                  sessionStorage.clear();
+                  
+                  // Force reload to login page
+                  window.location.href = '/login';
+                } catch (e) {
+                  console.error('Error during reset:', e);
+                  alert('Error during reset. Please close this tab and try again in a new browser window.');
+                }
+              });
+              
+              // Set a flag to prevent React initialization
+              window.__NAVIGATION_EMERGENCY_STOP__ = true;
+              
+              return true; // Loop detected
+            }
+          }
+          
+          return false; // No loop detected
+        };
+        
+        // Run the check
+        checkRedirectLoop();
+      })();
+    </script>
     <!-- Supabase Environment Variables -->
     <script>
       window.ENV = {
         VITE_SUPABASE_URL: "https://your-project-url.supabase.co",
         VITE_SUPABASE_ANON_KEY: "your-public-anon-key"
       };
+    </script>
+    <script>
+      // Prevent Multiple React Instances
+      // This script runs before any React code and ensures consistent React references
+      (function() {
+        // Skip if emergency stop is active
+        if (window.__NAVIGATION_EMERGENCY_STOP__) {
+          console.warn('React initialization skipped due to emergency navigation stop');
+          return;
+        }
+        
+        // Create global React namespace holder
+        window.__GLOBAL_REACT_REFS__ = window.__GLOBAL_REACT_REFS__ || {};
+        window.__REACT_SHARED_INTERNALS__ = window.__REACT_SHARED_INTERNALS__ || {};
+        
+        // Track instances to prevent duplication
+        var instanceTracker = {
+          'react': null,
+          'react-dom': null,
+          'react-router': null,
+          'react-router-dom': null
+        };
+        
+        // Enhanced React protection to prevent useRef hook errors
+        var originalCreateElement = null;
+        var originalCreateRef = null;
+        var originalUseRef = null;
+        
+        var guardReactInstance = function() {
+          // Set up guards for React methods
+          if (window.React) {
+            // Guard createElement
+            if (window.React.createElement && !originalCreateElement) {
+              originalCreateElement = window.React.createElement;
+              console.log('React createElement guard installed');
+            }
+            
+            // Guard createRef
+            if (window.React.createRef && !originalCreateRef) {
+              originalCreateRef = window.React.createRef;
+              console.log('React createRef guard installed');
+            }
+            
+            // Guard useRef hook
+            if (window.React.useRef && !originalUseRef) {
+              originalUseRef = window.React.useRef;
+              console.log('React useRef guard installed');
+              
+              // Store reference to React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+              if (window.React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED) {
+                window.__REACT_SHARED_INTERNALS__ = window.React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+                console.log('React internals reference saved');
+              }
+            }
+            
+            // Store the first React instance we see
+            if (!instanceTracker['react']) {
+              instanceTracker['react'] = window.React;
+              window.__GLOBAL_REACT_REFS__.React = window.React;
+              console.log('First React instance stored');
+            }
+          }
+          
+          // Also check for ReactDOM
+          if (window.ReactDOM && !instanceTracker['react-dom']) {
+            instanceTracker['react-dom'] = window.ReactDOM;
+            window.__GLOBAL_REACT_REFS__.ReactDOM = window.ReactDOM;
+            console.log('First ReactDOM instance stored');
+          }
+        };
+        
+        // Check for React in globals periodically
+        var checkInterval = setInterval(function() {
+          guardReactInstance();
+          if (originalCreateElement && originalCreateRef && originalUseRef) {
+            console.log('All React guards successfully installed');
+            clearInterval(checkInterval);
+          }
+        }, 50);
+        
+        // Clear check after 10 seconds to prevent memory leaks
+        setTimeout(function() {
+          clearInterval(checkInterval);
+          console.log('React guard installation completed or timed out');
+        }, 10000);
+        
+        // Add global error handler to catch React hook errors
+        window.addEventListener('error', function(event) {
+          if (event.error && event.error.message && 
+              (event.error.message.includes('Invalid hook call') || 
+               event.error.message.includes('useRef') || 
+               event.error.message.includes('null') || 
+               event.error.message.includes('undefined'))) {
+            console.error('React hook error detected:', event.error.message);
+            
+            // Log the current React references
+            console.log('Current React instances:', {
+              globalReact: window.React,
+              storedReact: window.__GLOBAL_REACT_REFS__.React,
+              reactInternals: window.__REACT_SHARED_INTERNALS__
+            });
+          }
+        });
+      })();
     </script>
   </head>
   <body>

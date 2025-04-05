@@ -156,7 +156,7 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       console.log('DirectAuth: User signed out');
       
       // Force a full page reload to clear any in-memory state
-      window.location.href = '/login';
+      window.location.href = '/';
     } catch (error: unknown) {
       console.error('DirectAuth: Error during sign out', error);
       if (error instanceof Error) {
@@ -169,7 +169,7 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setIsAdmin(false);
       
       // Force a complete reload to address persistience issues
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   };
   
@@ -472,6 +472,22 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   
   // Initialize auth state on mount
   useEffect(() => {
+    // Add debounce protection to prevent multiple calls
+    const lastInitTime = parseInt(sessionStorage.getItem('auth-init-timestamp') || '0');
+    const currentTime = Date.now();
+    const MIN_INIT_INTERVAL = 2000; // 2 seconds minimum between init attempts
+    
+    if (currentTime - lastInitTime < MIN_INIT_INTERVAL) {
+      console.log('DirectAuth: Skipping initialization - too soon since last attempt', {
+        timeSinceLastInit: currentTime - lastInitTime,
+        minInterval: MIN_INIT_INTERVAL
+      });
+      return;
+    }
+    
+    // Mark this initialization attempt
+    sessionStorage.setItem('auth-init-timestamp', currentTime.toString());
+    
     const initAuth = async () => {
       console.log('DirectAuth: Initializing authentication state');
       setIsLoading(true);
@@ -499,6 +515,25 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           serverPort: window.location.port
         });
         
+        // Check for potential redirect loops
+        const redirectCount = parseInt(sessionStorage.getItem('redirect-count') || '0');
+        const dashboardRedirectTime = parseInt(sessionStorage.getItem('dashboard-redirect-time') || '0');
+        const isInPotentialLoop = redirectCount >= 2 || (currentTime - dashboardRedirectTime < 3000);
+        
+        // If in a potential loop, don't automatically redirect
+        if (isInPotentialLoop) {
+          console.warn('DirectAuth: Potential redirect loop detected, skipping automatic redirects');
+          
+          // Show user even if technically not logged in, to break loop
+          if (storedUserId) {
+            const minimalUser = getMinimalUser();
+            setUser(minimalUser);
+          }
+          
+          setIsLoading(false);
+          return;
+        }
+        
         // If looking at a login page that's not our current server port, fix it
         if (window.location.pathname === '/login' && 
             window.location.port === '5187' && 
@@ -525,6 +560,17 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // If we're already logged in but got redirected to login, go to dashboard
         if (window.location.pathname === '/login' && isLoggedInState) {
+          // Check for potential redirect loops first
+          const loginPageVisits = parseInt(sessionStorage.getItem('login-page-visits') || '0') + 1;
+          sessionStorage.setItem('login-page-visits', loginPageVisits.toString());
+          
+          // If we've been to login page too many times, don't auto-redirect
+          if (loginPageVisits >= 3) {
+            console.warn('DirectAuth: Multiple login page visits detected, stopping auto-redirect to prevent loops');
+            setIsLoading(false);
+            return;
+          }
+          
           console.log('DirectAuth: Already logged in but on login page, redirecting to dashboard');
           navigate('/dashboard', { replace: true });
           return;
@@ -577,16 +623,81 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     initAuth();
     
-    // Set up custom event listener for auth state changes
-    const handleAuthStateChange = () => {
-      console.log('DirectAuth: Auth state change detected, refreshing');
-      refreshAuthState();
+    // Listen for auth state changes in authState effect
+    const handleAuthStateChange = (event: CustomEvent) => {
+      console.log('DirectAuth: Received auth state change event', event.detail);
+      
+      // Force immediate auth state refresh
+      const syncWithSupabaseAuth = async () => {
+        if (event.detail?.isLoggedIn) {
+          const userId = event.detail.userId;
+          if (userId) {
+            console.log('DirectAuth: Syncing with Supabase auth, userId:', userId);
+            
+            // Create minimal user object
+            const minimalUser = {
+              id: userId,
+              email: localStorage.getItem('akii-auth-user-email') || 'unknown@example.com',
+              role: 'user',
+              app_metadata: { provider: 'email' },
+              user_metadata: {},
+              created_at: new Date().toISOString()
+            };
+            
+            // Update state with minimal user
+            setUser(minimalUser);
+            
+            // Then load profile from database
+            console.log('DirectAuth: Loading profile after auth sync');
+            const profileResult = await getProfileDirectly();
+            const profileData = profileResult.data;
+            
+            if (profileData) {
+              console.log('DirectAuth: Profile loaded during sync', profileData);
+              
+              // Update state with full data
+              setProfile(profileData);
+              setUser({
+                ...minimalUser,
+                email: profileData.email,
+                role: profileData.role
+              });
+              setAdminStatus(profileData.role === 'admin');
+            } else {
+              console.warn('DirectAuth: Failed to load profile during sync, creating one');
+              
+              // Try to create profile
+              const createResult = await ensureProfileExists();
+              if (createResult.data) {
+                console.log('DirectAuth: Created profile during sync', createResult.data);
+                setProfile(createResult.data);
+                setUser({
+                  ...minimalUser,
+                  email: createResult.data.email,
+                  role: createResult.data.role
+                });
+                setAdminStatus(createResult.data.role === 'admin');
+              }
+            }
+          }
+        } else {
+          // Handle logout
+          console.log('DirectAuth: Syncing logout state');
+          setUser(null);
+          setProfile(null);
+          setIsAdmin(false);
+        }
+      };
+      
+      // Execute sync
+      syncWithSupabaseAuth();
     };
     
-    window.addEventListener('akii-login-state-changed', handleAuthStateChange);
+    // Add event listener for auth state changes from Supabase
+    window.addEventListener('akii-login-state-changed', handleAuthStateChange as EventListener);
     
     return () => {
-      window.removeEventListener('akii-login-state-changed', handleAuthStateChange);
+      window.removeEventListener('akii-login-state-changed', handleAuthStateChange as EventListener);
     };
   }, [navigate]);
   

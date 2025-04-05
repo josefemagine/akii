@@ -15,9 +15,13 @@ export type UserProfile = CustomUserProfile;
 
 // Environment variables interface
 interface EnvironmentVariables {
-  VITE_SUPABASE_URL: string;
-  VITE_SUPABASE_ANON_KEY: string;
-  [key: string]: string;
+  VITE_SUPABASE_URL?: string;
+  SUPABASE_URL?: string;
+  VITE_SUPABASE_ANON_KEY?: string;
+  SUPABASE_ANON_KEY?: string;
+  VITE_SUPABASE_SERVICE_ROLE_KEY?: string; 
+  SUPABASE_SERVICE_KEY?: string;
+  [key: string]: string | undefined;
 }
 
 // Extend the Window interface

@@ -532,11 +532,10 @@ export async function insertIntoTable(tableName: string, data: any, options: {
       .from(tableName)
       .insert(data);
     
-    if (options.returning) {
-      query = query.select();
-    }
-    
-    const { data: result, error } = await query;
+    // Type-safe approach to handle the select() call
+    const { data: result, error } = options.returning 
+      ? await query.select()
+      : await query;
     
     if (error) {
       console.error(`Direct DB: Error inserting into ${tableName}:`, error);
@@ -576,11 +575,10 @@ export async function updateInTable(
       query = query.eq(key, value);
     });
     
-    if (options.returning) {
-      query = query.select();
-    }
-    
-    const { data, error } = await query;
+    // Type-safe approach to handle the select() call
+    const { data, error } = options.returning 
+      ? await query.select()
+      : await query;
     
     if (error) {
       console.error(`Direct DB: Error updating in ${tableName}:`, error);
@@ -619,11 +617,10 @@ export async function deleteFromTable(
       query = query.eq(key, value);
     });
     
-    if (options.returning) {
-      query = query.select();
-    }
-    
-    const { data, error } = await query;
+    // Type-safe approach to handle the select() call
+    const { data, error } = options.returning 
+      ? await query.select()
+      : await query;
     
     if (error) {
       console.error(`Direct DB: Error deleting from ${tableName}:`, error);

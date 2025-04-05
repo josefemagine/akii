@@ -129,6 +129,7 @@ export default function ResetPassword() {
               id="password"
               type="password"
               {...register("password")}
+              autoComplete="new-password"
               disabled={isLoading}
             />
             {errors.password && (
@@ -142,6 +143,7 @@ export default function ResetPassword() {
               id="confirmPassword"
               type="password"
               {...register("confirmPassword")}
+              autoComplete="new-password"
               disabled={isLoading}
             />
             {errors.confirmPassword && (

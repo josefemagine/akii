@@ -255,6 +255,7 @@ export default function PasswordReset({
                 id="password"
                 type="password"
                 {...resetForm.register("password")}
+                autoComplete="new-password"
                 disabled={isLoading}
               />
               {resetForm.formState.errors.password && (
@@ -270,6 +271,7 @@ export default function PasswordReset({
                 id="confirmPassword"
                 type="password"
                 {...resetForm.register("confirmPassword")}
+                autoComplete="new-password"
                 disabled={isLoading}
               />
               {resetForm.formState.errors.confirmPassword && (

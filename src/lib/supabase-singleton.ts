@@ -6,15 +6,41 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-// Environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+// Environment variables with better error handling and fallbacks
+function getSupabaseConfig() {
+  // Try to get values from different sources
+  let url = '';
+  let anonKey = '';
+  let serviceKey = '';
 
-// Check for required environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing required Supabase environment variables');
+  try {
+    // First try import.meta.env (Vite standard)
+    url = import.meta.env.VITE_SUPABASE_URL || '';
+    anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+
+    // Check if we have values from a global ENV object (sometimes used in production)
+    if ((!url || !anonKey) && typeof window !== 'undefined' && window.ENV) {
+      url = url || window.ENV.VITE_SUPABASE_URL || window.ENV.SUPABASE_URL || '';
+      anonKey = anonKey || window.ENV.VITE_SUPABASE_ANON_KEY || window.ENV.SUPABASE_ANON_KEY || '';
+      serviceKey = serviceKey || window.ENV.VITE_SUPABASE_SERVICE_ROLE_KEY || window.ENV.SUPABASE_SERVICE_KEY || '';
+    }
+  } catch (error) {
+    console.error('Error accessing Supabase environment variables:', error);
+  }
+
+  // Validate and warn
+  if (!url) {
+    console.error('Missing required Supabase URL. Authentication will not work.');
+  }
+  if (!anonKey) {
+    console.error('Missing required Supabase anon key. Authentication will not work.');
+  }
+
+  return { url, anonKey, serviceKey };
 }
+
+const { url: supabaseUrl, anonKey: supabaseAnonKey, serviceKey: supabaseServiceKey } = getSupabaseConfig();
 
 // Define custom window properties for Supabase clients
 declare global {
@@ -26,6 +52,15 @@ declare global {
       auth?: any;
       client?: ReturnType<typeof createClient<Database>>;
       initialized?: boolean;
+    };
+    ENV?: {
+      VITE_SUPABASE_URL?: string;
+      SUPABASE_URL?: string;
+      VITE_SUPABASE_ANON_KEY?: string;
+      SUPABASE_ANON_KEY?: string;
+      VITE_SUPABASE_SERVICE_ROLE_KEY?: string;
+      SUPABASE_SERVICE_KEY?: string;
+      [key: string]: string | undefined;
     };
   }
 }
@@ -42,99 +77,141 @@ interface GlobalSingleton {
 // Create global singleton object with our symbol key
 const globalSingleton = Object.create({});
 
-// Check if we already have a singleton instance
-if (!(SUPABASE_SINGLETON_KEY in globalSingleton)) {
-  // Create a new Supabase client and store it in the global singleton
-  console.log('Supabase singleton client initialized');
-  globalSingleton[SUPABASE_SINGLETON_KEY] = {
-    client: createClient<Database>(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        storageKey: 'sb-injxxchotrvgvzelhvj-auth-token',
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce',
-        debug: false, // Always disable debug mode to reduce console noise and lock issues
-        // Configure to store data more reliably with better error handling
-        storage: {
-          getItem: (key) => {
-            try {
-              const item = localStorage.getItem(key);
-              return item;
-            } catch (error) {
-              console.error('[Supabase Storage] Error accessing localStorage:', error);
-              // Try to gracefully handle localStorage errors
-              if (typeof sessionStorage !== 'undefined') {
-                try {
-                  return sessionStorage.getItem(key);
-                } catch (e) {
-                  console.error('[Supabase Storage] Fallback storage error:', e);
-                }
+// Use a function to create and get the client to prevent duplication
+function getOrCreateSupabaseClient(): SupabaseClient<Database> {
+  // Check if we already have an instance in the window object (browser-only)
+  if (typeof window !== 'undefined') {
+    // Check any of the possible window globals that might contain a client instance
+    if (window.__supabaseClient) {
+      console.log('Using existing Supabase client from window.__supabaseClient');
+      return window.__supabaseClient;
+    }
+    
+    if (window.__supabase) {
+      console.log('Using existing Supabase client from window.__supabase');
+      return window.__supabase;
+    }
+    
+    if (window.__SUPABASE_SINGLETON?.client) {
+      console.log('Using existing Supabase client from window.__SUPABASE_SINGLETON');
+      return window.__SUPABASE_SINGLETON.client;
+    }
+  }
+  
+  // Check if we already have a singleton instance
+  if (SUPABASE_SINGLETON_KEY in globalSingleton) {
+    console.log('Using existing Supabase client from singleton');
+    return globalSingleton[SUPABASE_SINGLETON_KEY].client;
+  }
+
+  // Create a new Supabase client if none exists
+  console.log('Creating new Supabase singleton client with URL:', supabaseUrl || 'MISSING URL');
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Critical error: Missing Supabase configuration. Authentication will not work properly.');
+  }
+  
+  const client = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      storageKey: 'sb-injxxchotrvgvzelhvj-auth-token',
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+      debug: false, // Always disable debug mode to reduce console noise and lock issues
+      // Configure to store data more reliably with better error handling
+      storage: {
+        getItem: (key) => {
+          try {
+            const item = localStorage.getItem(key);
+            return item;
+          } catch (error) {
+            console.error('[Supabase Storage] Error accessing localStorage:', error);
+            // Try to gracefully handle localStorage errors
+            if (typeof sessionStorage !== 'undefined') {
+              try {
+                return sessionStorage.getItem(key);
+              } catch (e) {
+                console.error('[Supabase Storage] Fallback storage error:', e);
               }
-              return null;
             }
-          },
-          setItem: (key, value) => {
-            try {
-              localStorage.setItem(key, value);
-            } catch (error) {
-              console.error('[Supabase Storage] Error writing to localStorage:', error);
-              // Try to gracefully handle localStorage errors
-              if (typeof sessionStorage !== 'undefined') {
-                try {
-                  sessionStorage.setItem(key, value);
-                } catch (e) {
-                  console.error('[Supabase Storage] Fallback storage error:', e);
-                }
+            return null;
+          }
+        },
+        setItem: (key, value) => {
+          try {
+            localStorage.setItem(key, value);
+          } catch (error) {
+            console.error('[Supabase Storage] Error writing to localStorage:', error);
+            // Try to gracefully handle localStorage errors
+            if (typeof sessionStorage !== 'undefined') {
+              try {
+                sessionStorage.setItem(key, value);
+              } catch (e) {
+                console.error('[Supabase Storage] Fallback storage error:', e);
               }
             }
-          },
-          removeItem: (key) => {
-            try {
-              localStorage.removeItem(key);
-            } catch (error) {
-              console.error('[Supabase Storage] Error removing from localStorage:', error);
-              // Try to gracefully handle localStorage errors
-              if (typeof sessionStorage !== 'undefined') {
-                try {
-                  sessionStorage.removeItem(key);
-                } catch (e) {
-                  console.error('[Supabase Storage] Fallback storage error:', e);
-                }
+          }
+        },
+        removeItem: (key) => {
+          try {
+            localStorage.removeItem(key);
+          } catch (error) {
+            console.error('[Supabase Storage] Error removing from localStorage:', error);
+            // Try to gracefully handle localStorage errors
+            if (typeof sessionStorage !== 'undefined') {
+              try {
+                sessionStorage.removeItem(key);
+              } catch (e) {
+                console.error('[Supabase Storage] Fallback storage error:', e);
               }
             }
           }
         }
-      },
-      // Global fetch options to improve reliability
-      global: {
-        fetch: (url: RequestInfo | URL, options?: RequestInit) => {
-          // Use a timeout to prevent hanging requests
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-          
-          // Merge the abort signal with any existing options
-          const mergedOptions: RequestInit = {
-            ...(options || {}),
-            signal: controller.signal,
-            keepalive: true
-          };
-          
-          return fetch(url, mergedOptions).finally(() => {
-            clearTimeout(timeoutId);
-          });
-        }
       }
-    }),
+    },
+    // Global fetch options to improve reliability
+    global: {
+      fetch: (url: RequestInfo | URL, options?: RequestInit) => {
+        // Use a timeout to prevent hanging requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        // Merge the abort signal with any existing options
+        const mergedOptions: RequestInit = {
+          ...(options || {}),
+          signal: controller.signal,
+          keepalive: true
+        };
+        
+        return fetch(url, mergedOptions).finally(() => {
+          clearTimeout(timeoutId);
+        });
+      }
+    }
+  });
+  
+  // Store the client in global singleton
+  globalSingleton[SUPABASE_SINGLETON_KEY] = {
+    client,
     initialized: true,
   };
+  
+  // Store in window for cross-reference detection (browser-only)
+  if (typeof window !== 'undefined') {
+    window.__supabaseClient = client;
+    window.__supabase = client;
+    window.__SUPABASE_SINGLETON = {
+      client,
+      initialized: true
+    };
+  }
+  
+  return client;
 }
 
-// Admin client capabilities are initialized lazily
-let adminInitialized = false;
-
-// Get the Supabase client from the global singleton
-export const supabase = globalSingleton[SUPABASE_SINGLETON_KEY].client;
+// Initialize the client once and export it
+export const supabase = getOrCreateSupabaseClient();
 
 // For backward compatibility
 export const auth = supabase.auth;
@@ -142,6 +219,9 @@ export const auth = supabase.auth;
 // Create a minimal admin client that just forwards to the regular client
 // This maintains backwards compatibility with existing code
 export const supabaseAdmin = supabase;
+
+// Admin client capabilities are initialized lazily
+let adminInitialized = false;
 
 // Create browser-specific client for browser environments
 export function createBrowserClient() {
@@ -290,7 +370,8 @@ export async function checkSupabaseHealth(): Promise<{isHealthy: boolean, error?
     
     // Also try a basic endpoint that should always be available
     try {
-      const response = await fetch(`${supabase.supabaseUrl}/rest/v1/?apikey=${supabase.supabaseKey}`);
+      // Use a standard endpoint check without accessing protected properties
+      const response = await fetch(`${supabaseUrl}/rest/v1/?apikey=${supabaseAnonKey}`);
       if (!response.ok) {
         console.warn('Supabase API endpoint check failed:', response.status);
         return { isHealthy: false, error: { status: response.status, message: response.statusText } };

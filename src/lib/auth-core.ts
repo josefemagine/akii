@@ -78,11 +78,14 @@ export async function verifyConnection(): Promise<{
   try {
     const result = await verifySupabaseConnection();
     
+    // Create simple success or error message
+    const message = result.success 
+      ? `Connection successful (${result.latency}ms)` 
+      : `Connection failed${result.error ? ': ' + String(result.error) : ''}`;
+    
     return {
       success: result.success,
-      message: result.success 
-        ? `Connection successful (${result.latency}ms)` 
-        : `Connection failed${result.error ? ': ' + result.error.message : ''}`,
+      message,
       details: {
         connected: result.success,
         sessionExists: result.sessionExists || false,

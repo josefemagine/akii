@@ -12,6 +12,66 @@ import { dashboardStyles, DashboardPageContainer } from "@/components/layout/Das
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DashboardSection } from "@/components/layout/DashboardSection";
 import { useAuth } from "@/contexts/auth-compatibility";
+import { useDirectAuth } from "@/contexts/direct-auth-context";
+
+// Helper function to get time-appropriate greeting
+const getTimeBasedGreeting = (): string => {
+  const hour = new Date().getHours();
+  
+  if (hour >= 5 && hour < 12) {
+    return "Good morning";
+  } else if (hour >= 12 && hour < 18) {
+    return "Good afternoon";
+  } else {
+    return "Good evening";
+  }
+};
+
+// Custom hook for time-based greeting that updates when time period changes
+const useTimeBasedGreeting = () => {
+  const [greeting, setGreeting] = useState(getTimeBasedGreeting());
+  const previousGreetingRef = React.useRef(greeting);
+  
+  useEffect(() => {
+    // Update greeting when appropriate
+    const updateGreeting = () => {
+      const newGreeting = getTimeBasedGreeting();
+      if (newGreeting !== previousGreetingRef.current) {
+        previousGreetingRef.current = newGreeting;
+        setGreeting(newGreeting);
+      }
+    };
+    
+    // Check for greeting change every minute
+    const intervalId = setInterval(updateGreeting, 60000);
+    
+    return () => clearInterval(intervalId);
+  }, []); // Empty dependency array to run only once on mount
+  
+  return greeting;
+};
+
+// Custom hook to get user's first name
+const useUserFirstName = () => {
+  const { profile } = useDirectAuth();
+  
+  return useMemo(() => {
+    if (profile?.first_name) return profile.first_name;
+    if (profile?.name) {
+      // Split name and return first part
+      return profile.name.split(' ')[0];
+    }
+    return "there"; // Default if no name found
+  }, [profile]);
+};
+
+// Combined hook for personalized greeting
+const usePersonalizedGreeting = () => {
+  const timeGreeting = useTimeBasedGreeting();
+  const firstName = useUserFirstName();
+  
+  return `${timeGreeting}, ${firstName}!`;
+};
 
 // Memoized stats card to prevent re-rendering when parent re-renders
 const StatCard = React.memo(({ 
@@ -44,12 +104,13 @@ const DashboardContent = React.memo(({ analyticsData }: { analyticsData: Analyti
   const totalConversations = analyticsData.totalConversations || 0;
   const averageRating = analyticsData.averageRating || 0;
   const { isAdmin } = useAuth();
+  const personalizedGreeting = usePersonalizedGreeting();
 
   return (
     <div>
       <PageHeader
-        title="Dashboard"
-        description="Overview of your AI assistant performance"
+        title={personalizedGreeting}
+        description="Overview of your private AI Instances and performance"
       >
         <select
           className="p-2 border rounded-md bg-background"
@@ -212,27 +273,31 @@ const DashboardContent = React.memo(({ analyticsData }: { analyticsData: Analyti
 });
 
 // Error state component
-const ErrorState = React.memo(({ error, analyticsData }: { error: string, analyticsData: AnalyticsData }) => (
-  <div>
-    <div className={dashboardStyles.sectionSpacing}>
-      <Card>
-        <CardHeader>
-          <CardTitle>Dashboard</CardTitle>
-          <CardDescription className="text-red-500">
-            {error}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p>
-            We're experiencing some technical difficulties. Showing limited
-            data.
-          </p>
-        </CardContent>
-      </Card>
+const ErrorState = React.memo(({ error, analyticsData }: { error: string, analyticsData: AnalyticsData }) => {
+  const personalizedGreeting = usePersonalizedGreeting();
+
+  return (
+    <div>
+      <div className={dashboardStyles.sectionSpacing}>
+        <Card>
+          <CardHeader>
+            <CardTitle>{personalizedGreeting}</CardTitle>
+            <CardDescription className="text-red-500">
+              {error}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>
+              We're experiencing some technical difficulties. Showing limited
+              data.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+      <DashboardContent analyticsData={analyticsData} />
     </div>
-    <DashboardContent analyticsData={analyticsData} />
-  </div>
-));
+  );
+});
 
 // Loading state component
 const LoadingState = React.memo(() => (
@@ -245,19 +310,23 @@ const LoadingState = React.memo(() => (
 ));
 
 // Empty state component
-const EmptyState = React.memo(() => (
-  <div>
-    <Card>
-      <CardHeader>
-        <CardTitle>Dashboard</CardTitle>
-        <CardDescription>No data available</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p>No analytics data is currently available.</p>
-      </CardContent>
-    </Card>
-  </div>
-));
+const EmptyState = React.memo(() => {
+  const personalizedGreeting = usePersonalizedGreeting();
+  
+  return (
+    <div>
+      <Card>
+        <CardHeader>
+          <CardTitle>{personalizedGreeting}</CardTitle>
+          <CardDescription>Overview of your private AI Instances and performance</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p>No analytics data is currently available.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+});
 
 // Main Dashboard component with optimized rendering
 const Dashboard = () => {

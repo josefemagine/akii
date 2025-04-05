@@ -226,9 +226,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   profile.role = 'admin';
                   
                   // Try to update the profile in background
-                  supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)
-                    .then(() => console.log("Profile admin status updated in DB"))
-                    .catch(e => console.error("Failed to update profile admin status:", e));
+                  try {
+                    const { error } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+                    if (error) {
+                      console.error("Failed to update profile admin status:", error);
+                    } else {
+                      console.log("Profile admin status updated in DB");
+                    }
+                  } catch (e) {
+                    console.error("Failed to update profile admin status:", e);
+                  }
                 }
                 
                 return { data: profile, error: null };
@@ -273,9 +280,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     dbProfile.role = 'admin';
                     
                     // Try to update the profile in background
-                    supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)
-                      .then(() => console.log("Profile admin status updated in DB"))
-                      .catch(e => console.error("Failed to update profile admin status:", e));
+                    try {
+                      const { error } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+                      if (error) {
+                        console.error("Failed to update profile admin status:", error);
+                      } else {
+                        console.log("Profile admin status updated in DB");
+                      }
+                    } catch (e) {
+                      console.error("Failed to update profile admin status:", e);
+                    }
                   }
                   
                   console.log("Successfully retrieved profile directly from DB");
@@ -640,9 +654,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                                 profile.role = 'admin';
                                 
                                 // Try to update the profile in background
-                                supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)
-                                  .then(() => console.log("Profile admin status updated in DB"))
-                                  .catch(e => console.error("Failed to update profile admin status:", e));
+                                try {
+                                  const { error } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+                                  if (error) {
+                                    console.error("Failed to update profile admin status:", error);
+                                  } else {
+                                    console.log("Profile admin status updated in DB");
+                                  }
+                                } catch (e) {
+                                  console.error("Failed to update profile admin status:", e);
+                                }
                               }
                               
                               return { data: profile, error: null };
@@ -687,9 +708,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                                   dbProfile.role = 'admin';
                                   
                                   // Try to update the profile in background
-                                  supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)
-                                    .then(() => console.log("Profile admin status updated in DB"))
-                                    .catch(e => console.error("Failed to update profile admin status:", e));
+                                  try {
+                                    const { error } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+                                    if (error) {
+                                      console.error("Failed to update profile admin status:", error);
+                                    } else {
+                                      console.log("Profile admin status updated in DB");
+                                    }
+                                  } catch (e) {
+                                    console.error("Failed to update profile admin status:", e);
+                                  }
                                 }
                                 
                                 console.log("Successfully retrieved profile directly from DB");

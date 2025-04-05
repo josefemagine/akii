@@ -13,5 +13,13 @@ export default defineConfig({
   server: {
     // @ts-ignore
     allowedHosts: process.env.TEMPO === "true" ? true : undefined,
+    proxy: {
+      '/api/bedrock': {
+        target: 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/bedrock',
+        changeOrigin: true,
+        rewrite: (path) => '',
+        secure: false,
+      },
+    },
   },
 });

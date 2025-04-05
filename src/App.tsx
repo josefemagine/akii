@@ -1,10 +1,13 @@
-import React, { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect } from "./lib/react-singleton";
 import {
   Routes,
   Route,
   Navigate,
   Outlet,
-} from "react-router-dom";
+} from "./lib/react-router-singleton";
+
+// Initialize supabase client at app root
+import { supabase, ensureSupabaseInitialized } from "./lib/supabase-singleton";
 
 // Import providers
 import { SearchProvider } from "./contexts/SearchContext";
@@ -21,6 +24,12 @@ import DashboardLayout from "./components/dashboard/DashboardLayout";
 import { PrivateRoute } from "./components/PrivateRoute";
 import { GlobalErrorHandler } from "./components/GlobalErrorHandler";
 import ScrollToTop from "./components/layout/ScrollToTop";
+
+// Import development-only components
+// Only import AuthDebugger in development mode
+const AuthDebugger = import.meta.env.DEV 
+  ? lazy(() => import("./components/debug/AuthDebugger")) 
+  : () => null;
 
 // Import utilities
 import { setupNetworkInterceptors } from "./lib/network-utils";
@@ -94,6 +103,18 @@ const LoadingFallback = () => (
 
 // The main App component
 export default function App() {
+  // Initialize Supabase singleton as early as possible
+  useEffect(() => {
+    // Verify and initialize Supabase client
+    ensureSupabaseInitialized().then(result => {
+      if (result.success) {
+        console.log('Supabase client initialized successfully');
+      } else {
+        console.error('Failed to initialize Supabase client:', result.error);
+      }
+    });
+  }, []);
+
   // Check for port mismatch on application initialization
   useEffect(() => {
     // Get current URL information
@@ -165,6 +186,8 @@ export default function App() {
               <ScrollToTop />
               <EnvWarning />
               <GlobalErrorHandler />
+              {/* Include AuthDebugger only in development */}
+              {import.meta.env.DEV && <AuthDebugger />}
               <Routes>
                 {/* Public home routes */}
                 <Route path="/" element={<MainLayout><Outlet /></MainLayout>}>

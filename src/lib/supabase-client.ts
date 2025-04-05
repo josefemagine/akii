@@ -1,45 +1,25 @@
 /**
  * SUPABASE CLIENT MODULE
- * Singleton module that provides access to the Supabase client instance
+ * This module re-exports the supabase client from the singleton implementation
+ * to maintain backward compatibility with existing code.
  */
 
-import { createClient } from '@supabase/supabase-js';
+// Import the singleton client instead of creating a new one
+import supabase, { auth } from './supabase-singleton';
 import { isBrowser } from './browser-check';
-
-// Access environment variables with fallbacks
-// Check window.ENV first (for deployment) then import.meta.env (for local dev)
-const getEnv = (key: string): string => {
-  if (isBrowser && typeof window !== 'undefined' && window.ENV && window.ENV[key]) {
-    return window.ENV[key];
-  }
-  return (import.meta.env[key] as string) || '';
-};
-
-// Supabase project URL and anonymous key
-const supabaseUrl = getEnv('VITE_SUPABASE_URL') || 'https://your-project.supabase.co';
-const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY') || '';
-
-// Validate the required environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables. Make sure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.');
-}
-
-// Create a single instance of the Supabase client
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: isBrowser, // Only persist session in browsers
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  }
-});
-
-// Export the Supabase instances
-export default supabase;
-export const auth = supabase.auth;
+import { User } from "@supabase/supabase-js";
 
 // Debug helper
 export function logSupabaseClientInfo() {
-  console.log('Supabase client initialized with URL:', supabaseUrl);
+  const supabaseUrl = isBrowser && window.ENV?.VITE_SUPABASE_URL 
+    ? window.ENV.VITE_SUPABASE_URL 
+    : import.meta.env.VITE_SUPABASE_URL as string || '';
+  
+  const supabaseAnonKey = isBrowser && window.ENV?.VITE_SUPABASE_ANON_KEY 
+    ? window.ENV.VITE_SUPABASE_ANON_KEY 
+    : import.meta.env.VITE_SUPABASE_ANON_KEY as string || '';
+  
+  console.log('Using Supabase singleton client with URL:', supabaseUrl);
   
   return {
     url: supabaseUrl,
@@ -47,15 +27,6 @@ export function logSupabaseClientInfo() {
     timestamp: new Date().toISOString()
   };
 }
-
-/**
- * SUPABASE CLIENT MODULE
- * 
- * This module re-exports the supabase client from the singleton implementation.
- * It provides convenience methods but does NOT create its own client instance.
- */
-
-import { User } from "@supabase/supabase-js";
 
 // Standard interface for user profiles
 export interface UserProfile {
@@ -73,6 +44,10 @@ export interface UserProfile {
 // Store user and profile in module variables for caching
 let _currentUser: User | null = null;
 let _currentProfile: UserProfile | null = null;
+
+// Export the singleton supabase client
+export default supabase;
+export { auth };
 
 /**
  * Gets the current user from the session

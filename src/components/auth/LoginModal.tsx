@@ -19,8 +19,10 @@ import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
 import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from './AuthStateManager';
-import supabase from "@/lib/supabase";
+import supabase from "@/lib/supabase-client";
 import { useAuth } from "@/contexts/auth-compatibility";
+import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
+import { useNavigate } from "react-router-dom";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -57,6 +59,7 @@ const LoginModal = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   // Try to use the auth hook safely
   let auth;
@@ -72,6 +75,9 @@ const LoginModal = ({
       signInWithGoogle: async () => ({ data: null, error: new Error("Auth not initialized") })
     };
   }
+
+  // Use the Supabase auth context directly for consistent behavior with Login page
+  const { signIn, user } = useSupabaseAuth();
 
   const {
     register,
@@ -188,7 +194,7 @@ const LoginModal = ({
       localStorage.setItem("akii-login-email", data.email);
       
       // Attempt the sign-in
-      const response = await auth.signIn(data.email, data.password);
+      const response = await signIn(data.email, data.password);
 
       if (response.error) {
         setError(response.error.message);
@@ -296,44 +302,25 @@ const LoginModal = ({
       // Close modal first
       onClose();
       
-      // Store the redirect path and set login flags
-      localStorage.setItem("akii-login-in-progress", "true");
-      localStorage.setItem("akii-login-time", Date.now().toString());
-      localStorage.setItem("akii-login-method", "google");
-      localStorage.setItem("akii-auth-redirect", "/dashboard");
+      // Use Supabase client directly for Google sign-in
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
 
-      // Start the OAuth process
-      const response = await auth.signInWithGoogle();
-
-      if (response.error) {
-        console.error("[Login Modal] Error signing in with Google:", response.error);
+      if (error) {
+        console.error("[Login Modal] Error signing in with Google:", error);
         setError("There was a problem signing in with Google. Please try again.");
-        
-        // Clear login flags on error
-        localStorage.removeItem("akii-login-in-progress");
-        localStorage.removeItem("akii-auth-redirect");
         return;
       }
 
       console.log("[Login Modal] Started Google authentication flow");
-      
-      // Since Google OAuth will redirect, we don't do a redirect here immediately.
-      // But we should check for existing auth - in case we're already signed in with Google
-      
-      setTimeout(() => {
-        // Check if we're already logged in but not redirected (happens with existing Google sessions)
-        if (auth.user || auth.session) {
-          console.log("[Login Modal] Already authenticated with Google, forcing redirect");
-          forceRedirectToDashboard();
-        }
-      }, 500);
+      // The redirect will be handled by the auth callback
     } catch (error) {
       console.error("[Login Modal] Error signing in with Google:", error);
       setError("There was a problem signing in with Google. Please try again.");
-      
-      // Clear login flags on error
-      localStorage.removeItem("akii-login-in-progress");
-      localStorage.removeItem("akii-auth-redirect");
     } finally {
       setIsLoading(false);
     }
@@ -373,8 +360,9 @@ const LoginModal = ({
             <Input
               id="email"
               type="email"
-              placeholder="name@example.com"
+              placeholder="example@domain.com"
               {...register("email")}
+              autoComplete="email"
               disabled={isLoading}
             />
             {errors.email && (
@@ -399,6 +387,7 @@ const LoginModal = ({
               id="password"
               type="password"
               {...register("password")}
+              autoComplete="current-password"
               disabled={isLoading}
             />
             {errors.password && (

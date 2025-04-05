@@ -10,7 +10,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 export interface User extends SupabaseUser {
   role?: UserRole;
   status?: UserStatus;
-  subscription: Subscription | null;
+  subscription?: Subscription | null;
   isAdmin?: boolean;
 }
 

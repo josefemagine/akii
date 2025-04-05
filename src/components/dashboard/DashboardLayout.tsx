@@ -76,16 +76,65 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   // Handle initial auth state
   useEffect(() => {
-    if (!authInitialized && !compatAuth.isLoading) {
+    // Check if we're in a potential loop already
+    const redirectCount = parseInt(sessionStorage.getItem('redirect-count') || '0');
+    if (redirectCount >= 3) {
+      console.warn('DashboardLayout: Detected potential redirect loop, skipping auto-redirect');
+      // Still mark as initialized so we show content instead of spinner
       setAuthInitialized(true);
-      
-      // If no user is found, redirect to login
-      if (!compatAuth.user) {
-        console.log('DashboardLayout: No user found, redirecting to login');
-        navigate('/login');
-      }
+      return;
     }
-  }, [authInitialized, compatAuth.isLoading, compatAuth.user, navigate, refreshAuthState]);
+    
+    // Only process auth check if not already initialized
+    if (!authInitialized) {
+      console.log('DashboardLayout: Initializing auth state', {
+        hasUser: !!compatAuth.user,
+        hasDirectUser: !!user,
+        isLoading: compatAuth.isLoading,
+        directLoading: isLoading
+      });
+      
+      // Wait briefly to allow auth contexts to initialize
+      setTimeout(() => {
+        // Check both auth contexts - if either has a user, we're good
+        const isAuthenticated = !!user || !!compatAuth.user || isLoggedIn();
+        
+        console.log('DashboardLayout: Auth check complete', {
+          hasUser: !!compatAuth.user,
+          hasDirectUser: !!user,
+          isLoggedIn: isLoggedIn(),
+          isAuthenticated
+        });
+        
+        setAuthInitialized(true);
+        
+        // If no user is found AND we're not in a loading state, redirect to login
+        if (!isAuthenticated && !isLoading && !compatAuth.isLoading) {
+          console.log('DashboardLayout: No user found, redirecting to login');
+          
+          // Set a timestamp for this redirect to detect loops
+          const currentTime = Date.now();
+          const lastRedirectTime = parseInt(sessionStorage.getItem('dashboard-redirect-time') || '0');
+          
+          // If multiple redirects happen too quickly, don't redirect
+          if (currentTime - lastRedirectTime < 2000) {
+            console.warn('DashboardLayout: Redirects happening too quickly, breaking the redirect chain');
+            return;
+          }
+          
+          // Mark this redirect
+          sessionStorage.setItem('dashboard-redirect-time', currentTime.toString());
+          
+          // Use replace to avoid growing history stack
+          navigate('/login', { replace: true });
+        } else if (isAuthenticated && !profile) {
+          // We're authenticated but don't have a profile yet - force a refresh
+          console.log('DashboardLayout: Authenticated but no profile, refreshing auth state');
+          refreshAuthState();
+        }
+      }, 500);
+    }
+  }, [authInitialized, compatAuth.isLoading, compatAuth.user, navigate, refreshAuthState, user, isLoading, profile]);
 
   // Set up network monitoring for offline mode
   useEffect(() => {
@@ -120,12 +169,35 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   // Ensure the user profile exists on mount
   useEffect(() => {
+    // Add debounce protection to prevent multiple calls
+    const lastProfileCheckTime = parseInt(sessionStorage.getItem('profile-check-timestamp') || '0');
+    const currentTime = Date.now();
+    const MIN_PROFILE_CHECK_INTERVAL = 5000; // 5 seconds minimum between profile checks
+    
+    if (currentTime - lastProfileCheckTime < MIN_PROFILE_CHECK_INTERVAL) {
+      console.log('DashboardLayout: Skipping profile check - too soon since last attempt', {
+        timeSinceLastCheck: currentTime - lastProfileCheckTime,
+        minInterval: MIN_PROFILE_CHECK_INTERVAL
+      });
+      return;
+    }
+    
+    // Mark this profile check attempt
+    sessionStorage.setItem('profile-check-timestamp', currentTime.toString());
+    
     const verifyUserProfile = async () => {
       if (!profile) {
         console.log("DashboardLayout: No profile detected, ensuring profile exists");
         try {
           // Get the current user ID from auth context
           const currentUserId = user?.id;
+          
+          // Skip if no user ID is available - this prevents unnecessary API calls
+          if (!currentUserId) {
+            console.log("DashboardLayout: No user ID available, skipping profile check");
+            return;
+          }
+          
           const { data: profileData, error } = await ensureProfileExists(currentUserId);
           
           if (profileData) {
@@ -200,11 +272,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   // Use isAdmin from props or direct auth context
   const effectiveIsAdmin = isAdmin || !!compatAuth.isAdmin;
 
-  // Don't render content until authentication is initialized
+  // Show a user-friendly loader with debug info when auth is being initialized
   if (!authInitialized) {
-    return <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-    </div>;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+        <p className="text-foreground text-lg font-medium mb-2">Initializing Dashboard...</p>
+        <p className="text-muted-foreground text-sm mb-4">This should only take a moment</p>
+      </div>
+    );
   }
 
   return (

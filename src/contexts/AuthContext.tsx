@@ -286,7 +286,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ...prev,
             profile: profileData,
             isLoading: false,
-            isAdmin: profileData?.role === "admin" || checkAdminOverride(userObj),
+            isAdmin: profileData?.role === "admin" || checkAdminOverride(userObj as any),
             userRole: profileData?.role || null,
           }));
         } catch (profileError) {
@@ -340,11 +340,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             setState(prev => ({
               ...prev,
-              user: user.data,
+              user: user.data as any,
               profile: profile.data,
               session,
               isLoading: false,
-              isAdmin: profile.data?.role === "admin" || checkAdminOverride(user.data),
+              isAdmin: profile.data?.role === "admin" || checkAdminOverride(user.data as any),
               userRole: profile.data?.role || null,
             }));
           }
@@ -827,7 +827,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data } = await supabase.auth.refreshSession();
       setState((prev) => ({ ...prev, session: data.session }));
-      setState((prev) => ({ ...prev, user: data.session?.user || null }));
+      setState((prev) => ({ ...prev, user: data.session?.user as any || null }));
       
       if (data.session?.user) {
         await checkAdminStatus();
