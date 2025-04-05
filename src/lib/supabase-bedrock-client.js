@@ -339,10 +339,23 @@ const listInstances = async () => {
 const createInstance = async (modelInfo) => {
   console.log('[Bedrock] Creating instance with parameters:', modelInfo);
   
+  // Validate required fields
+  if (!modelInfo.modelId) {
+    console.error('[Bedrock] Missing required modelId parameter');
+    return { data: null, error: 'modelId is required' };
+  }
+  
+  // Convert 1m/6m commitment duration format to match what the API expects
+  const modelData = {
+    ...modelInfo,
+    // Convert from "1m" or "6m" to the format the API expects
+    commitmentDuration: modelInfo.commitmentDuration || "1m"
+  };
+  
   // Ensure data is properly structured
   return callEdgeFunction({
     action: 'provisionInstance',
-    data: modelInfo  // This is passed directly as the request body data
+    data: modelData
   });
 };
 
