@@ -20,19 +20,6 @@ import { CONFIG, validateConfig } from "./config.ts";
 // CORS headers for all responses
 const CORS_HEADERS = CONFIG.CORS_HEADERS;
 
-// Helper for environment variables
-const getEnv = (name: string, defaultValue: string = ""): string => {
-  // @ts-ignore - Deno.env access
-  return Deno?.env?.get?.(name) || defaultValue;
-};
-
-// Environment setup
-const AWS_REGION = getEnv("AWS_REGION", "us-east-1");
-const AWS_ACCESS_KEY_ID = getEnv("AWS_ACCESS_KEY_ID");
-const AWS_SECRET_ACCESS_KEY = getEnv("AWS_SECRET_ACCESS_KEY");
-const SUPABASE_URL = getEnv("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = getEnv("SUPABASE_SERVICE_ROLE_KEY");
-
 // Initialize Supabase client
 const supabaseClient = createClient(
   CONFIG.SUPABASE_URL,
@@ -240,7 +227,22 @@ async function handleCreateInstance(request: Request): Promise<Response> {
       throw new Error(awsResponse.error || "Failed to create instance in AWS Bedrock");
     }
     
-    const instanceId = awsResponse.instance_id;
+    // Extract instance ID from the AWS response
+    const instanceId = awsResponse.instance_id || (awsResponse.instance && awsResponse.instance.provisionedModelArn);
+    
+    // Check if we have a valid instance ID
+    if (!instanceId) {
+      console.error("[API] No instance ID returned from AWS:", awsResponse);
+      return new Response(
+        JSON.stringify({ 
+          error: "AWS API Error", 
+          message: "AWS did not return a valid instance ID",
+          aws_response: awsResponse
+        }),
+        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    
     console.log(`[API] Created AWS Bedrock instance: ${instanceId}`);
     
     try {
@@ -266,7 +268,8 @@ async function handleCreateInstance(request: Request): Promise<Response> {
             error: "Database Error", 
             message: dbError.message || "Failed to create instance in database",
             details: dbError,
-            aws_instance: awsResponse.instance
+            aws_instance: awsResponse.instance,
+            instance_id: instanceId
           }),
           { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
@@ -276,7 +279,8 @@ async function handleCreateInstance(request: Request): Promise<Response> {
         JSON.stringify({ 
           instance: data,
           info: "Created instance in AWS Bedrock and database",
-          aws_instance: awsResponse.instance
+          aws_instance: awsResponse.instance,
+          instance_id: instanceId
         }),
         { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
@@ -286,7 +290,8 @@ async function handleCreateInstance(request: Request): Promise<Response> {
         JSON.stringify({ 
           error: "Database Exception", 
           message: dbException instanceof Error ? dbException.message : String(dbException),
-          aws_instance: awsResponse.instance
+          aws_instance: awsResponse.instance,
+          instance_id: instanceId
         }),
         { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );

@@ -166,22 +166,27 @@ async function signAwsRequest(
 
 // Helper function to make AWS API requests
 async function awsApiRequest(
-  method: string,
-  endpoint: string,
-  region: string,
+  operation: string,
   service: string,
+  region: string,
   body?: any
 ): Promise<any> {
+  const endpoint = `https://${service}.${region}.amazonaws.com/`;
   const url = new URL(endpoint);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'X-Amz-Target': `Bedrock.${method}`,
   };
+  
+  if (service === 'bedrock') {
+    headers['X-Amz-Target'] = `Bedrock.${operation}`;
+  }
   
   const bodyString = body ? JSON.stringify(body) : '';
   
   try {
+    console.log(`[AWS] Making ${operation} request to ${service}.${region}.amazonaws.com`);
+    
     const signedHeaders = await signAwsRequest(
       'POST',
       url,
@@ -197,14 +202,24 @@ async function awsApiRequest(
       body: bodyString,
     });
     
+    // Get response text for both success and error cases
+    const responseText = await response.text();
+    console.log(`[AWS] ${operation} response status: ${response.status}`);
+    
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`AWS API Error: ${response.status} ${response.statusText} - ${errorText}`);
+      console.error(`[AWS] Error response body:`, responseText);
+      throw new Error(`AWS API Error: ${response.status} ${response.statusText} - ${responseText}`);
     }
     
-    return await response.json();
+    // Parse JSON response if it's valid JSON
+    try {
+      return responseText ? JSON.parse(responseText) : {};
+    } catch (e) {
+      console.warn(`[AWS] Could not parse response as JSON:`, responseText);
+      return { rawResponse: responseText };
+    }
   } catch (error) {
-    console.error(`Error making AWS API request to ${method}:`, error);
+    console.error(`Error making AWS API request to ${operation}:`, error);
     throw error;
   }
 }
@@ -224,13 +239,18 @@ export async function createProvisionedModelThroughput(params: {
       commitmentTerm = "3m";
     }
     
+    // Construct the proper model ID
+    let fullModelId = params.modelId;
+    if (!fullModelId.includes(':')) {
+      fullModelId = `arn:aws:bedrock:${CONFIG.AWS_REGION}::foundation-model/${params.modelId}`;
+    }
+    
     const result = await awsApiRequest(
-      'CreateProvisionedModel',
-      `https://bedrock.${CONFIG.AWS_REGION}.amazonaws.com/`,
-      CONFIG.AWS_REGION,
+      'CreateProvisionedModelThroughput',
       'bedrock',
+      CONFIG.AWS_REGION,
       {
-        modelId: params.modelId,
+        modelId: fullModelId,
         provisionedModelName: `provisioned-${params.modelId.split('/').pop()}-${Date.now()}`,
         provisionedThroughput: {
           commitmentDuration: commitmentTerm,
@@ -261,10 +281,9 @@ export async function listProvisionedModelThroughputs() {
     console.log(`[AWS] Listing provisioned models`);
     
     const result = await awsApiRequest(
-      'ListProvisionedModels',
-      `https://bedrock.${CONFIG.AWS_REGION}.amazonaws.com/`,
-      CONFIG.AWS_REGION,
+      'ListProvisionedModelThroughputs',
       'bedrock',
+      CONFIG.AWS_REGION,
       {}
     );
     
@@ -287,10 +306,9 @@ export async function getProvisionedModelThroughput(provisionedModelId: string) 
     console.log(`[AWS] Getting provisioned model ${provisionedModelId}`);
     
     const result = await awsApiRequest(
-      'GetProvisionedModel',
-      `https://bedrock.${CONFIG.AWS_REGION}.amazonaws.com/`,
-      CONFIG.AWS_REGION,
+      'GetProvisionedModelThroughput',
       'bedrock',
+      CONFIG.AWS_REGION,
       {
         provisionedModelId
       }
@@ -315,10 +333,9 @@ export async function deleteProvisionedModelThroughput(provisionedModelId: strin
     console.log(`[AWS] Deleting provisioned model ${provisionedModelId}`);
     
     const result = await awsApiRequest(
-      'DeleteProvisionedModel',
-      `https://bedrock.${CONFIG.AWS_REGION}.amazonaws.com/`,
-      CONFIG.AWS_REGION,
+      'DeleteProvisionedModelThroughput',
       'bedrock',
+      CONFIG.AWS_REGION,
       {
         provisionedModelId
       }
@@ -358,13 +375,29 @@ export async function invokeBedrockModel({
       stop_sequences: stopSequences
     };
     
-    const response = await fetch(`https://bedrock-runtime.${CONFIG.AWS_REGION}.amazonaws.com/model/${instanceId}/invoke`, {
+    // For the invoke endpoint, use bedrock-runtime service instead of bedrock
+    const endpoint = `https://bedrock-runtime.${CONFIG.AWS_REGION}.amazonaws.com/model/${instanceId}/invoke`;
+    const url = new URL(endpoint);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    
+    const bodyString = JSON.stringify(requestBody);
+    
+    const signedHeaders = await signAwsRequest(
+      'POST',
+      url,
+      CONFIG.AWS_REGION,
+      'bedrock',
+      headers,
+      bodyString
+    );
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
+      headers: signedHeaders,
+      body: bodyString
     });
     
     if (!response.ok) {
