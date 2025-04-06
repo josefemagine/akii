@@ -264,7 +264,7 @@ const HowItWorksSection = () => {
           </div>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Connect WordPress in Minutes
-          </h2>
+            </h2>
           <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
             Just install our lightweight plugin and paste your API key. No developers, no coding, and no technical setup required.
           </p>
@@ -322,7 +322,7 @@ const HowItWorksSection = () => {
             </p>
             <div className="mt-6 flex justify-center">
               <Zap className="h-16 w-16 text-[#21759b]/50" />
-            </div>
+          </div>
           </motion.div>
         </div>
 
@@ -483,11 +483,11 @@ const BenefitsSection = () => {
               When your AI understands your specific policies, products, and processes, it resolves customer questions without human intervention.
             </p>
           </motion.div>
-        </div>
+            </div>
 
         <div className="bg-muted/30 rounded-xl p-8 border border-border">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-            <div>
+                <div>
               <h3 className="text-2xl font-bold mb-4">How Companies Use Their Trained AI</h3>
               <div className="space-y-4">
                 <motion.div
@@ -516,7 +516,7 @@ const BenefitsSection = () => {
                   <div className="font-medium">Global Commerce Solutions</div>
                 </motion.div>
               </div>
-            </div>
+                </div>
 
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -585,24 +585,24 @@ const FAQSection = () => {
               <p className="text-muted-foreground">{faq.answer}</p>
             </motion.div>
           ))}
-        </div>
+                </div>
         
         <div className="mt-12 text-center">
           <div className="inline-flex items-center justify-center bg-background rounded-lg border border-border px-4 py-1.5 text-sm mb-4">
             <span className="mr-2">Need more help with your WordPress API setup?</span>
             <span className="text-primary font-medium">We're here to help</span>
-          </div>
+                </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button variant="outline" asChild>
               <Link to="/docs/wordpress-setup">
                 View WordPress Guide
               </Link>
             </Button>
-            <Button asChild>
+              <Button asChild>
               <Link to="/contact">
                 Contact Support
               </Link>
-            </Button>
+              </Button>
           </div>
         </div>
       </div>
@@ -653,7 +653,7 @@ const CTASection = () => {
             <div>
               <h2 className="text-3xl font-bold mb-4">
                 Transform Your Business With AI Trained On Your Company Data
-              </h2>
+            </h2>
               <p className="text-lg text-muted-foreground mb-6">
                 Deploy an AI assistant that truly understands your business - providing accurate, personalized responses that convert visitors into customers.
               </p>
@@ -676,14 +676,14 @@ const CTASection = () => {
                 </li>
               </ul>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" className="gap-2" asChild>
-                  <Link to="/signup">
+              <Button size="lg" className="gap-2" asChild>
+                <Link to="/signup">
                     Start 14-Day Free Trial <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <Link to="/demo">Request Demo</Link>
-                </Button>
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link to="/demo">Request Demo</Link>
+              </Button>
               </div>
               <p className="text-sm text-muted-foreground mt-4">
                 No credit card required. Cancel anytime.

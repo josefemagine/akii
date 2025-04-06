@@ -468,28 +468,34 @@ const testAwsPermissions = async () => {
  * Get all available foundation models from AWS Bedrock
  * 
  * @param {Object} filters - Optional filter parameters
- * @param {string} filters.byProvider - Filter models by provider name
- * @param {string} filters.byOutputModality - Filter models by output modality (TEXT, IMAGE, etc.)
+ * @param {string} filters.byProvider - Filter models by provider name (e.g. 'amazon', 'anthropic')
+ * @param {string} filters.byOutputModality - Filter models by output modality (TEXT, IMAGE, EMBEDDING)
  * @param {string} filters.byInputModality - Filter models by input modality
  * @param {string} filters.byInferenceType - Filter models by inference type (ON_DEMAND, PROVISIONED)
- * @param {string} filters.byCustomizationType - Filter models by customization type (FINE_TUNING, etc.)
+ * @param {string} filters.byCustomizationType - Filter models by customization type (FINE_TUNING, CONTINUED_PRE_TRAINING, DISTILLATION)
  * @returns {Promise<{data: Array, error: string|null}>} Available models or error
  */
 const listFoundationModels = async (filters = {}) => {
   console.log('[Bedrock] Fetching available foundation models', Object.keys(filters).length > 0 ? `with filters: ${JSON.stringify(filters)}` : 'with no filters');
   
   // Validate filters to ensure they're properly formatted
-  const validatedFilters = {};
+  const validatedFilters = {
+    // Important: Add this flag to indicate we want to list models through aws-credential-test
+    listModels: true
+  };
   
-  // Only include defined filter values
+  // Only include defined filter values - these match the AWS ListFoundationModels API parameters
+  // See: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_ListFoundationModels.html
   if (filters.byProvider) validatedFilters.byProvider = filters.byProvider;
   if (filters.byOutputModality) validatedFilters.byOutputModality = filters.byOutputModality;
   if (filters.byInputModality) validatedFilters.byInputModality = filters.byInputModality;
   if (filters.byInferenceType) validatedFilters.byInferenceType = filters.byInferenceType;
   if (filters.byCustomizationType) validatedFilters.byCustomizationType = filters.byCustomizationType;
   
+  // Temporarily use aws-credential-test as a fallback endpoint until listFoundationModels is deployed
+  console.log('[Bedrock] Using aws-credential-test endpoint to call ListFoundationModels API');
   return callEdgeFunction({
-    action: 'listFoundationModels',
+    action: 'aws-credential-test',
     data: validatedFilters
   });
 };

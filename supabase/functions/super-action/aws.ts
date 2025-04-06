@@ -611,7 +611,8 @@ export async function listAvailableFoundationModels(filters?: ModelFilters) {
     // Create command with optional filters
     const commandParams: any = {};
     
-    // Apply filters if provided
+    // Apply filters according to the AWS API documentation
+    // https://docs.aws.amazon.com/bedrock/latest/APIReference/API_ListFoundationModels.html
     if (filters) {
       if (filters.byProvider) {
         commandParams.byProvider = filters.byProvider;
@@ -637,7 +638,7 @@ export async function listAvailableFoundationModels(filters?: ModelFilters) {
 
     console.log(`[AWS] Found ${result.modelSummaries?.length || 0} foundation models`);
 
-    // Extract and transform the model information for easier consumption
+    // Extract and transform the model information according to the AWS API response format
     const models = (result.modelSummaries || []).map(model => ({
       modelId: model.modelId || "unknown",
       modelName: model.modelName || model.modelId?.split('.').pop() || "Unknown",

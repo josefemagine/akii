@@ -834,87 +834,88 @@ async function handleAwsCredentialTest(request: Request): Promise<Response> {
     );
   }
 
-  console.log("[API] Running AWS credential test");
-  
   try {
-    // Step 1: Check if environment variables are set
-    const credentialResults = {
-      envVars: {
-        AWS_REGION: {
-          exists: Boolean(CONFIG.AWS_REGION),
-          value: CONFIG.AWS_REGION
-        },
-        AWS_ACCESS_KEY_ID: {
-          exists: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
-          format: CONFIG.AWS_ACCESS_KEY_ID.startsWith('AKIA') ? 'valid' : 'invalid',
-          length: CONFIG.AWS_ACCESS_KEY_ID.length,
-          prefix: CONFIG.AWS_ACCESS_KEY_ID.substring(0, 4)
-        },
-        AWS_SECRET_ACCESS_KEY: {
-          exists: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
-          length: CONFIG.AWS_SECRET_ACCESS_KEY.length
-        }
-      },
-      clientCreation: { 
-        success: false, 
-        error: null as string | null
-      },
-      apiRequest: { 
-        success: false, 
-        error: null as string | null, 
-        result: null as { modelsCount: number; firstModelId: string | null } | null 
-      }
-    };
-    
-    // Step 2: Try to create the clients
+    // Parse request data
+    let requestBody;
     try {
-      // First just create the client to see if it works
-      const bedrockClient = new BedrockClient({
-        region: CONFIG.AWS_REGION,
-        credentials: {
-          accessKeyId: CONFIG.AWS_ACCESS_KEY_ID,
-          secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY
-        }
-      });
-      
-      credentialResults.clientCreation.success = true;
-      
-      // Step 3: Try a simple API call
-      try {
-        console.log("[API] Testing AWS SDK with ListFoundationModelsCommand");
-        const command = new ListFoundationModelsCommand({});
-        const result = await bedrockClient.send(command);
-        
-        credentialResults.apiRequest.success = true;
-        credentialResults.apiRequest.result = {
-          modelsCount: result.modelSummaries?.length || 0,
-          firstModelId: result.modelSummaries?.[0]?.modelId || null
-        };
-      } catch (apiError) {
-        console.error("[API] Error making AWS API call:", apiError);
-        credentialResults.apiRequest.success = false;
-        credentialResults.apiRequest.error = apiError instanceof Error ? apiError.message : String(apiError);
-      }
-    } catch (clientError) {
-      console.error("[API] Error creating AWS client:", clientError);
-      credentialResults.clientCreation.success = false;
-      credentialResults.clientCreation.error = clientError instanceof Error ? clientError.message : String(clientError);
+      requestBody = await request.json();
+      console.log("[API] Received aws-credential-test request:", requestBody);
+    } catch (e) {
+      console.log("[API] No request body provided for AWS credential test");
+      requestBody = {};
     }
     
-    // Return diagnostic results
-    return new Response(
-      JSON.stringify({
-        aws_credential_test: credentialResults,
-        validation: validateConfig()
-      }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
+    // Handle both nested and flat data structures
+    const data = (requestBody.data && typeof requestBody.data === 'object') 
+      ? requestBody.data 
+      : requestBody;
+    
+    // DUAL PURPOSE HANDLER: Check if this is a request to list foundation models
+    if (data && data.listModels === true) {
+      console.log("[API] Detected request to list foundation models through aws-credential-test endpoint");
+      
+      // Extract filter parameters
+      const filters: any = {};
+      if (data.byProvider) filters.byProvider = data.byProvider;
+      if (data.byOutputModality) filters.byOutputModality = data.byOutputModality;
+      if (data.byInputModality) filters.byInputModality = data.byInputModality;
+      if (data.byInferenceType) filters.byInferenceType = data.byInferenceType;
+      if (data.byCustomizationType) filters.byCustomizationType = data.byCustomizationType;
+      
+      // Call AWS to list all available foundation models with optional filters
+      console.log("[API] Listing foundation models with filters:", filters);
+      const awsResponse = await listAvailableFoundationModels(
+        Object.keys(filters).length > 0 ? filters : undefined
+      );
+      
+      if (!awsResponse.success) {
+        console.error("[API] Failed to list foundation models:", awsResponse.error);
+        return new Response(
+          JSON.stringify({
+            error: "AWS API Error",
+            message: awsResponse.error || "Failed to list foundation models from AWS Bedrock"
+          }),
+          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // Return the list of models along with applied filters
+      return new Response(
+        JSON.stringify({ 
+          models: awsResponse.models,
+          appliedFilters: awsResponse.appliedFilters,
+          totalCount: awsResponse.count
+        }),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // ORIGINAL FUNCTIONALITY: Test AWS credentials
+    console.log("[API] Testing AWS credentials");
+    
+    try {
+      const result = await verifyAwsCredentials();
+      
+      return new Response(
+        JSON.stringify(result),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    } catch (error) {
+      console.error("[API] Error testing AWS credentials:", error);
+      return new Response(
+        JSON.stringify({ 
+          error: "AWS API Error", 
+          message: error instanceof Error ? error.message : String(error) 
+        }),
+        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
   } catch (error) {
-    console.error("[API] Unhandled error in AWS credential test:", error);
+    console.error("[API] Error in AWS credential test handler:", error);
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined 
+        error: "AWS API Error", 
+        message: error instanceof Error ? error.message : String(error) 
       }),
       { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
