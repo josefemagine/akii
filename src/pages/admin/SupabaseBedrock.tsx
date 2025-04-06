@@ -801,6 +801,9 @@ const BedrockDashboardContent = ({
       
       <MockDataNotice />
       
+      {/* Add the AWS credentials notice */}
+      {client && client.clientStatus?.usingFallback && <AwsCredentialsNotice clientStatus={client.clientStatus} />}
+      
       {/* Display server error notice if environmental diagnostics show an Edge Function error */}
       {serverErrorDetails && <ServerErrorNotice errorDetails={serverErrorDetails} />}
       
@@ -1580,7 +1583,7 @@ const SupabaseBedrock = () => {
       });
       
       if (error) {
-        setError(`Failed to provision instance: ${error}`);
+        setError(`Exception provisioning instance: ${error instanceof Error ? error.message : String(error)}`);
         toast({
           title: "Provisioning Failed",
           description: `Failed to provision Bedrock instance: ${error}`,
@@ -1601,14 +1604,14 @@ const SupabaseBedrock = () => {
       setError(`Exception provisioning instance: ${error instanceof Error ? error.message : String(error)}`);
       toast({
         title: "Provisioning Failed",
-        description: `An error occurred: ${error instanceof Error ? error.message : String(error)}`,
+        description: `Failed to provision Bedrock instance: ${error}`,
         variant: "destructive",
       });
     } finally {
       setSubmitting(false);
     }
   };
-  
+
   // Delete a Bedrock instance
   const handleDeleteInstance = async (instanceId: string) => {
     if (!confirm('Are you sure you want to delete this instance? This action cannot be undone.')) {
@@ -1648,127 +1651,19 @@ const SupabaseBedrock = () => {
     }
   };
   
-  // Replace the useEffect that handles credentials with this implementation:
-  useEffect(() => {
-    let isMounted = true;
-    
-    async function initializeClient() {
-      if (!user?.id) return;
-      
-      try {
-        if (!isMounted) return;
-        
-        setLoading(true);
-        setError(null);
-        
-        console.log('[Bedrock] Initializing client with Supabase Edge Function credentials');
-        
-        // Initialize client and check if table exists
-        const result = await initBedrockClientWithSupabaseCredentials({
-          userId: user.id,
-          useFallbackOnError: true
-        });
-        
-        if (!isMounted) return;
-        
-        setClient(result.client);
-        setClientStatus({
-          success: result.success,
-          usingFallback: result.usingFallback,
-          message: result.message,
-          credentials: result.credentials
-        });
-        
-        // If we have credentials, try to pre-fill the form
-        if (result.credentials?.hasCredentials) {
-          try {
-            // We will use default values since we can't directly read credentials
-            if (isMounted) {
-              // Set masked placeholders for existing credentials
-              setCredentials({
-                aws_access_key_id: result.credentials ? '••••••••••••••••' : '',
-                aws_secret_access_key: result.credentials ? '••••••••••••••••' : '',
-                aws_region: result.credentials.region || 'us-east-1'
-              });
-            }
-          } catch (credError) {
-            // Silently handle credential fetch errors
-            console.warn('Failed to process credentials for form:', credError);
-          }
-        } else {
-          // Set empty credentials for the form
-          if (isMounted) {
-            setCredentials({
-              aws_access_key_id: '',
-              aws_secret_access_key: '',
-              aws_region: 'us-east-1'
-            });
-          }
-        }
-        
-        // Fetch models if component still mounted
-        if (isMounted) {
-          try {
-            await fetchModels(result.client);
-          } catch (modelError) {
-            console.warn('Error fetching models during initialization:', modelError);
-            // Non-critical error, continue execution
-          }
-        }
-      } catch (err) {
-        if (!isMounted) return;
-        
-        console.error('Error initializing Bedrock client:', err);
-        setError('Failed to initialize AWS Bedrock client. Using fallback data.');
-        
-        // Create a fallback client with no credentials
-        const fallbackClient = createBedrockClient({
-          useFallbackOnError: true
-        });
-        
-        setClient(fallbackClient);
-        setClientStatus({
-          success: false,
-          usingFallback: true,
-          message: 'Using fallback due to initialization error',
-          credentials: null
-        });
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
-    
-    initializeClient();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [user?.id]);
-  
-  // Fetch models
-  async function fetchModels(bedrockClient = client) {
-    if (!bedrockClient) return;
-    
-    try {
-      setLoadingModels(true);
-      const result = await bedrockClient.listFoundationModels();
-      setAvailableModels(result.models || []);
-    } catch (err) {
-      console.error('Error fetching models:', err);
-      setError(err.message || 'Failed to fetch foundation models');
-    } finally {
-      setLoadingModels(false);
-    }
-  }
-  
   // Test connection
-  async function testConnection() {
-    if (!client) return;
+  const testConnection = async () => {
+    if (!client) {
+      toast({
+        title: "Client Not Initialized",
+        description: "AWS Bedrock client is not yet initialized",
+        variant: "destructive",
+      });
+      return;
+    }
     
     try {
-      setLoading(true);
+      setTestingConnection(true);
       const result = await client.testConnection();
       
       if (result.success) {
@@ -1777,162 +1672,68 @@ const SupabaseBedrock = () => {
           success: true,
           message: 'Connection successful'
         }));
+        
+        toast({
+          title: "Connection Successful",
+          description: "AWS Bedrock connection verified successfully",
+        });
       } else {
         throw new Error(result.message || 'Connection test failed');
       }
     } catch (err) {
       console.error('Connection test failed:', err);
       setError(err.message || 'Connection test failed');
+      
+      toast({
+        title: "Connection Failed",
+        description: err.message || "Failed to connect to AWS Bedrock",
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false);
+      setTestingConnection(false);
     }
-  }
-  
-  // Save credentials
-  async function saveCredentials(e) {
-    e.preventDefault();
-    
-    if (!user?.id) {
-      setError('User ID not available');
-      return;
-    }
-    
-    try {
-      setIsSaving(true);
-      setSaveMessage(null);
-      setError(null);
-      
-      // Save credentials via edge function instead of direct table access
-      const { data, error } = await supabaseSingleton.functions.invoke('super-action', {
-        body: {
-          action: 'saveCredentials',
-          userId: user.id,
-          credentials: {
-            aws_access_key_id: credentials.aws_access_key_id,
-            aws_secret_access_key: credentials.aws_secret_access_key,
-            aws_region: credentials.aws_region
-          }
-        }
-      });
-      
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      
-      setSaveMessage('Credentials saved successfully');
-      
-      // Reinitialize client with new credentials
-      const result = await initBedrockClientWithSupabaseCredentials({
-        userId: user.id,
-        useFallbackOnError: true
-      });
-      
-      setClient(result.client);
-      setClientStatus({
-        success: result.success,
-        usingFallback: result.usingFallback,
-        message: result.message,
-        credentials: result.credentials
-      });
-      
-      // Refresh models list
-      await fetchModels(result.client);
-    } catch (err) {
-      console.error('Error saving credentials:', err);
-      setError(err.message || 'Failed to save credentials');
-    } finally {
-      setIsSaving(false);
-    }
-  }
-  
-  // Handle input change
-  function handleInputChange(e) {
-    const { name, value } = e.target;
-    setCredentials(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  }
-  
-  if (loading && !client) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Initializing AWS Bedrock client...</p>
-      </div>
-    );
-  }
-
-  // Fix the useEffect that calls initialize to prevent React error #310
-  useEffect(() => {
-    console.log('SupabaseBedrock component mounted');
-    let isMounted = true;
-    
-    const initComponent = async () => {
-      try {
-        if (!isMounted) return;
-        
-        await initialize();
-      } catch (error) {
-        if (isMounted) {
-          console.error('Error initializing SupabaseBedrock component:', error);
-          setError('Error initializing component. Please try again later.');
-          setLoading(false);
-        }
-      }
-    };
-    
-    initComponent();
-    
-    // Clean up function
-    return () => {
-      isMounted = false;
-    };
-  }, []); // Empty dependency array to run once on mount
+  };
 
   return (
-    <ErrorBoundary>
-      <BedrockDashboardContent
-        loading={loading}
-        refreshing={refreshing}
-        authStatus={authStatus}
-        error={error}
-        connectionStatus={connectionStatus}
-        instances={instances}
-        testModalOpen={testModalOpen}
-        testData={testData}
-        setTestModalOpen={setTestModalOpen}
-        showDiagnostics={showDiagnostics}
-        envDiagnostics={envDiagnostics}
-        testingConnection={testingConnection}
-        submitting={submitting}
-        selectedPlan={selectedPlan}
-        selectedModelId={selectedModelId}
-        availableModels={availableModels}
-        loadingModels={loadingModels}
-        showFilters={showFilters}
-        activeFilters={activeFilters}
-        planConfig={planConfig}
-        client={client}
-        // User data for auth debugging
-        user={user}
-        directUser={directUser}
-        isAdmin={isAdmin}
-        // Functions
-        checkAuthStatus={checkAuthStatus}
-        handleLogin={handleLogin}
-        refreshInstances={refreshInstances}
-        fetchEnvironmentDiagnostics={fetchEnvironmentDiagnostics}
-        fetchDetailedTestData={fetchDetailedTestData}
-        fetchAvailableModels={fetchAvailableModels}
-        handleProvisionInstance={handleProvisionInstance}
-        handleDeleteInstance={handleDeleteInstance}
-        setShowFilters={setShowFilters}
-        setActiveFilters={setActiveFilters}
-        setSelectedModelId={setSelectedModelId}
-        setSelectedPlan={setSelectedPlan}
-        testConnection={testConnection}
-      />
-    </ErrorBoundary>
+    <BedrockDashboardContent
+      loading={loading}
+      refreshing={refreshing}
+      authStatus={authStatus}
+      error={error}
+      connectionStatus={connectionStatus}
+      instances={instances}
+      testModalOpen={testModalOpen}
+      testData={testData}
+      setTestModalOpen={setTestModalOpen}
+      showDiagnostics={showDiagnostics}
+      envDiagnostics={envDiagnostics}
+      testingConnection={testingConnection}
+      submitting={submitting}
+      selectedPlan={selectedPlan}
+      selectedModelId={selectedModelId}
+      availableModels={availableModels}
+      loadingModels={loadingModels}
+      showFilters={showFilters}
+      activeFilters={activeFilters}
+      planConfig={planConfig}
+      client={client}
+      user={user}
+      directUser={directUser}
+      isAdmin={isAdmin}
+      checkAuthStatus={checkAuthStatus}
+      handleLogin={handleLogin}
+      refreshInstances={refreshInstances}
+      fetchEnvironmentDiagnostics={fetchEnvironmentDiagnostics}
+      fetchDetailedTestData={fetchDetailedTestData}
+      fetchAvailableModels={fetchAvailableModels}
+      handleProvisionInstance={handleProvisionInstance}
+      handleDeleteInstance={handleDeleteInstance}
+      setShowFilters={setShowFilters}
+      setActiveFilters={setActiveFilters}
+      setSelectedModelId={setSelectedModelId}
+      setSelectedPlan={setSelectedPlan}
+      testConnection={testConnection}
+    />
   );
 };
 
@@ -1955,4 +1756,21 @@ const InstanceSkeleton = () => (
   </Card>
 );
 
-export default SupabaseBedrock; 
+// Add a banner to explain the AWS credentials warning messages
+const AwsCredentialsNotice = ({ clientStatus }) => {
+  // Only show this notice when using fallback data
+  if (!clientStatus?.usingFallback) return null;
+  
+  return (
+    <Alert className="mb-4 bg-blue-50 border-blue-200">
+      <InfoIcon className="h-4 w-4 text-blue-600" />
+      <AlertTitle className="text-blue-800 font-medium">AWS Credentials Notice</AlertTitle>
+      <AlertDescription className="text-blue-700">
+        <p>The warnings about "<code className="bg-blue-100 px-1 rounded">No AWS credentials found in environment variables</code>" are expected.</p>
+        <p className="mt-1">AWS credentials should be configured through this interface rather than environment variables. Enter your AWS Access Key and Secret below to configure AWS Bedrock.</p>
+      </AlertDescription>
+    </Alert>
+  );
+};
+
+export default SupabaseBedrock;

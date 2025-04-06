@@ -41,14 +41,28 @@ export async function fetchBedrockCredentials(options = {}) {
     console.log(`[Supabase AWS] Attempting to fetch credentials for user ${userId} via edge function`);
     
     try {
-      // Use the super-action edge function to fetch credentials instead of direct table access
-      // This bypasses RLS policies and provides a secure way to fetch credentials
-      const { data, error } = await supabaseClient.functions.invoke('super-action', {
+      // Create a timeout promise to prevent infinite waiting
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Supabase Edge Function request timed out after 10 seconds'));
+        }, 10000); // 10 second timeout
+      });
+      
+      // Create the actual function call
+      const functionPromise = supabaseClient.functions.invoke('super-action', {
         body: {
           action: 'getCredentials',
           userId: userId
         }
       });
+      
+      // Race the two promises - whichever resolves/rejects first wins
+      const { data, error } = await Promise.race([
+        functionPromise,
+        timeoutPromise.then(() => {
+          throw new Error('Supabase Edge Function request timed out after 10 seconds');
+        })
+      ]);
       
       if (error) {
         console.error('[Supabase AWS] Edge function error:', error);
@@ -91,6 +105,15 @@ export async function fetchBedrockCredentials(options = {}) {
     } catch (funcError) {
       // Detailed error handling for edge function call
       console.error('[Supabase AWS] Error calling edge function:', funcError);
+      
+      // Check for timeout errors
+      if (funcError.message && funcError.message.includes('timed out')) {
+        return {
+          error: 'Edge function request timed out. The service may be temporarily unavailable.',
+          credentials: null,
+          timeout: true
+        };
+      }
       
       // Check if this is a network error
       if (funcError.message && (
