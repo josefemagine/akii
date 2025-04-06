@@ -277,13 +277,13 @@ const DataFlowAnimation = () => {
           />
         </div>
 
-        {/* Final stage: Akii plug-and-play integrations */}
+        {/* Final stage: Akii plug-and-play apps & integrations */}
         <div className="mt-[2px] mb-2">
           <motion.div 
             variants={platformVariants}
             className="text-white text-base font-medium mb-1 text-center"
           >
-            Akii plug-and-play integrations
+            Akii plug-and-play apps & integrations
           </motion.div>
 
           {/* Flow arrows connecting Private AI with platforms */}
