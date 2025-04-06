@@ -1,6 +1,19 @@
 # Super-Action Edge Function
 
-This Supabase Edge Function securely handles all AWS Bedrock operations for the Akii platform.
+This Supabase Edge Function securely handles all AWS Bedrock operations for the Akii platform. **THIS FUNCTION ALWAYS RUNS IN PRODUCTION MODE WITH REAL AWS SERVICES.**
+
+## CRITICAL: Production-Only Operation
+
+This Edge Function is configured to **ONLY OPERATE IN PRODUCTION MODE** with real AWS Bedrock services:
+
+1. **Real AWS Credentials Required**: Valid AWS credentials must be provided - the function will error if credentials are missing
+2. **No Mock Data**: No mock or simulated responses are ever used
+3. **No Development Mode**: There is no development or testing mode - all environments use production settings
+4. **Direct AWS API Access**: Every request goes directly to the real AWS Bedrock service
+5. **Financial Implications**: All operations have real billing implications
+6. **Strict Authentication**: Every request requires proper authentication
+
+Any attempt to use mock data or development-mode fallbacks is strictly prohibited and has been removed from the codebase.
 
 ## Overview
 
@@ -55,18 +68,14 @@ supabase secrets set SUPABASE_URL=https://xxxxx.supabase.co
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=xxxxx
 ```
 
-## Testing Locally
+## Production Validation
 
-```bash
-supabase functions serve super-action
-```
+When invoking the function, always ensure:
 
-To test with authentication:
-
-```bash
-supabase functions invoke super-action --body '{"action":"listInstances"}' \
-  --header "Authorization: Bearer <jwt-token>"
-```
+1. You're using valid AWS credentials with appropriate permissions
+2. Your requests include a valid JWT token for authentication
+3. You're prepared to handle real AWS API responses and error conditions
+4. You understand the billing implications of your requests
 
 ## Edge Function API
 
@@ -266,6 +275,7 @@ Common error codes:
 | PLAN_LIMIT_EXCEEDED | User has exceeded their plan's token limit      |
 | SERVICE_ERROR       | Error from AWS Bedrock service                  |
 | INVALID_REQUEST     | Request parameters are invalid                  |
+| CREDENTIALS_MISSING | AWS credentials are missing or invalid          |
 
 ## Implementation Notes
 
@@ -274,3 +284,5 @@ Common error codes:
 3. Plan limits are enforced before allowing model invocation
 4. Database operations use the Supabase client with service role key
 5. All errors are properly handled and logged 
+6. All requests use real AWS credentials and services
+7. No mock data is ever used 

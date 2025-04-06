@@ -54,6 +54,11 @@ import {
   PanelLeftOpen,
   Cloud,
   Box,
+  LayoutDashboard,
+  DollarSign,
+  PenTool,
+  Magnet,
+  Mail,
 } from "lucide-react";
 
 // Common sidebar link component
@@ -274,29 +279,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Define admin links (settings, users, etc.)
   const adminLinks = [
-    // Dashboard & General
-    { to: "/admin/dashboard", icon: <Gauge className="h-5 w-5" />, label: "Admin Dashboard" },
+    { to: "/admin/dashboard", icon: <LayoutDashboard className="h-5 w-5" />, label: "Dashboard" },
+    { to: "/admin/supabase-bedrock", icon: <Box className="h-5 w-5" />, label: "Supabase Bedrock" },
     { to: "/admin/users", icon: <Users className="h-5 w-5" />, label: "Users" },
-    { to: "/admin/billing", icon: <CreditCard className="h-5 w-5" />, label: "Billing" },
+    { to: "/admin/plans", icon: <DollarSign className="h-5 w-5" />, label: "Plans" },
     { to: "/admin/settings", icon: <Settings className="h-5 w-5" />, label: "Settings" },
     
-    // Content Management
-    { to: "/admin/blog", icon: <BookOpen className="h-5 w-5" />, label: "Blog" },
+    // Content
+    { to: "/admin/blog", icon: <PenTool className="h-5 w-5" />, label: "Blog" },
     { to: "/admin/landing-pages", icon: <Layout className="h-5 w-5" />, label: "Landing Pages" },
-    { to: "/admin/lead-magnets", icon: <FileIcon className="h-5 w-5" />, label: "Lead Magnets" },
-    { to: "/admin/email-templates", icon: <MailIcon className="h-5 w-5" />, label: "Email Templates" },
+    { to: "/admin/lead-magnets", icon: <Magnet className="h-5 w-5" />, label: "Lead Magnets" },
+    { to: "/admin/email-templates", icon: <Mail className="h-5 w-5" />, label: "Email Templates" },
     
     // Compliance & Security
     { to: "/admin/compliance", icon: <Shield className="h-5 w-5" />, label: "Compliance" },
-    { to: "/admin/moderation", icon: <ListFilter className="h-5 w-5" />, label: "Moderation" },
     
     // Partners
-    { to: "/admin/affiliates", icon: <Users className="h-5 w-5" />, label: "Affiliates" },
     { to: "/admin/packages", icon: <Package className="h-5 w-5" />, label: "Packages" },
+    { to: "/admin/affiliates", icon: <Users className="h-5 w-5" />, label: "Affiliates" },
+    { to: "/admin/billing", icon: <CreditCard className="h-5 w-5" />, label: "Billing" },
     
-    // Migrations & System
-    { to: "/admin/user-sync", icon: <UserCheck className="h-5 w-5" />, label: "User Sync" },
-    { to: "/admin/user-status-migration", icon: <RefreshCcw className="h-5 w-5" />, label: "Status Migration" },
+    // Migrations
+    { to: "/admin/user-status-migration", icon: <User className="h-5 w-5" />, label: "Status Migration" },
     { to: "/admin/user-profile-migration", icon: <User className="h-5 w-5" />, label: "Profile Migration" },
     { to: "/admin/run-migration", icon: <RefreshCcw className="h-5 w-5" />, label: "Run Migration" },
     
@@ -305,8 +309,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { to: "/admin/n8n-workflows", icon: <Zap className="h-5 w-5" />, label: "n8n Workflows" },
     { to: "/admin/database-schema", icon: <Database className="h-5 w-5" />, label: "Database Schema" },
     { to: "/admin/manage-instances", icon: <Cloud className="h-5 w-5" />, label: "AI Instances" },
-    { to: "/admin/bedrock", icon: <Box className="h-5 w-5" />, label: "Bedrock AI" },
-    { to: "/admin/supabase-bedrock", icon: <Box className="h-5 w-5" />, label: "Supabase Bedrock" },
     { to: "/admin/supabase-check", icon: <CheckCircle className="h-5 w-5" />, label: "Supabase Check" },
     { to: "/admin/admin-check", icon: <AlertTriangle className="h-5 w-5" />, label: "Admin Check" },
   ];
@@ -422,16 +424,66 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
             <nav className={cn("space-y-1", isCollapsed ? "px-1" : "pl-3")}>
+              {/* Top-level Admin Links (Dashboard, Supabase Bedrock, Users, Plans) */}
+              <SidebarLink
+                key={adminLinks[0].to}
+                to={adminLinks[0].to}
+                icon={
+                  <div className="text-red-600 dark:text-red-400">
+                    {adminLinks[0].icon}
+                  </div>
+                }
+                label={adminLinks[0].label}
+                isActive={currentPath.includes(adminLinks[0].to)}
+                isCollapsed={isCollapsed}
+              />
+              
+              <SidebarLink
+                key={adminLinks[1].to}
+                to={adminLinks[1].to}
+                icon={
+                  <div className="text-red-600 dark:text-red-400">
+                    {adminLinks[1].icon}
+                  </div>
+                }
+                label={adminLinks[1].label}
+                isActive={currentPath.includes(adminLinks[1].to)}
+                isCollapsed={isCollapsed}
+              />
+              
+              <SidebarLink
+                key={adminLinks[2].to}
+                to={adminLinks[2].to}
+                icon={
+                  <div className="text-red-600 dark:text-red-400">
+                    {adminLinks[2].icon}
+                  </div>
+                }
+                label={adminLinks[2].label}
+                isActive={currentPath.includes(adminLinks[2].to)}
+                isCollapsed={isCollapsed}
+              />
+              
+              <SidebarLink
+                key={adminLinks[3].to}
+                to={adminLinks[3].to}
+                icon={
+                  <div className="text-red-600 dark:text-red-400">
+                    {adminLinks[3].icon}
+                  </div>
+                }
+                label={adminLinks[3].label}
+                isActive={currentPath.includes(adminLinks[3].to)}
+                isCollapsed={isCollapsed}
+              />
+
               {/* General Admin Links */}
               {!isCollapsed && (
                 <SidebarLink
                   to="#"
                   icon={<div className="text-red-600 dark:text-red-400"><Gauge className="h-5 w-5" /></div>}
                   label="General"
-                  isActive={currentPath.includes("/admin/dashboard") || 
-                            currentPath.includes("/admin/users") || 
-                            currentPath.includes("/admin/billing") ||
-                            currentPath.includes("/admin/settings")}
+                  isActive={currentPath.includes("/admin/settings")}
                   isCollapsed={isCollapsed}
                   onClick={() => toggleSection('adminGeneral')}
                   hasChildren={true}
@@ -441,7 +493,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               
               {(expandedSections.adminGeneral || isCollapsed) && (
                 <>
-                  {adminLinks.slice(0, 4).map((link) => (
+                  {adminLinks.slice(4, 5).map((link) => (
                     <SidebarLink
                       key={link.to}
                       to={link.to}
@@ -457,7 +509,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   ))}
                 </>
               )}
-              
+
               {/* Content Management */}
               {!isCollapsed && (
                 <SidebarLink
@@ -477,7 +529,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               
               {expandedSections.adminContent && !isCollapsed && (
                 <>
-                  {adminLinks.slice(4, 8).map((link) => (
+                  {adminLinks.slice(5, 8).map((link) => (
                     <NestedLink
                       key={link.to}
                       to={link.to}
@@ -511,7 +563,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               
               {expandedSections.adminCompliance && !isCollapsed && (
                 <>
-                  {adminLinks.slice(8, 10).map((link) => (
+                  {adminLinks.slice(8, 9).map((link) => (
                     <NestedLink
                       key={link.to}
                       to={link.to}
@@ -535,7 +587,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   icon={<div className="text-red-600 dark:text-red-400"><Users className="h-5 w-5" /></div>}
                   label="Partners"
                   isActive={currentPath.includes("/admin/affiliates") || 
-                            currentPath.includes("/admin/packages")}
+                            currentPath.includes("/admin/packages") ||
+                            currentPath.includes("/admin/billing")}
                   isCollapsed={isCollapsed}
                   onClick={() => toggleSection('adminPartners')}
                   hasChildren={true}
@@ -545,7 +598,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               
               {expandedSections.adminPartners && !isCollapsed && (
                 <>
-                  {adminLinks.slice(10, 12).map((link) => (
+                  {[adminLinks[10], adminLinks[11], adminLinks[12]].map((link) => (
                     <NestedLink
                       key={link.to}
                       to={link.to}
@@ -581,7 +634,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               
               {expandedSections.adminMigrations && !isCollapsed && (
                 <>
-                  {adminLinks.slice(12, 16).map((link) => (
+                  {adminLinks.slice(13, 17).map((link) => (
                     <NestedLink
                       key={link.to}
                       to={link.to}
@@ -608,8 +661,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             currentPath.includes("/admin/n8n-workflows") || 
                             currentPath.includes("/admin/database-schema") ||
                             currentPath.includes("/admin/manage-instances") || 
-                            currentPath.includes("/admin/bedrock") ||
-                            currentPath.includes("/admin/supabase-bedrock") ||
                             currentPath.includes("/admin/supabase-check") || 
                             currentPath.includes("/admin/admin-check")}
                   isCollapsed={isCollapsed}
@@ -621,7 +672,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               
               {expandedSections.adminTechnical && !isCollapsed && (
                 <>
-                  {adminLinks.slice(16).map((link) => (
+                  {adminLinks.slice(17).map((link) => (
                     <NestedLink
                       key={link.to}
                       to={link.to}
