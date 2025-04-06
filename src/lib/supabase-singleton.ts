@@ -111,10 +111,122 @@ function getOrCreateSupabaseClient(): SupabaseClient<Database> {
     console.error('Critical error: Missing Supabase configuration. Authentication will not work properly.');
   }
   
+  // Configure a more reliable fetch function with enhanced error handling
+  const enhancedFetch = async (url: RequestInfo | URL, options?: RequestInit) => {
+    // Use a longer timeout for auth requests
+    const isAuthRequest = url.toString().includes('/auth/') || 
+                         url.toString().includes('/token?') ||
+                         url.toString().includes('/oidc/');
+    
+    // Set timeout based on request type - auth requests need more time
+    const timeout = isAuthRequest ? 60000 : 30000; // 60 seconds for auth, 30 for others
+    
+    // Create an abort controller for the timeout
+    const controller = new AbortController();
+    
+    // Save the original signal if one was provided
+    const originalSignal = options?.signal;
+    
+    // Create a combined signal that aborts if either original signal or our timeout aborts
+    if (originalSignal) {
+      // Listen for abort on the original signal
+      const abortListener = () => {
+        controller.abort(originalSignal.reason);
+      };
+      
+      if (originalSignal.aborted) {
+        // Original signal was already aborted before we got here
+        controller.abort(originalSignal.reason);
+      } else {
+        // Add abort listener
+        originalSignal.addEventListener('abort', abortListener);
+        
+        // Clean up the listener if our controller aborts
+        controller.signal.addEventListener('abort', () => {
+          originalSignal.removeEventListener('abort', abortListener);
+        });
+      }
+    }
+    
+    // Add the signal to the options
+    const fetchOptions: RequestInit = {
+      ...(options || {}),
+      signal: controller.signal,
+      keepalive: true, // Keep connection alive during page transitions
+      credentials: 'include', // Include credentials in all requests
+      mode: 'cors', // CORS mode for cross-origin requests
+    };
+    
+    // Create the timeout
+    const timeoutId = setTimeout(() => {
+      console.warn(`[Supabase] Request timeout (${timeout}ms): ${url.toString()}`);
+      controller.abort(new DOMException('Request timed out', 'TimeoutError'));
+    }, timeout);
+    
+    try {
+      // Add retry logic for auth requests
+      if (isAuthRequest) {
+        let retries = 0;
+        const maxRetries = 2;
+        
+        while (retries <= maxRetries) {
+          try {
+            const response = await fetch(url, fetchOptions);
+            clearTimeout(timeoutId);
+            return response;
+          } catch (error) {
+            retries++;
+            console.warn(`[Supabase] Auth request retry ${retries}/${maxRetries}: ${url.toString()}`);
+            
+            // If the request was aborted by our timeout or we've exceeded max retries, throw
+            if (error instanceof DOMException && error.name === 'AbortError' ||
+                retries > maxRetries) {
+              throw error;
+            }
+            
+            // Wait before retrying (exponential backoff)
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries - 1)));
+          }
+        }
+      }
+      
+      // For non-auth requests or if auth retries exceeded, make a normal request
+      const response = await fetch(url, fetchOptions);
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      // Better classify the error
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        // Check if this was our timeout or an external abort
+        const isOurTimeout = error.message === 'Request timed out' || 
+                           error.message.includes('timed out');
+                        
+        if (isOurTimeout) {
+          console.error(`[Supabase] Request timed out after ${timeout}ms: ${url.toString()}`);
+        } else {
+          console.warn(`[Supabase] Request was aborted: ${url.toString()}`);
+        }
+      } else {
+        // Log detailed error information
+        console.error(`[Supabase] Fetch error for ${url.toString()}:`, error);
+      }
+      
+      // Enhance the error with additional context
+      if (error instanceof Error) {
+        error.message = `Supabase request failed: ${error.message} (URL: ${url.toString().substring(0, 100)}...)`;
+      }
+      
+      // Rethrow the error
+      throw error;
+    }
+  };
+  
   const client = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
-      storageKey: 'sb-injxxchotrvgvzelhvj-auth-token',
+      storageKey: 'sb-injxxchotrvgvvzelhvj-auth-token',
       autoRefreshToken: true,
       detectSessionInUrl: true,
       flowType: 'pkce',
@@ -172,22 +284,7 @@ function getOrCreateSupabaseClient(): SupabaseClient<Database> {
     },
     // Global fetch options to improve reliability
     global: {
-      fetch: (url: RequestInfo | URL, options?: RequestInit) => {
-        // Use a timeout to prevent hanging requests
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-        
-        // Merge the abort signal with any existing options
-        const mergedOptions: RequestInit = {
-          ...(options || {}),
-          signal: controller.signal,
-          keepalive: true
-        };
-        
-        return fetch(url, mergedOptions).finally(() => {
-          clearTimeout(timeoutId);
-        });
-      }
+      fetch: enhancedFetch
     }
   });
   
@@ -440,4 +537,75 @@ export function getSupabaseInitStatus() {
     hasErrors: initErrors.length > 0,
     errors: [...initErrors]
   };
+}
+
+// Export a specialized authentication function with retry logic
+export async function signInWithEmailPasswordRetry(email: string, password: string, maxRetries = 2) {
+  let retries = 0;
+  let lastError = null;
+  
+  // First make sure we have a valid client
+  const client = getSupabaseClient();
+  if (!client) {
+    console.error('[Auth] Failed to get Supabase client for authentication');
+    throw new Error('Authentication client initialization failed');
+  }
+  
+  while (retries <= maxRetries) {
+    try {
+      console.log(`[Auth] Signin attempt ${retries + 1}/${maxRetries + 1} for ${email}`);
+      
+      // Use a longer timeout for sign-in requests
+      const signInPromise = client.auth.signInWithPassword({ email, password });
+      
+      // Implement a race with a manual timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Sign-in request timed out after 30 seconds'));
+        }, 30000);
+      });
+      
+      // Race the sign-in promise against the timeout
+      const result = await Promise.race([signInPromise, timeoutPromise]) as any;
+      
+      // If we got an error, throw it to be caught by the retry logic
+      if (result.error) {
+        throw result.error;
+      }
+      
+      console.log(`[Auth] Signin successful for ${email}`);
+      return result;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Auth] Signin error (attempt ${retries + 1}/${maxRetries + 1}):`, error);
+      
+      // Special handling for specific errors that should not be retried
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (
+        errorMessage.includes('Invalid login credentials') ||
+        errorMessage.includes('Email not confirmed') ||
+        errorMessage.includes('Invalid email or password')
+      ) {
+        // Don't retry for invalid credentials
+        console.log('[Auth] Not retrying due to credential error:', errorMessage);
+        throw error;
+      }
+      
+      // For other errors like timeouts, network issues, etc., retry
+      retries++;
+      
+      if (retries > maxRetries) {
+        console.error('[Auth] Max retries exceeded for signin');
+        throw error;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const backoffTime = 1000 * Math.pow(2, retries - 1); // 1s, 2s, 4s, etc.
+      console.log(`[Auth] Waiting ${backoffTime}ms before retry ${retries}`);
+      await new Promise(r => setTimeout(r, backoffTime));
+    }
+  }
+  
+  // This shouldn't be reached due to the throw in the retry loop, but just in case
+  throw lastError || new Error('Authentication failed after retries');
 } 

@@ -23,6 +23,7 @@ import supabase from "@/lib/supabase-client";
 import { useAuth } from "@/contexts/auth-compatibility";
 import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
 import { useNavigate } from "react-router-dom";
+import { signInWithEmailPasswordRetry } from "@/lib/supabase-singleton";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -193,18 +194,33 @@ const LoginModal = ({
       localStorage.setItem("akii-login-time", Date.now().toString());
       localStorage.setItem("akii-login-email", data.email);
       
-      // Attempt the sign-in
-      const response = await signIn(data.email, data.password);
-
-      if (response.error) {
-        setError(response.error.message);
-        console.error("[Login Modal] Sign-in error:", response.error);
+      // Use our enhanced sign-in function with retries
+      try {
+        console.log("[Login Modal] Using enhanced sign-in with retry logic");
+        const response = await signInWithEmailPasswordRetry(data.email, data.password, 2);
+        
+        if (response.error) {
+          setError(response.error.message);
+          console.error("[Login Modal] Sign-in error:", response.error);
+          localStorage.removeItem("akii-login-in-progress");
+          localStorage.removeItem("akii-login-time");
+          localStorage.removeItem("akii-login-email");
+          return;
+        }
+        
+        // If we get here, sign-in was successful
+        console.log("[Login Modal] Enhanced sign-in successful");
+      } catch (signInError) {
+        // Handle sign-in errors
+        console.error("[Login Modal] Enhanced sign-in failed:", signInError);
+        setError(signInError instanceof Error ? signInError.message : "Authentication failed");
+        setIsLoading(false);
         localStorage.removeItem("akii-login-in-progress");
         localStorage.removeItem("akii-login-time");
         localStorage.removeItem("akii-login-email");
         return;
       }
-
+      
       console.log("[Login Modal] Sign-in successful, checking session");
       
       // Verify session is available and set emergency auth flag 
@@ -217,6 +233,18 @@ const LoginModal = ({
           localStorage.setItem("akii-auth-emergency", "true");
           localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
           localStorage.setItem("akii-auth-emergency-email", data.email);
+          
+          // Try to store session data
+          try {
+            const sessionStr = JSON.stringify({
+              timestamp: Date.now(),
+              email: data.email,
+              hasSession: true
+            });
+            localStorage.setItem("akii-session-data", sessionStr);
+          } catch (storageError) {
+            console.warn("[Login Modal] Failed to store session data:", storageError);
+          }
         } else {
           console.warn("[Login Modal] No session found after successful login, using emergency auth");
           // Force emergency auth flag

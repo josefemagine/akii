@@ -41,6 +41,10 @@ import {
 // Update imports to use the singleton
 import supabase, { auth, supabaseAdmin, debugSupabaseInstances } from "@/lib/supabase";
 
+import { 
+  signInWithEmailPasswordRetry 
+} from "@/lib/supabase-singleton";
+
 interface AuthState {
   user: User | null;
   profile: UserProfile | null;
@@ -449,25 +453,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({ ...prev, isLoading: true }));
       console.log("AuthContext: Signing in user", email);
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) {
-        console.error("AuthContext: Sign-in error", error);
+      // Use the enhanced sign-in function with retries
+      try {
+        const result = await signInWithEmailPasswordRetry(email, password, 2);
+        
+        if (result.error) {
+          console.error("AuthContext: Sign-in error from retry function", result.error);
+          setState((prev) => ({
+            ...prev,
+            isLoading: false,
+            error: result.error,
+          }));
+          return { error: result.error };
+        }
+        
+        // If we have data, sign-in was successful
+        console.log("AuthContext: Sign-in successful using retry function");
+        setState((prev) => ({ ...prev, isLoading: false }));
+        
+        // Verify session immediately
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            console.log("AuthContext: Valid session confirmed after sign-in");
+          } else {
+            console.warn("AuthContext: No session found after successful sign-in");
+          }
+        } catch (sessionError) {
+          console.error("AuthContext: Error verifying session after sign-in:", sessionError);
+        }
+        
+        return { error: null };
+      } catch (retryError) {
+        // Handle specific error from retry function
+        console.error("AuthContext: Sign-in retry function error", retryError);
+        
+        const authError = retryError as AuthError;
         setState((prev) => ({
           ...prev,
           isLoading: false,
-          error: error,
+          error: authError,
         }));
-        return { error };
+        
+        return { error: authError };
       }
-
-      console.log("AuthContext: Sign-in successful");
-      // If sign-in successful, user state will be updated by the auth listener
-      setState((prev) => ({ ...prev, isLoading: false }));
-      return { error };
     } catch (error) {
       console.error("Sign-in error:", error);
       setState((prev) => ({
