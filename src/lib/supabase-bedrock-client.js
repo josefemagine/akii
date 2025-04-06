@@ -865,7 +865,6 @@ export const BedrockClient = {
   // Authentication
   getAuthSession,
   getAuthToken,
-  refreshTokenIfNeeded,
   isAuthenticated,
   validateApiConfiguration,
   
