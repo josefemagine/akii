@@ -237,7 +237,7 @@ const callEdgeFunctionDirect = async (functionName, action, data, token) => {
         // Try to parse the error as JSON
         const errorJson = JSON.parse(errorText);
         return { data: null, error: errorJson.error || errorJson.message || `API error: ${response.status}` };
-      } catch (e) {
+      } catch (_e) {
         // If not JSON, return the raw error text
         return { data: null, error: `API error: ${response.status} ${errorText}` };
       }
@@ -590,7 +590,7 @@ const testAwsPermissions = async () => {
   console.log('[Bedrock] Starting AWS permission test');
   try {
     // Never use mock data for permission tests
-    const useMock = false;
+    const _useMock = false;
     
     // First get token to verify authentication
     const token = await getAuthToken();
