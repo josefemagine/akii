@@ -561,78 +561,68 @@ const SupabaseBedrock = () => {
   };
   
   // Add fetchAvailableModels function after checkAuthStatus
-  const fetchAvailableModels = async () => {
-    if (authStatus !== 'authenticated') {
-      console.log("User must be authenticated to fetch models");
-      return;
-    }
-    
-    setLoadingModels(true);
-    setError(null);
-    
+  const fetchAvailableModels = async (filters: Partial<ModelFilter> = {}) => {
     try {
-      console.log("Fetching available Bedrock models with filters:", activeFilters);
-      const { data, error } = await BedrockClient.listFoundationModels(activeFilters);
-      
-      if (error) {
-        console.error("Error fetching foundation models:", error);
+      // Check if authenticated before fetching
+      if (authStatus !== 'authenticated') {
         toast({
-          title: "Error loading models",
-          description: `Failed to fetch available models: ${error}`,
-          variant: "destructive",
+          title: "Authentication Required",
+          description: "You must be logged in to view available models",
+          variant: "destructive"
         });
         return;
       }
-      
-      if (data?.models && Array.isArray(data.models)) {
-        console.log(`Fetched ${data.models.length} foundation models`);
-        
-        // Sort models by provider and then by name
-        const sortedModels = [...data.models].sort((a, b) => {
-          // First sort by provider
-          if (a.providerName !== b.providerName) {
-            return a.providerName.localeCompare(b.providerName);
-          }
-          // Then by model name
-          return a.modelName.localeCompare(b.modelName);
-        });
-        
-        setAvailableModels(sortedModels);
-        
-        // If no model is selected yet, select the first one
-        if (!selectedModelId && sortedModels.length > 0) {
-          // Find a model matching the current plan if possible
-          const currentPlanModel = sortedModels.find(model => 
-            model.modelId === planConfig[selectedPlan as keyof typeof planConfig]?.modelId
-          );
-          
-          if (currentPlanModel) {
-            setSelectedModelId(currentPlanModel.modelId);
-          } else if (sortedModels.length > 0) {
-            setSelectedModelId(sortedModels[0].modelId);
-          }
-        }
-        
-        // If models loaded successfully, update toast
-        toast({
-          title: "Models loaded",
-          description: `Successfully loaded ${sortedModels.length} AWS Bedrock models${Object.keys(activeFilters).length > 0 ? ' with filters' : ''}.`
-        });
-      } else {
-        console.log("No models received from API");
+
+      setLoadingModels(true);
+      setError(null);
+
+      // Call the API to fetch models with any active filters
+      const { data, error } = await BedrockClient.listFoundationModels(filters);
+
+      if (error) {
+        console.error("Error fetching foundation models:", error);
+        setError(error);
         setAvailableModels([]);
         toast({
-          title: "No models available",
-          description: "No Bedrock models were returned by the API. Using default options.",
-          variant: "destructive",
+          title: "Error Fetching Models",
+          description: error,
+          variant: "destructive"
         });
+        return;
       }
-    } catch (error) {
-      console.error("Exception fetching foundation models:", error);
+
+      if (!data || !data.models) {
+        console.warn("No models returned from API");
+        setAvailableModels([]);
+        return;
+      }
+
+      // Process the models from the response
+      const models = data.models || [];
+      console.log(`Fetched ${models.length} models from AWS Bedrock`);
+
+      // Sort models by provider and name for better usability
+      const sortedModels = [...models].sort((a, b) => {
+        // Sort by provider first
+        const providerA = a.providerName || '';
+        const providerB = b.providerName || '';
+        if (providerA !== providerB) {
+          return providerA.localeCompare(providerB);
+        }
+        
+        // Then by model name/ID
+        return (a.modelName || a.modelId || '').localeCompare(b.modelName || b.modelId || '');
+      });
+
+      setAvailableModels(sortedModels);
+      setSelectedModelId(sortedModels.length > 0 ? sortedModels[0].modelId : '');
+    } catch (err) {
+      console.error("Error in fetchAvailableModels:", err);
+      setError(err instanceof Error ? err.message : String(err));
       toast({
         title: "Error",
-        description: `Failed to fetch models: ${error instanceof Error ? error.message : String(error)}`,
-        variant: "destructive",
+        description: "Failed to fetch available models",
+        variant: "destructive"
       });
     } finally {
       setLoadingModels(false);
@@ -650,13 +640,16 @@ const SupabaseBedrock = () => {
     });
   }, []);
   
-  // Effect to fetch models when filters change
+  // Update effect to fetch models when filters change
   useEffect(() => {
-    // Only refetch if we're already authenticated and not in the initial loading state
     if (authStatus === 'authenticated' && !loading) {
-      fetchAvailableModels();
+      // This wraps the fetchAvailableModels call to avoid the type error
+      const fetchModels = () => {
+        fetchAvailableModels(activeFilters);
+      };
+      fetchModels();
     }
-  }, [activeFilters]);  // This will trigger a fetch whenever filters change
+  }, [activeFilters, authStatus, loading]);
   
   // Create a new Bedrock instance
   const handleProvisionInstance = async () => {
@@ -919,9 +912,14 @@ const SupabaseBedrock = () => {
         </div>
         
         <div className="mt-4 flex justify-end">
-          <Button 
-            onClick={() => fetchAvailableModels()} 
+          <Button
+            variant="outline"
+            size="sm"
             disabled={loadingModels}
+            onClick={(e) => {
+              e.preventDefault();
+              fetchAvailableModels(activeFilters);
+            }}
           >
             {loadingModels ? (
               <>
@@ -931,13 +929,19 @@ const SupabaseBedrock = () => {
             ) : (
               <>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Apply Filters
+                Refresh
               </>
             )}
           </Button>
         </div>
       </div>
     );
+  };
+  
+  // Create a wrapper function for button clicks
+  const handleFetchModels = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    fetchAvailableModels(activeFilters);
   };
   
   // Render loading state
@@ -1122,7 +1126,7 @@ const SupabaseBedrock = () => {
                   <Button 
                     variant="outline" 
                     size="icon" 
-                    onClick={fetchAvailableModels} 
+                    onClick={handleFetchModels} 
                     disabled={loadingModels || authStatus !== 'authenticated'}
                     title="Refresh model list"
                   >

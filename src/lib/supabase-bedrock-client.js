@@ -485,14 +485,11 @@ const testAwsPermissions = async () => {
 };
 
 /**
- * Get all available foundation models from AWS Bedrock
- * 
- * @param {Object} filters - Optional filter parameters
- * @param {string} filters.byProvider - Filter models by provider name (e.g. 'amazon', 'anthropic')
- * @param {string} filters.byOutputModality - Filter models by output modality (TEXT, IMAGE, EMBEDDING)
- * @param {string} filters.byInputModality - Filter models by input modality
- * @param {string} filters.byInferenceType - Filter models by inference type (ON_DEMAND, PROVISIONED)
- * @param {string} filters.byCustomizationType - Filter models by customization type (FINE_TUNING, CONTINUED_PRE_TRAINING, DISTILLATION)
+ * List available foundation models with optional filters
+ * @param {Object} filters - Optional filters for the models list
+ * @param {string} filters.byProvider - Filter by provider (e.g. 'amazon', 'anthropic')
+ * @param {string} filters.byOutputModality - Filter by output type (e.g. 'TEXT', 'IMAGE')
+ * @param {string} filters.byInferenceType - Filter by inference type (e.g. 'ON_DEMAND', 'PROVISIONED')
  * @returns {Promise<{data: Array, error: string|null}>} Available models or error
  */
 const listFoundationModels = async (filters = {}) => {
@@ -509,10 +506,14 @@ const listFoundationModels = async (filters = {}) => {
   if (filters.byInferenceType) validatedFilters.byInferenceType = filters.byInferenceType;
   if (filters.byCustomizationType) validatedFilters.byCustomizationType = filters.byCustomizationType;
   
-  // Call the proper edge function action
+  // Using the aws-credential-test endpoint with listModels=true parameter
+  // based on the edge function logs, this is a working alternative endpoint
   return callEdgeFunction({
-    action: 'listFoundationModels',
-    data: validatedFilters
+    action: 'aws-credential-test',
+    data: {
+      listModels: true,
+      ...validatedFilters
+    }
   });
 };
 
