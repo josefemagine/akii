@@ -295,6 +295,8 @@ const SupabaseBedrock = () => {
   // Check authentication status
   const checkAuthStatus = async () => {
     try {
+      setAuthStatus('checking');
+      
       if (authStatus !== 'authenticated') {
         setAuthStatus('unauthenticated');
         return false;
@@ -578,7 +580,7 @@ const SupabaseBedrock = () => {
       }
 
       setLoadingModels(true);
-      setError(null);
+      setError(null); // Clear the main error
       
       // Call the API to fetch models with any active filters
       const { data, error } = await BedrockClient.listFoundationModels(filters);
@@ -586,7 +588,7 @@ const SupabaseBedrock = () => {
       // Handle error but still process data if available (for fallbacks)
       if (error) {
         console.error("Error fetching foundation models:", error);
-        setError(error);
+        setError(error); // Set the main error state
         
         // Only show toast for real errors, not for fallbacks
         if (!data || !data.models || data.models.length === 0) {
