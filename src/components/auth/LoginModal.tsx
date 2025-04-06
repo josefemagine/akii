@@ -285,7 +285,8 @@ const LoginModal = ({
             console.warn("[Login Modal] Failed to store session data:", storageError);
           }
           
-          // Explicitly trigger auth state update event
+          // Explicitly trigger multiple auth state update events with delays
+          // This ensures all components have time to update
           window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
             detail: {
               isLoggedIn: true,
@@ -294,6 +295,39 @@ const LoginModal = ({
               timestamp: Date.now()
             }
           }));
+          
+          // Delayed second event to ensure UI updates
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
+              detail: {
+                isLoggedIn: true,
+                email: data.email,
+                userId: session.session.user?.id,
+                timestamp: Date.now(),
+                delayed: true
+              }
+            }));
+          }, 500);
+          
+          // Delayed third event as final attempt
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
+              detail: {
+                isLoggedIn: true,
+                email: data.email,
+                userId: session.session.user?.id,
+                timestamp: Date.now(),
+                delayed: true,
+                final: true
+              }
+            }));
+            
+            // Force location reload if we're still on the homepage
+            if (window.location.pathname === '/') {
+              console.log("[Login Modal] Still on homepage after login, forcing redirect");
+              window.location.href = '/dashboard';
+            }
+          }, 1500);
         } else {
           console.warn("[Login Modal] No session found after successful login, using emergency auth");
           // Force emergency auth flag

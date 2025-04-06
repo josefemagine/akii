@@ -72,6 +72,19 @@ export function setupEmergencyAuth(email: string = 'admin@akii.com'): void {
     const profileKey = `akii-profile-${userId}`;
     localStorage.setItem(profileKey, JSON.stringify(fallbackUser));
     
+    // Store a session state entry as well to help contexts
+    try {
+      const sessionData = {
+        timestamp: Date.now(),
+        userId: userId,
+        email: email,
+        hasSession: true
+      };
+      localStorage.setItem('akii-session-data', JSON.stringify(sessionData));
+    } catch (e) {
+      console.error('Production recovery: Failed to store session data', e);
+    }
+    
     // Trigger auth state changed event to notify components
     dispatchAuthEvent({
       isLoggedIn: true,
@@ -84,6 +97,34 @@ export function setupEmergencyAuth(email: string = 'admin@akii.com'): void {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('akii-last-auth-update', Date.now().toString());
+        
+        // Send multiple events with delays to ensure all components update
+        setTimeout(() => {
+          dispatchAuthEvent({
+            isLoggedIn: true,
+            userId,
+            email,
+            timestamp: Date.now(),
+            delayed: true
+          });
+        }, 300);
+        
+        setTimeout(() => {
+          dispatchAuthEvent({
+            isLoggedIn: true,
+            userId,
+            email,
+            timestamp: Date.now(),
+            delayed: true,
+            final: true
+          });
+          
+          // Force refresh if we're still on the homepage
+          if (window.location.pathname === '/') {
+            console.log('Production recovery: Still on homepage, forcing redirect to dashboard');
+            window.location.href = '/dashboard';
+          }
+        }, 1000);
       } catch (e) {
         console.error('Production recovery: Error setting last auth update timestamp', e);
       }

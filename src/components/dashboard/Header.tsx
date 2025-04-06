@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useDirectAuth } from "@/contexts/direct-auth-context";
 import { refreshSession } from "@/lib/direct-db-access";
 import supabase from "@/lib/supabase";
+import { ensureDashboardAccess } from "@/lib/production-recovery";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -33,36 +34,147 @@ const Header: React.FC<HeaderProps> = ({
   const compatAuth = useAuth();
   const { profile, signOut, isAdmin: contextIsAdmin, refreshAuthState } = useDirectAuth();
   const previousAuthState = useRef<boolean>(false);
+  const [forceRefresh, setForceRefresh] = useState(0);
   
   const navigate = useNavigate();
   
-  // Refresh the session when the header is displayed
+  // Force check login state on mount and periodically
   useEffect(() => {
-    refreshSession();
-  }, []);
+    const checkAuthStatus = () => {
+      // Force check if emergency auth is set
+      const emergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
+      const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
+      
+      if (emergencyAuth || isLoggedIn) {
+        console.log('[Header] Emergency auth or login detected, ensuring header state is updated');
+        
+        // Call the production recovery function to ensure auth state is properly set
+        if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
+          ensureDashboardAccess();
+        }
+        
+        refreshAuthState();
+        refreshSession();
+        
+        // Try to get a fresh auth state directly
+        supabase.auth.getSession().then(({ data }) => {
+          if (data.session) {
+            console.log('[Header] Valid session found, forcing update');
+            refreshAuthState();
+            setForceRefresh(prev => prev + 1);
+          }
+        });
+      }
+    };
+    
+    // Check immediately on mount
+    checkAuthStatus();
+    
+    // And set up a periodic check
+    const interval = setInterval(checkAuthStatus, 10000); // Check every 10 seconds
+    
+    return () => clearInterval(interval);
+  }, [refreshAuthState]);
 
-  // Set up Supabase auth listener using the official SDK method
+  // Set up Supabase auth listener
   useEffect(() => {
     console.log('[Header] Setting up official Supabase auth listener');
     
-    // Use the exported onAuthStateChange function
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log("[Header] Supabase auth event:", event, session ? "Session exists" : "No session");
       
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         console.log("[Header] User signed in or token refreshed, syncing UI");
         refreshAuthState();
+        setForceRefresh(prev => prev + 1);
       } else if (event === 'SIGNED_OUT') {
         console.log("[Header] User signed out, updating UI");
         refreshAuthState();
       }
     });
     
-    // Cleanup function
     return () => {
       subscription.unsubscribe();
     };
   }, [refreshAuthState]);
+
+  // Listen for auth events and storage changes
+  useEffect(() => {
+    console.log("[Header] Auth state updated from context:", { 
+      hasUser: !!compatAuth.user, 
+      userId: compatAuth.user?.id,
+      hasSession: !!compatAuth.session,
+      previousState: previousAuthState.current
+    });
+    
+    previousAuthState.current = !!compatAuth.user;
+    
+    // Handle localStorage changes
+    const handleAuthChange = (event: StorageEvent) => {
+      if (event.key?.includes('auth') || 
+          event.key?.includes('sb-') || 
+          event.key?.includes('akii') || 
+          event.key?.includes('supabase')) {
+        console.log('[Header] Auth-related localStorage change detected:', event.key);
+        refreshAuthState();
+        setForceRefresh(prev => prev + 1);
+      }
+    };
+    
+    // Handle custom auth events
+    const handleAuthEvent = async (event: any) => {
+      console.log('[Header] Auth state changed event received:', event?.detail);
+      
+      refreshSession();
+      refreshAuthState();
+      setForceRefresh(prev => prev + 1);
+      
+      // When receiving a login event with isLoggedIn=true, ensure header shows logged in state
+      if (event?.detail?.isLoggedIn === true) {
+        // Extra delay to ensure all state updates have propagated
+        setTimeout(() => {
+          console.log('[Header] Forcing additional refresh for login state');
+          refreshAuthState();
+          setForceRefresh(prev => prev + 1);
+          
+          // Check if emergency auth should be set
+          if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
+            ensureDashboardAccess();
+          }
+        }, 500);
+      }
+    };
+    
+    window.addEventListener('storage', handleAuthChange);
+    window.addEventListener('akii-login-state-changed', handleAuthEvent);
+    window.addEventListener('akii-auth-changed', handleAuthEvent);
+    window.addEventListener('akii-production-recovery', handleAuthEvent);
+    
+    // Setup a periodic check in production to ensure header state is correct
+    let checkInterval: NodeJS.Timeout | null = null;
+    
+    if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
+      checkInterval = setInterval(() => {
+        const emergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
+        const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
+        const hasAuthContext = !!compatAuth.user;
+        
+        if ((emergencyAuth || isLoggedIn) && !hasAuthContext) {
+          console.log('[Header] Auth state mismatch detected, forcing refresh');
+          refreshAuthState();
+          setForceRefresh(prev => prev + 1);
+        }
+      }, 5000); // Check every 5 seconds
+    }
+    
+    return () => {
+      window.removeEventListener('storage', handleAuthChange);
+      window.removeEventListener('akii-login-state-changed', handleAuthEvent);
+      window.removeEventListener('akii-auth-changed', handleAuthEvent);
+      window.removeEventListener('akii-production-recovery', handleAuthEvent);
+      if (checkInterval) clearInterval(checkInterval);
+    };
+  }, [compatAuth.user, compatAuth.session, refreshAuthState, forceRefresh]);
 
   // Handle sign out using direct auth
   const handleSignOut = async () => {
@@ -108,63 +220,18 @@ const Header: React.FC<HeaderProps> = ({
   // Determine if user is admin from props, direct context, or compat layer
   const userIsAdmin = isAdmin || contextIsAdmin || !!compatAuth.isAdmin;
 
+  // Force-check authentication state when the header renders
   useEffect(() => {
-    // Log initial auth state
-    console.log("[Header] Auth state updated from context:", { 
-      hasUser: !!compatAuth.user, 
-      userId: compatAuth.user?.id,
-      hasSession: !!compatAuth.session,
-      previousState: previousAuthState.current
-    });
-    
-    previousAuthState.current = !!compatAuth.user;
-    
-    // Subscribe to auth state changes
-    const handleAuthChange = (event: StorageEvent) => {
-      if (event.key?.includes('auth') || 
-          event.key?.includes('sb-') || 
-          event.key?.includes('akii') || 
-          event.key?.includes('supabase')) {
-        console.log('[Header] Auth-related localStorage change detected:', event.key);
+    if (!compatAuth.user && !profile) {
+      const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
+      const hasEmergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
+      
+      if (isLoggedIn || hasEmergencyAuth) {
+        console.log('[Header] Found login state in localStorage but context is empty, forcing refresh');
         refreshAuthState();
       }
-    };
-    
-    // Also listen for custom auth events
-    const handleAuthEvent = () => {
-      console.log('[Header] Auth state changed event received, refreshing state');
-      refreshAuthState();
-    };
-    
-    window.addEventListener('storage', handleAuthChange);
-    window.addEventListener('akii-login-state-changed', handleAuthEvent);
-    window.addEventListener('akii-auth-changed', handleAuthEvent);
-    window.addEventListener('akii-production-recovery', handleAuthEvent);
-    
-    // Setup a periodic check in production to ensure header state is correct
-    let checkInterval: NodeJS.Timeout | null = null;
-    
-    if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
-      checkInterval = setInterval(() => {
-        const emergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
-        const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
-        const hasAuthContext = !!compatAuth.user;
-        
-        if ((emergencyAuth || isLoggedIn) && !hasAuthContext) {
-          console.log('[Header] Auth state mismatch detected, forcing refresh');
-          refreshAuthState();
-        }
-      }, 5000); // Check every 5 seconds
     }
-    
-    return () => {
-      window.removeEventListener('storage', handleAuthChange);
-      window.removeEventListener('akii-login-state-changed', handleAuthEvent);
-      window.removeEventListener('akii-auth-changed', handleAuthEvent);
-      window.removeEventListener('akii-production-recovery', handleAuthEvent);
-      if (checkInterval) clearInterval(checkInterval);
-    };
-  }, [compatAuth.user, compatAuth.session, refreshAuthState]);
+  }, [compatAuth.user, profile, refreshAuthState]);
 
   return (
     <header className="sticky top-0 z-40 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
