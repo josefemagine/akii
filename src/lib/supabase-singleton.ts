@@ -153,9 +153,14 @@ function getOrCreateSupabaseClient(): SupabaseClient<Database> {
       ...(options || {}),
       signal: controller.signal,
       keepalive: true, // Keep connection alive during page transitions
-      credentials: 'include', // Include credentials in all requests
       mode: 'cors', // CORS mode for cross-origin requests
     };
+    
+    // If this is an auth request, use a specific configuration for auth endpoints
+    if (isAuthRequest) {
+      // Override existing options for auth requests specifically
+      fetchOptions.credentials = 'omit'; // Explicitly omit credentials for auth requests
+    }
     
     // Create the timeout
     const timeoutId = setTimeout(() => {
@@ -284,9 +289,96 @@ function getOrCreateSupabaseClient(): SupabaseClient<Database> {
     },
     // Global fetch options to improve reliability
     global: {
-      fetch: enhancedFetch
+      fetch: enhancedFetch,
+      headers: {
+        'X-Client-Info': 'Akii WebApp'
+      }
     }
   });
+  
+  // Prevent CORS issues by patching the auth API fetch
+  try {
+    // Monkey patch the auth API method to fix CORS issues
+    const originalSignIn = client.auth.signInWithPassword;
+    
+    // @ts-ignore - We're intentionally patching this
+    client.auth.signInWithPassword = async function(credentials) {
+      try {
+        // Try the normal method first
+        return await originalSignIn.call(this, credentials);
+      } catch (error) {
+        // If we hit a CORS error, try the direct method
+        if (error.message?.includes('CORS') || 
+            error.message?.includes('Failed to fetch') ||
+            error.name === 'TypeError') {
+            
+          console.log('[Auth] Caught CORS error in signInWithPassword, using direct approach');
+          
+          // Use direct API approach that avoids CORS issues
+          // Access safely from credentials with type checking
+          const email = 'email' in credentials ? credentials.email as string : '';
+          const password = 'password' in credentials ? credentials.password as string : '';
+          
+          if (!email || !password) {
+            throw new Error('Email and password are required');
+          }
+          
+          const supabaseAuthUrl = `${supabaseUrl}/auth/v1/token?grant_type=password`;
+          
+          const response = await fetch(supabaseAuthUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseAnonKey,
+              'X-Client-Info': 'Akii Web App'
+            },
+            body: JSON.stringify({ email, password }),
+            credentials: 'omit' // Important! Don't include credentials
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error_description || errorData.error || 'Authentication failed');
+          }
+          
+          const data = await response.json();
+          
+          // Manually set the token in localStorage
+          try {
+            const key = `sb-${supabaseUrl.split('//')[1].split('.')[0]}-auth-token`;
+            localStorage.setItem(key, JSON.stringify({
+              access_token: data.access_token,
+              refresh_token: data.refresh_token,
+              expires_at: Math.floor(Date.now() / 1000) + data.expires_in
+            }));
+          } catch (storageError) {
+            console.error('[Auth] Error storing auth token:', storageError);
+          }
+          
+          // Return in expected format
+          return {
+            data: {
+              session: {
+                access_token: data.access_token,
+                refresh_token: data.refresh_token,
+                expires_in: data.expires_in,
+                user: data.user
+              },
+              user: data.user
+            },
+            error: null
+          };
+        }
+        
+        // If it's not a CORS error, rethrow
+        throw error;
+      }
+    };
+    
+    console.log('[Supabase] Client auth methods patched for CORS protection');
+  } catch (patchError) {
+    console.error('[Supabase] Failed to patch auth methods:', patchError);
+  }
   
   // Store the client in global singleton
   globalSingleton[SUPABASE_SINGLETON_KEY] = {
@@ -551,9 +643,76 @@ export async function signInWithEmailPasswordRetry(email: string, password: stri
     throw new Error('Authentication client initialization failed');
   }
   
+  // Function to try the direct API approach when CORS is failing
+  const tryDirectApiLogin = async () => {
+    console.log('[Auth] Attempting direct API login without credentials mode');
+    
+    try {
+      // Create a basic request without credentials mode
+      const supabaseAuthUrl = `${supabaseUrl}/auth/v1/token?grant_type=password`;
+      const response = await fetch(supabaseAuthUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseAnonKey,
+          'X-Client-Info': 'Akii Web App'
+        },
+        body: JSON.stringify({ email, password }),
+        // No credentials: 'include' here
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error_description || errorData.error || 'Authentication failed');
+      }
+      
+      const data = await response.json();
+      
+      // Handle the successful response
+      console.log('[Auth] Direct API login successful');
+      
+      // Manually set the token in localStorage to make sure Supabase client picks it up
+      try {
+        const key = `sb-${supabaseUrl.split('//')[1].split('.')[0]}-auth-token`;
+        localStorage.setItem(key, JSON.stringify({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+          expires_at: Math.floor(Date.now() / 1000) + data.expires_in
+        }));
+      } catch (storageError) {
+        console.error('[Auth] Error storing auth token:', storageError);
+      }
+      
+      // Return in expected format
+      return {
+        data: {
+          session: {
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+            expires_in: data.expires_in,
+            user: data.user
+          },
+          user: data.user
+        },
+        error: null
+      };
+    } catch (error) {
+      console.error('[Auth] Direct API login failed:', error);
+      throw error;
+    }
+  };
+  
   while (retries <= maxRetries) {
     try {
       console.log(`[Auth] Signin attempt ${retries + 1}/${maxRetries + 1} for ${email}`);
+      
+      // If we've already had a CORS error on a previous attempt, try the direct approach
+      if (lastError && 
+          (lastError.message?.includes('CORS') || 
+           lastError.message?.includes('Failed to fetch') ||
+           lastError.name === 'TypeError')) {
+        return await tryDirectApiLogin();
+      }
       
       // Use a longer timeout for sign-in requests
       const signInPromise = client.auth.signInWithPassword({ email, password });
@@ -578,6 +737,20 @@ export async function signInWithEmailPasswordRetry(email: string, password: stri
     } catch (error) {
       lastError = error;
       console.warn(`[Auth] Signin error (attempt ${retries + 1}/${maxRetries + 1}):`, error);
+      
+      // Check for CORS errors - if we detect one, immediately try the direct approach
+      if (error.message?.includes('CORS') || 
+          error.message?.includes('Failed to fetch') ||
+          error.name === 'TypeError') {
+        console.log('[Auth] Detected CORS or fetch error, trying direct API approach');
+        try {
+          return await tryDirectApiLogin();
+        } catch (directError) {
+          // If direct approach also fails, continue with regular retry logic
+          console.error('[Auth] Direct API approach also failed:', directError);
+          lastError = directError;
+        }
+      }
       
       // Special handling for specific errors that should not be retried
       const errorMessage = error instanceof Error ? error.message : String(error);
