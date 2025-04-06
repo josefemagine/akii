@@ -127,6 +127,99 @@ Use the diagnostic tab in the admin interface to:
 - Test connectivity to the API
 - View detailed error messages
 
+### Edge Function BOOT_ERROR with AWS Module
+
+If you see a boot error related to missing exports in the AWS module, follow these steps:
+
+#### Error: Missing Export `listAvailableFoundationModels`
+
+The Edge Function fails with error: 
+```
+worker boot error: Uncaught SyntaxError: The requested module './aws.ts' does not provide an export named 'listAvailableFoundationModels'
+```
+
+**Root Cause:** The function name used in the import statement doesn't match the actual AWS API method name.
+
+**Solution:**
+
+1. In your Supabase Edge Function, locate the import statement in the `index.ts` file:
+
+```typescript
+// Incorrect import
+import { listAvailableFoundationModels } from './aws.ts';
+```
+
+2. Update it to use the correct method name according to AWS documentation:
+
+```typescript
+// Correct import (case sensitive)
+import { ListFoundationModels } from './aws.ts';
+```
+
+3. Then locate the `aws.ts` file and ensure the export is correctly named:
+
+```typescript
+// Export the function with the correct name
+export const ListFoundationModels = async (filters = {}) => {
+  // Implementation here
+};
+```
+
+4. According to the [AWS Bedrock API Reference](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_ListFoundationModels.html), the method is called `ListFoundationModels` with capital letters.
+
+5. Redeploy your Supabase Edge Function.
+
+For more information on the AWS Bedrock API, visit: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_ListFoundationModels.html
+
+## API Operations
+
+### Supported AWS Bedrock API Operations
+
+Our integration currently supports the following AWS Bedrock API operations:
+
+| Operation | Description | Implementation Status |
+|-----------|-------------|----------------------|
+| ListFoundationModels | Lists available foundation models with filtering options | ✅ Implemented |
+| GetFoundationModel | Gets detailed information about a specific foundation model | ✅ Implemented |
+| CreateProvisionedModelThroughput | Creates a new provisioned model throughput (instance) | ✅ Implemented |
+| DeleteProvisionedModelThroughput | Deletes a provisioned model throughput | ✅ Implemented |
+| ListProvisionedModelThroughputs | Lists all provisioned model throughputs | ✅ Implemented |
+
+### Recommended Additional Operations
+
+The following AWS Bedrock API operations could be added to improve functionality:
+
+| Operation | Description | Implementation Status |
+|-----------|-------------|----------------------|
+| GetModelInvocationLoggingConfiguration | Gets the current model invocation logging configuration | 🔧 Recommended |
+| PutModelInvocationLoggingConfiguration | Configures logging for model invocations | 🔧 Recommended |
+| GetProvisionedModelThroughput | Gets detailed information about a provisioned model throughput | 🔧 Recommended |
+| UpdateProvisionedModelThroughput | Updates a provisioned model throughput | 🔧 Recommended |
+| ListTagsForResource | Lists tags for a Bedrock resource | 🔧 Recommended |
+| TagResource | Adds tags to a Bedrock resource | 🔧 Recommended |
+| UntagResource | Removes tags from a Bedrock resource | 🔧 Recommended |
+
+### Usage Metrics and Cost Tracking
+
+AWS Bedrock itself doesn't provide direct API methods for detailed usage metrics or cost tracking. For comprehensive usage monitoring, we recommend:
+
+1. **AWS Cost Explorer API**: Integrate with the AWS Cost Explorer API to obtain detailed cost information
+   - `GetCostAndUsage`: Gets aggregated cost and usage metrics for AWS Bedrock
+   - `GetDimensionValues`: Gets the dimension values for filtering (e.g., specific model types)
+
+2. **CloudWatch Metrics**: Collect and analyze AWS Bedrock usage through CloudWatch
+   - `GetMetricData`: Retrieves metrics about model invocations, tokens processed, etc.
+   - `GetMetricStatistics`: Gets statistics for specified metrics
+
+3. **Custom Usage Tracking**: Implement custom tracking by:
+   - Recording metrics in your application database when making Bedrock calls
+   - Storing token counts and model usage from API responses
+   - Creating dashboards with aggregated metrics
+
+To implement these additions, the Edge Function will need to be updated to include the corresponding AWS SDK calls, and the client will need new methods to access these features.
+
+For more information on all available AWS Bedrock API operations, visit: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_Operations_Amazon_Bedrock.html
+
 ## Security Considerations
 
 1. **JWT Authentication** is preferred over API keys for better security

@@ -17,6 +17,25 @@ const CORS_HEADERS = {
 };
 
 /**
+ * Formats the authorization header to ensure it's properly prefixed with 'Bearer '
+ * @param {string} authHeader - The original authorization header
+ * @returns {string} Properly formatted authorization header
+ */
+function formatAuthHeader(authHeader) {
+  if (!authHeader) return '';
+  
+  // If header already starts with 'Bearer ', return as is
+  if (authHeader.trim().startsWith('Bearer ')) {
+    return authHeader;
+  }
+  
+  // Otherwise, add the 'Bearer ' prefix
+  // First, remove any existing prefix if present (like 'bearer ' with lowercase)
+  const token = authHeader.trim().replace(/^(bearer|jwt|token)\s+/i, '');
+  return `Bearer ${token}`;
+}
+
+/**
  * Main handler function for the API route
  */
 export default async function handler(req, res) {
@@ -54,21 +73,34 @@ export default async function handler(req, res) {
         });
       }
 
-      // Get authorization header
-      const authHeader = req.headers.authorization;
+      // Get authorization header and format it correctly
+      const rawAuthHeader = req.headers.authorization;
       
-      if (!authHeader) {
+      // For certain actions that don't require authentication, proceed without auth
+      const noAuthActions = ['testEnvironment', 'test'];
+      const requiresAuth = !noAuthActions.includes(action);
+      
+      if (requiresAuth && !rawAuthHeader) {
         return res.status(401).json({ 
           error: 'Unauthorized', 
           message: 'Missing Authorization header'
         });
       }
+      
+      // Format the auth header to ensure it has 'Bearer ' prefix
+      const authHeader = formatAuthHeader(rawAuthHeader);
+      
+      console.log(`[API] Auth header formatted: ${authHeader ? 'Yes' : 'No'}`);
 
       // Headers to forward to Supabase Function
       const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
+        'Content-Type': 'application/json'
       };
+      
+      // Only add Authorization header if it exists
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
+      }
 
       // Forward x-client-info header if present
       if (req.headers['x-client-info']) {
@@ -79,6 +111,10 @@ export default async function handler(req, res) {
       if (req.headers['apikey']) {
         headers['apikey'] = req.headers['apikey'];
       }
+      
+      // Debug log for troubleshooting
+      console.log(`[API] Forwarding request to ${SUPABASE_FUNCTION_URL} with action: ${action}`);
+      console.log(`[API] Headers: ${JSON.stringify(headers, null, 2)}`);
 
       // Forward the request to Supabase Edge Function
       const response = await fetch(SUPABASE_FUNCTION_URL, {
@@ -96,6 +132,9 @@ export default async function handler(req, res) {
       } else {
         responseData = await response.text();
       }
+      
+      // Debug log the response status
+      console.log(`[API] Received response status: ${response.status}`);
 
       // Forward the response status and data
       return res.status(response.status).json(responseData);

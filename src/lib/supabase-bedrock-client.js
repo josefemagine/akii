@@ -279,19 +279,92 @@ const getApiUrl = () => {
 };
 
 /**
+ * Add special handling for specific error types to improve the user experience
+ * @param {string} errorText - The error text from the API
+ * @returns {Object|null} Enhanced error information or null if not a special case
+ */
+const handleSpecialErrors = (errorText) => {
+  if (!errorText) return null;
+  
+  const lowerError = errorText.toLowerCase();
+  
+  // Special handling for the specific listAvailableFoundationModels error
+  if (lowerError.includes('does not provide an export named \'listavailablefoundationmodels\'') ||
+      lowerError.includes('listAvailableFoundationModels')) {
+    return {
+      code: "EDGE_FUNCTION_MISSING_EXPORT",
+      message: "The Edge Function is missing a required export function.",
+      details: {
+        module: './aws.ts',
+        missingExport: 'listAvailableFoundationModels',
+        original: errorText,
+        resolution: "The AWS module needs to be updated to use the correct AWS Bedrock API method 'ListFoundationModels'.",
+        suggestion: "According to AWS Bedrock API Reference, the correct method is 'ListFoundationModels' (with capital letters). Update the AWS module to use this method name instead: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_ListFoundationModels.html"
+      }
+    };
+  }
+  
+  // Handle module import errors in the Edge Function
+  if (lowerError.includes('boot_error') && 
+      (lowerError.includes('does not provide an export') || 
+       lowerError.includes('the requested module'))) {
+    
+    // Extract module name and missing export if available
+    let moduleInfo = "unknown module";
+    let exportInfo = "unknown export";
+    
+    const moduleMatch = errorText.match(/module ['"](.+?)['"]/) ||
+                        errorText.match(/from ['"](.+?)['"]/);
+    if (moduleMatch) moduleInfo = moduleMatch[1];
+    
+    const exportMatch = errorText.match(/export named ['"](.+?)['"]/) || 
+                        errorText.match(/named ['"](.+?)['"] /);
+    if (exportMatch) exportInfo = exportMatch[1];
+    
+    return {
+      code: "EDGE_FUNCTION_MODULE_ERROR",
+      message: `The server-side Edge Function has a module import error. This requires server-side code changes.`,
+      details: {
+        module: moduleInfo,
+        missingExport: exportInfo,
+        original: errorText,
+        resolution: "The Edge Function needs to be updated by the server administrator. Please report this error."
+      }
+    };
+  }
+  
+  // Handle general boot errors
+  if (lowerError.includes('boot_error')) {
+    return {
+      code: "EDGE_FUNCTION_BOOT_ERROR",
+      message: "The server-side Edge Function failed to start due to an initialization error.",
+      details: {
+        original: errorText,
+        resolution: "The Edge Function needs to be fixed by the server administrator. Please report this error."
+      }
+    };
+  }
+  
+  return null;
+};
+
+/**
  * Call the Supabase Edge Function
  * 
  * @param {Object} options - Call options
  * @param {string} options.action - The action to perform
  * @param {Object} options.data - Data to send with the request
  * @param {boolean} options.useMock - Whether to use mock data
+ * @param {boolean} options.requireAuth - Whether authentication is required (defaults to auto-detection)
  * @returns {Promise<{data: any, error: string|null}>} Function response
  */
-const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.useMockData }) => {
+const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.useMockData, requireAuth }) => {
   console.log(`[Bedrock] Calling edge function with action: ${action}`, { data, useMock });
   
-  // For non-testing/debugging actions, require authentication
-  const requiresAuth = !['testEnvironment', 'test'].includes(action);
+  // For non-testing/debugging actions, require authentication by default
+  // This can be overridden with the requireAuth parameter
+  const noAuthActions = ['testEnvironment', 'test'];
+  const needsAuth = requireAuth !== undefined ? requireAuth : !noAuthActions.includes(action);
   
   // Use mock data if explicitly requested or in development with mocks enabled
   if (useMock && (process.env.NODE_ENV !== 'production' || BedrockConfig.isLocalDevelopment)) {
@@ -305,7 +378,7 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
     }
   }
   
-  if (requiresAuth) {
+  if (needsAuth) {
     // Verify configuration before proceeding
     if (!validateApiConfiguration()) {
       console.error('[Bedrock] API configuration validation failed');
@@ -321,36 +394,7 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
       if (action === 'aws-credential-test' && data.listModels) {
         console.log('[Bedrock] Auth failed for model listing, returning fallback data');
         return {
-          data: {
-            models: [
-              {
-                modelId: "amazon.titan-text-lite-v1",
-                modelName: "Titan Text Lite",
-                providerName: "Amazon",
-                inputModalities: ["TEXT"],
-                outputModalities: ["TEXT"],
-                inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"]
-              },
-              {
-                modelId: "amazon.titan-text-express-v1",
-                modelName: "Titan Text Express",
-                providerName: "Amazon",
-                inputModalities: ["TEXT"],
-                outputModalities: ["TEXT"],
-                inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"]
-              },
-              {
-                modelId: "anthropic.claude-instant-v1",
-                modelName: "Claude Instant v1",
-                providerName: "Anthropic",
-                inputModalities: ["TEXT"],
-                outputModalities: ["TEXT"],
-                inferenceTypesSupported: ["ON_DEMAND"]
-              }
-            ],
-            totalCount: 3,
-            note: "Using fallback models due to authentication failure"
-          },
+          data: getFallbackModels(data),
           error: 'Authentication required but fallback data provided'
         };
       }
@@ -386,6 +430,23 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
             // If we get a specific error like BOOT_ERROR, remember it for potential retry
             console.error(`[Bedrock] API error for ${action} (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
             lastError = error;
+            
+            // Check if this is a special error that needs enhanced handling
+            const specialError = handleSpecialErrors(error);
+            if (specialError) {
+              console.log('[Bedrock] Special error detected:', specialError.code);
+              
+              // For special errors with known fallbacks, provide fallback data
+              if (action === 'listFoundationModels' || (action === 'aws-credential-test' && data.listModels)) {
+                return {
+                  data: getFallbackModels(data),
+                  error: specialError
+                };
+              }
+              
+              // For other actions, just return the enhanced error
+              return { data: null, error: specialError };
+            }
             
             // Check for specific error conditions
             const errorLower = String(error).toLowerCase();
@@ -455,6 +516,14 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
       
       if (error) {
         console.error(`[Bedrock] API error for ${action}:`, error);
+        
+        // Check if this is a special error that needs enhanced handling
+        const specialError = handleSpecialErrors(error);
+        if (specialError) {
+          console.log('[Bedrock] Special error detected in no-auth call:', specialError.code);
+          return { data: null, error: specialError };
+        }
+        
         return { data: null, error };
       }
       
@@ -468,6 +537,7 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
 
 /**
  * Get all Bedrock instances for the authenticated user
+ * Aligns with AWS Bedrock API operation: ListProvisionedModelThroughputs
  * @returns {Promise<{data: Array, error: string|null}>} Bedrock instances or error
  */
 const listInstances = async () => {
@@ -485,25 +555,39 @@ const listInstances = async () => {
   }
   
   try {
-    // Attempt to call the edge function
+    // Try with the AWS Bedrock API naming convention
     const result = await callEdgeFunction({
-      action: 'listInstances',
-      useMock: false // Explicitly disable mocks for this call
+      action: 'ListProvisionedModelThroughputs',
+      useMock: false
     });
     
-    if (result.error) {
-      // If there's an error, log it and return empty instances as fallback
-      console.error('[Bedrock] Error fetching instances:', result.error);
-      return { 
-        data: { 
-          instances: [],
-          note: "Failed to load instances due to API error"
-        }, 
-        error: result.error 
-      };
+    if (!result.error) {
+      console.log('[Bedrock] Successfully fetched instances with standard API name');
+      return result;
     }
     
-    return result;
+    console.log('[Bedrock] Standard API name failed, trying legacy endpoint');
+    
+    // If the standard name fails, try the legacy name for backward compatibility
+    const legacyResult = await callEdgeFunction({
+      action: 'listInstances',
+      useMock: false
+    });
+    
+    if (!legacyResult.error) {
+      console.log('[Bedrock] Successfully fetched instances from legacy endpoint');
+      return legacyResult;
+    }
+    
+    // If both attempts fail, return empty instances as fallback
+    console.error('[Bedrock] Both API calls failed:', result.error, legacyResult?.error);
+    return { 
+      data: { 
+        instances: [],
+        note: "Failed to load instances due to API error"
+      }, 
+      error: result.error 
+    };
   } catch (error) {
     console.error('[Bedrock] Exception fetching instances:', error);
     // Return empty instances as fallback with the error
@@ -518,7 +602,8 @@ const listInstances = async () => {
 };
 
 /**
- * Create a new Bedrock instance
+ * Create a new Bedrock instance (provisioned model throughput)
+ * Aligns with AWS Bedrock API operation: CreateProvisionedModelThroughput
  * 
  * @param {Object} modelInfo - Instance configuration
  * @param {string} modelInfo.modelId - The model ID
@@ -546,34 +631,179 @@ const createInstance = async (modelInfo) => {
   
   console.log('[Bedrock] Structured model data for API call:', JSON.stringify(modelData));
   
-  // Use the correct action name that matches the server implementation
-  return callEdgeFunction({
-    action: 'createInstance',
+  // Try with the AWS Bedrock API naming convention
+  const result = await callEdgeFunction({
+    action: 'CreateProvisionedModelThroughput',
     data: modelData
   });
+  
+  // If the standard name fails, try the legacy name for backward compatibility
+  if (result.error) {
+    console.log('[Bedrock] Standard API name failed, trying legacy endpoint');
+    return callEdgeFunction({
+      action: 'createInstance',
+      data: modelData
+    });
+  }
+  
+  return result;
 };
 
 /**
- * Delete a Bedrock instance
+ * Delete a Bedrock instance (provisioned model throughput)
+ * Aligns with AWS Bedrock API operation: DeleteProvisionedModelThroughput
  * 
  * @param {string} instanceId - ID of the instance to delete
  * @returns {Promise<{data: Object, error: string|null}>} Success status or error
  */
 const deleteInstance = async (instanceId) => {
-  return callEdgeFunction({
-    action: 'deleteInstance',
-    data: { instanceId }
+  // Try first with the AWS Bedrock API naming convention
+  const result = await callEdgeFunction({
+    action: 'DeleteProvisionedModelThroughput',
+    data: { provisionedModelId: instanceId }
   });
+  
+  // If the standard name fails, try the legacy name for backward compatibility
+  if (result.error) {
+    console.log('[Bedrock] Standard API name failed, trying legacy endpoint');
+    return callEdgeFunction({
+      action: 'deleteInstance',
+      data: { instanceId }
+    });
+  }
+  
+  return result;
 };
 
 /**
- * Test API environment and configuration
- * @returns {Promise<{data: Object, error: string|null}>} Environment diagnostics or error
+ * Test the edge function environment
+ * This function attempts to diagnose issues with the Supabase Edge Functions environment
+ * 
+ * @returns {Promise<Object>} Environment test results
  */
 const testEnvironment = async () => {
-  return callEdgeFunction({
-    action: 'testEnvironment'
-  });
+  console.log('[Bedrock] Testing edge function environment...');
+  
+  let diagnostics = {
+    standardEndpoint: { attempted: false, success: false, error: null },
+    diagnosticEndpoint: { attempted: false, success: false, error: null },
+    apiVersion: BedrockConfig.apiVersion,
+    environment: {
+      bedrockRegion: BedrockConfig.bedrockRegion,
+      hasApiUrl: !!BedrockConfig.apiUrl,
+      hasCredentials: !!BedrockConfig.accessKeyId && !!BedrockConfig.secretAccessKey,
+      isDevelopment: process.env.NODE_ENV !== 'production',
+      isLocalDevelopment: BedrockConfig.isLocalDevelopment,
+    },
+    clientEnvVars: {
+      VITE_SUPABASE_URL: !!import.meta.env.VITE_SUPABASE_URL,
+      VITE_SUPABASE_ANON_KEY: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+      VITE_SUPABASE_FUNCTION_NAME: import.meta.env.VITE_SUPABASE_FUNCTION_NAME || null,
+    },
+    errorDetails: null
+  };
+  
+  try {
+    // First try the standard endpoint without requiring auth
+    diagnostics.standardEndpoint.attempted = true;
+    const standardResult = await callEdgeFunction({ 
+      action: 'testEnvironment', 
+      requireAuth: false 
+    });
+    
+    diagnostics.standardEndpoint.success = !standardResult.error;
+    diagnostics.standardEndpoint.result = standardResult.data;
+    
+    if (standardResult.error) {
+      diagnostics.standardEndpoint.error = standardResult.error;
+      console.warn('[Bedrock] Standard edge function test failed:', standardResult.error);
+      
+      // Check if we received a detailed error object
+      if (typeof standardResult.error === 'object' && standardResult.error.code) {
+        diagnostics.errorDetails = standardResult.error;
+        
+        // For module errors, provide specific guidance
+        if (standardResult.error.code === 'EDGE_FUNCTION_MODULE_ERROR') {
+          diagnostics.failureReason = 'MODULE_ERROR';
+          diagnostics.suggestedAction = `The Supabase Edge Function has a module import error. It's trying to import '${standardResult.error.details.missingExport}' from '${standardResult.error.details.module}' but that export doesn't exist. This requires a server-side fix.`;
+        } else if (standardResult.error.code === 'EDGE_FUNCTION_BOOT_ERROR') {
+          diagnostics.failureReason = 'BOOT_ERROR';
+          diagnostics.suggestedAction = 'The Supabase Edge Function is failing to initialize. Check the server logs for more details.';
+        }
+      }
+    } else {
+      console.log('[Bedrock] Edge function test successful', standardResult.data);
+      return {
+        ...diagnostics,
+        success: true,
+        message: 'Edge function environment is configured correctly'
+      };
+    }
+  } catch (error) {
+    diagnostics.standardEndpoint.error = error.message;
+    console.error('[Bedrock] Error testing standard edge function:', error);
+  }
+  
+  // If standard endpoint fails, try the diagnostic endpoint
+  try {
+    diagnostics.diagnosticEndpoint.attempted = true;
+    const response = await fetch('/api/super-action-test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'testEnvironment',
+        data: { minimal: true }
+      })
+    });
+    
+    if (!response.ok) {
+      diagnostics.diagnosticEndpoint.error = `HTTP error ${response.status}`;
+      console.error(`[Bedrock] Diagnostic endpoint HTTP error: ${response.status}`);
+    } else {
+      const result = await response.json();
+      
+      diagnostics.diagnosticEndpoint.success = true;
+      diagnostics.diagnosticEndpoint.result = result;
+      
+      // Check if the diagnostic endpoint found a specific error
+      if (result.functionResponse && result.functionResponse.error) {
+        const errorText = result.functionResponse.error;
+        const specialError = handleSpecialErrors(errorText);
+        
+        if (specialError) {
+          diagnostics.errorDetails = specialError;
+          
+          if (specialError.code === 'EDGE_FUNCTION_MODULE_ERROR') {
+            diagnostics.failureReason = 'MODULE_ERROR';
+            diagnostics.suggestedAction = `The Supabase Edge Function has a module import error. It's trying to import '${specialError.details.missingExport}' from '${specialError.details.module}' but that export doesn't exist. This requires a server-side fix.`;
+          }
+        }
+      }
+      
+      console.log('[Bedrock] Diagnostic endpoint test result:', result);
+    }
+  } catch (error) {
+    diagnostics.diagnosticEndpoint.error = error.message;
+    console.error('[Bedrock] Error testing diagnostic endpoint:', error);
+  }
+  
+  // Set overall success/failure message
+  let message = 'Edge function environment test failed. See diagnostics for details.';
+  
+  // Add specific guidance based on the detected issue
+  if (diagnostics.failureReason === 'MODULE_ERROR') {
+    message = `Edge function has a module import error. The server-side code requires updating.`;
+  } else if (diagnostics.failureReason === 'BOOT_ERROR') {
+    message = `Edge function is failing to initialize. Check server logs for details.`;
+  }
+  
+  return {
+    ...diagnostics,
+    success: false,
+    message
+  };
 };
 
 /**
@@ -660,6 +890,7 @@ const testAwsPermissions = async () => {
 
 /**
  * List available foundation models with optional filters
+ * Aligns with AWS Bedrock API operation: ListFoundationModels
  * @param {Object} filters - Optional filters for the models list
  * @param {string} filters.byProvider - Filter by provider (e.g. 'amazon', 'anthropic')
  * @param {string} filters.byOutputModality - Filter by output type (e.g. 'TEXT', 'IMAGE')
@@ -693,8 +924,22 @@ const listFoundationModels = async (filters = {}) => {
   
   // Try multiple approaches to get the models
   try {
-    // First, try the intended aws-credential-test endpoint
+    // First, try using the standard AWS Bedrock API naming convention
     const result = await callEdgeFunction({
+      action: 'ListFoundationModels',
+      data: validatedFilters,
+      useMock: false
+    });
+    
+    if (!result.error && result.data && result.data.models) {
+      console.log('[Bedrock] Successfully fetched foundation models with standard API name');
+      return result;
+    }
+    
+    console.log('[Bedrock] Standard API name failed, trying legacy endpoint');
+    
+    // If that fails, try the legacy endpoint name for backward compatibility
+    const legacyResult = await callEdgeFunction({
       action: 'aws-credential-test',
       data: {
         listModels: true,
@@ -703,56 +948,9 @@ const listFoundationModels = async (filters = {}) => {
       useMock: false // Explicitly disable mocks for this call
     });
     
-    if (!result.error && result.data && result.data.models) {
-      console.log('[Bedrock] Successfully fetched foundation models from API');
-      return result;
-    }
-    
-    console.log('[Bedrock] First method failed, trying fallback to test permission endpoint');
-    
-    // If that fails, try the permissions test endpoint which also returns models
-    const permissionsResult = await callEdgeFunction({
-      action: 'aws-permission-test',
-      data: {},
-      useMock: false
-    });
-    
-    if (!permissionsResult.error && permissionsResult.data) {
-      console.log('[Bedrock] Successfully fetched foundation models from permissions endpoint');
-      // Format the result to match the expected structure
-      return {
-        data: {
-          models: [
-            {
-              modelId: "amazon.titan-text-lite-v1",
-              modelName: "Titan Text Lite",
-              providerName: "Amazon",
-              inputModalities: ["TEXT"],
-              outputModalities: ["TEXT"],
-              inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"]
-            },
-            {
-              modelId: "amazon.titan-text-express-v1",
-              modelName: "Titan Text Express",
-              providerName: "Amazon",
-              inputModalities: ["TEXT"],
-              outputModalities: ["TEXT"],
-              inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"]
-            },
-            {
-              modelId: "anthropic.claude-instant-v1",
-              modelName: "Claude Instant v1",
-              providerName: "Anthropic",
-              inputModalities: ["TEXT"],
-              outputModalities: ["TEXT"],
-              inferenceTypesSupported: ["ON_DEMAND"]
-            }
-          ],
-          appliedFilters: validatedFilters,
-          totalCount: 3
-        },
-        error: null
-      };
+    if (!legacyResult.error && legacyResult.data && legacyResult.data.models) {
+      console.log('[Bedrock] Successfully fetched foundation models from legacy endpoint');
+      return legacyResult;
     }
     
     // If all else fails, return a limited set of default models
@@ -774,105 +972,180 @@ const listFoundationModels = async (filters = {}) => {
 /**
  * Returns a fallback set of models that's always available
  * Used when the API is unavailable or there's an authentication issue
+ * @param {Object} filters - Optional filters for the models list
+ * @returns {Object} Filtered models object with metadata
  */
 const getFallbackModels = (filters = {}) => {
   console.log('[Bedrock] Generating fallback models with filters:', filters);
   
   // Define the fallback model set that's always available
-  const fallbackModels = {
-    models: [
-      {
-        modelId: "amazon.titan-text-lite-v1",
-        modelName: "Titan Text Lite",
-        providerName: "Amazon",
-        inputModalities: ["TEXT"],
-        outputModalities: ["TEXT"],
-        inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
-        customizationsSupported: [],
-        responseStreamingSupported: true
-      },
-      {
-        modelId: "amazon.titan-text-express-v1",
-        modelName: "Titan Text Express",
-        providerName: "Amazon",
-        inputModalities: ["TEXT"],
-        outputModalities: ["TEXT"],
-        inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
-        customizationsSupported: [],
-        responseStreamingSupported: true
-      },
-      {
-        modelId: "anthropic.claude-instant-v1",
-        modelName: "Claude Instant v1",
-        providerName: "Anthropic",
-        inputModalities: ["TEXT"],
-        outputModalities: ["TEXT"],
-        inferenceTypesSupported: ["ON_DEMAND"],
-        customizationsSupported: [],
-        responseStreamingSupported: true
-      },
-      {
-        modelId: "anthropic.claude-v2",
-        modelName: "Claude v2",
-        providerName: "Anthropic",
-        inputModalities: ["TEXT"],
-        outputModalities: ["TEXT"],
-        inferenceTypesSupported: ["ON_DEMAND"],
-        customizationsSupported: [],
-        responseStreamingSupported: true
-      },
-      {
-        modelId: "stability.stable-diffusion-xl-v1",
-        modelName: "Stable Diffusion XL",
-        providerName: "Stability AI",
-        inputModalities: ["TEXT"],
-        outputModalities: ["IMAGE"],
-        inferenceTypesSupported: ["ON_DEMAND"],
-        customizationsSupported: [],
-        responseStreamingSupported: false
-      }
-    ],
-    appliedFilters: filters,
-    totalCount: 5,
-    note: "Using fallback models due to API unavailability"
-  };
+  const allFallbackModels = [
+    {
+      modelId: "amazon.titan-text-lite-v1",
+      modelName: "Titan Text Lite",
+      providerName: "Amazon",
+      inputModalities: ["TEXT"],
+      outputModalities: ["TEXT"],
+      inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
+      customizationsSupported: [],
+      responseStreamingSupported: true
+    },
+    {
+      modelId: "amazon.titan-text-express-v1",
+      modelName: "Titan Text Express",
+      providerName: "Amazon",
+      inputModalities: ["TEXT"],
+      outputModalities: ["TEXT"],
+      inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
+      customizationsSupported: [],
+      responseStreamingSupported: true
+    },
+    {
+      modelId: "anthropic.claude-instant-v1",
+      modelName: "Claude Instant v1",
+      providerName: "Anthropic",
+      inputModalities: ["TEXT"],
+      outputModalities: ["TEXT"],
+      inferenceTypesSupported: ["ON_DEMAND"],
+      customizationsSupported: [],
+      responseStreamingSupported: true
+    },
+    {
+      modelId: "anthropic.claude-v2",
+      modelName: "Claude v2",
+      providerName: "Anthropic",
+      inputModalities: ["TEXT"],
+      outputModalities: ["TEXT"],
+      inferenceTypesSupported: ["ON_DEMAND"],
+      customizationsSupported: [],
+      responseStreamingSupported: true
+    },
+    {
+      modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+      modelName: "Claude 3 Sonnet",
+      providerName: "Anthropic",
+      inputModalities: ["TEXT"],
+      outputModalities: ["TEXT"],
+      inferenceTypesSupported: ["ON_DEMAND"],
+      customizationsSupported: [],
+      responseStreamingSupported: true
+    },
+    {
+      modelId: "meta.llama2-13b-chat-v1",
+      modelName: "Llama 2 Chat (13B)",
+      providerName: "Meta",
+      inputModalities: ["TEXT"],
+      outputModalities: ["TEXT"],
+      inferenceTypesSupported: ["ON_DEMAND"],
+      customizationsSupported: [],
+      responseStreamingSupported: false
+    },
+    {
+      modelId: "meta.llama2-70b-chat-v1",
+      modelName: "Llama 2 Chat (70B)",
+      providerName: "Meta",
+      inputModalities: ["TEXT"],
+      outputModalities: ["TEXT"],
+      inferenceTypesSupported: ["ON_DEMAND"],
+      customizationsSupported: [],
+      responseStreamingSupported: false
+    },
+    {
+      modelId: "stability.stable-diffusion-xl-v1",
+      modelName: "Stable Diffusion XL",
+      providerName: "Stability AI",
+      inputModalities: ["TEXT"],
+      outputModalities: ["IMAGE"],
+      inferenceTypesSupported: ["ON_DEMAND"],
+      customizationsSupported: [],
+      responseStreamingSupported: false
+    },
+    {
+      modelId: "cohere.command-text-v14",
+      modelName: "Command Text",
+      providerName: "Cohere",
+      inputModalities: ["TEXT"],
+      outputModalities: ["TEXT"],
+      inferenceTypesSupported: ["ON_DEMAND"],
+      customizationsSupported: [],
+      responseStreamingSupported: true
+    },
+    {
+      modelId: "ai21.j2-mid-v1",
+      modelName: "Jurassic-2 Mid",
+      providerName: "AI21 Labs",
+      inputModalities: ["TEXT"],
+      outputModalities: ["TEXT"],
+      inferenceTypesSupported: ["ON_DEMAND"],
+      customizationsSupported: [],
+      responseStreamingSupported: false
+    }
+  ];
   
-  // Apply simple filtering if filters are specified
+  // Start with all models
+  let filteredModels = [...allFallbackModels];
+  
+  // Apply filters if specified
   if (Object.keys(filters).length > 0) {
     // Filter by provider
     if (filters.byProvider) {
       const providerFilter = filters.byProvider.toLowerCase();
-      fallbackModels.models = fallbackModels.models.filter(model => 
+      filteredModels = filteredModels.filter(model => 
         model.providerName.toLowerCase().includes(providerFilter)
       );
     }
     
     // Filter by output modality
     if (filters.byOutputModality) {
-      fallbackModels.models = fallbackModels.models.filter(model => 
+      filteredModels = filteredModels.filter(model => 
         model.outputModalities.includes(filters.byOutputModality)
       );
     }
     
     // Filter by input modality
     if (filters.byInputModality) {
-      fallbackModels.models = fallbackModels.models.filter(model => 
+      filteredModels = filteredModels.filter(model => 
         model.inputModalities.includes(filters.byInputModality)
       );
     }
     
     // Filter by inference type
     if (filters.byInferenceType) {
-      fallbackModels.models = fallbackModels.models.filter(model => 
+      filteredModels = filteredModels.filter(model => 
         model.inferenceTypesSupported.includes(filters.byInferenceType)
       );
     }
     
-    // Update the total count after filtering
-    fallbackModels.totalCount = fallbackModels.models.length;
+    // Filter by customization type if specified
+    if (filters.byCustomizationType) {
+      filteredModels = filteredModels.filter(model => 
+        model.customizationsSupported && 
+        model.customizationsSupported.includes(filters.byCustomizationType)
+      );
+    }
+    
+    // Filter by streaming support if specified
+    if (filters.byStreamingSupport) {
+      const streamingRequired = filters.byStreamingSupport.toLowerCase() === 'true';
+      filteredModels = filteredModels.filter(model => 
+        model.responseStreamingSupported === streamingRequired
+      );
+    }
   }
   
-  return fallbackModels;
+  // Return the filtered models with metadata
+  return {
+    models: filteredModels,
+    appliedFilters: filters,
+    totalCount: filteredModels.length,
+    note: "Using fallback models while server issues are being fixed",
+    serverStatus: "BOOT_ERROR_FALLBACK",
+    filtering: {
+      appliedFilters: Object.keys(filters).length,
+      originalCount: allFallbackModels.length,
+      filteredCount: filteredModels.length
+    }
+  };
 };
 
 // Expose client functions
