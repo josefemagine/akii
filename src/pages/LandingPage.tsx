@@ -228,7 +228,7 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
                 animate={showSubElements ? "visible" : "hidden"}
                 variants={fadeInUpVariants}
               >
-                Launch your own private AI — fully isolated, trained on your data, and ready for multi-platform deployment across web, mobile, and more.
+                Launch your own private AI — powered by Amazon Bedrock, fully isolated, trained on your data, and ready for multi-platform deployment across web, mobile, API and more.
               </motion.p>
             </div>
             
@@ -259,7 +259,7 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
             </motion.div>
           </div>
           <div className="flex items-center justify-center">
-            <div className="relative w-full max-w-[500px] h-[380px] sm:h-[410px] md:h-[430px] rounded-lg shadow-xl overflow-hidden bg-transparent">
+            <div className="relative w-full max-w-[500px] h-[500px] sm:h-[520px] md:h-[540px] rounded-lg shadow-xl overflow-hidden bg-transparent">
               <DataFlowAnimation />
             </div>
           </div>

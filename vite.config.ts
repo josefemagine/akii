@@ -29,7 +29,7 @@ export default defineConfig({
     sourcemap: true
   } : {
     // Standard build configuration
-    chunkSizeWarningLimit: 1200,
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       // Exclude unused/transitional files from build to prevent errors
       external: [
@@ -39,45 +39,22 @@ export default defineConfig({
       ],
       output: {
         manualChunks: {
-          // Group React and related packages
-          'vendor-react': [
+          'vendor': [
             'react',
             'react-dom',
             'react-router-dom',
-            'framer-motion',
           ],
-          // Group UI components
-          'vendor-ui': [
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-toast',
-            '@radix-ui/react-tooltip',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-select',
-            '@radix-ui/react-switch',
-            '@floating-ui/react',
-            '@radix-ui/react-avatar',
-            '@radix-ui/react-checkbox',
-            '@radix-ui/react-label',
-            '@radix-ui/react-separator'
+          'ui': [
+            '@/components/ui',
           ],
-          // Group utility libraries
-          'vendor-utils': [
-            'date-fns',
-            'recharts',
-            'zod',
-            'zustand',
-            'clsx',
-            'tailwind-merge',
-            'class-variance-authority',
-            'lucide-react'
+          'auth': [
+            '@/lib/supabase-client',
+            '@/lib/supabase-singleton',
+            '@/lib/supabase-auth',
           ],
-          // Group Supabase related code
-          'vendor-supabase': [
-            '@supabase/supabase-js',
-            '@supabase/auth-helpers-react',
-            '@supabase/auth-helpers-shared'
-          ]
+          'dashboard': [
+            '@/components/dashboard',
+          ],
         }
       }
     },

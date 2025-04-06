@@ -13,7 +13,6 @@ import {
 import { useAuth } from "@/contexts/auth-compatibility";
 import { toast } from "@/components/ui/use-toast";
 import { useDirectAuth } from "@/contexts/direct-auth-context";
-import { refreshSession } from "@/lib/direct-db-access";
 import supabase from "@/lib/supabase";
 import { ensureDashboardAccess } from "@/lib/production-recovery";
 
@@ -40,7 +39,10 @@ const Header: React.FC<HeaderProps> = ({
   
   // Force check login state on mount and periodically
   useEffect(() => {
-    const checkAuthStatus = () => {
+    const checkAuthStatus = async () => {
+      // Import refreshSession dynamically
+      const { refreshSession } = await import('@/lib/direct-db-access');
+      
       // Force check if emergency auth is set
       const emergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
       const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
@@ -48,22 +50,26 @@ const Header: React.FC<HeaderProps> = ({
       if (emergencyAuth || isLoggedIn) {
         console.log('[Header] Emergency auth or login detected, ensuring header state is updated');
         
-        // Call the production recovery function to ensure auth state is properly set
+        // First try to get a session from Supabase
+        const { data } = await supabase.auth.getSession();
+        
+        if (data?.session) {
+          console.log('[Header] Valid Supabase session found, updating UI');
+          refreshAuthState();
+          setForceRefresh(prev => prev + 1);
+          return;
+        }
+        
+        // If no session but we have emergency auth, ensure dashboard access
         if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
           ensureDashboardAccess();
         }
         
+        // Force refresh to ensure state is updated
         refreshAuthState();
-        refreshSession();
         
-        // Try to get a fresh auth state directly
-        supabase.auth.getSession().then(({ data }) => {
-          if (data.session) {
-            console.log('[Header] Valid session found, forcing update');
-            refreshAuthState();
-            setForceRefresh(prev => prev + 1);
-          }
-        });
+        // Also force a session refresh
+        refreshSession();
       }
     };
     
@@ -76,7 +82,7 @@ const Header: React.FC<HeaderProps> = ({
     return () => clearInterval(interval);
   }, [refreshAuthState]);
 
-  // Set up Supabase auth listener
+  // Set up Supabase auth listener using the official SDK method
   useEffect(() => {
     console.log('[Header] Setting up official Supabase auth listener');
     
@@ -85,10 +91,45 @@ const Header: React.FC<HeaderProps> = ({
       
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         console.log("[Header] User signed in or token refreshed, syncing UI");
+        
+        // Update local storage with session data for emergency recovery
+        if (session) {
+          localStorage.setItem('akii-auth-emergency', 'true');
+          localStorage.setItem('akii-auth-emergency-time', Date.now().toString());
+          localStorage.setItem('akii-is-logged-in', 'true');
+          
+          if (session.user) {
+            localStorage.setItem('akii-auth-user-id', session.user.id);
+            localStorage.setItem('akii-auth-emergency-email', session.user.email || '');
+          }
+          
+          // Store session data for recovery
+          try {
+            const sessionData = {
+              timestamp: Date.now(),
+              userId: session.user?.id,
+              email: session.user?.email,
+              hasSession: true
+            };
+            localStorage.setItem('akii-session-data', JSON.stringify(sessionData));
+          } catch (e) {
+            console.error('[Header] Error storing session data', e);
+          }
+        }
+        
         refreshAuthState();
         setForceRefresh(prev => prev + 1);
       } else if (event === 'SIGNED_OUT') {
         console.log("[Header] User signed out, updating UI");
+        
+        // Clear emergency auth data
+        localStorage.removeItem('akii-auth-emergency');
+        localStorage.removeItem('akii-auth-emergency-time');
+        localStorage.removeItem('akii-auth-emergency-email');
+        localStorage.removeItem('akii-is-logged-in');
+        localStorage.removeItem('akii-auth-user-id');
+        localStorage.removeItem('akii-session-data');
+        
         refreshAuthState();
       }
     });
@@ -123,26 +164,42 @@ const Header: React.FC<HeaderProps> = ({
     
     // Handle custom auth events
     const handleAuthEvent = async (event: any) => {
+      // Import refreshSession dynamically
+      const { refreshSession } = await import('@/lib/direct-db-access');
+      
       console.log('[Header] Auth state changed event received:', event?.detail);
+      
+      // Check if event indicates we're logged in
+      if (event?.detail?.isLoggedIn) {
+        console.log('[Header] Login event received, updating UI state');
+        
+        // Try to get session directly from Supabase
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          console.log('[Header] Valid session found after login event');
+        } else {
+          console.log('[Header] No valid session found after login event, using emergency auth');
+          // If we don't have a session, ensure emergency auth is set
+          localStorage.setItem('akii-auth-emergency', 'true');
+          localStorage.setItem('akii-auth-emergency-time', Date.now().toString());
+          
+          if (event?.detail?.email) {
+            localStorage.setItem('akii-auth-emergency-email', event.detail.email);
+          }
+          
+          if (event?.detail?.userId) {
+            localStorage.setItem('akii-auth-user-id', event.detail.userId);
+          }
+          
+          if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
+            ensureDashboardAccess();
+          }
+        }
+      }
       
       refreshSession();
       refreshAuthState();
       setForceRefresh(prev => prev + 1);
-      
-      // When receiving a login event with isLoggedIn=true, ensure header shows logged in state
-      if (event?.detail?.isLoggedIn === true) {
-        // Extra delay to ensure all state updates have propagated
-        setTimeout(() => {
-          console.log('[Header] Forcing additional refresh for login state');
-          refreshAuthState();
-          setForceRefresh(prev => prev + 1);
-          
-          // Check if emergency auth should be set
-          if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
-            ensureDashboardAccess();
-          }
-        }, 500);
-      }
     };
     
     window.addEventListener('storage', handleAuthChange);
@@ -154,13 +211,23 @@ const Header: React.FC<HeaderProps> = ({
     let checkInterval: NodeJS.Timeout | null = null;
     
     if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
-      checkInterval = setInterval(() => {
+      checkInterval = setInterval(async () => {
         const emergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
         const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
         const hasAuthContext = !!compatAuth.user;
         
         if ((emergencyAuth || isLoggedIn) && !hasAuthContext) {
-          console.log('[Header] Auth state mismatch detected, forcing refresh');
+          console.log('[Header] Auth state mismatch detected, verifying session status');
+          
+          // Check if we have a real session
+          const { data } = await supabase.auth.getSession();
+          if (data.session) {
+            console.log('[Header] Valid session found, forcing UI update');
+          } else {
+            console.log('[Header] No valid session found, using emergency recovery');
+            ensureDashboardAccess();
+          }
+          
           refreshAuthState();
           setForceRefresh(prev => prev + 1);
         }
@@ -174,21 +241,33 @@ const Header: React.FC<HeaderProps> = ({
       window.removeEventListener('akii-production-recovery', handleAuthEvent);
       if (checkInterval) clearInterval(checkInterval);
     };
-  }, [compatAuth.user, compatAuth.session, refreshAuthState, forceRefresh]);
+  }, [compatAuth.user, compatAuth.session, refreshAuthState]);
 
   // Handle sign out using direct auth
   const handleSignOut = async () => {
     try {
+      // First clear any emergency auth data
+      localStorage.removeItem('akii-auth-emergency');
+      localStorage.removeItem('akii-auth-emergency-time');
+      localStorage.removeItem('akii-auth-emergency-email');
+      localStorage.removeItem('akii-is-logged-in');
+      localStorage.removeItem('akii-auth-user-id');
+      
+      // Then use the sign out function from context
       if (signOut) {
         await signOut();
-        navigate("/");
       } else if (compatAuth.signOut) {
         // Fallback to compatibility layer if direct auth fails
         await compatAuth.signOut();
-        navigate("/");
       }
+      
+      // Call sign out from Supabase directly
+      console.log('[Header] Calling Supabase sign out method');
+      await supabase.auth.signOut();
+      
+      navigate("/");
     } catch (error) {
-      console.error("Error during logout:", error);
+      console.error('[Header] Error signing out:', error);
       toast({
         title: "Sign out error",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
@@ -228,7 +307,16 @@ const Header: React.FC<HeaderProps> = ({
       
       if (isLoggedIn || hasEmergencyAuth) {
         console.log('[Header] Found login state in localStorage but context is empty, forcing refresh');
-        refreshAuthState();
+        
+        // Try to get session directly
+        supabase.auth.getSession().then(({ data }) => {
+          if (data.session) {
+            console.log('[Header] Valid session found during initial check');
+          } else {
+            console.log('[Header] No valid session found during initial check, using emergency auth');
+          }
+          refreshAuthState();
+        });
       }
     }
   }, [compatAuth.user, profile, refreshAuthState]);

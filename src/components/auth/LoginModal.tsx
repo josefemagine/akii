@@ -24,7 +24,6 @@ import { useAuth } from "@/contexts/auth-compatibility";
 import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailPasswordRetry } from "@/lib/supabase-singleton";
-import { onAuthStateChange } from "@/lib/supabase-client";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -107,8 +106,16 @@ const LoginModal = ({
     if (isOpen) {
       const isAuthenticated = checkAuthState();
       console.log("[Login Modal] Authentication check:", isAuthenticated);
+      
+      // Also check Supabase session directly
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          console.log("[Login Modal] Valid Supabase session found, closing modal");
+          onClose();
+        }
+      });
     }
-  }, [auth.user, auth.session, isOpen]);
+  }, [auth.user, auth.session, isOpen, onClose]);
 
   // Enhanced auto-close if user is logged in
   useEffect(() => {
@@ -144,6 +151,27 @@ const LoginModal = ({
     };
   }, [isOpen, onClose]);
 
+  // Listen for Supabase auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[Login Modal] Supabase auth event:", event);
+      
+      if (event === 'SIGNED_IN' && session && isOpen) {
+        console.log("[Login Modal] User signed in via Supabase, closing modal");
+        onClose();
+        
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          forceRedirectToDashboard();
+        }, 100);
+      }
+    });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [isOpen, onClose]);
+
   // Force close the modal on component mount if already authenticated
   useEffect(() => {
     // Direct DOM-based solution that will forcibly close the modal
@@ -159,6 +187,14 @@ const LoginModal = ({
       console.log('[LoginModal] Session or user detected, force closing modal');
       forceCloseModal();
     }
+    
+    // Also check Supabase session directly
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        console.log('[LoginModal] Valid Supabase session found, force closing modal');
+        forceCloseModal();
+      }
+    });
     
     // Directly listen for storage events to detect auth changes
     const handleStorageChange = (e: StorageEvent) => {
@@ -187,192 +223,76 @@ const LoginModal = ({
     
     console.log("[Login Modal] Starting email sign-in process for:", data.email);
     
-    // Set up a listener for auth state changes during login
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[Login Modal] Auth state change during login:", event);
-      
-      if (event === 'SIGNED_IN' && session) {
-        console.log("[Login Modal] Sign-in successful via auth state change", session.user?.id);
-        
-        // Ensure all auth data is saved
-        localStorage.setItem("akii-auth-emergency", "true");
-        localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
-        localStorage.setItem("akii-auth-emergency-email", data.email);
-        localStorage.setItem("akii-is-logged-in", "true");
-        
-        if (session.user?.id) {
-          localStorage.setItem("akii-auth-user-id", session.user.id);
-        }
-        
-        // Broadcast auth change to force header update
-        window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
-          detail: {
-            isLoggedIn: true,
-            email: data.email,
-            userId: session.user?.id,
-            timestamp: Date.now()
-          }
-        }));
-      }
-    });
-    
-    // Unsubscribe after 10 seconds to prevent memory leaks
-    setTimeout(() => {
-      subscription.unsubscribe();
-    }, 10000);
-
     try {
       // Try to close the modal BEFORE the signIn attempt
       // This ensures the modal won't block the redirect
       onClose();
 
-      // Use our enhanced sign-in function with retries
-      try {
-        console.log("[Login Modal] Using enhanced sign-in with retry logic");
-        const response = await signInWithEmailPasswordRetry(data.email, data.password, 2);
-        
-        if (response.error) {
-          setError(response.error.message);
-          console.error("[Login Modal] Sign-in error:", response.error);
-          localStorage.removeItem("akii-login-in-progress");
-          localStorage.removeItem("akii-login-time");
-          localStorage.removeItem("akii-login-email");
-          return;
-        }
-        
-        // If we get here, sign-in was successful
-        console.log("[Login Modal] Enhanced sign-in successful");
-      } catch (signInError) {
-        // Handle sign-in errors
-        console.error("[Login Modal] Enhanced sign-in failed:", signInError);
-        setError(signInError instanceof Error ? signInError.message : "Authentication failed");
+      // Use Supabase directly for the most reliable login
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password
+      });
+      
+      if (authError) {
+        console.error("[Login Modal] Supabase sign-in error:", authError);
+        setError(authError.message);
         setIsLoading(false);
-        localStorage.removeItem("akii-login-in-progress");
-        localStorage.removeItem("akii-login-time");
-        localStorage.removeItem("akii-login-email");
         return;
       }
       
-      console.log("[Login Modal] Sign-in successful, checking session");
+      console.log("[Login Modal] Supabase sign-in successful:", authData.session ? "Has session" : "No session");
       
-      // Verify session is available and set emergency auth flag 
+      // Set emergency auth data for backup
+      localStorage.setItem("akii-auth-emergency", "true");
+      localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
+      localStorage.setItem("akii-auth-emergency-email", data.email);
+      localStorage.setItem("akii-is-logged-in", "true");
+      
+      if (authData.user?.id) {
+        localStorage.setItem("akii-auth-user-id", authData.user.id);
+      }
+      
+      // Store session data
       try {
-        const { data: session } = await supabase.auth.getSession();
-        if (session?.session) {
-          console.log("[Login Modal] Valid session confirmed");
-          
-          // Set emergency auth flag as backup
-          localStorage.setItem("akii-auth-emergency", "true");
-          localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
-          localStorage.setItem("akii-auth-emergency-email", data.email);
-          localStorage.setItem("akii-is-logged-in", "true");
-          
-          // Set user ID for header auth check
-          if (session.session.user?.id) {
-            localStorage.setItem("akii-auth-user-id", session.session.user.id);
-          }
-          
-          // Try to store session data
-          try {
-            const sessionStr = JSON.stringify({
-              timestamp: Date.now(),
-              email: data.email,
-              hasSession: true,
-              userId: session.session.user?.id
-            });
-            localStorage.setItem("akii-session-data", sessionStr);
-          } catch (storageError) {
-            console.warn("[Login Modal] Failed to store session data:", storageError);
-          }
-          
-          // Explicitly trigger multiple auth state update events with delays
-          // This ensures all components have time to update
-          window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
-            detail: {
-              isLoggedIn: true,
-              email: data.email,
-              userId: session.session.user?.id,
-              timestamp: Date.now()
-            }
-          }));
-          
-          // Delayed second event to ensure UI updates
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
-              detail: {
-                isLoggedIn: true,
-                email: data.email,
-                userId: session.session.user?.id,
-                timestamp: Date.now(),
-                delayed: true
-              }
-            }));
-          }, 500);
-          
-          // Delayed third event as final attempt
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
-              detail: {
-                isLoggedIn: true,
-                email: data.email,
-                userId: session.session.user?.id,
-                timestamp: Date.now(),
-                delayed: true,
-                final: true
-              }
-            }));
-            
-            // Force location reload if we're still on the homepage
-            if (window.location.pathname === '/') {
-              console.log("[Login Modal] Still on homepage after login, forcing redirect");
-              window.location.href = '/dashboard';
-            }
-          }, 1500);
-        } else {
-          console.warn("[Login Modal] No session found after successful login, using emergency auth");
-          // Force emergency auth flag
-          localStorage.setItem("akii-auth-emergency", "true");
-          localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
-          localStorage.setItem("akii-auth-emergency-email", data.email);
-          localStorage.setItem("akii-is-logged-in", "true");
-          
-          // Explicitly trigger auth state update event
-          window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
-            detail: {
-              isLoggedIn: true,
-              email: data.email,
-              timestamp: Date.now()
-            }
-          }));
+        const sessionData = {
+          timestamp: Date.now(),
+          email: data.email,
+          hasSession: !!authData.session,
+          userId: authData.user?.id
+        };
+        localStorage.setItem("akii-session-data", JSON.stringify(sessionData));
+      } catch (storageError) {
+        console.warn("[Login Modal] Failed to store session data:", storageError);
+      }
+      
+      // Trigger auth events with delays to ensure UI updates properly
+      window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
+        detail: {
+          isLoggedIn: true,
+          email: data.email,
+          userId: authData.user?.id,
+          timestamp: Date.now()
         }
-      } catch (e) {
-        console.error("[Login Modal] Error verifying session:", e);
-        // Still set emergency auth as fallback
-        localStorage.setItem("akii-auth-emergency", "true");
-        localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
-        localStorage.setItem("akii-auth-emergency-email", data.email);
-        localStorage.setItem("akii-is-logged-in", "true");
-        
-        // Explicitly trigger auth state update event
-        window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
+      }));
+      
+      // Add a delayed second event to ensure all components update
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('akii-auth-changed', {
           detail: {
             isLoggedIn: true,
             email: data.email,
-            timestamp: Date.now()
+            userId: authData.user?.id,
+            timestamp: Date.now(),
+            delayed: true
           }
         }));
-      }
+      }, 500);
       
-      // Force update all auth listeners with a broadcast event
-      try {
-        // Broadcast auth change to all tabs/components
-        localStorage.setItem('akii-last-auth-update', Date.now().toString());
-      } catch (e) {
-        console.error("[Login Modal] Error broadcasting auth change:", e);
-      }
-
-      // Use our aggressive redirect function
-      forceRedirectToDashboard();
+      // Force navigation to dashboard
+      setTimeout(() => {
+        forceRedirectToDashboard();
+      }, 100);
       
       // Reset form after successful login
       reset();
@@ -389,46 +309,23 @@ const LoginModal = ({
       // Check if we're logged in but still on the homepage after a delay
       // This catches cases where the earlier redirects failed
       setTimeout(() => {
-        // Check if we're still on the home page but actually logged in
-        if (window.location.pathname === "/" && (auth.user || auth.session)) {
-          console.log("[Login Modal] Detected logged in state but still on homepage, forcing redirect");
+        supabase.auth.getSession().then(({ data }) => {
+          if (data.session && window.location.pathname === "/") {
+            console.log("[Login Modal] Detected session but still on homepage, forcing redirect");
+            forceRedirectToDashboard();
+          }
+        });
+        
+        // Also check the emergency auth
+        if (window.location.pathname === "/" && localStorage.getItem("akii-is-logged-in") === "true") {
+          console.log("[Login Modal] Detected login flag but still on homepage, forcing redirect");
           forceRedirectToDashboard();
         }
         
-        // Also check the login-in-progress flag
-        if (localStorage.getItem("akii-login-in-progress") === "true") {
-          const loginTime = parseInt(localStorage.getItem("akii-login-time") || "0");
-          // Only force redirect if login started less than 10 seconds ago
-          if (Date.now() - loginTime < 10000) {
-            console.log("[Login Modal] Login in progress flag still set, forcing redirect");
-            // Ensure emergency auth is set before redirecting
-            if (!localStorage.getItem("akii-auth-emergency")) {
-              const email = localStorage.getItem("akii-login-email");
-              if (email) {
-                localStorage.setItem("akii-auth-emergency", "true");
-                localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
-                localStorage.setItem("akii-auth-emergency-email", email);
-              }
-            }
-            forceRedirectToDashboard();
-            localStorage.removeItem("akii-login-in-progress");
-          }
-        }
-      }, 1500); // 1.5 second fallback timeout
+        // Remove login-in-progress flag
+        localStorage.removeItem("akii-login-in-progress");
+      }, 2000); // 2 second fallback timeout
     }
-  };
-
-  // Helper function to handle successful login
-  const handleSuccessfulLogin = (returnPath: string) => {
-    // Ensure returnPath is valid
-    if (!returnPath || returnPath === "/dashboard" || returnPath === "/ddashboard") {
-      returnPath = "/dashboard";
-    }
-    
-    console.log("[Login Modal] Navigating to:", returnPath);
-    
-    // Use simple window.location navigation
-    window.location.href = returnPath;
   };
 
   const handleGoogleSignIn = async () => {

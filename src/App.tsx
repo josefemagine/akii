@@ -126,19 +126,6 @@ export default function App() {
     
     if (isProd || import.meta.env.PROD) {
       console.log('App: Initializing production recovery module for auth persistence');
-      
-      // Check if there are existing auth flags to immediately ensure access
-      const hasEmergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
-      const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
-      
-      if (hasEmergencyAuth || isLoggedIn) {
-        // Import dynamically to avoid circular dependencies
-        import('./lib/production-recovery').then(({ ensureDashboardAccess }) => {
-          console.log('App: Found existing auth state, ensuring dashboard access');
-          ensureDashboardAccess();
-        });
-      }
-      
       const { cleanup } = initializeProductionRecovery();
       
       // Return cleanup function

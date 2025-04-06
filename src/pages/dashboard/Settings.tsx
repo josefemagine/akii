@@ -14,7 +14,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useDirectAuth } from "@/contexts/direct-auth-context";
 import { useAuth } from "@/contexts/auth-compatibility";
-import { updateProfileDirectly } from "@/lib/direct-db-access";
 import APIKeys from "./APIKeys";
 import Billing from "./Billing";
 
@@ -74,6 +73,10 @@ const Settings = () => {
     setIsLoading(true);
     try {
       console.log('Settings: Updating profile directly');
+      
+      // Dynamically import updateProfileDirectly
+      const { updateProfileDirectly } = await import('@/lib/direct-db-access');
+      
       const { error } = await updateProfileDirectly({
         first_name: values.first_name,
         last_name: values.last_name,

@@ -111,6 +111,7 @@ const DataFlowAnimation = () => {
       initial="initial"
       animate={controls}
       variants={containerVariants}
+      style={{ minHeight: "500px" }}
     >
       {/* Background grid pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
@@ -133,7 +134,7 @@ const DataFlowAnimation = () => {
       />
 
       {/* Animation content */}
-      <div className="relative w-full h-full p-4 flex flex-col justify-between min-h-[350px] pt-2">
+      <div className="relative w-full h-full p-4 flex flex-col justify-between min-h-[450px] pt-2">
         {/* First stage: Data Sources flowing to Akii Vault */}
         <div className="flex flex-col items-center">
           <motion.div 
@@ -162,7 +163,7 @@ const DataFlowAnimation = () => {
           {/* Animated data flow lines */}
           <motion.div
             variants={flowLineVariants}
-            className="w-px bg-gradient-to-b from-blue-500 to-primary flow-line"
+            className="w-[2px] bg-gradient-to-b from-blue-500 to-primary flow-line my-1"
           />
 
           {/* Secure Akii Vault -> AI Training */}
@@ -194,16 +195,43 @@ const DataFlowAnimation = () => {
             />
           </motion.div>
 
-          {/* Second flow line */}
+          {/* First flow line (from AI Training to Bedrock) */}
           <motion.div
             variants={flowLineVariants}
-            className="w-px bg-gradient-to-b from-primary to-green-500 flow-line"
+            className="w-[2px] bg-gradient-to-b from-primary to-[#FF9900] flow-line my-1"
+          />
+          
+          {/* Amazon Bedrock tag (centered) */}
+          <motion.div
+            variants={vaultVariants}
+            className="relative flex justify-center items-center my-1"
+          >
+            <motion.div
+              animate={{ 
+                boxShadow: ["0 0 0px rgba(255, 153, 0, 0)", "0 0 10px rgba(255, 153, 0, 0.4)", "0 0 0px rgba(255, 153, 0, 0)"]
+              }}
+              transition={{ 
+                duration: 2, 
+                repeat: Infinity,
+                repeatType: "reverse"
+              }}
+              className="absolute inset-0 rounded-md"
+            />
+            <div className="bg-transparent py-1 px-3 rounded-md border border-[#FF9900] text-white text-xs font-medium whitespace-nowrap">
+              Powered by Amazon Bedrock
+            </div>
+          </motion.div>
+          
+          {/* Second flow line (from Bedrock to Private AI) */}
+          <motion.div
+            variants={flowLineVariants}
+            className="w-[2px] bg-gradient-to-b from-[#FF9900] to-green-500 flow-line my-1"
           />
 
           {/* Private AI Instance */}
           <motion.div
             variants={vaultVariants}
-            className="relative mb-1"
+            className="relative my-1"
           >
             <motion.div
               animate={{ 
@@ -226,13 +254,19 @@ const DataFlowAnimation = () => {
               </div>
             </div>
           </motion.div>
+
+          {/* Flow line from Private AI to Multi-platform Deployment */}
+          <motion.div
+            variants={flowLineVariants}
+            className="w-[2px] bg-gradient-to-b from-green-500 to-green-400 flow-line my-0.5"
+          />
         </div>
 
         {/* Third stage: Multi-platform deployment */}
-        <div className="mt-4">
+        <div className="mt-[2px] mb-2">
           <motion.div 
             variants={platformVariants}
-            className="text-white text-base font-medium mb-2 text-center"
+            className="text-white text-base font-medium mb-1 text-center"
           >
             Multi-platform Deployment
           </motion.div>

@@ -77,33 +77,36 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   // Handle initial auth state
   useEffect(() => {
-    // Check if we're in a potential loop already
-    const redirectCount = parseInt(sessionStorage.getItem('redirect-count') || '0');
-    if (redirectCount >= 3) {
-      console.warn('DashboardLayout: Detected potential redirect loop, skipping auto-redirect');
-      // Still mark as initialized so we show content instead of spinner
-      setAuthInitialized(true);
-      return;
-    }
-    
-    // Only process auth check if not already initialized
-    if (!authInitialized) {
-      console.log('DashboardLayout: Initializing auth state', {
-        hasUser: !!compatAuth.user,
-        hasDirectUser: !!user,
-        isLoading: compatAuth.isLoading,
-        directLoading: isLoading
-      });
+    const checkAuthStatus = async () => {
+      // Check if we're in a potential loop already
+      const redirectCount = parseInt(sessionStorage.getItem('redirect-count') || '0');
+      if (redirectCount >= 3) {
+        console.warn('DashboardLayout: Detected potential redirect loop, skipping auto-redirect');
+        // Still mark as initialized so we show content instead of spinner
+        setAuthInitialized(true);
+        return;
+      }
       
-      // Wait briefly to allow auth contexts to initialize
-      setTimeout(() => {
+      // Only process auth check if not already initialized
+      if (!authInitialized) {
+        console.log('DashboardLayout: Initializing auth state', {
+          hasUser: !!compatAuth.user,
+          hasDirectUser: !!user,
+          isLoading: compatAuth.isLoading,
+          directLoading: isLoading
+        });
+        
+        // Dynamically import isLoggedIn
+        const { isLoggedIn } = await import('@/lib/direct-db-access');
+        
         // Check both auth contexts - if either has a user, we're good
-        const isAuthenticated = !!user || !!compatAuth.user || isLoggedIn();
+        const loginStatus = isLoggedIn();
+        const isAuthenticated = !!user || !!compatAuth.user || loginStatus;
         
         console.log('DashboardLayout: Auth check complete', {
           hasUser: !!compatAuth.user,
           hasDirectUser: !!user,
-          isLoggedIn: isLoggedIn(),
+          isLoggedIn: loginStatus,
           isAuthenticated
         });
         
@@ -151,8 +154,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           console.log('DashboardLayout: Authenticated but no profile, refreshing auth state');
           refreshAuthState();
         }
-      }, 500);
-    }
+      }
+    };
+    
+    checkAuthStatus();
   }, [authInitialized, compatAuth.isLoading, compatAuth.user, navigate, refreshAuthState, user, isLoading, profile]);
 
   // Set up network monitoring for offline mode
@@ -318,13 +323,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
             isAdmin={effectiveIsAdmin}
           />
-        </div>
+              </div>
         <div className="relative flex-1 overflow-y-auto overflow-x-hidden">
-          <TrialBanner />
-          <Outlet />
+            <TrialBanner />
+            <Outlet />
         </div>
       </main>
-    </div>
+      </div>
   );
 };
 

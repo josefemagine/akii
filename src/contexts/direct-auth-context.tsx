@@ -277,7 +277,7 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const directLogin = async (email: string, password: string): Promise<LoginResult> => {
     try {
       setIsLoading(true);
-      console.log('DirectAuth: Processing login request for email', email);
+      console.log('DirectAuth: Attempting login with email:', email);
       
       // For development mode only
       if (import.meta.env.DEV) {
@@ -327,6 +327,7 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // Now call the setLoggedIn function as a backup
         try {
+          const { setLoggedIn } = await import('@/lib/direct-db-access');
           setLoggedIn(userId, email);
         } catch (error) {
           console.error('DirectAuth: Error in setLoggedIn', error);
@@ -373,6 +374,7 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // Step 2: Create or update the user profile in the database
         console.log('DirectAuth: Ensuring user profile exists in database');
+        const { ensureProfileExists } = await import('@/lib/direct-db-access');
         const profileResult = await ensureProfileExists(email);
         if (profileResult.error) {
           console.error('DirectAuth: Failed to ensure profile exists', profileResult.error);
