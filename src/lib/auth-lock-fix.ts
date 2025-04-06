@@ -651,20 +651,35 @@ interface SessionResponse {
 }
 
 /**
- * Get the current session with lock protection
+ * Safe method to get session with proper lock handling
  */
 export async function getSessionSafely(): Promise<SessionResponse> {
-  try {
-    return await withAuthLock(() => supabase.auth.getSession(), 'getSession');
-  } catch (error) {
-    console.error('Error in getSessionSafely:', error);
-    
-    // If session operation keeps failing, return a standard error response
-    return {
-      data: { session: null },
-      error: error instanceof Error ? error : new Error(String(error))
-    };
-  }
+  return await withAuthLock(async () => {
+    try {
+      // First, check if we're on a public page that doesn't require authentication
+      const isPublicPage = checkIfPublicPage();
+      if (isPublicPage) {
+        // Return a null session without error for public pages
+        return { data: { session: null }, error: null };
+      }
+
+      const result = await supabase.auth.getSession();
+      return {
+        data: { session: result.data.session },
+        error: result.error
+      };
+    } catch (error) {
+      // Don't log AuthSessionMissingError as it's expected in many cases
+      if (!isAuthSessionMissingError(error)) {
+        console.error('Error in getSessionSafely:', error);
+      }
+      
+      return {
+        data: { session: null },
+        error: error instanceof Error ? error : new Error(String(error))
+      };
+    }
+  }, 'getSessionSafely');
 }
 
 /**
@@ -673,6 +688,13 @@ export async function getSessionSafely(): Promise<SessionResponse> {
 export async function getUserSafely(): Promise<UserResponse> {
   return await withAuthLock(async () => {
     try {
+      // First, check if we're on a public page that doesn't require authentication
+      const isPublicPage = checkIfPublicPage();
+      if (isPublicPage) {
+        // Return a null user without error for public pages
+        return { data: { user: null }, error: null };
+      }
+
       // Use proper session checking first
       const sessionResult = await supabase.auth.getSession();
       if (!sessionResult.data.session) {
@@ -697,6 +719,32 @@ export async function getUserSafely(): Promise<UserResponse> {
       };
     }
   }, 'getUserSafely');
+}
+
+/**
+ * Helper function to check if current page is public and doesn't require auth
+ */
+function checkIfPublicPage(): boolean {
+  const pathname = window.location.pathname;
+  const publicPaths = [
+    '/',
+    '/login',
+    '/pricing',
+    '/plans',
+    '/blog',
+    '/contact',
+    '/privacy-policy',
+    '/terms-of-service',
+    '/auth/callback',
+    '/auth/reset-password',
+    '/products/'
+  ];
+  
+  // Check if current path matches any public path
+  return publicPaths.some(path => 
+    path === pathname || 
+    (path.endsWith('/') && pathname.startsWith(path))
+  );
 }
 
 /**
