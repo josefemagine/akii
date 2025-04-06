@@ -66,7 +66,6 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
   // Words to cycle through in this order
   const rotatingWords = [
     "Play.",
-    "Perform.",
     "Support.",
     "Sell.",
     "Train.",
