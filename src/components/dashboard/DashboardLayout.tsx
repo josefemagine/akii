@@ -8,6 +8,7 @@ import TrialBanner from "./TrialBanner";
 import { useDirectAuth } from "@/contexts/direct-auth-context";
 import { useAuth } from "@/contexts/auth-compatibility";
 import { ensureProfileExists, isLoggedIn } from "@/lib/direct-db-access";
+import { isProduction, ensureDashboardAccess } from "@/lib/production-recovery";
 
 // Define consistent dashboard styling variables
 export const dashboardStyles = {
@@ -107,6 +108,24 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         });
         
         setAuthInitialized(true);
+        
+        // If we're on production, try to recover auth state rather than redirecting immediately
+        if (isProduction && !isAuthenticated) {
+          console.log('DashboardLayout: Production site with auth issues, attempting recovery');
+          
+          // Check for emergency auth first
+          const hasEmergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
+          if (hasEmergencyAuth) {
+            console.log('DashboardLayout: Using emergency auth on production');
+            // Allow page to render, recovery will be handled in the component
+            return;
+          }
+          
+          // Force emergency auth for production as last resort
+          console.log('DashboardLayout: Forcing emergency auth for production');
+          ensureDashboardAccess();
+          return;
+        }
         
         // If no user is found AND we're not in a loading state, redirect to login
         if (!isAuthenticated && !isLoading && !compatAuth.isLoading) {

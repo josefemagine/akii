@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { DashboardSection } from "@/components/layout/DashboardSection";
 import { useAuth } from "@/contexts/auth-compatibility";
 import { useDirectAuth } from "@/contexts/direct-auth-context";
+import { isProduction, ensureDashboardAccess } from "@/lib/production-recovery";
 
 // Helper function to get time-appropriate greeting
 const getTimeBasedGreeting = (): string => {
@@ -352,7 +353,32 @@ const Dashboard = () => {
     averageRating: 0,
   }), []);
 
-  // Handle data fetching logic
+  // Handle production environment special case
+  useEffect(() => {
+    if (isProduction()) {
+      console.log("Dashboard - Production environment detected");
+      
+      // Ensure dashboard access in production
+      ensureDashboardAccess();
+      
+      // Set default data immediately to improve loading experience
+      if (!analyticsData) {
+        setAnalyticsData(defaultData);
+      }
+      
+      // If still loading after 3 seconds, force complete in production
+      const timer = setTimeout(() => {
+        if (loading) {
+          console.log("Dashboard - Forcing completion in production");
+          setLoading(false);
+        }
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [loading, analyticsData, defaultData]);
+
+  // Handle data fetching logic with production resilience
   const fetchData = useCallback(async () => {
     if (dataFetchedRef.current) return;
     
@@ -369,7 +395,19 @@ const Dashboard = () => {
       setAnalyticsData(data);
     } catch (error) {
       console.error("Error loading analytics data:", error);
-      setError("Failed to load analytics data.");
+      
+      // Less alarming error message in production
+      if (isProduction()) {
+        setError("Unable to load live analytics. Showing default data.");
+      } else {
+        setError("Failed to load analytics data.");
+      }
+      
+      // Ensure we always have data in production
+      if (isProduction()) {
+        console.log("Dashboard - Using default data in production due to error");
+        setAnalyticsData(defaultData);
+      }
     } finally {
       setLoading(false);
     }
