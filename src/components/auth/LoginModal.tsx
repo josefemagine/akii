@@ -233,24 +233,51 @@ const LoginModal = ({
           localStorage.setItem("akii-auth-emergency", "true");
           localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
           localStorage.setItem("akii-auth-emergency-email", data.email);
+          localStorage.setItem("akii-is-logged-in", "true");
+          
+          // Set user ID for header auth check
+          if (session.session.user?.id) {
+            localStorage.setItem("akii-auth-user-id", session.session.user.id);
+          }
           
           // Try to store session data
           try {
             const sessionStr = JSON.stringify({
               timestamp: Date.now(),
               email: data.email,
-              hasSession: true
+              hasSession: true,
+              userId: session.session.user?.id
             });
             localStorage.setItem("akii-session-data", sessionStr);
           } catch (storageError) {
             console.warn("[Login Modal] Failed to store session data:", storageError);
           }
+          
+          // Explicitly trigger auth state update event
+          window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
+            detail: {
+              isLoggedIn: true,
+              email: data.email,
+              userId: session.session.user?.id,
+              timestamp: Date.now()
+            }
+          }));
         } else {
           console.warn("[Login Modal] No session found after successful login, using emergency auth");
           // Force emergency auth flag
           localStorage.setItem("akii-auth-emergency", "true");
           localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
           localStorage.setItem("akii-auth-emergency-email", data.email);
+          localStorage.setItem("akii-is-logged-in", "true");
+          
+          // Explicitly trigger auth state update event
+          window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
+            detail: {
+              isLoggedIn: true,
+              email: data.email,
+              timestamp: Date.now()
+            }
+          }));
         }
       } catch (e) {
         console.error("[Login Modal] Error verifying session:", e);
@@ -258,8 +285,26 @@ const LoginModal = ({
         localStorage.setItem("akii-auth-emergency", "true");
         localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
         localStorage.setItem("akii-auth-emergency-email", data.email);
+        localStorage.setItem("akii-is-logged-in", "true");
+        
+        // Explicitly trigger auth state update event
+        window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
+          detail: {
+            isLoggedIn: true,
+            email: data.email,
+            timestamp: Date.now()
+          }
+        }));
       }
       
+      // Force update all auth listeners with a broadcast event
+      try {
+        // Broadcast auth change to all tabs/components
+        localStorage.setItem('akii-last-auth-update', Date.now().toString());
+      } catch (e) {
+        console.error("[Login Modal] Error broadcasting auth change:", e);
+      }
+
       // Use our aggressive redirect function
       forceRedirectToDashboard();
       

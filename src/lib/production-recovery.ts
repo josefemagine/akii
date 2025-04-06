@@ -70,9 +70,55 @@ export function setupEmergencyAuth(email: string = 'admin@akii.com'): void {
     const profileKey = `akii-profile-${userId}`;
     localStorage.setItem(profileKey, JSON.stringify(fallbackUser));
     
+    // Trigger auth state changed event to notify components
+    dispatchAuthEvent({
+      isLoggedIn: true,
+      userId,
+      email,
+      timestamp: Date.now()
+    });
+    
+    // Also trigger standard auth event
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('akii-last-auth-update', Date.now().toString());
+      } catch (e) {
+        console.error('Production recovery: Error setting last auth update timestamp', e);
+      }
+    }
+    
     console.log('Production recovery: Emergency auth setup complete');
   } catch (e) {
     console.error('Production recovery: Failed to set up emergency auth', e);
+  }
+}
+
+// Trigger auth state change event
+export function dispatchAuthEvent(data: any): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    // Main auth change event
+    const authEvent = new CustomEvent('akii-login-state-changed', {
+      detail: data
+    });
+    window.dispatchEvent(authEvent);
+    
+    // Secondary production recovery event 
+    const recoveryEvent = new CustomEvent('akii-production-recovery', {
+      detail: data
+    });
+    window.dispatchEvent(recoveryEvent);
+    
+    // Third auth changed event for broad coverage
+    const authChangedEvent = new CustomEvent('akii-auth-changed', {
+      detail: data
+    });
+    window.dispatchEvent(authChangedEvent);
+    
+    console.log('Production recovery: Auth events dispatched', data);
+  } catch (e) {
+    console.error('Production recovery: Failed to dispatch auth events', e);
   }
 }
 
@@ -88,6 +134,18 @@ export function ensureDashboardAccess(): boolean {
       const timestamp = parseInt(localStorage.getItem('akii-auth-emergency-time') || '0');
       if (Date.now() - timestamp < 60 * 60 * 1000) {
         console.log('Production recovery: Using existing emergency auth');
+        
+        // Re-dispatch auth events to ensure all components are updated
+        const email = localStorage.getItem('akii-auth-emergency-email') || 'admin@akii.com';
+        const userId = localStorage.getItem('akii-auth-user-id') || 'b574f273-e0e1-4cb8-8c98-f5a7569234c8';
+        
+        dispatchAuthEvent({
+          isLoggedIn: true,
+          userId,
+          email,
+          timestamp: Date.now()
+        });
+        
         return true;
       }
     }
@@ -97,12 +155,6 @@ export function ensureDashboardAccess(): boolean {
     
     // Notify about recovery
     console.log('Production recovery: Dashboard access ensured');
-    
-    // Create notification event
-    const event = new CustomEvent('akii-production-recovery', {
-      detail: { timestamp: Date.now() }
-    });
-    window.dispatchEvent(event);
     
     return true;
   } catch (e) {

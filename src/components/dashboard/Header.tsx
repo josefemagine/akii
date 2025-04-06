@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bell, Menu, User as UserIcon, Moon, Sun, LogOut, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,9 +28,10 @@ const Header: React.FC<HeaderProps> = ({
   theme = "dark",
   onThemeChange,
 }) => {
-  // Use both auth contexts for a smooth transition
+  // Use both auth contexts for compatibility
   const compatAuth = useAuth();
-  const { profile, signOut, isAdmin: contextIsAdmin } = useDirectAuth();
+  const { profile, signOut, isAdmin: contextIsAdmin, refreshAuthState } = useDirectAuth();
+  const previousAuthState = useRef<boolean>(false);
   
   const navigate = useNavigate();
   
@@ -82,6 +83,64 @@ const Header: React.FC<HeaderProps> = ({
   
   // Determine if user is admin from props, direct context, or compat layer
   const userIsAdmin = isAdmin || contextIsAdmin || !!compatAuth.isAdmin;
+
+  useEffect(() => {
+    // Log initial auth state
+    console.log("[Header] Auth state updated from context:", { 
+      hasUser: !!compatAuth.user, 
+      userId: compatAuth.user?.id,
+      hasSession: !!compatAuth.session,
+      previousState: previousAuthState.current
+    });
+    
+    previousAuthState.current = !!compatAuth.user;
+    
+    // Subscribe to auth state changes
+    const handleAuthChange = (event: StorageEvent) => {
+      if (event.key?.includes('auth') || 
+          event.key?.includes('sb-') || 
+          event.key?.includes('akii') || 
+          event.key?.includes('supabase')) {
+        console.log('[Header] Auth-related localStorage change detected:', event.key);
+        refreshAuthState();
+      }
+    };
+    
+    // Also listen for custom auth events
+    const handleAuthEvent = () => {
+      console.log('[Header] Auth state changed event received, refreshing state');
+      refreshAuthState();
+    };
+    
+    window.addEventListener('storage', handleAuthChange);
+    window.addEventListener('akii-login-state-changed', handleAuthEvent);
+    window.addEventListener('akii-auth-changed', handleAuthEvent);
+    window.addEventListener('akii-production-recovery', handleAuthEvent);
+    
+    // Setup a periodic check in production to ensure header state is correct
+    let checkInterval: NodeJS.Timeout | null = null;
+    
+    if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
+      checkInterval = setInterval(() => {
+        const emergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
+        const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
+        const hasAuthContext = !!compatAuth.user;
+        
+        if ((emergencyAuth || isLoggedIn) && !hasAuthContext) {
+          console.log('[Header] Auth state mismatch detected, forcing refresh');
+          refreshAuthState();
+        }
+      }, 5000); // Check every 5 seconds
+    }
+    
+    return () => {
+      window.removeEventListener('storage', handleAuthChange);
+      window.removeEventListener('akii-login-state-changed', handleAuthEvent);
+      window.removeEventListener('akii-auth-changed', handleAuthEvent);
+      window.removeEventListener('akii-production-recovery', handleAuthEvent);
+      if (checkInterval) clearInterval(checkInterval);
+    };
+  }, [compatAuth.user, compatAuth.session, refreshAuthState]);
 
   return (
     <header className="sticky top-0 z-40 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
