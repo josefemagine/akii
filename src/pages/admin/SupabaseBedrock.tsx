@@ -63,7 +63,7 @@ interface EnvironmentDiagnostics {
 type ConnectionStatus = 'unknown' | 'checking' | 'connected' | 'error';
 
 // Authentication status states
-type AuthStatus = 'unknown' | 'checking' | 'authenticated' | 'unauthenticated' | 'expired';
+type AuthStatus = 'unknown' | 'checking' | 'authenticated' | 'unauthenticated' | 'expired' | 'error';
 
 // After imports, add this interface for model data
 interface FoundationModel {
@@ -294,20 +294,31 @@ const SupabaseBedrock = () => {
   
   // Check authentication status
   const checkAuthStatus = async () => {
-    setAuthStatus('checking');
     try {
-      const isAuthenticated = await BedrockClient.isAuthenticated();
-      
-      if (isAuthenticated) {
-        setAuthStatus('authenticated');
-        return true;
-      } else {
+      if (authStatus !== 'authenticated') {
         setAuthStatus('unauthenticated');
         return false;
       }
+      
+      // Get the current token
+      const token = await BedrockClient.getAuthToken();
+      
+      if (!token) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to manage Bedrock instances",
+          variant: "destructive"
+        });
+        setAuthStatus('unauthenticated');
+        return false;
+      }
+      
+      setAuthStatus('authenticated');
+      return true;
     } catch (error) {
-      console.error("Auth check error:", error);
-      setAuthStatus('unauthenticated');
+      console.error("Error checking auth status:", error);
+      setAuthStatus('error');
+      setError(error instanceof Error ? error.message : String(error));
       return false;
     }
   };
@@ -317,35 +328,6 @@ const SupabaseBedrock = () => {
     // Store the current location to redirect back after login
     localStorage.setItem('auth-redirect', window.location.pathname);
     navigate('/login');
-  };
-  
-  // Refresh auth token
-  const refreshToken = async () => {
-    setAuthStatus('checking');
-    try {
-      const token = await BedrockClient.refreshTokenIfNeeded();
-      
-      if (token) {
-        setAuthStatus('authenticated');
-        toast({
-          title: "Success",
-          description: "Authentication refreshed successfully.",
-        });
-        return true;
-      } else {
-        setAuthStatus('expired');
-        toast({
-          title: "Session Expired",
-          description: "Your session has expired. Please log in again.",
-          variant: "destructive",
-        });
-        return false;
-      }
-    } catch (error) {
-      console.error("Token refresh error:", error);
-      setAuthStatus('expired');
-      return false;
-    }
   };
   
   // Fetch instances from the API
@@ -853,8 +835,8 @@ const SupabaseBedrock = () => {
                 </Button>
               )}
               {(authStatus === 'authenticated' || authStatus === 'expired') && (
-                <Button variant="outline" size="sm" onClick={refreshToken}>
-                  <RefreshCw className="h-4 w-4 mr-2" /> Refresh Token
+                <Button variant="outline" size="sm" onClick={checkAuthStatus}>
+                  <RefreshCw className="h-4 w-4 mr-2" /> Refresh Auth
                 </Button>
               )}
             </div>
@@ -1020,7 +1002,7 @@ const SupabaseBedrock = () => {
         <div className="flex items-center gap-2">
           <ConnectionStatusBadge status={connectionStatus} />
           <AuthStatusBadge status={authStatus} />
-          <Button variant="outline" size="sm" onClick={refreshToken} disabled={authStatus === 'checking'}>
+          <Button variant="outline" size="sm" onClick={checkAuthStatus} disabled={authStatus === 'checking'}>
             {authStatus === 'checking' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
