@@ -243,15 +243,10 @@ async function callEdgeFunctionDirect(payload, options = {}) {
     retryCount = 0
   } = options;
   
-  // Get settings from config
-  // Use fallbacks for variables that might be undefined
-  const supabaseUrl = typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : (supabase?.supabaseUrl || 'https://unknown.supabase.co');
-  const clientVersion = typeof CLIENT_VERSION !== 'undefined' ? CLIENT_VERSION : '1.0.0';
+  // Get the direct Supabase Edge Function URL from Bedrock config
+  const functionUrl = 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action';
   
-  // Use the direct Supabase Edge Function URL
-  const functionUrl = `${supabaseUrl}/functions/v1/super-action`;
-  
-  // Always use the direct function URL to avoid 404 errors with the proxy
+  // Always use the direct function URL
   const url = functionUrl;
   
   console.log(`[API] Using direct function URL: ${url} for action: ${payload.action}`);
@@ -259,7 +254,7 @@ async function callEdgeFunctionDirect(payload, options = {}) {
   // Add client version to payload
   const finalPayload = {
     ...payload,
-    clientVersion: clientVersion,
+    clientVersion: '1.0.0',
     timestamp: new Date().toISOString()
   };
   

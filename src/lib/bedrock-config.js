@@ -38,7 +38,7 @@ const getApiUrl = () => {
   }
   
   // Production default - using the edge function URL
-  return 'https://api.akii.com/functions/v1/super-action';
+  return 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action';
 };
 
 /**
@@ -67,19 +67,7 @@ const getEdgeFunctionUrl = () => {
     return import.meta.env.VITE_BEDROCK_API_URL;
   }
   
-  // For both development and production, directly use Supabase URL
-  // If we have a Supabase URL, build the functions endpoint
-  if (supabaseUrl) {
-    // Extract the project reference from the URL
-    const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1];
-    
-    if (projectRef) {
-      // Use the standard Supabase Functions v1 endpoint format
-      return `https://${projectRef}.supabase.co/functions/v1/super-action`;
-    }
-  }
-  
-  // Fallback to the known Supabase project reference for this app
+  // Always use the direct Supabase URL for the edge function in production
   return 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action';
 };
 
