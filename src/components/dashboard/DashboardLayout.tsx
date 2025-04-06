@@ -1,13 +1,26 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, Outlet } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/lib/browser-check";
 import { Sidebar } from "./Sidebar";
 import Header from "./Header";
-import TrialBanner from "./TrialBanner";
 import { useDirectAuth } from "@/contexts/direct-auth-context";
 import { useAuth } from "@/contexts/auth-compatibility";
 import { isProduction, ensureDashboardAccess } from "@/lib/production-recovery";
+
+// Debug flag for controlling logs
+const DEBUG_LAYOUT = false;
+
+// Helper to control debug logs
+const logDebug = (message: string, data?: any) => {
+  if (DEBUG_LAYOUT) {
+    if (data) {
+      console.log(`[DashboardLayout] ${message}`, data);
+    } else {
+      console.log(`[DashboardLayout] ${message}`);
+    }
+  }
+};
 
 // Define consistent dashboard styling variables
 export const dashboardStyles = {
@@ -62,11 +75,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   fullWidth = false
 }) => {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [authInitialized, setAuthInitialized] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [networkBanner, setNetworkBanner] = useState(false);
+  
+  // State tracking references
+  const checkInProgress = useRef(false);
+  const isMounted = useRef(true);
+  const lastProfileCheckTime = useRef<number>(0);
   
   // Use both contexts for a smooth transition
   const { profile, isLoading, refreshAuthState, user } = useDirectAuth();
@@ -74,27 +91,42 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   
   const navigate = useNavigate();
 
-  // Handle initial auth state
+  // Cleanup on unmount
   useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  // Safe state setter that checks if component is mounted
+  const safeSetState = <T extends any>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+    if (isMounted.current) {
+      setter(value);
+    }
+  };
+
+  // Handle initial auth state (run only once)
+  useEffect(() => {
+    // Skip if already initialized
+    if (authInitialized || checkInProgress.current) return;
+    
     const checkAuthStatus = async () => {
+      // Set flag to prevent multiple simultaneous checks
+      checkInProgress.current = true;
+      logDebug('Checking initial auth status');
+      
       // Check if we're in a potential loop already
       const redirectCount = parseInt(sessionStorage.getItem('redirect-count') || '0');
       if (redirectCount >= 3) {
         console.warn('DashboardLayout: Detected potential redirect loop, skipping auto-redirect');
         // Still mark as initialized so we show content instead of spinner
-        setAuthInitialized(true);
+        safeSetState(setAuthInitialized, true);
+        checkInProgress.current = false;
         return;
       }
       
-      // Only process auth check if not already initialized
-      if (!authInitialized) {
-        console.log('DashboardLayout: Initializing auth state', {
-          hasUser: !!compatAuth.user,
-          hasDirectUser: !!user,
-          isLoading: compatAuth.isLoading,
-          directLoading: isLoading
-        });
-        
+      try {
         // Dynamically import isLoggedIn
         const { isLoggedIn } = await import('@/lib/direct-db-access');
         
@@ -102,36 +134,28 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         const loginStatus = isLoggedIn();
         const isAuthenticated = !!user || !!compatAuth.user || loginStatus;
         
-        console.log('DashboardLayout: Auth check complete', {
-          hasUser: !!compatAuth.user,
-          hasDirectUser: !!user,
-          isLoggedIn: loginStatus,
-          isAuthenticated
-        });
-        
-        setAuthInitialized(true);
+        safeSetState(setAuthInitialized, true);
         
         // If we're on production, try to recover auth state rather than redirecting immediately
         if (isProduction && !isAuthenticated) {
-          console.log('DashboardLayout: Production site with auth issues, attempting recovery');
-          
           // Check for emergency auth first
           const hasEmergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
           if (hasEmergencyAuth) {
-            console.log('DashboardLayout: Using emergency auth on production');
-            // Allow page to render, recovery will be handled in the component
+            logDebug('Found emergency auth, enabling dashboard access');
+            checkInProgress.current = false;
             return;
           }
           
           // Force emergency auth for production as last resort
-          console.log('DashboardLayout: Forcing emergency auth for production');
+          logDebug('Attempting to ensure dashboard access in production');
           ensureDashboardAccess();
+          checkInProgress.current = false;
           return;
         }
         
         // If no user is found AND we're not in a loading state, redirect to login
         if (!isAuthenticated && !isLoading && !compatAuth.isLoading) {
-          console.log('DashboardLayout: No user found, redirecting to login');
+          logDebug('Not authenticated, preparing redirect to login');
           
           // Set a timestamp for this redirect to detect loops
           const currentTime = Date.now();
@@ -140,6 +164,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           // If multiple redirects happen too quickly, don't redirect
           if (currentTime - lastRedirectTime < 2000) {
             console.warn('DashboardLayout: Redirects happening too quickly, breaking the redirect chain');
+            checkInProgress.current = false;
             return;
           }
           
@@ -150,9 +175,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           navigate('/login', { replace: true });
         } else if (isAuthenticated && !profile) {
           // We're authenticated but don't have a profile yet - force a refresh
-          console.log('DashboardLayout: Authenticated but no profile, refreshing auth state');
+          logDebug('Authenticated but missing profile, refreshing auth state');
           refreshAuthState();
         }
+      } finally {
+        checkInProgress.current = false;
       }
     };
     
@@ -161,24 +188,22 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   // Set up network monitoring for offline mode
   useEffect(() => {
-    console.log("DashboardLayout: Component mounted");
-    
     const handleOnline = () => {
-      console.log("DashboardLayout: Network is back online, refreshing auth state");
-      setIsOnline(true);
-      setNetworkBanner(false);
+      logDebug('Network online');
+      safeSetState(setIsOnline, true);
+      safeSetState(setNetworkBanner, false);
       // Refresh auth state when back online
       refreshAuthState();
     };
     
     const handleOffline = () => {
-      console.log("DashboardLayout: Network is offline");
-      setIsOnline(false);
-      setNetworkBanner(true);
+      logDebug('Network offline');
+      safeSetState(setIsOnline, false);
+      safeSetState(setNetworkBanner, true);
     };
     
     // Check if we're online at startup
-    setIsOnline(navigator.onLine);
+    safeSetState(setIsOnline, navigator.onLine);
     
     // Add network status listeners
     window.addEventListener('online', handleOnline);
@@ -192,150 +217,131 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   // Ensure the user profile exists on mount
   useEffect(() => {
-    // Add debounce protection to prevent multiple calls
-    const lastProfileCheckTime = parseInt(sessionStorage.getItem('profile-check-timestamp') || '0');
+    // Use a ref to track the last profile check time to prevent redundant checks
     const currentTime = Date.now();
-    const MIN_PROFILE_CHECK_INTERVAL = 5000; // 5 seconds minimum between profile checks
+    const MIN_PROFILE_CHECK_INTERVAL = 60000; // 1 minute minimum between profile checks (increased from 5s)
     
-    if (currentTime - lastProfileCheckTime < MIN_PROFILE_CHECK_INTERVAL) {
-      console.log('DashboardLayout: Skipping profile check - too soon since last attempt', {
-        timeSinceLastCheck: currentTime - lastProfileCheckTime,
+    if (currentTime - lastProfileCheckTime.current < MIN_PROFILE_CHECK_INTERVAL) {
+      logDebug('Skipping profile check - too soon since last attempt', {
+        timeSinceLastCheck: currentTime - lastProfileCheckTime.current,
         minInterval: MIN_PROFILE_CHECK_INTERVAL
       });
       return;
     }
     
-    // Mark this profile check attempt
-    sessionStorage.setItem('profile-check-timestamp', currentTime.toString());
+    // Update the timestamp
+    lastProfileCheckTime.current = currentTime;
     
     const verifyUserProfile = async () => {
-      if (!profile) {
-        console.log("DashboardLayout: No profile detected, ensuring profile exists");
-        try {
-          // Get the current user ID from auth context
-          const currentUserId = user?.id;
-          
-          // Skip if no user ID is available - this prevents unnecessary API calls
-          if (!currentUserId) {
-            console.log("DashboardLayout: No user ID available, skipping profile check");
-            return;
-          }
-          
-          // Dynamically import ensureProfileExists
-          const { ensureProfileExists } = await import('@/lib/direct-db-access');
-          
-          const { data: profileData, error } = await ensureProfileExists(currentUserId);
-          
-          if (profileData) {
-            console.log("DashboardLayout: Profile created or found successfully:", profileData);
-            // Refresh auth state to make sure it's reflected in the UI
-            refreshAuthState();
-          } else {
-            console.error("DashboardLayout: Failed to ensure profile exists:", error);
-            // If we couldn't create the profile, let's try one more time
-            setTimeout(async () => {
-              console.log("DashboardLayout: Retrying profile creation");
-              // Dynamically import ensureProfileExists again
-              const { ensureProfileExists } = await import('@/lib/direct-db-access');
-              const retryResult = await ensureProfileExists(currentUserId);
-              if (retryResult.data) {
-                console.log("DashboardLayout: Profile retry successful:", retryResult.data);
-                refreshAuthState();
-              } else {
-                console.error("DashboardLayout: Profile retry failed:", retryResult.error);
-              }
-            }, 1000);
-          }
-        } catch (error) {
-          console.error("DashboardLayout: Error ensuring profile exists:", error);
+      try {
+        // Skip if we don't have auth yet
+        if (!user && !compatAuth.user) {
+          return;
         }
-      } else {
-        console.log("DashboardLayout: User profile already exists:", profile.id);
+        
+        // Skip if we already have a profile
+        if (profile) {
+          return;
+        }
+        
+        const userId = user?.id || compatAuth.user?.id;
+        if (!userId) {
+          return;
+        }
+        
+        logDebug('Verifying user profile for userId', userId);
+        
+        // Dynamically import needed functions
+        const { ensureProfileExists } = await import('@/lib/direct-db-access');
+        
+        // Try to create a profile if missing
+        try {
+          await ensureProfileExists(userId);
+          refreshAuthState(); // Refresh auth state to load the new profile
+        } catch (error) {
+          console.error('DashboardLayout: Error ensuring user profile exists:', error);
+        }
+      } catch (error) {
+        console.error('DashboardLayout: Error in profile verification:', error);
       }
     };
     
     verifyUserProfile();
-  }, [profile, refreshAuthState, user?.id]);
-  
-  // Verify auth state periodically
-  useEffect(() => {
-    const authCheck = setInterval(async () => {
-      // Dynamically import isLoggedIn
-      const { isLoggedIn } = await import('@/lib/direct-db-access');
-      const isLoggedInStatus = isLoggedIn();
-      console.log("DashboardLayout: Periodic auth check:", { isLoggedInStatus });
-      
-      if (!isLoggedInStatus && !isLoading) {
-        console.warn("DashboardLayout: User no longer logged in during periodic check");
-        // Force refresh auth state
-        refreshAuthState();
-      }
-    }, 60 * 1000); // Check every minute
-    
-    return () => clearInterval(authCheck);
-  }, [isLoading, refreshAuthState]);
+  }, [user, compatAuth.user, profile, refreshAuthState]);
 
-  // Read theme from localStorage on component mount
+  // Handle theme changes
   useEffect(() => {
-    const stored = localStorage.getItem("theme");
-    if (stored === "dark") {
-      document.documentElement.classList.add("dark");
+    // Try to load theme preference from localStorage
+    const savedTheme = safeLocalStorage.getItem('theme');
+    if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
+      safeSetState(setTheme, savedTheme as "light" | "dark");
+    } else {
+      // Check system preference
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      safeSetState(setTheme, systemPrefersDark ? 'dark' : 'light');
     }
+    
+    // Listen for system theme changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      // Only apply if no user preference is set
+      if (!safeLocalStorage.getItem('theme')) {
+        safeSetState(setTheme, e.matches ? 'dark' : 'light');
+      }
+    };
+    
+    mediaQuery.addEventListener('change', handleChange);
+    
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange);
+    };
   }, []);
 
-  // Monitor for theme changes and apply
-  useEffect(() => {
-    const root = window.document.documentElement;
-    
-    if (theme === "light") {
-      root.classList.remove("dark");
-    } else {
-      root.classList.add("dark");
-    }
-  }, [theme]);
-
-  // Toggle mobile menu
-  const handleMenuClick = () => {
-    setMobileMenuOpen(!mobileMenuOpen);
+  const handleThemeChange = (newTheme: "light" | "dark") => {
+    safeSetState(setTheme, newTheme);
+    safeLocalStorage.setItem('theme', newTheme);
   };
 
-  // Use isAdmin from props or direct auth context
-  const effectiveIsAdmin = isAdmin || !!compatAuth.isAdmin;
-
-  // Show a user-friendly loader with debug info when auth is being initialized
-  if (!authInitialized) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-background">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
-        <p className="text-foreground text-lg font-medium mb-2">Initializing Dashboard...</p>
-        <p className="text-muted-foreground text-sm mb-4">This should only take a moment</p>
-      </div>
-    );
-  }
+  const handleSidebarToggle = () => {
+    const newState = !sidebarCollapsed;
+    safeSetState(setSidebarCollapsed, newState);
+    safeLocalStorage.setItem('sidebar-collapsed', String(newState));
+  };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <Header 
-        onMenuClick={handleMenuClick}
-        isAdmin={effectiveIsAdmin}
-        theme={theme}
-        onThemeChange={setTheme}
-      />
-      
-      <main className="flex flex-1 overflow-hidden">
-        <div className="hidden md:block">
-          <Sidebar 
-            isCollapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-            isAdmin={effectiveIsAdmin}
+    <div className={`${theme === "dark" ? "dark" : ""}`}>
+      <div className="flex h-screen bg-background">
+        <Sidebar 
+          isCollapsed={sidebarCollapsed} 
+          onToggle={handleSidebarToggle}
+          isAdmin={isAdmin || compatAuth.isAdmin}
+        />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header 
+            isAdmin={isAdmin || compatAuth.isAdmin}
+            theme={theme}
+            onThemeChange={handleThemeChange}
           />
+          <main className="flex-1 overflow-y-auto">
+            {networkBanner && (
+              <div className="bg-yellow-500 dark:bg-yellow-600 text-white text-center py-1 px-4">
+                You're currently offline. Some features may be unavailable.
               </div>
-        <div className="relative flex-1 overflow-y-auto overflow-x-hidden">
-            <TrialBanner />
-            <Outlet />
+            )}
+            {!authInitialized && (
+              <div className="flex items-center justify-center h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+              </div>
+            )}
+            {authInitialized && (
+              <DashboardPageContainer fullWidth={fullWidth}>
+                {children || <Outlet />}
+              </DashboardPageContainer>
+            )}
+          </main>
         </div>
-      </main>
       </div>
+    </div>
   );
 };
 

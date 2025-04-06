@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabase";
 
 // Define the context type
 interface UserContextType {

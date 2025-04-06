@@ -1,8 +1,18 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { Session, AuthError } from '@supabase/supabase-js';
-import supabase from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useUser } from './UserContext';
 import { User } from '@/types/custom-types';
+
+// Debug flag
+const DEBUG_AUTH_ADAPTER = false;
+
+// Helper for debug logging
+const logDebug = (message: string, data?: any) => {
+  if (DEBUG_AUTH_ADAPTER) {
+    console.log(`[SupabaseAuthContext] ${message}`, data || '');
+  }
+};
 
 // Define types
 interface AuthContextType {
@@ -28,6 +38,8 @@ export const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) 
   // Use the new UserContext
   const { user, session, sessionLoaded } = useUser();
   
+  logDebug('SupabaseAuthProvider rendering with user:', user?.id);
+  
   // Check if user has admin role
   const isAdmin = user?.app_metadata?.role === 'admin' || 
                   user?.user_metadata?.isAdmin === true || 
@@ -37,11 +49,19 @@ export const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) 
   // Implement auth methods using Supabase client directly
   const signUp = async (email: string, password: string, metadata?: any) => {
     try {
+      logDebug('Signing up user', email);
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: metadata }
       });
+      
+      if (error) {
+        logDebug('Sign up error', error.message);
+      } else {
+        logDebug('Sign up successful');
+      }
+      
       return { error };
     } catch (error) {
       console.error('Error during sign up:', error);
@@ -51,10 +71,18 @@ export const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) 
   
   const signIn = async (email: string, password: string) => {
     try {
+      logDebug('Signing in user', email);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
+      
+      if (error) {
+        logDebug('Sign in error', error.message);
+      } else {
+        logDebug('Sign in successful', data?.user?.id);
+      }
+      
       return { data, error };
     } catch (error) {
       console.error('Error during sign in:', error);
@@ -64,7 +92,9 @@ export const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) 
   
   const signOut = async () => {
     try {
+      logDebug('Signing out user');
       await supabase.auth.signOut();
+      logDebug('Sign out successful');
     } catch (error) {
       console.error('Error during sign out:', error);
     }
@@ -72,7 +102,9 @@ export const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) 
   
   const refreshSession = async () => {
     try {
+      logDebug('Refreshing session');
       await supabase.auth.refreshSession();
+      logDebug('Session refresh successful');
     } catch (error) {
       console.error('Error refreshing session:', error);
     }

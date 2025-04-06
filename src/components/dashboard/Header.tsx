@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bell, Menu, User as UserIcon, Moon, Sun, LogOut, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,11 @@ import {
 import { useAuth } from "@/contexts/auth-compatibility";
 import { toast } from "@/components/ui/use-toast";
 import { useDirectAuth } from "@/contexts/direct-auth-context";
-import supabase from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { ensureDashboardAccess } from "@/lib/production-recovery";
+
+// Control debug logging with a single flag
+const DEBUG_AUTH = false;
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -33,65 +36,116 @@ const Header: React.FC<HeaderProps> = ({
   const compatAuth = useAuth();
   const { profile, signOut, isAdmin: contextIsAdmin, refreshAuthState } = useDirectAuth();
   const previousAuthState = useRef<boolean>(false);
-  const [forceRefresh, setForceRefresh] = useState(0);
+  const lastCheckTime = useRef<number>(Date.now());
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const authStatusChecked = useRef<boolean>(false);
   
   const navigate = useNavigate();
   
+  // Log with debug control
+  const logDebug = (message: string, ...args: any[]) => {
+    if (DEBUG_AUTH) {
+      console.log(`[Header] ${message}`, ...args);
+    }
+  };
+  
+  // Debounced refresh function to prevent excessive calls - now with better rate limiting
+  const debouncedRefresh = useCallback(() => {
+    // Clear any pending debounce
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+    
+    // Check if we've refreshed recently
+    const now = Date.now();
+    if (now - lastCheckTime.current < 5000) { // Increased to 5 seconds
+      // Schedule a refresh after the debounce period
+      debounceTimeout.current = setTimeout(() => {
+        logDebug('Executing debounced auth refresh');
+        refreshAuthState();
+        lastCheckTime.current = Date.now();
+      }, 5000); // Increased debounce time
+      return;
+    }
+    
+    // If we haven't refreshed recently, do it now
+    logDebug('Immediate auth refresh');
+    refreshAuthState();
+    lastCheckTime.current = now;
+  }, [refreshAuthState]);
+  
   // Force check login state on mount and periodically
   useEffect(() => {
+    // Skip if already checked recently to avoid duplicate calls
+    if (authStatusChecked.current) {
+      return;
+    }
+    
     const checkAuthStatus = async () => {
-      // Import refreshSession dynamically
-      const { refreshSession } = await import('@/lib/direct-db-access');
+      // Skip if already in progress
+      if (authStatusChecked.current) {
+        return;
+      }
       
-      // Force check if emergency auth is set
-      const emergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
-      const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
+      authStatusChecked.current = true;
+      logDebug('Checking auth status');
       
-      if (emergencyAuth || isLoggedIn) {
-        console.log('[Header] Emergency auth or login detected, ensuring header state is updated');
+      try {
+        // Import refreshSession dynamically
+        const { refreshSession } = await import('@/lib/direct-db-access');
         
-        // First try to get a session from Supabase
-        const { data } = await supabase.auth.getSession();
+        // Force check if emergency auth is set
+        const emergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
+        const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
         
-        if (data?.session) {
-          console.log('[Header] Valid Supabase session found, updating UI');
-          refreshAuthState();
-          setForceRefresh(prev => prev + 1);
-          return;
+        if (emergencyAuth || isLoggedIn) {
+          // First try to get a session from Supabase
+          const { data } = await supabase.auth.getSession();
+          
+          if (data?.session) {
+            logDebug('Found valid session, refreshing auth state');
+            debouncedRefresh();
+            return;
+          }
+          
+          // If no session but we have emergency auth, ensure dashboard access
+          if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
+            ensureDashboardAccess();
+          }
+          
+          // Force refresh to ensure state is updated
+          debouncedRefresh();
+          
+          // Also force a session refresh but only if logged in
+          if (isLoggedIn) {
+            refreshSession();
+          }
         }
-        
-        // If no session but we have emergency auth, ensure dashboard access
-        if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
-          ensureDashboardAccess();
-        }
-        
-        // Force refresh to ensure state is updated
-        refreshAuthState();
-        
-        // Also force a session refresh
-        refreshSession();
+      } finally {
+        // Reset the check flag after a delay to allow future checks
+        setTimeout(() => {
+          authStatusChecked.current = false;
+        }, 5000);
       }
     };
     
     // Check immediately on mount
     checkAuthStatus();
     
-    // And set up a periodic check
-    const interval = setInterval(checkAuthStatus, 10000); // Check every 10 seconds
+    // And set up a periodic check - use a longer interval to reduce load
+    const interval = setInterval(checkAuthStatus, 120000); // Increased to 2 minutes from 30 seconds
     
     return () => clearInterval(interval);
-  }, [refreshAuthState]);
+  }, [debouncedRefresh]);
 
   // Set up Supabase auth listener using the official SDK method
   useEffect(() => {
-    console.log('[Header] Setting up official Supabase auth listener');
+    logDebug('Setting up Supabase auth listener');
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[Header] Supabase auth event:", event, session ? "Session exists" : "No session");
+      logDebug('Auth state change event:', event);
       
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        console.log("[Header] User signed in or token refreshed, syncing UI");
-        
         // Update local storage with session data for emergency recovery
         if (session) {
           localStorage.setItem('akii-auth-emergency', 'true');
@@ -117,11 +171,8 @@ const Header: React.FC<HeaderProps> = ({
           }
         }
         
-        refreshAuthState();
-        setForceRefresh(prev => prev + 1);
+        debouncedRefresh();
       } else if (event === 'SIGNED_OUT') {
-        console.log("[Header] User signed out, updating UI");
-        
         // Clear emergency auth data
         localStorage.removeItem('akii-auth-emergency');
         localStorage.removeItem('akii-auth-emergency-time');
@@ -130,55 +181,44 @@ const Header: React.FC<HeaderProps> = ({
         localStorage.removeItem('akii-auth-user-id');
         localStorage.removeItem('akii-session-data');
         
-        refreshAuthState();
+        debouncedRefresh();
       }
     });
     
     return () => {
       subscription.unsubscribe();
     };
-  }, [refreshAuthState]);
+  }, [debouncedRefresh]);
 
-  // Listen for auth events and storage changes
+  // Listen for auth events and storage changes with reduced frequency
   useEffect(() => {
-    console.log("[Header] Auth state updated from context:", { 
-      hasUser: !!compatAuth.user, 
-      userId: compatAuth.user?.id,
-      hasSession: !!compatAuth.session,
-      previousState: previousAuthState.current
-    });
-    
     previousAuthState.current = !!compatAuth.user;
     
     // Handle localStorage changes
     const handleAuthChange = (event: StorageEvent) => {
-      if (event.key?.includes('auth') || 
-          event.key?.includes('sb-') || 
-          event.key?.includes('akii') || 
-          event.key?.includes('supabase')) {
-        console.log('[Header] Auth-related localStorage change detected:', event.key);
-        refreshAuthState();
-        setForceRefresh(prev => prev + 1);
+      if (!event.key) return;
+      
+      // Only care about specific auth-related keys
+      const isAuthKey = event.key.includes('auth') || 
+                       event.key.includes('sb-') || 
+                       event.key.includes('akii') || 
+                       event.key.includes('supabase');
+      
+      if (isAuthKey) {
+        logDebug('Auth-related localStorage change detected:', event.key);
+        debouncedRefresh();
       }
     };
     
     // Handle custom auth events
     const handleAuthEvent = async (event: any) => {
-      // Import refreshSession dynamically
-      const { refreshSession } = await import('@/lib/direct-db-access');
-      
-      console.log('[Header] Auth state changed event received:', event?.detail);
+      logDebug('Custom auth event received', event?.type);
       
       // Check if event indicates we're logged in
       if (event?.detail?.isLoggedIn) {
-        console.log('[Header] Login event received, updating UI state');
-        
         // Try to get session directly from Supabase
         const { data } = await supabase.auth.getSession();
-        if (data.session) {
-          console.log('[Header] Valid session found after login event');
-        } else {
-          console.log('[Header] No valid session found after login event, using emergency auth');
+        if (!data.session) {
           // If we don't have a session, ensure emergency auth is set
           localStorage.setItem('akii-auth-emergency', 'true');
           localStorage.setItem('akii-auth-emergency-time', Date.now().toString());
@@ -195,53 +235,26 @@ const Header: React.FC<HeaderProps> = ({
             ensureDashboardAccess();
           }
         }
+        
+        // Import refreshSession dynamically
+        const { refreshSession } = await import('@/lib/direct-db-access');
+        refreshSession();
+        debouncedRefresh();
       }
-      
-      refreshSession();
-      refreshAuthState();
-      setForceRefresh(prev => prev + 1);
     };
     
+    // Add event listeners for auth changes
     window.addEventListener('storage', handleAuthChange);
-    window.addEventListener('akii-login-state-changed', handleAuthEvent);
-    window.addEventListener('akii-auth-changed', handleAuthEvent);
-    window.addEventListener('akii-production-recovery', handleAuthEvent);
+    window.addEventListener('akii-login-state-changed', handleAuthEvent as EventListener);
+    window.addEventListener('akii-auth-changed', handleAuthEvent as EventListener);
     
-    // Setup a periodic check in production to ensure header state is correct
-    let checkInterval: NodeJS.Timeout | null = null;
-    
-    if (window.location.hostname === 'www.akii.com' || window.location.hostname === 'akii.com') {
-      checkInterval = setInterval(async () => {
-        const emergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
-        const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
-        const hasAuthContext = !!compatAuth.user;
-        
-        if ((emergencyAuth || isLoggedIn) && !hasAuthContext) {
-          console.log('[Header] Auth state mismatch detected, verifying session status');
-          
-          // Check if we have a real session
-          const { data } = await supabase.auth.getSession();
-          if (data.session) {
-            console.log('[Header] Valid session found, forcing UI update');
-          } else {
-            console.log('[Header] No valid session found, using emergency recovery');
-            ensureDashboardAccess();
-          }
-          
-          refreshAuthState();
-          setForceRefresh(prev => prev + 1);
-        }
-      }, 5000); // Check every 5 seconds
-    }
-    
+    // Clean up event listeners
     return () => {
       window.removeEventListener('storage', handleAuthChange);
-      window.removeEventListener('akii-login-state-changed', handleAuthEvent);
-      window.removeEventListener('akii-auth-changed', handleAuthEvent);
-      window.removeEventListener('akii-production-recovery', handleAuthEvent);
-      if (checkInterval) clearInterval(checkInterval);
+      window.removeEventListener('akii-login-state-changed', handleAuthEvent as EventListener);
+      window.removeEventListener('akii-auth-changed', handleAuthEvent as EventListener);
     };
-  }, [compatAuth.user, compatAuth.session, refreshAuthState]);
+  }, [compatAuth.user, debouncedRefresh]);
 
   // Handle sign out using direct auth
   const handleSignOut = async () => {
@@ -262,7 +275,7 @@ const Header: React.FC<HeaderProps> = ({
       }
       
       // Call sign out from Supabase directly
-      console.log('[Header] Calling Supabase sign out method');
+      logDebug('Calling Supabase sign out method');
       await supabase.auth.signOut();
       
       navigate("/");
