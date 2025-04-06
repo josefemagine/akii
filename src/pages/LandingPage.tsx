@@ -210,15 +210,15 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
           <div className="flex flex-col justify-center space-y-6">
             <div className="space-y-4">
               <h1 className="text-5xl font-bold tracking-tight sm:text-6xl xl:text-7xl/none flex flex-col space-y-2">
-                <span>{typedText1}<span className={typedText1.length === fullText1.length || typedText1.length === 0 ? "opacity-0" : "animate-blink"}>|</span></span>
-                <span>{typedText2}<span className={typedText2.length === fullText2.length || typedText2.length === 0 ? "opacity-0" : "animate-blink"}>|</span></span>
+                <span>{typedText1}{typedText1.length === fullText1.length || typedText1.length === 0 ? null : <span className="cursor-blink"></span>}</span>
+                <span>{typedText2}{typedText2.length === fullText2.length || typedText2.length === 0 ? null : <span className="cursor-blink"></span>}</span>
                 <span className="text-primary">
                   {typedText3}
                   {typedText3 === staticPrefix && (
-                    <>{currentWord}<span className="animate-blink">|</span></>
+                    <>{currentWord}<span className="cursor-blink"></span></>
                   )}
                   {typedText3 !== staticPrefix && typedText3.length > 0 && (
-                    <span className="animate-blink">|</span>
+                    <span className="cursor-blink"></span>
                   )}
                 </span>
               </h1>
