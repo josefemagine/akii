@@ -97,8 +97,8 @@ function getOrCreateSupabaseClient(): SupabaseClient<Database> {
       return window.__SUPABASE_SINGLETON.client;
     }
   }
-
-// Check if we already have a singleton instance
+  
+  // Check if we already have a singleton instance
   if (SUPABASE_SINGLETON_KEY in globalSingleton) {
     console.log('Using existing Supabase client from singleton');
     return globalSingleton[SUPABASE_SINGLETON_KEY].client;
@@ -229,66 +229,66 @@ function getOrCreateSupabaseClient(): SupabaseClient<Database> {
   };
   
   const client = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
+    auth: {
+      persistSession: true,
       storageKey: 'sb-injxxchotrvgvvzelhvj-auth-token',
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce',
-        debug: false, // Always disable debug mode to reduce console noise and lock issues
-        // Configure to store data more reliably with better error handling
-        storage: {
-          getItem: (key) => {
-            try {
-              const item = localStorage.getItem(key);
-              return item;
-            } catch (error) {
-              console.error('[Supabase Storage] Error accessing localStorage:', error);
-              // Try to gracefully handle localStorage errors
-              if (typeof sessionStorage !== 'undefined') {
-                try {
-                  return sessionStorage.getItem(key);
-                } catch (e) {
-                  console.error('[Supabase Storage] Fallback storage error:', e);
-                }
-              }
-              return null;
-            }
-          },
-          setItem: (key, value) => {
-            try {
-              localStorage.setItem(key, value);
-            } catch (error) {
-              console.error('[Supabase Storage] Error writing to localStorage:', error);
-              // Try to gracefully handle localStorage errors
-              if (typeof sessionStorage !== 'undefined') {
-                try {
-                  sessionStorage.setItem(key, value);
-                } catch (e) {
-                  console.error('[Supabase Storage] Fallback storage error:', e);
-                }
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+      debug: false, // Always disable debug mode to reduce console noise and lock issues
+      // Configure to store data more reliably with better error handling
+      storage: {
+        getItem: (key) => {
+          try {
+            const item = localStorage.getItem(key);
+            return item;
+          } catch (error) {
+            console.error('[Supabase Storage] Error accessing localStorage:', error);
+            // Try to gracefully handle localStorage errors
+            if (typeof sessionStorage !== 'undefined') {
+              try {
+                return sessionStorage.getItem(key);
+              } catch (e) {
+                console.error('[Supabase Storage] Fallback storage error:', e);
               }
             }
-          },
-          removeItem: (key) => {
-            try {
-              localStorage.removeItem(key);
-            } catch (error) {
-              console.error('[Supabase Storage] Error removing from localStorage:', error);
-              // Try to gracefully handle localStorage errors
-              if (typeof sessionStorage !== 'undefined') {
-                try {
-                  sessionStorage.removeItem(key);
-                } catch (e) {
-                  console.error('[Supabase Storage] Fallback storage error:', e);
-                }
+            return null;
+          }
+        },
+        setItem: (key, value) => {
+          try {
+            localStorage.setItem(key, value);
+          } catch (error) {
+            console.error('[Supabase Storage] Error writing to localStorage:', error);
+            // Try to gracefully handle localStorage errors
+            if (typeof sessionStorage !== 'undefined') {
+              try {
+                sessionStorage.setItem(key, value);
+              } catch (e) {
+                console.error('[Supabase Storage] Fallback storage error:', e);
+              }
+            }
+          }
+        },
+        removeItem: (key) => {
+          try {
+            localStorage.removeItem(key);
+          } catch (error) {
+            console.error('[Supabase Storage] Error removing from localStorage:', error);
+            // Try to gracefully handle localStorage errors
+            if (typeof sessionStorage !== 'undefined') {
+              try {
+                sessionStorage.removeItem(key);
+              } catch (e) {
+                console.error('[Supabase Storage] Fallback storage error:', e);
               }
             }
           }
         }
-      },
-      // Global fetch options to improve reliability
-      global: {
+      }
+    },
+    // Global fetch options to improve reliability
+    global: {
       fetch: enhancedFetch,
       headers: {
         'X-Client-Info': 'Akii WebApp'

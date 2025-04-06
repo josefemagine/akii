@@ -228,7 +228,7 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
                 animate={showSubElements ? "visible" : "hidden"}
                 variants={fadeInUpVariants}
               >
-                Launch your own private AI — powered by Amazon Bedrock, fully isolated, trained on your data, and ready to deploy instantly with plug-and-play integrations across web, mobile, API, and more.
+                Launch your own private AI — powered by Amazon Bedrock, fully isolated, trained on your data, and plug-and-play apps and integrations across web, mobile, API and more.
               </motion.p>
             </div>
             

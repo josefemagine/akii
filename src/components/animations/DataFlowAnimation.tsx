@@ -15,6 +15,8 @@ import {
   Send,
   Code,
   ShoppingCart,
+  Cloud,
+  Upload,
 } from "lucide-react";
 
 const DataFlowAnimation = () => {
@@ -23,7 +25,20 @@ const DataFlowAnimation = () => {
 
   // Data source icons
   const dataSources = [
-    { icon: <FileText className="text-blue-400" />, label: "Support Docs" },
+    { 
+      icon: (
+        <div className="flex items-center justify-center text-blue-400">
+          <svg width="18" height="16" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5.82353 1.76471L2.47059 8.47059H8.47059L11.8235 1.76471H5.82353Z" fill="#4285F4"/>
+            <path d="M12.1765 1.76471L8.82353 8.47059H14.8235L18.1765 1.76471H12.1765Z" fill="#1FBCFD"/>
+            <path d="M0 10.5882L3.35294 3.88235L6.70588 10.5882L3.35294 17.2941L0 10.5882Z" fill="#27A85F"/>
+            <path d="M6.70588 10.5882L10.0588 3.88235L13.4118 10.5882L10.0588 17.2941L6.70588 10.5882Z" fill="#FFCD40"/>
+          </svg>
+        </div>
+      ), 
+      label: "Google Drive" 
+    },
+    { icon: <Upload className="text-blue-400" />, label: "File Upload" },
     { icon: <Database className="text-purple-400" />, label: "CRM Data" },
     { icon: <Zap className="text-yellow-400" />, label: "Zapier" },
     { icon: <ShoppingCart className="text-green-400" />, label: "Ecommerce" },
@@ -141,7 +156,7 @@ const DataFlowAnimation = () => {
             variants={dataSourceVariants}
             className="text-white text-base font-medium mb-1 pb-[10px]"
           >
-            8000+ Training Data Sources
+            Upload training data from 8000+ sources
           </motion.div>
 
           <div className="flex justify-center space-x-5 mb-2">
@@ -163,10 +178,37 @@ const DataFlowAnimation = () => {
           {/* Animated data flow lines */}
           <motion.div
             variants={flowLineVariants}
-            className="w-[2px] bg-gradient-to-b from-blue-500 to-primary flow-line my-1"
+            className="w-[2px] bg-gradient-to-b from-blue-500 to-[#FF9900] flow-line my-1"
           />
 
-          {/* Secure Akii Vault -> AI Training */}
+          {/* Amazon Bedrock */}
+          <motion.div
+            variants={vaultVariants}
+            className="relative flex justify-center items-center my-1"
+          >
+            <motion.div
+              animate={{ 
+                boxShadow: ["0 0 0px rgba(255, 153, 0, 0)", "0 0 10px rgba(255, 153, 0, 0.4)", "0 0 0px rgba(255, 153, 0, 0)"]
+              }}
+              transition={{ 
+                duration: 2, 
+                repeat: Infinity,
+                repeatType: "reverse"
+              }}
+              className="absolute inset-0 rounded-md"
+            />
+            <div className="bg-transparent py-1 px-3 rounded-md border border-[#FF9900] text-white text-xs font-medium whitespace-nowrap">
+              Powered by Amazon Bedrock
+            </div>
+          </motion.div>
+          
+          {/* Flow line from Amazon Bedrock to AI Training */}
+          <motion.div
+            variants={flowLineVariants}
+            className="w-[2px] bg-gradient-to-b from-[#FF9900] to-primary flow-line my-1"
+          />
+          
+          {/* AI Training module */}
           <motion.div
             variants={vaultVariants}
             className="bg-gray-800 py-2 px-3 rounded-lg border border-primary/50 w-44 flex flex-col items-center my-1"
@@ -195,37 +237,10 @@ const DataFlowAnimation = () => {
             />
           </motion.div>
 
-          {/* First flow line (from AI Training to Bedrock) */}
+          {/* Flow line from AI Training to Private AI Instance */}
           <motion.div
             variants={flowLineVariants}
-            className="w-[2px] bg-gradient-to-b from-primary to-[#FF9900] flow-line my-1"
-          />
-          
-          {/* Amazon Bedrock tag (centered) */}
-          <motion.div
-            variants={vaultVariants}
-            className="relative flex justify-center items-center my-1"
-          >
-            <motion.div
-              animate={{ 
-                boxShadow: ["0 0 0px rgba(255, 153, 0, 0)", "0 0 10px rgba(255, 153, 0, 0.4)", "0 0 0px rgba(255, 153, 0, 0)"]
-              }}
-              transition={{ 
-                duration: 2, 
-                repeat: Infinity,
-                repeatType: "reverse"
-              }}
-              className="absolute inset-0 rounded-md"
-            />
-            <div className="bg-transparent py-1 px-3 rounded-md border border-[#FF9900] text-white text-xs font-medium whitespace-nowrap">
-              Powered by Amazon Bedrock
-            </div>
-          </motion.div>
-          
-          {/* Second flow line (from Bedrock to Private AI) */}
-          <motion.div
-            variants={flowLineVariants}
-            className="w-[2px] bg-gradient-to-b from-[#FF9900] to-green-500 flow-line my-1"
+            className="w-[2px] bg-gradient-to-b from-primary to-green-500 flow-line my-1"
           />
 
           {/* Private AI Instance */}
@@ -255,20 +270,20 @@ const DataFlowAnimation = () => {
             </div>
           </motion.div>
 
-          {/* Flow line from Private AI to Multi-platform Deployment */}
+          {/* Flow line from Private AI to Integrations */}
           <motion.div
             variants={flowLineVariants}
             className="w-[2px] bg-gradient-to-b from-green-500 to-green-400 flow-line my-0.5"
           />
         </div>
 
-        {/* Third stage: Multi-platform deployment */}
+        {/* Final stage: Akii plug-and-play integrations */}
         <div className="mt-[2px] mb-2">
           <motion.div 
             variants={platformVariants}
             className="text-white text-base font-medium mb-1 text-center"
           >
-            Plug-and-play Apps and Integrations
+            Akii plug-and-play integrations
           </motion.div>
 
           {/* Flow arrows connecting Private AI with platforms */}
