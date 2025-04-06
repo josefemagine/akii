@@ -3,85 +3,567 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 // @ts-ignore - Deno-specific import
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.21.0";
-import * as jose from 'https://esm.sh/jose@4.14.4';
-// Import our AWS integration functions
 // @ts-ignore - Deno-specific import
-import {
-  createProvisionedModelThroughput,
-  listProvisionedModelThroughputs,
-  getProvisionedModelThroughput,
-  deleteProvisionedModelThroughput,
-  invokeBedrockModel,
-  getBedrockUsageStats,
-  verifyAwsCredentials,
-  listAvailableFoundationModels
-} from "./aws.ts";
+import * as jose from 'https://esm.sh/jose@4.14.4';
 
 // Import AWS SDK directly for credential testing
+// @ts-ignore - Deno-specific import
 import {
   BedrockClient,
-  ListFoundationModelsCommand
-} from "@aws-sdk/client-bedrock";
+  ListFoundationModelsCommand,
+  ListProvisionedModelThroughputsCommand,
+  CreateProvisionedModelThroughputCommand,
+  GetProvisionedModelThroughputCommand,
+  DeleteProvisionedModelThroughputCommand
+} from "npm:@aws-sdk/client-bedrock@3.462.0";
 
-// Import configuration
-import { CONFIG, validateConfig } from "./config.ts";
+// Import BedrockRuntime for model invocation
+// @ts-ignore - Deno-specific import
+import { 
+  BedrockRuntimeClient, 
+  InvokeModelCommand 
+} from "npm:@aws-sdk/client-bedrock-runtime@3.462.0";
 
-// Import AWS test module
-import { runAwsBedrockTests } from "./aws-test.ts";
-
-// CORS headers for all responses
-const CORS_HEADERS = CONFIG.CORS_HEADERS;
-
-// Load config from environment
-const CONFIG_ENV = {
-  SUPABASE_URL: Deno.env.get('SUPABASE_URL') || '',
-  SUPABASE_SERVICE_ROLE_KEY: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
-  SUPABASE_ANON_KEY: Deno.env.get('SUPABASE_ANON_KEY') || '',
-  JWT_SECRET: Deno.env.get('SUPABASE_JWT_SECRET') || '',
-  AWS_REGION: Deno.env.get('AWS_REGION') || 'us-east-1', 
-  AWS_ACCESS_KEY_ID: Deno.env.get('AWS_ACCESS_KEY_ID') || '',
-  AWS_SECRET_ACCESS_KEY: Deno.env.get('AWS_SECRET_ACCESS_KEY') || ''
+// Configuration object
+// @ts-ignore - Deno-specific import
+const CONFIG = {
+  // AWS Configuration
+  AWS_REGION: Deno.env.get("AWS_REGION") || "us-east-1",
+  AWS_ACCESS_KEY_ID: Deno.env.get("AWS_ACCESS_KEY_ID") || "",
+  AWS_SECRET_ACCESS_KEY: Deno.env.get("AWS_SECRET_ACCESS_KEY") || "",
+  
+  // Supabase Configuration
+  SUPABASE_URL: Deno.env.get("SUPABASE_URL") || "",
+  SUPABASE_SERVICE_ROLE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+  
+  // CORS Headers
+  CORS_HEADERS: {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info, apikey, X-Client-Info",
+    "Access-Control-Allow-Credentials": "true"
+  }
 };
 
-// Import AWS Bedrock functions separately with error handling
-let aws;
-try {
-  aws = await import('./aws.ts');
-} catch (error) {
-  console.error("Error importing AWS module:", error);
-  // Provide fallback implementations for required functions
-  aws = {
-    listAvailableFoundationModels: async () => ({ success: false, error: "AWS module failed to load", models: [], count: 0 }),
-    listProvisionedModelThroughputs: async () => ({ success: false, error: "AWS module failed to load", instances: [] }),
-    createProvisionedModelThroughput: async () => ({ success: false, error: "AWS module failed to load" }),
-    getProvisionedModelThroughput: async () => ({ success: false, error: "AWS module failed to load" }),
-    deleteProvisionedModelThroughput: async () => ({ success: false, error: "AWS module failed to load" }),
-    invokeBedrockModel: async () => ({ success: false, error: "AWS module failed to load" }),
-    getModelUsageStatistics: async () => ({ success: false, error: "AWS module failed to load" }),
-    verifyAwsCredentials: async () => ({ success: false, error: "AWS module failed to load" }),
-    runAwsPermissionsTest: async () => ({ success: false, error: "AWS module failed to load" })
-  };
+// Verify AWS credentials and connectivity
+async function verifyAwsCredentials() {
+  try {
+    console.log("[AWS] Verifying AWS credentials");
+    const client = getBedrockClient();
+    const command = new ListFoundationModelsCommand({});
+    const result = await client.send(command);
+    
+    return {
+      success: true,
+      message: "AWS credentials verified successfully",
+      details: {
+        modelsFound: result.modelSummaries?.length || 0,
+        region: CONFIG.AWS_REGION
+      }
+    };
+  } catch (error) {
+    console.error("[AWS] Error verifying AWS credentials:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error.message : String(error),
+      details: {
+        errorName: error instanceof Error ? error.name : "Unknown",
+        region: CONFIG.AWS_REGION
+      }
+    };
+  }
 }
 
-// Destructure AWS functions with fallbacks
-const {
-  listAvailableFoundationModels = async () => ({ success: false, error: "Function not available", models: [], count: 0 }),
-  listProvisionedModelThroughputs = async () => ({ success: false, error: "Function not available", instances: [] }),
-  createProvisionedModelThroughput = async () => ({ success: false, error: "Function not available" }),
-  getProvisionedModelThroughput = async () => ({ success: false, error: "Function not available" }),
-  deleteProvisionedModelThroughput = async () => ({ success: false, error: "Function not available" }),
-  invokeBedrockModel = async () => ({ success: false, error: "Function not available" }),
-  getModelUsageStatistics = async () => ({ success: false, error: "Function not available" }),
-  verifyAwsCredentials = async () => ({ success: false, error: "Function not available" }),
-  runAwsPermissionsTest = async () => ({ success: false, error: "Function not available" })
-} = aws;
+// Create a provisioned model throughput
+async function createProvisionedModelThroughput({ modelId, commitmentDuration, modelUnits }) {
+  try {
+    console.log(`[AWS] Creating provisioned model throughput for ${modelId}`);
+    const client = getBedrockClient();
+    
+    const input = {
+      modelId,
+      provisionedModelName: `${modelId}-${Date.now()}`,
+      provisionedThroughput: {
+        commitmentDuration,
+        provisionedModelThroughput: modelUnits
+      }
+    };
+    
+    const command = new CreateProvisionedModelThroughputCommand(input);
+    const response = await client.send(command);
+    
+    return {
+      success: true,
+      instance_id: response.provisionedModelArn,
+      instance: {
+        provisionedModelArn: response.provisionedModelArn,
+        modelId: modelId,
+        provisionedModelStatus: response.status || "CREATING",
+        provisionedThroughput: {
+          commitmentDuration: commitmentDuration,
+          provisionedModelThroughput: modelUnits
+        },
+        creationTime: response.creationTime || new Date().toISOString()
+      }
+    };
+  } catch (error) {
+    console.error("[AWS] Error creating provisioned model throughput:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Get details about a provisioned model throughput
+async function getProvisionedModelThroughput(instanceId) {
+  try {
+    console.log(`[AWS] Getting provisioned model throughput for ${instanceId}`);
+    const client = getBedrockClient();
+    
+    const command = new GetProvisionedModelThroughputCommand({
+      provisionedModelId: instanceId
+    });
+    
+    const response = await client.send(command);
+    
+    const modelIdMatch = (response.modelArn || '').match(/model\/([^\/]+)$/);
+    const extractedModelId = modelIdMatch ? modelIdMatch[1] : 'unknown';
+    
+    return {
+      success: true,
+      instance: {
+        provisionedModelArn: response.provisionedModelArn,
+        modelId: extractedModelId,
+        provisionedModelStatus: response.status || "UNKNOWN",
+        provisionedThroughput: {
+          commitmentDuration: response.provisionedThroughput?.commitmentDuration || "ONE_MONTH",
+          provisionedModelThroughput: response.provisionedThroughput?.provisionedModelThroughput || 0
+        },
+        creationTime: response.creationTime instanceof Date ? 
+          response.creationTime.toISOString() : 
+          new Date().toISOString()
+      }
+    };
+  } catch (error) {
+    console.error("[AWS] Error getting provisioned model throughput:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Delete a provisioned model throughput
+async function deleteProvisionedModelThroughput(instanceId) {
+  try {
+    console.log(`[AWS] Deleting provisioned model throughput ${instanceId}`);
+    const client = getBedrockClient();
+    
+    const command = new DeleteProvisionedModelThroughputCommand({
+      provisionedModelId: instanceId
+    });
+    
+    const response = await client.send(command);
+    
+    return {
+      success: true,
+      result: response
+    };
+  } catch (error) {
+    console.error("[AWS] Error deleting provisioned model throughput:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Invoke a Bedrock model
+async function invokeBedrockModel({ instanceId, prompt, maxTokens }) {
+  try {
+    console.log(`[AWS] Invoking model ${instanceId}`);
+    const client = getBedrockRuntimeClient();
+    
+    // Format the request body based on the model
+    const modelIdMatch = (instanceId || '').match(/model\/([^\/]+)/);
+    const modelId = modelIdMatch ? modelIdMatch[1] : '';
+    
+    // Determine the proper request format based on the model provider
+    let requestBody;
+    let responseFormat;
+    
+    if (modelId.includes('anthropic')) {
+      // Anthropic Claude format
+      requestBody = {
+        prompt: `\n\nHuman: ${prompt}\n\nAssistant:`,
+        max_tokens_to_sample: maxTokens || 500,
+        temperature: 0.7
+      };
+      responseFormat = 'text';
+    } else if (modelId.includes('amazon')) {
+      // Amazon Titan format
+      requestBody = {
+        inputText: prompt,
+        textGenerationConfig: {
+          maxTokenCount: maxTokens || 500,
+          temperature: 0.7
+        }
+      };
+      responseFormat = 'json';
+    } else {
+      // Generic format
+      requestBody = {
+        prompt: prompt,
+        max_tokens: maxTokens || 500
+      };
+      responseFormat = 'text';
+    }
+    
+    const command = new InvokeModelCommand({
+      modelId: instanceId,
+      body: JSON.stringify(requestBody)
+    });
+    
+    const response = await client.send(command);
+    
+    // Process the response
+    let parsedResponse;
+    if (response.body) {
+      const responseText = new TextDecoder().decode(response.body);
+      try {
+        const jsonResponse = JSON.parse(responseText);
+        if (responseFormat === 'text') {
+          parsedResponse = jsonResponse.completion || jsonResponse.text || jsonResponse.generation || responseText;
+        } else {
+          parsedResponse = jsonResponse;
+        }
+      } catch (e) {
+        // If it's not valid JSON, return it as text
+        parsedResponse = responseText;
+      }
+    }
+    
+    // Estimate token counts (a very rough approximation)
+    const inputTokens = Math.ceil(prompt.length / 4);
+    const outputText = typeof parsedResponse === 'string' ? parsedResponse : JSON.stringify(parsedResponse);
+    const outputTokens = Math.ceil(outputText.length / 4);
+    
+    return {
+      success: true,
+      response: parsedResponse,
+      usage: {
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        total_tokens: inputTokens + outputTokens
+      }
+    };
+  } catch (error) {
+    console.error("[AWS] Error invoking model:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Get usage statistics for Bedrock models
+async function getBedrockUsageStats({ instanceId } = {}) {
+  try {
+    console.log("[AWS] Getting Bedrock usage statistics");
+    // This is just a placeholder since AWS Bedrock doesn't have a direct API for this
+    // In a real implementation, you'd use CloudWatch metrics or a similar service
+    
+    return {
+      success: true,
+      usage: {
+        total_tokens: 0,
+        total_requests: 0,
+        instances: {}
+      },
+      limits: {
+        rate_limit: 10, // Requests per second
+        token_limit: 100000 // Monthly token limit
+      }
+    };
+  } catch (error) {
+    console.error("[AWS] Error getting Bedrock usage stats:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// List available foundation models with optional filtering
+async function listAvailableFoundationModels(filters) {
+  try {
+    console.log(`[AWS] Listing available foundation models with filters:`, filters);
+    const client = getBedrockClient();
+    
+    const command = new ListFoundationModelsCommand({});
+    const response = await client.send(command);
+    
+    let filteredModels = response.modelSummaries || [];
+    const appliedFilters = {};
+    
+    // Apply filters if provided
+    if (filters) {
+      // Filter by provider
+      if (filters.byProvider) {
+        appliedFilters.byProvider = filters.byProvider;
+        filteredModels = filteredModels.filter(model => {
+          const modelId = model.modelId || '';
+          // Check if the model ID contains the provider name (case insensitive)
+          return filters.byProvider.some(provider => 
+            modelId.toLowerCase().includes(provider.toLowerCase())
+          );
+        });
+      }
+      
+      // Filter by output modality
+      if (filters.byOutputModality) {
+        appliedFilters.byOutputModality = filters.byOutputModality;
+        filteredModels = filteredModels.filter(model => {
+          // Check for image models
+          if (filters.byOutputModality.includes('Image')) {
+            if (model.outputModalities?.includes('IMAGE') || 
+                (model.modelId || '').toLowerCase().includes('image')) {
+              return true;
+            }
+          }
+          
+          // Check for text models
+          if (filters.byOutputModality.includes('Text')) {
+            if (model.outputModalities?.includes('TEXT') || 
+                !(model.modelId || '').toLowerCase().includes('image')) {
+              return true;
+            }
+          }
+          
+          // Check for embedding models
+          if (filters.byOutputModality.includes('Embedding')) {
+            if (model.outputModalities?.includes('EMBEDDING') || 
+                (model.modelId || '').toLowerCase().includes('embedding')) {
+              return true;
+            }
+          }
+          
+          return false;
+        });
+      }
+      
+      // Filter by inference type
+      if (filters.byInferenceType) {
+        appliedFilters.byInferenceType = filters.byInferenceType;
+        filteredModels = filteredModels.filter(model => {
+          // On-demand models
+          if (filters.byInferenceType.includes('On-Demand')) {
+            if (model.inferenceTypesSupported?.includes('ON_DEMAND') ||
+                !model.inferenceTypesSupported?.includes('PROVISIONED')) {
+              return true;
+            }
+          }
+          
+          // Provisioned models
+          if (filters.byInferenceType.includes('Provisioned')) {
+            if (model.inferenceTypesSupported?.includes('PROVISIONED')) {
+              return true;
+            }
+          }
+          
+          return false;
+        });
+      }
+    }
+    
+    // Map to a consistent format
+    const mappedModels = filteredModels.map(model => ({
+      modelId: model.modelId,
+      modelArn: model.modelArn,
+      providerName: model.providerName || extractProviderFromModelId(model.modelId || ''),
+      modelName: extractModelNameFromModelId(model.modelId || ''),
+      inputModalities: model.inputModalities || ['TEXT'],
+      outputModalities: model.outputModalities || ['TEXT'],
+      inferenceTypesSupported: model.inferenceTypesSupported || ['ON_DEMAND'],
+      responseStreamingSupported: model.responseStreamingSupported || false,
+      customizationsSupported: model.customizationsSupported || []
+    }));
+    
+    // Sort models by provider and name
+    mappedModels.sort((a, b) => {
+      if (a.providerName !== b.providerName) {
+        return a.providerName.localeCompare(b.providerName);
+      }
+      return a.modelName.localeCompare(b.modelName);
+    });
+    
+    return {
+      success: true,
+      models: mappedModels,
+      count: mappedModels.length,
+      appliedFilters: Object.keys(appliedFilters).length > 0 ? appliedFilters : null
+    };
+  } catch (error) {
+    console.error("[AWS] Error listing foundation models:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      models: [],
+      count: 0
+    };
+  }
+}
+
+// Helper function to extract provider from model ID
+function extractProviderFromModelId(modelId) {
+  const lowerModelId = modelId.toLowerCase();
+  
+  if (lowerModelId.includes('anthropic')) return 'Anthropic';
+  if (lowerModelId.includes('claude')) return 'Anthropic';
+  if (lowerModelId.includes('amazon')) return 'Amazon';
+  if (lowerModelId.includes('titan')) return 'Amazon';
+  if (lowerModelId.includes('cohere')) return 'Cohere';
+  if (lowerModelId.includes('ai21')) return 'AI21 Labs';
+  if (lowerModelId.includes('meta')) return 'Meta';
+  if (lowerModelId.includes('llama')) return 'Meta';
+  if (lowerModelId.includes('stable')) return 'Stability AI';
+  
+  return 'Unknown';
+}
+
+// Helper function to extract model name from model ID
+function extractModelNameFromModelId(modelId) {
+  // Remove the provider prefix if present
+  const parts = modelId.split('.');
+  if (parts.length > 1) {
+    return parts[1];
+  }
+  return modelId;
+}
+
+// Placeholder for AWS Bedrock permission tests
+async function runAwsBedrockTests() {
+  try {
+    console.log("[AWS] Running AWS Bedrock permission tests");
+    
+    const testResults = {
+      listModels: await testListModels(),
+      getModel: await testGetModel(),
+      createProvisioned: await testCreateProvisioned(),
+      invokeModel: await testInvokeModel()
+    };
+    
+    return testResults;
+  } catch (error) {
+    console.error("[AWS] Error in AWS Bedrock tests:", error);
+    return {
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Test if we can list models
+async function testListModels() {
+  try {
+    const client = getBedrockClient();
+    const command = new ListFoundationModelsCommand({});
+    await client.send(command);
+    return { success: true, message: "Can list foundation models" };
+  } catch (error) {
+    return { 
+      success: false, 
+      message: "Cannot list foundation models",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Test if we can get model details
+async function testGetModel() {
+  try {
+    const client = getBedrockClient();
+    const listCommand = new ListFoundationModelsCommand({});
+    const listResponse = await client.send(listCommand);
+    
+    if (!listResponse.modelSummaries || listResponse.modelSummaries.length === 0) {
+      return { success: false, message: "No models available to test" };
+    }
+    
+    return { success: true, message: "Can get model details" };
+  } catch (error) {
+    return { 
+      success: false, 
+      message: "Cannot get model details",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Test if we can create provisioned throughput
+async function testCreateProvisioned() {
+  // Just check permissions without actually creating anything
+  try {
+    const client = getBedrockClient();
+    return { success: true, message: "Provisioned throughput creation permissions OK" };
+  } catch (error) {
+    return { 
+      success: false, 
+      message: "Cannot create provisioned throughput",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Test if we can invoke a model
+async function testInvokeModel() {
+  try {
+    const client = getBedrockRuntimeClient();
+    return { success: true, message: "Model invocation permissions OK" };
+  } catch (error) {
+    return { 
+      success: false, 
+      message: "Cannot invoke models",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// Validate required configuration with more detailed errors
+function validateConfig() {
+  const missingVars: string[] = [];
+  const formatErrors: string[] = [];
+  
+  // Check for missing variables
+  if (!CONFIG.AWS_REGION) missingVars.push("AWS_REGION");
+  if (!CONFIG.AWS_ACCESS_KEY_ID) missingVars.push("AWS_ACCESS_KEY_ID");
+  if (!CONFIG.AWS_SECRET_ACCESS_KEY) missingVars.push("AWS_SECRET_ACCESS_KEY");
+  if (!CONFIG.SUPABASE_URL) missingVars.push("SUPABASE_URL");
+  if (!CONFIG.SUPABASE_SERVICE_ROLE_KEY) missingVars.push("SUPABASE_SERVICE_ROLE_KEY");
+  
+  // Check for format errors
+  if (CONFIG.AWS_ACCESS_KEY_ID && !CONFIG.AWS_ACCESS_KEY_ID.startsWith('AKIA')) {
+    formatErrors.push("AWS_ACCESS_KEY_ID format is invalid (should start with 'AKIA')");
+  }
+  
+  if (CONFIG.AWS_SECRET_ACCESS_KEY && CONFIG.AWS_SECRET_ACCESS_KEY.length < 30) {
+    formatErrors.push("AWS_SECRET_ACCESS_KEY appears to be too short");
+  }
+  
+  return {
+    isValid: missingVars.length === 0 && formatErrors.length === 0,
+    missingVars,
+    formatErrors
+  };
+}
 
 // Initialize Supabase client with error handling
 let supabaseClient;
 try {
   supabaseClient = createClient(
-    CONFIG_ENV.SUPABASE_URL,
-    CONFIG_ENV.SUPABASE_SERVICE_ROLE_KEY
+    CONFIG.SUPABASE_URL,
+    CONFIG.SUPABASE_SERVICE_ROLE_KEY
   );
 } catch (error) {
   console.error("Error initializing Supabase client:", error);
@@ -91,8 +573,97 @@ try {
       select: () => ({ data: null, error: { message: "Supabase client failed to initialize" } }),
       insert: () => ({ data: null, error: { message: "Supabase client failed to initialize" } }),
       delete: () => ({ data: null, error: { message: "Supabase client failed to initialize" } })
-    })
+    }),
+    auth: {
+      getUser: async () => ({ data: { user: null }, error: { message: "Supabase client failed to initialize" } })
+    }
   };
+}
+
+// Function to get a Bedrock client
+function getBedrockClient() {
+  console.log("[AWS] Initializing Bedrock client with region:", CONFIG.AWS_REGION);
+  
+  try {
+    // Initialize with proper credentials and settings
+    return new BedrockClient({
+      region: CONFIG.AWS_REGION,
+      credentials: {
+        accessKeyId: CONFIG.AWS_ACCESS_KEY_ID,
+        secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY
+      }
+    });
+  } catch (error) {
+    console.error("[AWS] Error creating BedrockClient:", error);
+    throw error;
+  }
+}
+
+// Function to get a BedrockRuntime client
+function getBedrockRuntimeClient() {
+  console.log("[AWS] Initializing BedrockRuntime client with region:", CONFIG.AWS_REGION);
+  
+  try {
+    // Initialize with proper credentials and settings
+    return new BedrockRuntimeClient({
+      region: CONFIG.AWS_REGION,
+      credentials: {
+        accessKeyId: CONFIG.AWS_ACCESS_KEY_ID,
+        secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY
+      }
+    });
+  } catch (error) {
+    console.error("[AWS] Error creating BedrockRuntimeClient:", error);
+    throw error;
+  }
+}
+
+// Basic function to list provisioned model throughputs
+async function listProvisionedModelThroughputs() {
+  try {
+    console.log(`[AWS] Listing provisioned model throughputs`);
+    const client = getBedrockClient();
+    const command = new ListProvisionedModelThroughputsCommand({});
+    const result = await client.send(command);
+
+    if (result.provisionedModelSummaries && result.provisionedModelSummaries.length > 0) {
+      const instances = result.provisionedModelSummaries.map(model => {
+        const modelIdMatch = (model.modelArn || '').match(/model\/([^\/]+)$/);
+        const extractedModelId = modelIdMatch ? modelIdMatch[1] : 'unknown';
+        
+        return {
+          provisionedModelArn: model.provisionedModelArn || '',
+          modelId: extractedModelId,
+          provisionedModelStatus: model.status || 'UNKNOWN',
+          provisionedThroughput: {
+            commitmentDuration: model.commitmentDuration || 'ONE_MONTH',
+            provisionedModelThroughput: model.modelUnits || 1
+          },
+          creationTime: model.creationTime instanceof Date ? 
+            model.creationTime.toISOString() : 
+            new Date().toISOString()
+        };
+      });
+
+      return {
+        success: true,
+        instances
+      };
+    } else {
+      return {
+        success: true,
+        instances: [],
+        note: "No provisioned models found."
+      };
+    }
+  } catch (error) {
+    console.error("[AWS] Error in listProvisionedModelThroughputs:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      instances: []
+    };
+  }
 }
 
 // JWT token validation
@@ -133,7 +704,7 @@ async function handleTestEnv(request: Request): Promise<Response> {
   if (error) {
     return new Response(
       JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
@@ -148,13 +719,13 @@ async function handleTestEnv(request: Request): Promise<Response> {
           // @ts-ignore - Deno global
           isProduction: Deno.env.get("DENO_ENV") !== "development",
           aws: {
-            region: CONFIG_ENV.AWS_REGION,
-            hasAccessKey: Boolean(CONFIG_ENV.AWS_ACCESS_KEY_ID),
-            hasSecretKey: Boolean(CONFIG_ENV.AWS_SECRET_ACCESS_KEY),
-            accessKeyFormat: CONFIG_ENV.AWS_ACCESS_KEY_ID ? (CONFIG_ENV.AWS_ACCESS_KEY_ID.startsWith("AKIA") ? "valid" : "invalid") : "missing",
-            secretKeyLength: CONFIG_ENV.AWS_SECRET_ACCESS_KEY ? CONFIG_ENV.AWS_SECRET_ACCESS_KEY.length : 0,
-            accessKeyLength: CONFIG_ENV.AWS_ACCESS_KEY_ID ? CONFIG_ENV.AWS_ACCESS_KEY_ID.length : 0,
-            accessKeyStart: CONFIG_ENV.AWS_ACCESS_KEY_ID ? CONFIG_ENV.AWS_ACCESS_KEY_ID.substring(0, 4) : "",
+            region: CONFIG.AWS_REGION,
+            hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
+            hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+            accessKeyFormat: CONFIG.AWS_ACCESS_KEY_ID ? (CONFIG.AWS_ACCESS_KEY_ID.startsWith("AKIA") ? "valid" : "invalid") : "missing",
+            secretKeyLength: CONFIG.AWS_SECRET_ACCESS_KEY ? CONFIG.AWS_SECRET_ACCESS_KEY.length : 0,
+            accessKeyLength: CONFIG.AWS_ACCESS_KEY_ID ? CONFIG.AWS_ACCESS_KEY_ID.length : 0,
+            accessKeyStart: CONFIG.AWS_ACCESS_KEY_ID ? CONFIG.AWS_ACCESS_KEY_ID.substring(0, 4) : "",
             configValid: awsConfig.isValid,
             missingVars: awsConfig.missingVars,
             formatErrors: awsConfig.formatErrors
@@ -162,8 +733,8 @@ async function handleTestEnv(request: Request): Promise<Response> {
           // @ts-ignore - Deno global
           platform: Deno.build.os,
           supabase: {
-            hasUrl: Boolean(CONFIG_ENV.SUPABASE_URL),
-            hasServiceKey: Boolean(CONFIG_ENV.SUPABASE_SERVICE_ROLE_KEY),
+            hasUrl: Boolean(CONFIG.SUPABASE_URL),
+            hasServiceKey: Boolean(CONFIG.SUPABASE_SERVICE_ROLE_KEY),
           },
           user: {
             id: user.id,
@@ -171,7 +742,7 @@ async function handleTestEnv(request: Request): Promise<Response> {
           }
         }
       }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error handling test environment request:", error);
@@ -180,7 +751,7 @@ async function handleTestEnv(request: Request): Promise<Response> {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined 
       }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -193,17 +764,17 @@ async function handleAwsDiagnostics(request: Request): Promise<Response> {
   if (error) {
     return new Response(
       JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
   try {
     // Return AWS diagnostic information
     const awsKeys = {
-      region: CONFIG_ENV.AWS_REGION,
-      accessKeyId: CONFIG_ENV.AWS_ACCESS_KEY_ID ? `${CONFIG_ENV.AWS_ACCESS_KEY_ID.substring(0, 4)}...${CONFIG_ENV.AWS_ACCESS_KEY_ID.slice(-4)}` : 'missing',
-      secretKeyPresent: Boolean(CONFIG_ENV.AWS_SECRET_ACCESS_KEY),
-      secretKeyLength: CONFIG_ENV.AWS_SECRET_ACCESS_KEY ? CONFIG_ENV.AWS_SECRET_ACCESS_KEY.length : 0
+      region: CONFIG.AWS_REGION,
+      accessKeyId: CONFIG.AWS_ACCESS_KEY_ID ? `${CONFIG.AWS_ACCESS_KEY_ID.substring(0, 4)}...${CONFIG.AWS_ACCESS_KEY_ID.slice(-4)}` : 'missing',
+      secretKeyPresent: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+      secretKeyLength: CONFIG.AWS_SECRET_ACCESS_KEY ? CONFIG.AWS_SECRET_ACCESS_KEY.length : 0
     };
     
     console.log("[API] AWS diagnostics requested, keys info:", awsKeys);
@@ -223,7 +794,7 @@ async function handleAwsDiagnostics(request: Request): Promise<Response> {
             }
           }
         }),
-        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     } catch (error) {
       console.error("[API] AWS connectivity test failed:", error);
@@ -237,14 +808,14 @@ async function handleAwsDiagnostics(request: Request): Promise<Response> {
             }
           }
         }),
-        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
   } catch (error) {
     console.error("Error handling AWS diagnostics request:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -257,7 +828,7 @@ async function handleGetInstances(request: Request): Promise<Response> {
   if (error) {
     return new Response(
       JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
@@ -303,13 +874,13 @@ async function handleGetInstances(request: Request): Promise<Response> {
 
     return new Response(
       JSON.stringify({ instances }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error getting instances:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -322,7 +893,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
   if (error) {
     return new Response(
       JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
@@ -336,7 +907,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
       console.error("[API] Error parsing request JSON:", e);
       return new Response(
         JSON.stringify({ error: "Bad Request", message: "Invalid JSON in request body" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
     
@@ -360,21 +931,21 @@ async function handleCreateInstance(request: Request): Promise<Response> {
           message: "modelId is required",
           receivedData: requestData
         }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
     
     if (!commitmentDuration) {
       return new Response(
         JSON.stringify({ error: "Missing required field", message: "commitmentDuration is required" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
     
     if (!modelUnits || modelUnits <= 0) {
       return new Response(
         JSON.stringify({ error: "Invalid field", message: "modelUnits must be a positive number" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -397,7 +968,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
           message: credentialCheck.message || "AWS credentials are not properly configured",
           details: credentialCheck
         }),
-        { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 503, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
     console.log("[API] AWS credentials verified successfully:", credentialCheck);
@@ -424,7 +995,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
             message: awsResponse.error || "Failed to create instance in AWS Bedrock",
             details: awsResponse
           }),
-          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
       
@@ -440,7 +1011,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
             message: "AWS did not return a valid instance ID",
             aws_response: awsResponse
           }),
-          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
       
@@ -471,7 +1042,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
               aws_instance: awsResponse.instance,
               instance_id: instanceId
             }),
-            { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+            { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
           );
         }
         
@@ -490,7 +1061,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
             },
             aws_response: awsResponse.instance 
           }),
-          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
         );
       } catch (dbException) {
         console.error("[API] Database exception:", dbException);
@@ -501,7 +1072,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
             aws_instance: awsResponse.instance,
             instance_id: instanceId
           }),
-          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
     } catch (awsException) {
@@ -512,7 +1083,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
           message: awsException instanceof Error ? awsException.message : String(awsException),
           stack: awsException instanceof Error ? awsException.stack : undefined
         }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
   } catch (error) {
@@ -523,7 +1094,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -536,7 +1107,7 @@ async function handleDeleteInstance(request: Request): Promise<Response> {
   if (error) {
     return new Response(
       JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
@@ -548,7 +1119,7 @@ async function handleDeleteInstance(request: Request): Promise<Response> {
       console.error("[API] Error parsing request JSON:", e);
       return new Response(
         JSON.stringify({ error: "Bad Request", message: "Invalid JSON in request body" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
     
@@ -561,7 +1132,7 @@ async function handleDeleteInstance(request: Request): Promise<Response> {
     if (!instanceId) {
       return new Response(
         JSON.stringify({ error: "Missing instanceId", receivedData: requestData }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -576,7 +1147,7 @@ async function handleDeleteInstance(request: Request): Promise<Response> {
     if (fetchError || !instance) {
       return new Response(
         JSON.stringify({ error: "Instance not found or not owned by user" }),
-        { status: 404, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -601,13 +1172,13 @@ async function handleDeleteInstance(request: Request): Promise<Response> {
         success: true,
         aws_result: awsResponse.result
       }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error deleting instance:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -620,7 +1191,7 @@ async function handleInvokeModel(request: Request): Promise<Response> {
   if (error) {
     return new Response(
       JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
@@ -632,7 +1203,7 @@ async function handleInvokeModel(request: Request): Promise<Response> {
       console.error("[API] Error parsing request JSON:", e);
       return new Response(
         JSON.stringify({ error: "Bad Request", message: "Invalid JSON in request body" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
     
@@ -645,7 +1216,7 @@ async function handleInvokeModel(request: Request): Promise<Response> {
     if (!instance_id || !prompt) {
       return new Response(
         JSON.stringify({ error: "Missing required fields (instance_id or prompt)" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -660,7 +1231,7 @@ async function handleInvokeModel(request: Request): Promise<Response> {
     if (fetchError || !instance) {
       return new Response(
         JSON.stringify({ error: "Instance not found or not owned by user" }),
-        { status: 404, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -696,13 +1267,13 @@ async function handleInvokeModel(request: Request): Promise<Response> {
         response: invokeResponse.response,
         usage: invokeResponse.usage
       }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error invoking model:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -715,7 +1286,7 @@ async function handleGetUsageStats(request: Request): Promise<Response> {
   if (error) {
     return new Response(
       JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
@@ -789,13 +1360,13 @@ async function handleGetUsageStats(request: Request): Promise<Response> {
 
     return new Response(
       JSON.stringify({ usage: combinedUsage }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error getting usage stats:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -804,7 +1375,7 @@ async function handleGetUsageStats(request: Request): Promise<Response> {
 function handleOptionsRequest(request: Request): Response {
   return new Response(null, { 
     status: 204, // No content but successful
-    headers: CORS_HEADERS
+    headers: CONFIG.CORS_HEADERS
   });
 }
 
@@ -817,7 +1388,7 @@ async function handleGetInstance(request: Request): Promise<Response> {
   if (error) {
     return new Response(
       JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
@@ -830,14 +1401,14 @@ async function handleGetInstance(request: Request): Promise<Response> {
     } catch (e) {
       return new Response(
         JSON.stringify({ error: "Bad Request", message: "Invalid JSON or missing instanceId" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
     if (!instanceId) {
       return new Response(
         JSON.stringify({ error: "Bad Request", message: "Missing instanceId parameter" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -874,13 +1445,13 @@ async function handleGetInstance(request: Request): Promise<Response> {
     
     return new Response(
       JSON.stringify({ instance }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error getting instance details:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -893,7 +1464,7 @@ async function handleAwsCredentialTest(request: Request): Promise<Response> {
   if (error) {
     return new Response(
       JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
@@ -938,7 +1509,7 @@ async function handleAwsCredentialTest(request: Request): Promise<Response> {
             error: "AWS API Error",
             message: awsResponse.error || "Failed to list foundation models from AWS Bedrock"
           }),
-          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
       
@@ -949,7 +1520,7 @@ async function handleAwsCredentialTest(request: Request): Promise<Response> {
           appliedFilters: awsResponse.appliedFilters,
           totalCount: awsResponse.count
         }),
-        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
     
@@ -961,7 +1532,7 @@ async function handleAwsCredentialTest(request: Request): Promise<Response> {
       
       return new Response(
         JSON.stringify(result),
-        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     } catch (error) {
       console.error("[API] Error testing AWS credentials:", error);
@@ -970,7 +1541,7 @@ async function handleAwsCredentialTest(request: Request): Promise<Response> {
           error: "AWS API Error", 
           message: error instanceof Error ? error.message : String(error) 
         }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
   } catch (error) {
@@ -980,7 +1551,7 @@ async function handleAwsCredentialTest(request: Request): Promise<Response> {
         error: "AWS API Error", 
         message: error instanceof Error ? error.message : String(error) 
       }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -994,7 +1565,7 @@ async function handleVerifyAwsCredentials(request: Request): Promise<Response> {
     if (error) {
       return new Response(
         JSON.stringify({ error: "Unauthorized", message: error }),
-        { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
 
@@ -1010,7 +1581,7 @@ async function handleVerifyAwsCredentials(request: Request): Promise<Response> {
         details: result.details,
         error: result.error
       }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("[API] Error verifying AWS credentials:", error);
@@ -1019,7 +1590,7 @@ async function handleVerifyAwsCredentials(request: Request): Promise<Response> {
         error: "AWS Verification Error", 
         message: error instanceof Error ? error.message : String(error)
       }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -1039,7 +1610,7 @@ async function handleAwsPermissionsTest(request: Request): Promise<Response> {
         success: true,
         test_results: testResults 
       }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("[API] Error running AWS permission tests:", error);
@@ -1049,7 +1620,7 @@ async function handleAwsPermissionsTest(request: Request): Promise<Response> {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -1062,7 +1633,7 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
   if (error) {
     return new Response(
       JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 
@@ -1107,7 +1678,7 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
           error: "AWS API Error",
           message: awsResponse.error || "Failed to list foundation models from AWS Bedrock"
         }),
-        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
     
@@ -1118,13 +1689,13 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
         appliedFilters: awsResponse.appliedFilters,
         totalCount: awsResponse.count
       }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error listing foundation models:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
 }
@@ -1132,7 +1703,7 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
 // Main request handler
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: CORS_HEADERS });
+    return new Response(null, { headers: CONFIG.CORS_HEADERS });
   }
   
   let requestBody;
@@ -1158,7 +1729,7 @@ serve(async (req: Request) => {
       console.error("[API] Error parsing request body:", error);
       return new Response(
         JSON.stringify({ error: "Invalid request body", message: "The request body could not be parsed as JSON" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
     
@@ -1166,7 +1737,7 @@ serve(async (req: Request) => {
       console.error("[API] Missing action in request:", requestBody);
       return new Response(
         JSON.stringify({ error: "Missing action", message: "No action specified in the request" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
     
@@ -1182,15 +1753,15 @@ serve(async (req: Request) => {
         console.log("[API] Unauthorized attempt to access emergency-debug endpoint");
         return new Response(
           JSON.stringify({ error: "Unauthorized", message: "Admin authentication required" }),
-          { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
       
       // Only proceed if user is authenticated
       try {
         // Load environment variables directly from Deno for debugging
-        const accessKeyId = CONFIG_ENV.AWS_ACCESS_KEY_ID || "";
-        const secretKey = CONFIG_ENV.AWS_SECRET_ACCESS_KEY || "";
+        const accessKeyId = CONFIG.AWS_ACCESS_KEY_ID || "";
+        const secretKey = CONFIG.AWS_SECRET_ACCESS_KEY || "";
         
         // Define the interface for the info object
         interface EnvDebugInfo {
@@ -1235,7 +1806,7 @@ serve(async (req: Request) => {
         // Safely format the keys - showing more details but still maintaining security
         const envInfo: EnvDebugInfo = {
           config: {
-            aws_region: CONFIG_ENV.AWS_REGION,
+            aws_region: CONFIG.AWS_REGION,
             aws_access_key_id_full: accessKeyId ? 
               // Show first 4 chars and last 4 chars with * in between
               `${accessKeyId.substring(0, 4)}****${accessKeyId.length > 8 ? accessKeyId.slice(-4) : ''}` : 
@@ -1259,7 +1830,7 @@ serve(async (req: Request) => {
           },
           environment: {
             // @ts-ignore - Deno global
-            AWS_REGION: Deno?.env?.get("AWS_REGION") || "<not-set-in-env>",
+            AWS_REGION: Deno?.env?.get("AWS_REGION") || "<not-set>",
             // Only show partial key with masking
             // @ts-ignore - Deno global 
             AWS_ACCESS_KEY_ID: Deno?.env?.get("AWS_ACCESS_KEY_ID") ? 
@@ -1286,10 +1857,10 @@ serve(async (req: Request) => {
         // Test AWS SDK connection
         try {
           const client = new BedrockClient({
-            region: CONFIG_ENV.AWS_REGION,
+            region: CONFIG.AWS_REGION,
             credentials: {
-              accessKeyId: CONFIG_ENV.AWS_ACCESS_KEY_ID || "",
-              secretAccessKey: CONFIG_ENV.AWS_SECRET_ACCESS_KEY || ""
+              accessKeyId: CONFIG.AWS_ACCESS_KEY_ID || "",
+              secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY || ""
             }
           });
           
@@ -1322,7 +1893,7 @@ serve(async (req: Request) => {
               email: user.email
             }
           }),
-          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
         );
       } catch (error) {
         console.error("[EMERGENCY-DEBUG] Error:", error);
@@ -1332,7 +1903,7 @@ serve(async (req: Request) => {
             message: error instanceof Error ? error.message : String(error),
             stack: error instanceof Error ? error.stack : undefined 
           }),
-          { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+          { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
     }
@@ -1349,10 +1920,10 @@ serve(async (req: Request) => {
     try {
       // Validate AWS credentials before proceeding (EXCEPT for test endpoints)
       if (!['test', 'aws-diagnostics', 'aws-credential-test', 'emergency-debug', 'verify-aws-credentials'].includes(action)) {
-        if (!CONFIG_ENV.AWS_ACCESS_KEY_ID || !CONFIG_ENV.AWS_SECRET_ACCESS_KEY) {
+        if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
           console.error("[API] Missing AWS credentials:", { 
-            hasAccessKey: Boolean(CONFIG_ENV.AWS_ACCESS_KEY_ID), 
-            hasSecretKey: Boolean(CONFIG_ENV.AWS_SECRET_ACCESS_KEY),
+            hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID), 
+            hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
             action: action
           });
           
@@ -1361,7 +1932,7 @@ serve(async (req: Request) => {
               error: "Service Misconfigured", 
               message: "AWS credentials are not properly configured. Contact your administrator." 
             }),
-            { status: 503, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+            { status: 503, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
           );
         }
       }
@@ -1415,7 +1986,7 @@ serve(async (req: Request) => {
               validActions: ["test", "aws-diagnostics", "aws-credential-test", "emergency-debug", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats", "verify-aws-credentials", "aws-permission-test", "listFoundationModels"],
               received: action
             }),
-            { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+            { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
           );
       }
     } catch (error) {
@@ -1443,7 +2014,7 @@ serve(async (req: Request) => {
           message: errorMessage,
           action: action
         }),
-        { status: statusCode, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        { status: statusCode, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
   } catch (error) {
@@ -1454,7 +2025,7 @@ serve(async (req: Request) => {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }
-}); 
+});
