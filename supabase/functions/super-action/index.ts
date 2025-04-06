@@ -9,7 +9,7 @@ import * as jose from 'https://esm.sh/jose@4.14.4';
 // Import AWS Bedrock functions
 // @ts-ignore - Deno-specific import
 import {
-  listAvailableFoundationModels,
+  listFoundationModels,
   listProvisionedModelThroughputs,
   createProvisionedModelThroughput,
   getProvisionedModelThroughput,
@@ -1103,7 +1103,7 @@ async function handleAwsCredentialTest(request: Request): Promise<Response> {
       
       // Call AWS to list all available foundation models with optional filters
       console.log("[API] Listing foundation models with filters:", filters);
-      const awsResponse = await listAvailableFoundationModels(
+      const awsResponse = await listFoundationModels(
         Object.keys(filters).length > 0 ? filters : undefined
       );
       
@@ -1280,7 +1280,7 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
     
     // Call AWS to list all available foundation models with optional filters
     console.log("[API] Listing foundation models with filters:", filters);
-    const awsResponse = await listAvailableFoundationModels(
+    const awsResponse = await listFoundationModels(
       Object.keys(filters).length > 0 ? filters : undefined
     );
     

@@ -44,8 +44,8 @@ function getBedrockRuntimeClient() {
   });
 }
 
-// List available foundation models with optional filtering
-export async function listAvailableFoundationModels(filters?: any) {
+// List foundation models
+export async function listFoundationModels(filters?: any) {
   try {
     console.log(`[AWS] Listing available foundation models with filters:`, filters);
     const client = getBedrockClient();
