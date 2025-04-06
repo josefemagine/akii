@@ -313,7 +313,575 @@ const modelFilters: ModelFilter[] = [
   }
 ];
 
-// Main component
+// Create a component for model filters
+const ModelFilters = ({ activeFilters, setActiveFilters, loadingModels, fetchAvailableModels }) => {
+  const handleFilterChange = (filterKey: string, value: string) => {
+    setActiveFilters(prev => {
+      // If value is empty, remove the filter
+      if (!value) {
+        const newFilters = { ...prev };
+        delete newFilters[filterKey];
+        return newFilters;
+      }
+      // Otherwise set the new filter value
+      return { ...prev, [filterKey]: value };
+    });
+  };
+
+  const clearFilters = () => {
+    setActiveFilters({});
+  };
+
+  return (
+    <div className="p-4 border rounded-md mb-4">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Filter Models</h3>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={clearFilters}
+          disabled={Object.keys(activeFilters).length === 0}
+        >
+          Clear Filters
+        </Button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {modelFilters.map(filter => (
+          <div key={filter.key} className="space-y-2">
+            <Label htmlFor={filter.key}>{filter.label}</Label>
+            <Select
+              value={activeFilters[filter.key] || ''}
+              onValueChange={(value) => handleFilterChange(filter.key, value)}
+            >
+              <SelectTrigger id={filter.key}>
+                <SelectValue placeholder={`All ${filter.label}s`} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All {filter.label}s</SelectItem>
+                {filter.options.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+      
+      <div className="mt-4 flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={loadingModels}
+          onClick={(e) => {
+            e.preventDefault();
+            fetchAvailableModels(activeFilters);
+          }}
+        >
+          {loadingModels ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// Create ApiConfiguration component
+const ApiConfiguration = ({ 
+  connectionStatus,
+  authStatus,
+  handleLogin,
+  checkAuthStatus,
+  fetchDetailedTestData,
+  fetchEnvironmentDiagnostics,
+  refreshInstances,
+  testingConnection,
+  refreshing
+}) => (
+  <Card className="mb-6">
+    <CardHeader>
+      <CardTitle>API Configuration</CardTitle>
+      <CardDescription>Current configuration and connection status</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <Label className="mb-1 block text-sm font-medium">API URL:</Label>
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            {BedrockConfig.isLocalDevelopment ? '/api/super-action' : BedrockConfig.edgeFunctionUrl}
+          </div>
+        </div>
+        
+        <div>
+          <Label className="mb-1 block text-sm font-medium">Edge Functions:</Label>
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            {BedrockConfig.useEdgeFunctions ? 'Enabled' : 'Disabled'}
+          </div>
+        </div>
+        
+        <div>
+          <Label className="mb-1 block text-sm font-medium">Environment:</Label>
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            {BedrockConfig.isProduction ? 'Production' : 'Development'}
+          </div>
+        </div>
+        
+        <div>
+          <Label className="mb-1 block text-sm font-medium">Function Name:</Label>
+          <div className="text-sm text-gray-700 dark:text-gray-300">{BedrockConfig.edgeFunctionName}</div>
+        </div>
+        
+        <div>
+          <Label className="mb-1 block text-sm font-medium">Authentication:</Label>
+          <div className="text-sm text-gray-700 dark:text-gray-300">Supabase JWT</div>
+        </div>
+        
+        <div>
+          <Label className="mb-1 block text-sm font-medium">Edge Function URL:</Label>
+          <div className="text-sm text-gray-700 dark:text-gray-300">{BedrockConfig.edgeFunctionUrl}</div>
+        </div>
+      </div>
+      
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div>
+          <Label className="mb-1 block text-sm font-medium">Connection:</Label>
+          <ConnectionStatusBadge status={connectionStatus} />
+        </div>
+        
+        <div>
+          <Label className="mb-1 block text-sm font-medium">Auth Status:</Label>
+          <div className="flex items-center gap-2">
+            <AuthStatusBadge status={authStatus} />
+            {authStatus === 'unauthenticated' && (
+              <Button variant="outline" size="sm" onClick={handleLogin}>
+                <LogIn className="h-4 w-4 mr-2" /> Log In
+              </Button>
+            )}
+            {(authStatus === 'authenticated' || authStatus === 'expired') && (
+              <Button variant="outline" size="sm" onClick={checkAuthStatus}>
+                <RefreshCw className="h-4 w-4 mr-2" /> Refresh Auth
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      <div className="flex justify-end gap-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={fetchDetailedTestData} 
+          disabled={testingConnection || authStatus !== 'authenticated'}
+        >
+          {testingConnection ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <TestTube className="h-4 w-4 mr-2" />
+          )}
+          Test Edge Function
+        </Button>
+        <Button variant="outline" size="sm" onClick={fetchEnvironmentDiagnostics}>
+          <Settings className="h-4 w-4 mr-2" /> Test Environment
+        </Button>
+        <Button variant="outline" size="sm" onClick={refreshInstances} disabled={refreshing}>
+          {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          Refresh
+        </Button>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+// Extract the main content into a separate component to simplify rendering logic
+const BedrockDashboardContent = ({ 
+  loading, 
+  refreshing, 
+  authStatus, 
+  error, 
+  connectionStatus, 
+  instances, 
+  testModalOpen, 
+  testData, 
+  setTestModalOpen, 
+  showDiagnostics, 
+  envDiagnostics, 
+  testingConnection, 
+  submitting, 
+  selectedPlan, 
+  selectedModelId, 
+  availableModels, 
+  loadingModels, 
+  showFilters, 
+  activeFilters, 
+  planConfig,
+  // Functions
+  checkAuthStatus,
+  handleLogin,
+  refreshInstances,
+  fetchEnvironmentDiagnostics,
+  fetchDetailedTestData,
+  fetchAvailableModels,
+  handleProvisionInstance,
+  handleDeleteInstance,
+  setShowFilters,
+  setActiveFilters,
+  setSelectedModelId,
+  setSelectedPlan,
+}) => {
+  
+  // Create a wrapper function for button clicks
+  const handleFetchModels = (e) => {
+    if (e) e.preventDefault();
+    fetchAvailableModels(activeFilters);
+  };
+  
+  // Render loading state
+  if (loading && !refreshing) {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">Bedrock AI Instances</h1>
+        <InstanceSkeleton />
+      </div>
+    );
+  }
+  
+  // Render auth required state
+  if (authStatus === 'unauthenticated' || authStatus === 'expired') {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">Bedrock AI Instances</h1>
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Authentication Required</CardTitle>
+            <CardDescription>
+              You need to be logged in to access Bedrock AI instances.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4">
+              Please log in with your Supabase account to access Bedrock AI instances.
+            </p>
+            <Button onClick={handleLogin}>
+              <LogIn className="mr-2 h-4 w-4" /> Log In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Bedrock AI Instances</h1>
+        
+        <div className="flex items-center gap-2">
+          <ConnectionStatusBadge status={connectionStatus} />
+          <AuthStatusBadge status={authStatus} />
+          <Button variant="outline" size="sm" onClick={checkAuthStatus} disabled={authStatus === 'checking'}>
+            {authStatus === 'checking' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            <span className="sr-only">Refresh Auth</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={refreshInstances} disabled={refreshing}>
+            {refreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            <span className="sr-only">Refresh</span>
+          </Button>
+        </div>
+      </div>
+      
+      <MockDataNotice />
+      
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      
+      <Tabs defaultValue="instances">
+        <TabsList className="mb-4">
+          <TabsTrigger value="instances">Instances</TabsTrigger>
+          <TabsTrigger value="create">Create Instance</TabsTrigger>
+          {showDiagnostics && (
+            <TabsTrigger value="diagnostics">API Diagnostics</TabsTrigger>
+          )}
+        </TabsList>
+        
+        <TabsContent value="instances">
+          <Card>
+            <CardHeader>
+              <CardTitle>Bedrock Instances</CardTitle>
+              <CardDescription>
+                Manage your provisioned AWS Bedrock AI models
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {instances.length === 0 ? (
+                <div className="text-center p-4">
+                  <p className="text-muted-foreground">No instances found. Create a new instance to get started.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">ID</th>
+                        <th className="text-left p-2">Model</th>
+                        <th className="text-left p-2">Status</th>
+                        <th className="text-left p-2">Units</th>
+                        <th className="text-left p-2">Created</th>
+                        <th className="text-left p-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {instances.map((instance) => (
+                        <tr key={instance.id} className="border-b hover:bg-muted/50">
+                          <td className="p-2">{instance.id}</td>
+                          <td className="p-2">{instance.model_id.split('.').pop()}</td>
+                          <td className="p-2"><StatusBadge status={instance.status} /></td>
+                          <td className="p-2">{instance.model_units}</td>
+                          <td className="p-2">{new Date(instance.created_at).toLocaleString()}</td>
+                          <td className="p-2">
+                            <Button variant="destructive" size="sm" onClick={() => handleDeleteInstance(instance.instance_id)}>
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="create">
+          <Card>
+            <CardHeader>
+              <CardTitle>Create Bedrock Instance</CardTitle>
+              <CardDescription>
+                Provision a new AWS Bedrock AI model
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-md font-medium">Model Selection</h3>
+                <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+                  {showFilters ? 'Hide Filters' : 'Show Filters'}
+                </Button>
+              </div>
+              
+              {showFilters && 
+                <ModelFilters 
+                  activeFilters={activeFilters}
+                  setActiveFilters={setActiveFilters}
+                  loadingModels={loadingModels}
+                  fetchAvailableModels={fetchAvailableModels}
+                />
+              }
+              
+              <div className="grid w-full gap-2">
+                <Label htmlFor="plan">Model</Label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Select 
+                      value={selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId} 
+                      onValueChange={setSelectedModelId}
+                    >
+                      <SelectTrigger id="model">
+                        <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model"} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-80 overflow-auto">
+                        {loadingModels ? (
+                          <SelectItem value="loading" disabled>Loading available models...</SelectItem>
+                        ) : availableModels.length > 0 ? (
+                          availableModels.map((model) => (
+                            <SelectItem key={model.modelId} value={model.modelId}>
+                              {model.providerName} - {model.modelName}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <>
+                            <SelectItem value="amazon.titan-text-lite-v1">Amazon - Titan Text Lite</SelectItem>
+                            <SelectItem value="amazon.titan-text-express-v1">Amazon - Titan Text Express</SelectItem>
+                            <SelectItem value="anthropic.claude-instant-v1">Anthropic - Claude Instant</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={handleFetchModels} 
+                    disabled={loadingModels || authStatus !== 'authenticated'}
+                    title="Refresh model list"
+                  >
+                    {loadingModels ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <div className="text-sm text-muted-foreground flex justify-between">
+                  <span>Select the AI model you want to provision.</span>
+                  <span>
+                    {availableModels.length > 0 ? (
+                      <>Showing {availableModels.length} model{availableModels.length !== 1 ? 's' : ''}</>
+                    ) : !loadingModels ? (
+                      <>No models found</>
+                    ) : null}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="grid w-full gap-2">
+                <Label htmlFor="model-details">Model Details</Label>
+                <div className="bg-muted rounded-md p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-sm font-medium">Model:</span>
+                    </div>
+                    <div>
+                      <span className="text-sm">
+                        {selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId || 'None selected'}
+                      </span>
+                    </div>
+                    
+                    <div>
+                      <span className="text-sm font-medium">Provider:</span>
+                    </div>
+                    <div>
+                      <span className="text-sm">
+                        {selectedModelId ? selectedModelId.split('.')[0] : 'Unknown'}
+                      </span>
+                    </div>
+                    
+                    {selectedModelId && availableModels.length > 0 && (
+                      <>
+                        <div>
+                          <span className="text-sm font-medium">Input Types:</span>
+                        </div>
+                        <div>
+                          <span className="text-sm">
+                            {availableModels.find(m => m.modelId === selectedModelId)?.inputModalities?.join(', ') || 'Not specified'}
+                          </span>
+                        </div>
+                        
+                        <div>
+                          <span className="text-sm font-medium">Output Types:</span>
+                        </div>
+                        <div>
+                          <span className="text-sm">
+                            {availableModels.find(m => m.modelId === selectedModelId)?.outputModalities?.join(', ') || 'Not specified'}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    
+                    <div>
+                      <span className="text-sm font-medium">Commitment:</span>
+                    </div>
+                    <div>
+                      <span className="text-sm">1 Month</span>
+                    </div>
+                    
+                    <div>
+                      <span className="text-sm font-medium">Model Units:</span>
+                    </div>
+                    <div>
+                      <span className="text-sm">1</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  These details will be used to provision your Bedrock instance.
+                </p>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleProvisionInstance} disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Provisioning...
+                  </>
+                ) : (
+                  'Create Instance'
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        {showDiagnostics && (
+          <TabsContent value="diagnostics">
+            <Card>
+              <CardHeader>
+                <CardTitle>API Diagnostics</CardTitle>
+                <CardDescription>
+                  Technical details about the API environment
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96">
+                  {JSON.stringify(envDiagnostics, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
+      
+      <ApiConfiguration 
+        connectionStatus={connectionStatus}
+        authStatus={authStatus}
+        handleLogin={handleLogin}
+        checkAuthStatus={checkAuthStatus}
+        fetchDetailedTestData={fetchDetailedTestData}
+        fetchEnvironmentDiagnostics={fetchEnvironmentDiagnostics}
+        refreshInstances={refreshInstances}
+        testingConnection={testingConnection}
+        refreshing={refreshing}
+      />
+      
+      {/* Add the AWS Permission Tester component */}
+      <AwsPermissionTester />
+      
+      {/* Add the test modal */}
+      <TestModal 
+        isOpen={testModalOpen} 
+        setIsOpen={setTestModalOpen} 
+        testData={testData} 
+      />
+    </div>
+  );
+};
+
+// Main component with simplified render method
 const SupabaseBedrock = () => {
   console.log("[DEBUG] Starting SupabaseBedrock component initialization");
   
@@ -353,15 +921,11 @@ const SupabaseBedrock = () => {
     try {
       setAuthStatus('checking');
       
-      if (authStatus !== 'authenticated') {
-        setAuthStatus('unauthenticated');
-        return false;
-      }
-      
-      // Get the current token
+      // Get the current token directly instead of relying on authStatus
       const token = await BedrockClient.getAuthToken();
       
       if (!token) {
+        console.log("No valid auth token available");
         toast({
           title: "Authentication Required",
           description: "Please log in to manage Bedrock instances",
@@ -371,6 +935,7 @@ const SupabaseBedrock = () => {
         return false;
       }
       
+      console.log("Valid auth token found, user is authenticated");
       setAuthStatus('authenticated');
       return true;
     } catch (error) {
@@ -702,25 +1267,79 @@ const SupabaseBedrock = () => {
     }
   };
   
-  // Initialize on component mount
+  // Initialize on component mount - use a ref to ensure it only runs once
   useEffect(() => {
-    checkAuthStatus().then(isAuth => {
-      if (isAuth) {
-        fetchInstances();
-        fetchEnvironmentDiagnostics();
-        fetchAvailableModels();
+    console.log("[DEBUG] Running initial useEffect");
+    let isMounted = true;
+    
+    const initialize = async () => {
+      try {
+        console.log("[DEBUG] Initializing component");
+        const isAuth = await checkAuthStatus();
+        
+        // Only proceed if component is still mounted
+        if (!isMounted) return;
+        
+        console.log("[DEBUG] Auth status result:", isAuth);
+        
+        if (isAuth) {
+          console.log("[DEBUG] User is authenticated, fetching data");
+          await fetchInstances();
+          await fetchEnvironmentDiagnostics();
+          await fetchAvailableModels();
+        } else {
+          console.log("[DEBUG] User is not authenticated");
+          // Make sure loading is set to false even if not authenticated
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("[DEBUG] Error in initialization:", err);
+        setLoading(false);
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
       }
-    });
+    };
+    
+    initialize();
+    
+    // Cleanup function to prevent state updates if unmounted
+    return () => {
+      isMounted = false;
+    };
   }, []);
   
   // Update effect to fetch models when filters change
   useEffect(() => {
-    if (authStatus === 'authenticated' && !loading) {
-      // This wraps the fetchAvailableModels call to avoid the type error
-      const fetchModels = () => {
-        fetchAvailableModels(activeFilters);
+    // Skip this effect on first render, let the initialization useEffect handle it
+    if (authStatus === 'unknown' || loading) {
+      return;
+    }
+    
+    console.log("[DEBUG] Filter change detected, authStatus:", authStatus);
+    
+    // Only fetch models if we're authenticated and not already loading
+    if (authStatus === 'authenticated') {
+      console.log("[DEBUG] Fetching models due to filter change:", activeFilters);
+      
+      let isMounted = true;
+      const fetchModels = async () => {
+        try {
+          await fetchAvailableModels(activeFilters);
+        } catch (err) {
+          console.error("[DEBUG] Error fetching models on filter change:", err);
+          // Only update state if still mounted
+          if (isMounted) {
+            setError(err instanceof Error ? err.message : String(err));
+          }
+        }
       };
+      
       fetchModels();
+      
+      return () => {
+        isMounted = false;
+      };
     }
   }, [activeFilters, authStatus, loading]);
   
@@ -831,508 +1450,43 @@ const SupabaseBedrock = () => {
     }
   };
   
-  // Show an API config section in the UI
-  const ApiConfiguration = () => (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle>API Configuration</CardTitle>
-        <CardDescription>Current configuration and connection status</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <Label className="mb-1 block text-sm font-medium">API URL:</Label>
-            <div className="text-sm text-gray-700 dark:text-gray-300">
-              {BedrockConfig.isLocalDevelopment ? '/api/super-action' : BedrockConfig.edgeFunctionUrl}
-            </div>
-          </div>
-          
-          <div>
-            <Label className="mb-1 block text-sm font-medium">Edge Functions:</Label>
-            <div className="text-sm text-gray-700 dark:text-gray-300">
-              {BedrockConfig.useEdgeFunctions ? 'Enabled' : 'Disabled'}
-            </div>
-          </div>
-          
-          <div>
-            <Label className="mb-1 block text-sm font-medium">Environment:</Label>
-            <div className="text-sm text-gray-700 dark:text-gray-300">
-              {BedrockConfig.isProduction ? 'Production' : 'Development'}
-            </div>
-          </div>
-          
-          <div>
-            <Label className="mb-1 block text-sm font-medium">Function Name:</Label>
-            <div className="text-sm text-gray-700 dark:text-gray-300">{BedrockConfig.edgeFunctionName}</div>
-          </div>
-          
-          <div>
-            <Label className="mb-1 block text-sm font-medium">Authentication:</Label>
-            <div className="text-sm text-gray-700 dark:text-gray-300">Supabase JWT</div>
-          </div>
-          
-          <div>
-            <Label className="mb-1 block text-sm font-medium">Edge Function URL:</Label>
-            <div className="text-sm text-gray-700 dark:text-gray-300">{BedrockConfig.edgeFunctionUrl}</div>
-          </div>
-        </div>
-        
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div>
-            <Label className="mb-1 block text-sm font-medium">Connection:</Label>
-            <ConnectionStatusBadge status={connectionStatus} />
-          </div>
-          
-          <div>
-            <Label className="mb-1 block text-sm font-medium">Auth Status:</Label>
-            <div className="flex items-center gap-2">
-              <AuthStatusBadge status={authStatus} />
-              {authStatus === 'unauthenticated' && (
-                <Button variant="outline" size="sm" onClick={handleLogin}>
-                  <LogIn className="h-4 w-4 mr-2" /> Log In
-                </Button>
-              )}
-              {(authStatus === 'authenticated' || authStatus === 'expired') && (
-                <Button variant="outline" size="sm" onClick={checkAuthStatus}>
-                  <RefreshCw className="h-4 w-4 mr-2" /> Refresh Auth
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex justify-end gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={fetchDetailedTestData} 
-            disabled={testingConnection || authStatus !== 'authenticated'}
-          >
-            {testingConnection ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <TestTube className="h-4 w-4 mr-2" />
-            )}
-            Test Edge Function
-          </Button>
-          <Button variant="outline" size="sm" onClick={fetchEnvironmentDiagnostics}>
-            <Settings className="h-4 w-4 mr-2" /> Test Environment
-          </Button>
-          <Button variant="outline" size="sm" onClick={refreshInstances} disabled={refreshing}>
-            {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Refresh
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-  
-  // Create a component for model filters
-  const ModelFilters = () => {
-    const handleFilterChange = (filterKey: string, value: string) => {
-      setActiveFilters(prev => {
-        // If value is empty, remove the filter
-        if (!value) {
-          const newFilters = { ...prev };
-          delete newFilters[filterKey];
-          return newFilters;
-        }
-        // Otherwise set the new filter value
-        return { ...prev, [filterKey]: value };
-      });
-    };
-
-    const clearFilters = () => {
-      setActiveFilters({});
-    };
-
-    return (
-      <div className="p-4 border rounded-md mb-4">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium">Filter Models</h3>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={clearFilters}
-            disabled={Object.keys(activeFilters).length === 0}
-          >
-            Clear Filters
-          </Button>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {modelFilters.map(filter => (
-            <div key={filter.key} className="space-y-2">
-              <Label htmlFor={filter.key}>{filter.label}</Label>
-              <Select
-                value={activeFilters[filter.key] || ''}
-                onValueChange={(value) => handleFilterChange(filter.key, value)}
-              >
-                <SelectTrigger id={filter.key}>
-                  <SelectValue placeholder={`All ${filter.label}s`} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All {filter.label}s</SelectItem>
-                  {filter.options.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ))}
-        </div>
-        
-        <div className="mt-4 flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loadingModels}
-            onClick={(e) => {
-              e.preventDefault();
-              fetchAvailableModels(activeFilters);
-            }}
-          >
-            {loadingModels ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-    );
-  };
-  
-  // Create a wrapper function for button clicks
-  const handleFetchModels = (e?: React.MouseEvent) => {
-    if (e) e.preventDefault();
-    fetchAvailableModels(activeFilters);
-  };
-  
-  // Render loading state
-  if (loading && !refreshing) {
-    return (
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">Bedrock AI Instances</h1>
-        <InstanceSkeleton />
-      </div>
-    );
-  }
-  
-  // Render auth required state
-  if (authStatus === 'unauthenticated' || authStatus === 'expired') {
-    return (
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4">Bedrock AI Instances</h1>
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>
-              You need to be logged in to access Bedrock AI instances.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="mb-4">
-              Please log in with your Supabase account to access Bedrock AI instances.
-            </p>
-            <Button onClick={handleLogin}>
-              <LogIn className="mr-2 h-4 w-4" /> Log In
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-  
   return (
     <ErrorBoundary>
-      <div className="container mx-auto p-4">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">Bedrock AI Instances</h1>
-          
-          <div className="flex items-center gap-2">
-            <ConnectionStatusBadge status={connectionStatus} />
-            <AuthStatusBadge status={authStatus} />
-            <Button variant="outline" size="sm" onClick={checkAuthStatus} disabled={authStatus === 'checking'}>
-              {authStatus === 'checking' ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              <span className="sr-only">Refresh Auth</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={refreshInstances} disabled={refreshing}>
-              {refreshing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              <span className="sr-only">Refresh</span>
-            </Button>
-          </div>
-        </div>
-        
-        <MockDataNotice />
-        
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        
-        <Tabs defaultValue="instances">
-          <TabsList className="mb-4">
-            <TabsTrigger value="instances">Instances</TabsTrigger>
-            <TabsTrigger value="create">Create Instance</TabsTrigger>
-            {showDiagnostics && (
-              <TabsTrigger value="diagnostics">API Diagnostics</TabsTrigger>
-            )}
-          </TabsList>
-          
-          <TabsContent value="instances">
-            <Card>
-              <CardHeader>
-                <CardTitle>Bedrock Instances</CardTitle>
-                <CardDescription>
-                  Manage your provisioned AWS Bedrock AI models
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {instances.length === 0 ? (
-                  <div className="text-center p-4">
-                    <p className="text-muted-foreground">No instances found. Create a new instance to get started.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-2">ID</th>
-                          <th className="text-left p-2">Model</th>
-                          <th className="text-left p-2">Status</th>
-                          <th className="text-left p-2">Units</th>
-                          <th className="text-left p-2">Created</th>
-                          <th className="text-left p-2">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {instances.map((instance) => (
-                          <tr key={instance.id} className="border-b hover:bg-muted/50">
-                            <td className="p-2">{instance.id}</td>
-                            <td className="p-2">{instance.model_id.split('.').pop()}</td>
-                            <td className="p-2"><StatusBadge status={instance.status} /></td>
-                            <td className="p-2">{instance.model_units}</td>
-                            <td className="p-2">{new Date(instance.created_at).toLocaleString()}</td>
-                            <td className="p-2">
-                              <Button variant="destructive" size="sm" onClick={() => handleDeleteInstance(instance.instance_id)}>
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Delete</span>
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="create">
-            <Card>
-              <CardHeader>
-                <CardTitle>Create Bedrock Instance</CardTitle>
-                <CardDescription>
-                  Provision a new AWS Bedrock AI model
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-md font-medium">Model Selection</h3>
-                  <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
-                    {showFilters ? 'Hide Filters' : 'Show Filters'}
-                  </Button>
-                </div>
-                
-                {showFilters && <ModelFilters />}
-                
-                <div className="grid w-full gap-2">
-                  <Label htmlFor="plan">Model</Label>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <Select 
-                        value={selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId} 
-                        onValueChange={setSelectedModelId}
-                      >
-                        <SelectTrigger id="model">
-                          <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model"} />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-80 overflow-auto">
-                          {loadingModels ? (
-                            <SelectItem value="loading" disabled>Loading available models...</SelectItem>
-                          ) : availableModels.length > 0 ? (
-                            availableModels.map((model) => (
-                              <SelectItem key={model.modelId} value={model.modelId}>
-                                {model.providerName} - {model.modelName}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <>
-                              <SelectItem value="amazon.titan-text-lite-v1">Amazon - Titan Text Lite</SelectItem>
-                              <SelectItem value="amazon.titan-text-express-v1">Amazon - Titan Text Express</SelectItem>
-                              <SelectItem value="anthropic.claude-instant-v1">Anthropic - Claude Instant</SelectItem>
-                            </>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={handleFetchModels} 
-                      disabled={loadingModels || authStatus !== 'authenticated'}
-                      title="Refresh model list"
-                    >
-                      {loadingModels ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <div className="text-sm text-muted-foreground flex justify-between">
-                    <span>Select the AI model you want to provision.</span>
-                    <span>
-                      {availableModels.length > 0 ? (
-                        <>Showing {availableModels.length} model{availableModels.length !== 1 ? 's' : ''}</>
-                      ) : !loadingModels ? (
-                        <>No models found</>
-                      ) : null}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="grid w-full gap-2">
-                  <Label htmlFor="model-details">Model Details</Label>
-                  <div className="bg-muted rounded-md p-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="text-sm font-medium">Model:</span>
-                      </div>
-                      <div>
-                        <span className="text-sm">
-                          {selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId || 'None selected'}
-                        </span>
-                      </div>
-                      
-                      <div>
-                        <span className="text-sm font-medium">Provider:</span>
-                      </div>
-                      <div>
-                        <span className="text-sm">
-                          {selectedModelId ? selectedModelId.split('.')[0] : 'Unknown'}
-                        </span>
-                      </div>
-                      
-                      {selectedModelId && availableModels.length > 0 && (
-                        <>
-                          <div>
-                            <span className="text-sm font-medium">Input Types:</span>
-                          </div>
-                          <div>
-                            <span className="text-sm">
-                              {availableModels.find(m => m.modelId === selectedModelId)?.inputModalities?.join(', ') || 'Not specified'}
-                            </span>
-                          </div>
-                          
-                          <div>
-                            <span className="text-sm font-medium">Output Types:</span>
-                          </div>
-                          <div>
-                            <span className="text-sm">
-                              {availableModels.find(m => m.modelId === selectedModelId)?.outputModalities?.join(', ') || 'Not specified'}
-                            </span>
-                          </div>
-                        </>
-                      )}
-                      
-                      <div>
-                        <span className="text-sm font-medium">Commitment:</span>
-                      </div>
-                      <div>
-                        <span className="text-sm">1 Month</span>
-                      </div>
-                      
-                      <div>
-                        <span className="text-sm font-medium">Model Units:</span>
-                      </div>
-                      <div>
-                        <span className="text-sm">1</span>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    These details will be used to provision your Bedrock instance.
-                  </p>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button onClick={handleProvisionInstance} disabled={submitting}>
-                  {submitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Provisioning...
-                    </>
-                  ) : (
-                    'Create Instance'
-                  )}
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-          
-          {showDiagnostics && (
-            <TabsContent value="diagnostics">
-              <Card>
-                <CardHeader>
-                  <CardTitle>API Diagnostics</CardTitle>
-                  <CardDescription>
-                    Technical details about the API environment
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96">
-                    {JSON.stringify(envDiagnostics, null, 2)}
-                  </pre>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
-        </Tabs>
-        
-        <ApiConfiguration />
-        
-        {/* Add the AWS Permission Tester component */}
-        <AwsPermissionTester />
-        
-        {/* Add the test modal */}
-        <TestModal 
-          isOpen={testModalOpen} 
-          setIsOpen={setTestModalOpen} 
-          testData={testData} 
-        />
-      </div>
+      <BedrockDashboardContent
+        loading={loading}
+        refreshing={refreshing}
+        authStatus={authStatus}
+        error={error}
+        connectionStatus={connectionStatus}
+        instances={instances}
+        testModalOpen={testModalOpen}
+        testData={testData}
+        setTestModalOpen={setTestModalOpen}
+        showDiagnostics={showDiagnostics}
+        envDiagnostics={envDiagnostics}
+        testingConnection={testingConnection}
+        submitting={submitting}
+        selectedPlan={selectedPlan}
+        selectedModelId={selectedModelId}
+        availableModels={availableModels}
+        loadingModels={loadingModels}
+        showFilters={showFilters}
+        activeFilters={activeFilters}
+        planConfig={planConfig}
+        // Functions
+        checkAuthStatus={checkAuthStatus}
+        handleLogin={handleLogin}
+        refreshInstances={refreshInstances}
+        fetchEnvironmentDiagnostics={fetchEnvironmentDiagnostics}
+        fetchDetailedTestData={fetchDetailedTestData}
+        fetchAvailableModels={fetchAvailableModels}
+        handleProvisionInstance={handleProvisionInstance}
+        handleDeleteInstance={handleDeleteInstance}
+        setShowFilters={setShowFilters}
+        setActiveFilters={setActiveFilters}
+        setSelectedModelId={setSelectedModelId}
+        setSelectedPlan={setSelectedPlan}
+      />
     </ErrorBoundary>
   );
 };
