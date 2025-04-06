@@ -42,77 +42,67 @@ const getApiUrl = () => {
 };
 
 /**
- * Determine if we're using Supabase Edge Functions
- * Default behavior is to use Edge Functions in all environments
- * unless explicitly disabled via environment variable
- */
-const useEdgeFunctions = () => {
-  const explicitSetting = import.meta.env.VITE_USE_EDGE_FUNCTIONS;
-  
-  // If explicitly set, use that value
-  if (explicitSetting !== undefined) {
-    return explicitSetting === 'true';
-  }
-  
-  // By default, use Edge Functions everywhere unless disabled
-  return true;
-};
-
-/**
- * Get the Edge Function URL for Bedrock
- */
-const getEdgeFunctionUrl = () => {
-  // First check if we have a specific URL in env variable
-  if (import.meta.env.VITE_BEDROCK_API_URL) {
-    return import.meta.env.VITE_BEDROCK_API_URL;
-  }
-  
-  // Always use the direct Supabase URL for the edge function in production
-  return 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action';
-};
-
-/**
- * Get the Edge Function name for Bedrock
- * This is the name used when invoking the function via Supabase client
+ * Get the appropriate Edge Function name
+ * @returns {string} Edge Function name
  */
 const getEdgeFunctionName = () => {
-  return 'super-action';
+  // Get from environment or use the default
+  return import.meta.env.VITE_BEDROCK_FUNCTION_NAME || 'super-action';
 };
 
 /**
- * Determine if debug mode is enabled
+ * Get the Edge Function URL
+ * @returns {string} Edge Function URL
+ */
+const getEdgeFunctionUrl = () => {
+  const functionName = getEdgeFunctionName();
+  
+  if (!supabaseUrl) {
+    console.error('Supabase URL is required for edge functions');
+    return '';
+  }
+  
+  return `${supabaseUrl}/functions/v1/${functionName}`;
+};
+
+/**
+ * Determine if we should use Edge Functions
+ * Always true in production, configurable in development
+ */
+const useEdgeFunctions = () => {
+  // Always use edge functions in production
+  if (isProduction) {
+    return true;
+  }
+  
+  // In development, check environment variable or default to true
+  return import.meta.env.VITE_USE_EDGE_FUNCTIONS !== 'false';
+};
+
+/**
+ * Check if debug mode is enabled
  */
 const isDebugMode = () => {
-  const debugSetting = import.meta.env.VITE_DEBUG;
-  return debugSetting === 'true' || isLocalDevelopment;
+  return import.meta.env.VITE_BEDROCK_DEBUG === 'true';
 };
 
 /**
  * Determine if mock data should be used in development
  */
 const shouldUseMockData = () => {
-  // Never use mock data in production
-  if (isProduction) {
-    return false;
-  }
-  
-  // Only use mock data if explicitly enabled via environment variables
-  const mockSetting = import.meta.env.VITE_USE_MOCK_BEDROCK;
-  const mockSuperAction = import.meta.env.VITE_USE_MOCK_SUPER_ACTION;
-  
-  // Use mock data only if explicitly enabled, never by default
-  return mockSetting === 'true' || mockSuperAction === 'true';
+  // Never use mock data
+  return false;
 };
 
 // Export configuration object
 export const BedrockConfig = {
   apiUrl: getApiUrl(),
-  useEdgeFunctions: useEdgeFunctions(),
+  useEdgeFunctions: true, // Always use edge functions
   edgeFunctionUrl: getEdgeFunctionUrl(),
   edgeFunctionName: getEdgeFunctionName(),
   isLocalDevelopment,
-  isProduction,
-  isDev: isLocalDevelopment,
+  isProduction: true, // Always treat as production mode
+  isDev: false, // Never treat as development mode
   
   // Authentication configuration
   auth: authConfig,
@@ -121,7 +111,7 @@ export const BedrockConfig = {
   debug: isDebugMode(),
   
   // Development mock data settings
-  useMockData: shouldUseMockData(),
+  useMockData: false, // Never use mock data
   
   // Default model settings
   defaultModel: 'amazon.titan-text-express-v1',

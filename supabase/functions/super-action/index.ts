@@ -1397,17 +1397,83 @@ serve(async (req: Request) => {
           return await handleAwsCredentialTest(req);
           
         case "listInstances":
-          return await handleGetInstances(req);
+        case "ListProvisionedModelThroughputs":
+          console.log(`[API] Handling ListProvisionedModelThroughputs action`);
+          try {
+            const result = await importedListProvisionedModelThroughputs();
+            return new Response(
+              JSON.stringify({ data: result }),
+              { status: 200, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          } catch (error) {
+            console.error(`[API] Error listing instances:`, error);
+            return new Response(
+              JSON.stringify({ 
+                error: error instanceof Error ? error.message : String(error),
+                instances: []
+              }),
+              { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          }
           
         case "createInstance":
-          console.log(`[API] Handling createInstance action`);
-          return await handleCreateInstance(req);
+        case "CreateProvisionedModelThroughput":
+          console.log(`[API] Handling CreateProvisionedModelThroughput action with data:`, data);
+          try {
+            const result = await createProvisionedModelThroughput(data);
+            return new Response(
+              JSON.stringify({ data: result }),
+              { status: 200, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          } catch (error) {
+            console.error(`[API] Error creating instance:`, error);
+            return new Response(
+              JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+              { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          }
           
         case "deleteInstance":
-          return await handleDeleteInstance(req);
+        case "DeleteProvisionedModelThroughput":
+          console.log(`[API] Handling DeleteProvisionedModelThroughput action with instanceId:`, data.instanceId || data.provisionedModelId);
+          try {
+            const instanceId = data.instanceId || data.provisionedModelId;
+            if (!instanceId) {
+              throw new Error("Instance ID is required");
+            }
+            const result = await deleteProvisionedModelThroughput(instanceId);
+            return new Response(
+              JSON.stringify({ data: result }),
+              { status: 200, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          } catch (error) {
+            console.error(`[API] Error deleting instance:`, error);
+            return new Response(
+              JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+              { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          }
           
         case "getInstance":
-          return await handleGetInstance(req);
+        case "GetProvisionedModelThroughput":
+          console.log(`[API] Handling GetProvisionedModelThroughput action`);
+          try {
+            const instanceId = data.instanceId || data.provisionedModelId;
+            if (!instanceId) {
+              throw new Error("Instance ID is required");
+            }
+            const result = await getProvisionedModelThroughput(instanceId);
+            return new Response(
+              JSON.stringify({ data: result }),
+              { status: 200, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          } catch (error) {
+            console.error(`[API] Error getting instance:`, error);
+            return new Response(
+              JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+              { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          }
           
         case "invokeModel":
           return await handleInvokeModel(req);
@@ -1423,14 +1489,31 @@ serve(async (req: Request) => {
           return await handleAwsPermissionsTest(req);
           
         case "listFoundationModels":
-          return await handleListFoundationModels(req);
+        case "ListFoundationModels":
+          console.log(`[API] Handling ListFoundationModels action with filters:`, data);
+          try {
+            const result = await importedListFoundationModels(data);
+            return new Response(
+              JSON.stringify({ data: result }),
+              { status: 200, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          } catch (error) {
+            console.error(`[API] Error listing foundation models:`, error);
+            return new Response(
+              JSON.stringify({ 
+                error: error instanceof Error ? error.message : String(error),
+                models: []
+              }),
+              { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          }
           
         default:
           console.log(`[API] Unknown action: ${action}`);
           return new Response(
             JSON.stringify({ 
               error: "Invalid action", 
-              validActions: ["test", "aws-diagnostics", "aws-credential-test", "emergency-debug", "listInstances", "createInstance", "deleteInstance", "getInstance", "invokeModel", "getUsageStats", "verify-aws-credentials", "aws-permission-test", "listFoundationModels"],
+              validActions: ["test", "aws-diagnostics", "aws-credential-test", "listInstances", "ListProvisionedModelThroughputs", "createInstance", "CreateProvisionedModelThroughput", "deleteInstance", "DeleteProvisionedModelThroughput", "getInstance", "GetProvisionedModelThroughput", "invokeModel", "getUsageStats", "verify-aws-credentials", "aws-permission-test", "listFoundationModels", "ListFoundationModels"],
               received: action
             }),
             { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }

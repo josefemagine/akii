@@ -534,29 +534,16 @@ const handleSpecialErrors = (errorText) => {
  * @param {Object} options - Call options
  * @param {string} options.action - The action to perform
  * @param {Object} options.data - Data to send with the request
- * @param {boolean} options.useMock - Whether to use mock data
  * @param {boolean} options.requireAuth - Whether authentication is required (defaults to auto-detection)
  * @returns {Promise<{data: any, error: string|null}>} Function response
  */
-const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.useMockData, requireAuth }) => {
-  console.log(`[Bedrock] Calling edge function with action: ${action}`, { data, useMock });
+const callEdgeFunction = async ({ action, data = {}, requireAuth }) => {
+  console.log(`[Bedrock] Calling edge function with action: ${action}`, { data });
   
   // For non-testing/debugging actions, require authentication by default
   // This can be overridden with the requireAuth parameter
   const noAuthActions = ['testEnvironment', 'test'];
   const needsAuth = requireAuth !== undefined ? requireAuth : !noAuthActions.includes(action);
-  
-  // Use mock data if explicitly requested or in development with mocks enabled
-  if (useMock && (process.env.NODE_ENV !== 'production' || BedrockConfig.isLocalDevelopment)) {
-    console.log('[Bedrock] Using mock data for action:', action);
-    // Return mock data if available for this action
-    if (devMockData[action]) {
-      return { data: devMockData[action], error: null };
-    } else {
-      console.warn(`[Bedrock] No mock data available for action: ${action}`);
-      return { data: null, error: 'No mock data available for this action' };
-    }
-  }
   
   if (needsAuth) {
     // Verify configuration before proceeding
@@ -569,134 +556,36 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
     const token = await getAuthToken();
     if (!token) {
       console.error('[Bedrock] No valid auth token available');
-      
-      // Special handling for listFoundationModels - return mock data
-      if (action === 'aws-credential-test' && data.listModels) {
-        console.log('[Bedrock] Auth failed for model listing, returning fallback data');
-        return {
-          data: getFallbackModels(data),
-          error: 'Authentication required but fallback data provided'
-        };
-      }
-      
       return { data: null, error: 'Authentication required' };
     }
     
     try {
-      // Retry mechanism for edge function calls
-      const maxRetries = 2;
-      let retryCount = 0;
-      let lastError = null;
+      const { data: responseData, error } = await callEdgeFunctionDirect(
+        { action, data },
+        { token }
+      );
       
-      while (retryCount <= maxRetries) {
-        try {
-          // Try direct call to edge function
-          console.log(`[Bedrock] Sending request to ${getApiUrl()} (attempt ${retryCount + 1}/${maxRetries + 1})`);
-          
-          // If this is a retry, add delay to avoid overwhelming the server
-          if (retryCount > 0) {
-            console.log(`[Bedrock] Retry attempt ${retryCount}/${maxRetries}, waiting before retry...`);
-            await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
-          }
-          
-          const { data: responseData, error } = await callEdgeFunctionDirect(
-            { action, data },
-            { skipAuth: false }
-          );
-          
-          if (error) {
-            // If we get a specific error like BOOT_ERROR, remember it for potential retry
-            console.error(`[Bedrock] API error for ${action} (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
-            lastError = error;
-            
-            // Check if this is a special error that needs enhanced handling
-            const specialError = handleSpecialErrors(error);
-            if (specialError) {
-              console.log('[Bedrock] Special error detected:', specialError.code);
-              
-              // For special errors with known fallbacks, provide fallback data
-              if (action === 'ListFoundationModels' || action === 'listFoundationModels' || 
-                  (action === 'aws-credential-test' && data.listModels)) {
-                return {
-                  data: getFallbackModels(data),
-                  error: specialError
-                };
-              }
-              
-              // For other actions, just return the enhanced error
-              return { data: null, error: specialError };
-            }
-            
-            // Check for specific error conditions
-            const errorLower = String(error).toLowerCase();
-            
-            // Don't retry auth errors as they're not likely to resolve with retries
-            if (errorLower.includes('401') || 
-                errorLower.includes('unauthorized') || 
-                errorLower.includes('auth header') || 
-                errorLower.includes('bearer')) {
-              console.warn('[Bedrock] Authorization error detected, not retrying');
-              
-              // For model listings, provide fallback data
-              if (action === 'ListFoundationModels' || action === 'listFoundationModels' || 
-                  (action === 'aws-credential-test' && data.listModels)) {
-                return {
-                  data: getFallbackModels(data),
-                  error: 'Authentication error, using fallback data'
-                };
-              }
-              
-              return { data: null, error };
-            }
-            
-            // For boot errors, timeouts, and service unavailable errors, try again
-            if (errorLower.includes('boot_error') || 
-                errorLower.includes('503') ||
-                errorLower.includes('504') ||
-                errorLower.includes('timeout') ||
-                errorLower.includes('failed to start') || 
-                errorLower.includes('function failed')) {
-              console.log('[Bedrock] Recoverable error detected, will retry');
-              retryCount++;
-              continue;
-            }
-            
-            return { data: null, error };
-          }
-          
-          // Successfully received response data
-          console.log(`[Bedrock] Request to ${action} successful`);
-          return { data: responseData, error: null };
-        } catch (err) {
-          console.error(`[Bedrock] Exception in edge function call (attempt ${retryCount + 1}/${maxRetries + 1}):`, err);
-          lastError = err.message || 'Unknown error';
-          retryCount++;
-          
-          // If we've exhausted retries, throw to exit the loop
-          if (retryCount > maxRetries) {
-            throw err;
-          }
+      if (error) {
+        console.error(`[Bedrock] API error for ${action}:`, error);
+        
+        // Check if this is a special error that needs enhanced handling
+        const specialError = handleSpecialErrors(error);
+        if (specialError) {
+          console.log('[Bedrock] Special error detected:', specialError.code);
+          return { data: null, error: specialError };
         }
+        
+        return { data: null, error };
       }
       
-      // If we get here, all retries failed
-      console.error('[Bedrock] All retry attempts failed');
-      return { data: null, error: lastError || 'Edge function call failed after retries' };
+      return { data: responseData, error: null };
     } catch (err) {
-      console.error(`[Bedrock] All attempts failed for edge function call ${action}:`, err);
+      console.error(`[Bedrock] Error processing authenticated request:`, err);
       return { data: null, error: err.message || 'Unknown error' };
     }
   } else {
     // For test/environment check endpoints, proceed without auth
     try {
-      // Use mock data if configured for development
-      if (useMock && process.env.NODE_ENV !== 'production') {
-        console.log('[Bedrock] Using mock data for non-auth action:', action);
-        if (devMockData[action]) {
-          return { data: devMockData[action], error: null };
-        }
-      }
-      
       // No auth required, call directly
       const { data: responseData, error } = await callEdgeFunctionDirect(
         { action, data },
@@ -732,22 +621,11 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
 const listInstances = async () => {
   console.log('[Bedrock] Fetching Bedrock instances');
   
-  // If we're in development or if mock data is enabled, use the mock data
-  if (BedrockConfig.useMockData || BedrockConfig.isLocalDevelopment) {
-    console.log('[Bedrock] Using mock data for instances');
-    return { 
-      data: {
-        instances: []
-      }, 
-      error: null 
-    };
-  }
-  
   try {
     // Try with the AWS Bedrock API naming convention
     const result = await callEdgeFunction({
       action: 'ListProvisionedModelThroughputs',
-      useMock: false
+      requireAuth: true
     });
     
     if (!result.error) {
@@ -760,7 +638,7 @@ const listInstances = async () => {
     // If the standard name fails, try the legacy name for backward compatibility
     const legacyResult = await callEdgeFunction({
       action: 'listInstances',
-      useMock: false
+      requireAuth: true
     });
     
     if (!legacyResult.error) {
@@ -823,7 +701,8 @@ const createInstance = async (modelInfo) => {
   // Try with the AWS Bedrock API naming convention
   const result = await callEdgeFunction({
     action: 'CreateProvisionedModelThroughput',
-    data: modelData
+    data: modelData,
+    requireAuth: true
   });
   
   // If the standard name fails, try the legacy name for backward compatibility
@@ -831,7 +710,8 @@ const createInstance = async (modelInfo) => {
     console.log('[Bedrock] Standard API name failed, trying legacy endpoint');
     return callEdgeFunction({
       action: 'createInstance',
-      data: modelData
+      data: modelData,
+      requireAuth: true
     });
   }
   
@@ -849,7 +729,8 @@ const deleteInstance = async (instanceId) => {
   // Try first with the AWS Bedrock API naming convention
   const result = await callEdgeFunction({
     action: 'DeleteProvisionedModelThroughput',
-    data: { provisionedModelId: instanceId }
+    data: { provisionedModelId: instanceId },
+    requireAuth: true
   });
   
   // If the standard name fails, try the legacy name for backward compatibility
@@ -857,7 +738,8 @@ const deleteInstance = async (instanceId) => {
     console.log('[Bedrock] Standard API name failed, trying legacy endpoint');
     return callEdgeFunction({
       action: 'deleteInstance',
-      data: { instanceId }
+      data: { instanceId },
+      requireAuth: true
     });
   }
   
@@ -905,7 +787,8 @@ const invokeModel = async ({ instance_id, prompt, max_tokens = 500 }) => {
       instance_id, 
       prompt, 
       max_tokens 
-    }
+    },
+    requireAuth: true
   });
 };
 
@@ -920,7 +803,8 @@ const invokeModel = async ({ instance_id, prompt, max_tokens = 500 }) => {
 const getUsageStats = async (options = {}) => {
   return callEdgeFunction({
     action: 'getUsageStats',
-    data: options
+    data: options,
+    requireAuth: true
   });
 };
 
@@ -949,7 +833,7 @@ const testAwsPermissions = async () => {
       return await callEdgeFunction({
         action: 'aws-permission-test',
         data: {},
-        useMock: false // Explicitly disable mocks for AWS permission tests
+        requireAuth: true // Explicitly require authentication for AWS permission tests
       });
     } catch (error) {
       console.error(`[Bedrock] Exception during AWS permission test:`, error);
@@ -994,60 +878,41 @@ const listFoundationModels = async (filters = {}) => {
   if (filters.byInferenceType) validatedFilters.byInferenceType = filters.byInferenceType;
   if (filters.byCustomizationType) validatedFilters.byCustomizationType = filters.byCustomizationType;
   
-  // If we're in development or if mock data is enabled, use the mock data
-  if (BedrockConfig.useMockData || BedrockConfig.isLocalDevelopment) {
-    console.log('[Bedrock] Using mock data for foundation models');
-    
-    // Return mock foundation models
-    return { 
-      data: getFallbackModels(validatedFilters),
-      error: null 
-    };
-  }
-  
-  // Try multiple approaches to get the models
   try {
-    // First, try using the standard AWS Bedrock API naming convention
+    // Call the API with the standard name
     const result = await callEdgeFunction({
       action: 'ListFoundationModels',
       data: validatedFilters,
-      useMock: false
+      requireAuth: true
     });
     
-    if (!result.error && result.data && result.data.models) {
-      console.log('[Bedrock] Successfully fetched foundation models with standard API name');
+    if (!result.error) {
       return result;
     }
     
+    // Try the legacy API name if standard fails
     console.log('[Bedrock] Standard API name failed, trying legacy endpoint');
-    
-    // If that fails, try the legacy endpoint name for backward compatibility
     const legacyResult = await callEdgeFunction({
-      action: 'aws-credential-test',
-      data: {
-        listModels: true,
-        ...validatedFilters
-      },
-      useMock: false // Explicitly disable mocks for this call
+      action: 'listModels',
+      data: validatedFilters,
+      requireAuth: true
     });
     
-    if (!legacyResult.error && legacyResult.data && legacyResult.data.models) {
-      console.log('[Bedrock] Successfully fetched foundation models from legacy endpoint');
+    if (!legacyResult.error) {
       return legacyResult;
     }
     
-    // If all else fails, return a limited set of default models
-    console.log('[Bedrock] All methods failed, returning default models');
+    // If all attempts fail, return a clear error
+    console.error('[Bedrock] All model listing methods failed:', result.error);
     return {
-      data: getFallbackModels(validatedFilters),
-      error: null
+      data: { models: [] },
+      error: 'Failed to fetch foundation models from API'
     };
   } catch (error) {
-    console.error('[Bedrock] All foundation model listing methods failed:', error);
-    // Return a minimal set of models as a fallback with an error message
+    console.error('[Bedrock] Exception fetching foundation models:', error);
     return {
-      data: getFallbackModels(validatedFilters),
-      error: `Failed to fetch foundation models from API: ${error instanceof Error ? error.message : String(error)}`
+      data: { models: [] },
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 };
