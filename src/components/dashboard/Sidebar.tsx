@@ -280,7 +280,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Define admin links (settings, users, etc.)
   const adminLinks = [
     { to: "/admin/dashboard", icon: <LayoutDashboard className="h-5 w-5" />, label: "Dashboard" },
-    { to: "/admin/supabase-bedrock", icon: <Box className="h-5 w-5" />, label: "Supabase Bedrock" },
+    { to: "/admin/bedrock", icon: <Box className="h-5 w-5" />, label: "Bedrock Instances" },
     { to: "/admin/users", icon: <Users className="h-5 w-5" />, label: "Users" },
     { to: "/admin/plans", icon: <DollarSign className="h-5 w-5" />, label: "Plans" },
     { to: "/admin/settings", icon: <Settings className="h-5 w-5" />, label: "Settings" },
