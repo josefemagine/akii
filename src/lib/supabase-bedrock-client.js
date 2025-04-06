@@ -277,7 +277,7 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : undefined
       },
-      body: requestBody
+      body: JSON.stringify(requestBody)
     });
     
     // Make the API call
@@ -337,7 +337,7 @@ const listInstances = async () => {
  * @returns {Promise<{data: Object, error: string|null}>} New instance or error
  */
 const createInstance = async (modelInfo) => {
-  console.log('[Bedrock] Creating instance with parameters:', modelInfo);
+  console.log('[Bedrock] Creating instance with parameters:', JSON.stringify(modelInfo));
   
   // Validate required fields
   if (!modelInfo.modelId) {
@@ -348,13 +348,17 @@ const createInstance = async (modelInfo) => {
   // Convert 1m/6m commitment duration format to match what the API expects
   const modelData = {
     ...modelInfo,
+    // Ensure modelId is explicitly set (with debugging output)
+    modelId: modelInfo.modelId,
     // Convert from "1m" or "6m" to the format the API expects
     commitmentDuration: modelInfo.commitmentDuration || "1m"
   };
   
-  // Ensure data is properly structured
+  console.log('[Bedrock] Structured model data for API call:', JSON.stringify(modelData));
+  
+  // Use the correct action name that matches the server implementation
   return callEdgeFunction({
-    action: 'provisionInstance',
+    action: 'createInstance',
     data: modelData
   });
 };
@@ -479,10 +483,7 @@ const listFoundationModels = async (filters = {}) => {
   console.log('[Bedrock] Fetching available foundation models', Object.keys(filters).length > 0 ? `with filters: ${JSON.stringify(filters)}` : 'with no filters');
   
   // Validate filters to ensure they're properly formatted
-  const validatedFilters = {
-    // Important: Add this flag to indicate we want to list models through aws-credential-test
-    listModels: true
-  };
+  const validatedFilters = {};
   
   // Only include defined filter values - these match the AWS ListFoundationModels API parameters
   // See: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_ListFoundationModels.html
@@ -492,10 +493,9 @@ const listFoundationModels = async (filters = {}) => {
   if (filters.byInferenceType) validatedFilters.byInferenceType = filters.byInferenceType;
   if (filters.byCustomizationType) validatedFilters.byCustomizationType = filters.byCustomizationType;
   
-  // Temporarily use aws-credential-test as a fallback endpoint until listFoundationModels is deployed
-  console.log('[Bedrock] Using aws-credential-test endpoint to call ListFoundationModels API');
+  // Call the proper edge function action
   return callEdgeFunction({
-    action: 'aws-credential-test',
+    action: 'listFoundationModels',
     data: validatedFilters
   });
 };

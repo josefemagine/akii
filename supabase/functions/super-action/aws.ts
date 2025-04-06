@@ -669,4 +669,161 @@ export async function listAvailableFoundationModels(filters?: ModelFilters) {
       } : String(error)
     };
   }
+}
+
+/**
+ * Handle AWS credential test with extended functionality.
+ * This function serves as a temporary solution to handle both 
+ * listFoundationModels and createProvisionedModelThroughput until the edge functions are fully deployed.
+ * 
+ * @param params Additional parameters for extended functionality
+ * @returns Results of the AWS test and any additional operations requested
+ */
+export async function extendedAwsCredentialTest(params: any = {}) {
+  console.log("[AWS] Running extended AWS credential test with params:", params);
+  
+  // Initialize the response
+  const response = {
+    success: false,
+    timestamp: new Date().toISOString(),
+    message: "",
+    error: null,
+    credentials: {
+      hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
+      hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+      region: CONFIG.AWS_REGION
+    },
+    testResults: {}
+  };
+  
+  try {
+    // Basic credential check
+    if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY || !CONFIG.AWS_REGION) {
+      return {
+        ...response,
+        message: "AWS credentials are not properly configured",
+        error: "Missing required AWS credentials or region",
+        testResults: { 
+          configCheck: {
+            valid: false,
+            reason: "Missing required AWS credentials or region"
+          }
+        }
+      };
+    }
+    
+    // Start with the regular credential test by initializing the Bedrock client
+    try {
+      const client = getBedrockClient();
+      
+      // If the listModels parameter is present, call ListFoundationModels API
+      if (params.listModels === true) {
+        console.log("[AWS] Extended test: Listing foundation models with filters:", params);
+        
+        // Extract filter parameters
+        const filters: any = {};
+        if (params.byProvider) filters.byProvider = params.byProvider;
+        if (params.byOutputModality) filters.byOutputModality = params.byOutputModality;
+        if (params.byInputModality) filters.byInputModality = params.byInputModality;
+        if (params.byInferenceType) filters.byInferenceType = params.byInferenceType;
+        if (params.byCustomizationType) filters.byCustomizationType = params.byCustomizationType;
+        
+        // Call the list foundation models function
+        const modelsResult = await listAvailableFoundationModels(
+          Object.keys(filters).length > 0 ? filters : undefined
+        );
+        
+        return {
+          ...response,
+          success: modelsResult.success,
+          message: modelsResult.success ? "Successfully listed foundation models" : "Failed to list foundation models",
+          error: modelsResult.error,
+          models: modelsResult.models,
+          count: modelsResult.count,
+          appliedFilters: modelsResult.appliedFilters
+        };
+      }
+      
+      // If modelId, commitmentDuration, and modelUnits are present, call CreateProvisionedModelThroughput API
+      if (params.modelId && params.commitmentDuration && params.modelUnits) {
+        console.log("[AWS] Extended test: Creating provisioned model throughput with params:", {
+          modelId: params.modelId,
+          commitmentDuration: params.commitmentDuration,
+          modelUnits: params.modelUnits
+        });
+        
+        // Call the create provisioned model throughput function
+        const createResult = await createProvisionedModelThroughput({
+          modelId: params.modelId,
+          commitmentDuration: params.commitmentDuration,
+          modelUnits: params.modelUnits
+        });
+        
+        return {
+          ...response,
+          success: createResult.success,
+          message: createResult.success ? "Successfully created provisioned model throughput" : "Failed to create provisioned model throughput",
+          error: createResult.error,
+          instance: createResult.instance,
+          instance_id: createResult.instance_id
+        };
+      }
+      
+      // Default case: Just run standard AWS credential test
+      console.log("[AWS] Running standard AWS credential test");
+      
+      // Test basic bedrock:ListFoundationModels permission
+      let listModelsTest;
+      try {
+        const listModelsCommand = new ListFoundationModelsCommand({
+          byOutputModality: "TEXT"
+        });
+        const listModelsResponse = await client.send(listModelsCommand);
+        
+        listModelsTest = {
+          success: true,
+          result: {
+            count: listModelsResponse.modelSummaries?.length || 0,
+            firstModelId: listModelsResponse.modelSummaries?.[0]?.modelId || null
+          }
+        };
+      } catch (error) {
+        listModelsTest = {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          errorName: error instanceof Error ? error.name : "Unknown"
+        };
+      }
+      
+      // Return success if basic test passed
+      return {
+        ...response,
+        success: listModelsTest.success,
+        message: listModelsTest.success 
+          ? "AWS credentials are valid and have basic Bedrock permissions" 
+          : "AWS credentials test failed on ListFoundationModels",
+        testResults: {
+          listModelsTest
+        }
+      };
+    } catch (clientError) {
+      console.error("[AWS] Failed to initialize Bedrock client:", clientError);
+      return {
+        ...response,
+        success: false,
+        message: "Failed to initialize Bedrock client",
+        error: clientError instanceof Error ? clientError.message : String(clientError),
+        testResults: {}
+      };
+    }
+  } catch (error) {
+    console.error("[AWS] Extended AWS credential test error:", error);
+    return {
+      ...response,
+      success: false,
+      message: "AWS credential test failed with exception",
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    };
+  }
 } 

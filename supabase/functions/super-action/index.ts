@@ -273,7 +273,7 @@ async function handleCreateInstance(request: Request): Promise<Response> {
     let requestBody;
     try {
       requestBody = await request.json();
-      console.log("[API] Raw request body:", JSON.stringify(requestBody));
+      console.log("[API] Raw create instance request body:", JSON.stringify(requestBody));
     } catch (e) {
       console.error("[API] Error parsing request JSON:", e);
       return new Response(
@@ -284,9 +284,14 @@ async function handleCreateInstance(request: Request): Promise<Response> {
     
     // Extract the data payload - could be directly in requestBody or in requestBody.data
     const requestData = requestBody.data || requestBody;
-    console.log("[API] Extracted request data:", JSON.stringify(requestData));
+    console.log("[API] Extracted create instance request data:", JSON.stringify(requestData));
     
-    const { modelId, commitmentDuration, modelUnits } = requestData;
+    // Ensure modelId is properly extracted - handle both camelCase and lowercase
+    const modelId = requestData.modelId;
+    const commitmentDuration = requestData.commitmentDuration;
+    const modelUnits = requestData.modelUnits;
+    
+    console.log(`[API] Extracted parameters: modelId=${modelId}, commitmentDuration=${commitmentDuration}, modelUnits=${modelUnits}`);
     
     // Validate required fields
     if (!modelId) {
@@ -1008,7 +1013,7 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
     let requestBody;
     try {
       requestBody = await request.json();
-      console.log("[API] Received listFoundationModels request:", requestBody);
+      console.log("[API] Received listFoundationModels request:", JSON.stringify(requestBody));
     } catch (e) {
       // If no JSON body or parsing failed, we'll proceed without filters
       console.log("[API] No filter parameters provided in request body");
@@ -1022,7 +1027,7 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
       ? requestBody.data 
       : requestBody;
     
-    console.log("[API] Extracting filters from data:", data);
+    console.log("[API] Extracting filters from data:", JSON.stringify(data));
     
     // Check for each possible filter
     if (data.byProvider) filters.byProvider = data.byProvider;
