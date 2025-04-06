@@ -8,6 +8,7 @@ import {
 
 // Initialize supabase client at app root
 import { supabase, ensureSupabaseInitialized } from "./lib/supabase-singleton";
+import { initializeProductionRecovery } from "./lib/production-recovery";
 
 // Import providers
 import { SearchProvider } from "./contexts/SearchContext";
@@ -114,6 +115,22 @@ export default function App() {
         console.error('Failed to initialize Supabase client:', result.error);
       }
     });
+  }, []);
+  
+  // Initialize production recovery for auth persistence
+  useEffect(() => {
+    // Only initialize in production or when specifically targeting akii.com
+    const isProd = window.location.hostname === 'akii.com' || 
+                   window.location.hostname === 'www.akii.com' ||
+                   window.location.hostname === 'app.akii.com';
+    
+    if (isProd || import.meta.env.PROD) {
+      console.log('App: Initializing production recovery module for auth persistence');
+      const { cleanup } = initializeProductionRecovery();
+      
+      // Return cleanup function
+      return cleanup;
+    }
   }, []);
 
   // Check for port mismatch on application initialization

@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/auth-compatibility";
 import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailPasswordRetry } from "@/lib/supabase-singleton";
+import { onAuthStateChange } from "@/lib/supabase-client";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -178,22 +179,53 @@ const LoginModal = ({
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     setError(null);
+    
+    // Set login in progress flag
+    localStorage.setItem("akii-login-in-progress", "true");
+    localStorage.setItem("akii-login-time", Date.now().toString());
+    localStorage.setItem("akii-login-email", data.email);
+    
+    console.log("[Login Modal] Starting email sign-in process for:", data.email);
+    
+    // Set up a listener for auth state changes during login
+    const { data: { subscription } } = onAuthStateChange((event, session) => {
+      console.log("[Login Modal] Auth state change during login:", event);
+      
+      if (event === 'SIGNED_IN' && session) {
+        console.log("[Login Modal] Sign-in successful via auth state change", session.user?.id);
+        
+        // Ensure all auth data is saved
+        localStorage.setItem("akii-auth-emergency", "true");
+        localStorage.setItem("akii-auth-emergency-time", Date.now().toString());
+        localStorage.setItem("akii-auth-emergency-email", data.email);
+        localStorage.setItem("akii-is-logged-in", "true");
+        
+        if (session.user?.id) {
+          localStorage.setItem("akii-auth-user-id", session.user.id);
+        }
+        
+        // Broadcast auth change to force header update
+        window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
+          detail: {
+            isLoggedIn: true,
+            email: data.email,
+            userId: session.user?.id,
+            timestamp: Date.now()
+          }
+        }));
+      }
+    });
+    
+    // Unsubscribe after 10 seconds to prevent memory leaks
+    setTimeout(() => {
+      subscription.unsubscribe();
+    }, 10000);
 
     try {
-      console.log(
-        "[Login Modal] Starting email sign-in process for:",
-        data.email,
-      );
-
       // Try to close the modal BEFORE the signIn attempt
       // This ensures the modal won't block the redirect
       onClose();
 
-      // Set a flag in localStorage to indicate we're in the middle of login
-      localStorage.setItem("akii-login-in-progress", "true");
-      localStorage.setItem("akii-login-time", Date.now().toString());
-      localStorage.setItem("akii-login-email", data.email);
-      
       // Use our enhanced sign-in function with retries
       try {
         console.log("[Login Modal] Using enhanced sign-in with retry logic");

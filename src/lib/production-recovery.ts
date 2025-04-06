@@ -3,6 +3,8 @@
  * This ensures users can access the dashboard even if there are auth issues.
  */
 
+import { onAuthStateChange } from '@/lib/supabase-client';
+
 // Check if we're in a production environment
 export function isProduction(): boolean {
   const hostname = window.location.hostname;
@@ -174,5 +176,212 @@ export function dispatchProductionEvent(eventName: string, data?: any): void {
     window.dispatchEvent(event);
   } catch (e) {
     console.error(`Production recovery: Failed to dispatch event ${eventName}`, e);
+  }
+}
+
+/**
+ * Initialize production recovery mechanisms
+ * This function sets up auth persistence for akii.com production
+ */
+export function initializeProductionRecovery() {
+  if (typeof window === 'undefined') return;
+  
+  console.log('[Production Recovery] Initializing');
+  
+  // Set up a global Supabase auth listener
+  const { data: { subscription } } = onAuthStateChange((event, session) => {
+    console.log('[Production Recovery] Auth state change:', event);
+    
+    if (event === 'SIGNED_IN' && session) {
+      console.log('[Production Recovery] User signed in, saving auth state for recovery');
+      
+      // Store auth data in localStorage
+      storeAuthData(session);
+      
+      // Broadcast auth change
+      broadcastAuthChange(true, session.user);
+    } else if (event === 'SIGNED_OUT') {
+      console.log('[Production Recovery] User signed out, clearing auth state');
+      clearAuthData();
+      
+      // Broadcast auth change
+      broadcastAuthChange(false);
+    } else if (event === 'TOKEN_REFRESHED' && session) {
+      console.log('[Production Recovery] Token refreshed, updating auth state');
+      
+      // Update auth data
+      storeAuthData(session);
+      
+      // Broadcast auth change
+      broadcastAuthChange(true, session.user);
+    }
+  });
+  
+  // Set up a storage event listener for cross-tab communication
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'akii-auth-emergency' || 
+        event.key === 'akii-is-logged-in' ||
+        event.key === 'akii-auth-user-id') {
+      console.log('[Production Recovery] Auth storage change detected:', event.key);
+      
+      // Dispatch custom event for components to listen for
+      window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
+        detail: {
+          isLoggedIn: localStorage.getItem('akii-is-logged-in') === 'true',
+          emergency: localStorage.getItem('akii-auth-emergency') === 'true',
+          userId: localStorage.getItem('akii-auth-user-id'),
+          timestamp: Date.now()
+        }
+      }));
+    }
+  });
+  
+  // Run an initial check for existing auth data
+  checkExistingAuth();
+  
+  return {
+    cleanup: () => {
+      subscription.unsubscribe();
+      window.removeEventListener('storage', () => {});
+    }
+  };
+}
+
+/**
+ * Store authentication data in localStorage
+ */
+function storeAuthData(session: any) {
+  try {
+    // Save emergency auth data
+    localStorage.setItem('akii-auth-emergency', 'true');
+    localStorage.setItem('akii-auth-emergency-time', Date.now().toString());
+    localStorage.setItem('akii-is-logged-in', 'true');
+    
+    if (session.user) {
+      localStorage.setItem('akii-auth-user-id', session.user.id);
+      localStorage.setItem('akii-auth-emergency-email', session.user.email);
+      
+      // Store user data for recovery
+      try {
+        const userData = JSON.stringify({
+          id: session.user.id,
+          email: session.user.email,
+          timestamp: Date.now()
+        });
+        localStorage.setItem('akii-user-data', userData);
+      } catch (e) {
+        console.error('[Production Recovery] Error storing user data:', e);
+      }
+    }
+    
+    // Store session timestamp
+    localStorage.setItem('akii-auth-timestamp', Date.now().toString());
+  } catch (e) {
+    console.error('[Production Recovery] Error storing auth data:', e);
+  }
+}
+
+/**
+ * Clear authentication data from localStorage
+ */
+function clearAuthData() {
+  try {
+    localStorage.removeItem('akii-auth-emergency');
+    localStorage.removeItem('akii-auth-emergency-time');
+    localStorage.removeItem('akii-auth-emergency-email');
+    localStorage.removeItem('akii-is-logged-in');
+    localStorage.removeItem('akii-auth-user-id');
+    localStorage.removeItem('akii-user-data');
+    localStorage.removeItem('akii-auth-timestamp');
+  } catch (e) {
+    console.error('[Production Recovery] Error clearing auth data:', e);
+  }
+}
+
+/**
+ * Broadcast authentication change event
+ */
+function broadcastAuthChange(isLoggedIn: boolean, user?: any) {
+  try {
+    // Set a timestamp to trigger storage events in other tabs
+    localStorage.setItem('akii-last-auth-update', Date.now().toString());
+    
+    // Dispatch event for components to listen for
+    window.dispatchEvent(new CustomEvent('akii-login-state-changed', {
+      detail: {
+        isLoggedIn,
+        userId: user?.id,
+        email: user?.email,
+        timestamp: Date.now()
+      }
+    }));
+  } catch (e) {
+    console.error('[Production Recovery] Error broadcasting auth change:', e);
+  }
+}
+
+/**
+ * Check for existing auth data and validate it
+ */
+function checkExistingAuth() {
+  try {
+    const hasEmergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
+    const emergencyTime = parseInt(localStorage.getItem('akii-auth-emergency-time') || '0');
+    const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
+    const userId = localStorage.getItem('akii-auth-user-id');
+    
+    console.log('[Production Recovery] Checking existing auth:', {
+      hasEmergencyAuth,
+      emergencyAge: Date.now() - emergencyTime,
+      isLoggedIn,
+      hasUserId: !!userId
+    });
+    
+    // Validate emergency auth data (60 minute validity)
+    if (hasEmergencyAuth && Date.now() - emergencyTime > 60 * 60 * 1000) {
+      console.log('[Production Recovery] Emergency auth expired, clearing');
+      localStorage.removeItem('akii-auth-emergency');
+      localStorage.removeItem('akii-auth-emergency-time');
+    }
+    
+    // Cleanup inconsistent state
+    if (hasEmergencyAuth && !isLoggedIn) {
+      console.log('[Production Recovery] Fixing inconsistent login state');
+      localStorage.setItem('akii-is-logged-in', 'true');
+    }
+    
+    // Broadcast current state
+    const isCurrentlyLoggedIn = (hasEmergencyAuth && Date.now() - emergencyTime < 60 * 60 * 1000) || isLoggedIn;
+    if (isCurrentlyLoggedIn) {
+      console.log('[Production Recovery] Found valid auth state, broadcasting');
+      broadcastAuthChange(true);
+    }
+  } catch (e) {
+    console.error('[Production Recovery] Error checking existing auth:', e);
+  }
+}
+
+/**
+ * Check if user is authenticated based on all available data
+ */
+export function isAuthenticated(): boolean {
+  try {
+    // Check for emergency auth (highest priority)
+    const hasEmergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
+    const emergencyTime = parseInt(localStorage.getItem('akii-auth-emergency-time') || '0');
+    if (hasEmergencyAuth && Date.now() - emergencyTime < 60 * 60 * 1000) {
+      return true;
+    }
+    
+    // Check general login flag
+    const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
+    if (isLoggedIn) {
+      return true;
+    }
+    
+    return false;
+  } catch (e) {
+    console.error('[Production Recovery] Error checking authentication:', e);
+    return false;
   }
 } 

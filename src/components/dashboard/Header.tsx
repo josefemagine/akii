@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/auth-compatibility";
 import { toast } from "@/components/ui/use-toast";
 import { useDirectAuth } from "@/contexts/direct-auth-context";
 import { refreshSession } from "@/lib/direct-db-access";
+import { onAuthStateChange } from "@/lib/supabase-client";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -39,6 +40,29 @@ const Header: React.FC<HeaderProps> = ({
   useEffect(() => {
     refreshSession();
   }, []);
+
+  // Set up Supabase auth listener using the official SDK method
+  useEffect(() => {
+    console.log('[Header] Setting up official Supabase auth listener');
+    
+    // Use the exported onAuthStateChange function
+    const { data: { subscription } } = onAuthStateChange((event, session) => {
+      console.log("[Header] Supabase auth event:", event, session ? "Session exists" : "No session");
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log("[Header] User signed in or token refreshed, syncing UI");
+        refreshAuthState();
+      } else if (event === 'SIGNED_OUT') {
+        console.log("[Header] User signed out, updating UI");
+        refreshAuthState();
+      }
+    });
+    
+    // Cleanup function
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [refreshAuthState]);
 
   // Handle sign out using direct auth
   const handleSignOut = async () => {
