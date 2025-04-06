@@ -19,7 +19,7 @@ import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
 import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from './AuthStateManager';
-import supabase from "@/lib/supabase-client";
+import supabase from "@/lib/supabase";
 import { useAuth } from "@/contexts/auth-compatibility";
 import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
 import { useNavigate } from "react-router-dom";
@@ -188,7 +188,7 @@ const LoginModal = ({
     console.log("[Login Modal] Starting email sign-in process for:", data.email);
     
     // Set up a listener for auth state changes during login
-    const { data: { subscription } } = onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log("[Login Modal] Auth state change during login:", event);
       
       if (event === 'SIGNED_IN' && session) {

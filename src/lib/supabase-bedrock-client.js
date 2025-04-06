@@ -6,7 +6,7 @@
 
 import { BedrockConfig } from './bedrock-config';
 // Import the singleton Supabase client
-import supabase from './supabase-client';
+import supabase from './supabase';
 // Import diagnostic tool in development mode only
 import { runClientDiagnostic } from './detect-client-duplicates';
 

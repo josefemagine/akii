@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createBedrockClient } from './aws-bedrock-client';
 
 // Import from client singleton if available
-import supabase from './supabase-client';
+import supabase from './supabase';
 
 /**
  * Fetch AWS Bedrock credentials from Supabase

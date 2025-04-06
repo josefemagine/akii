@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { EnvConfig } from "@/lib/env-config";
 import { BedrockClient } from "@/lib/supabase-bedrock-client";
 import { BedrockConfig } from "@/lib/bedrock-config";
-import supabase from "@/lib/supabase-client";
+import supabase from "@/lib/supabase";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AwsPermissionTester from '../../components/aws-permission-tester';
 import { useUser } from '@/contexts/UserContext';

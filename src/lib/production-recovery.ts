@@ -3,7 +3,7 @@
  * This ensures users can access the dashboard even if there are auth issues.
  */
 
-import { onAuthStateChange } from '@/lib/supabase-client';
+import supabase from './supabase';
 
 // Check if we're in a production environment
 export function isProduction(): boolean {
@@ -189,7 +189,7 @@ export function initializeProductionRecovery() {
   console.log('[Production Recovery] Initializing');
   
   // Set up a global Supabase auth listener
-  const { data: { subscription } } = onAuthStateChange((event, session) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
     console.log('[Production Recovery] Auth state change:', event);
     
     if (event === 'SIGNED_IN' && session) {

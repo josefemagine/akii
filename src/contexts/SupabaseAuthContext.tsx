@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, AuthError } from '@supabase/supabase-js';
-import supabase from '@/lib/supabase-client';
+import supabase from '@/lib/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
 import { User, UserRole } from '@/types/custom-types';
