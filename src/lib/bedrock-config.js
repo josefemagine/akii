@@ -4,41 +4,33 @@
  * for working with AWS Bedrock via Supabase Edge Functions.
  */
 
-// Environment detection
-const isLocalDevelopment = import.meta.env.MODE === 'development';
-const isProduction = import.meta.env.MODE === 'production';
-
-// Get Supabase URL from environment
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+// Always use production mode
+const isProduction = true;
+const isDev = false;
+const isLocalDevelopment = false;
 
 /**
- * Authentication configuration
- * JWT is required for accessing the Bedrock Edge Function
+ * Get the API URL for Bedrock
+ * @returns {string} API URL
  */
-const authConfig = {
-  // JWT refresh settings - refresh token when it's within 5 minutes of expiry
-  refreshTokenThreshold: 5 * 60 * 1000, // 5 minutes in milliseconds
-  // Require authentication for all Bedrock operations
-  requireAuth: true,
-  // JWT expiry time in seconds (defaults to 1 hour = 3600 seconds)
-  tokenExpirySeconds: 3600,
+const getApiUrl = () => {
+  return '/api';
 };
 
 /**
- * API base URL - prioritizes environment variables with fallbacks
- * In production, this should be set to your deployed API endpoint
+ * Build the auth configuration
  */
-const getApiUrl = () => {
-  // First try environment variable
-  const envApiUrl = import.meta.env.VITE_BEDROCK_API_URL;
-  
-  if (envApiUrl) {
-    // Ensure URL has no trailing slash
-    return envApiUrl.endsWith('/') ? envApiUrl.slice(0, -1) : envApiUrl;
-  }
-  
-  // Production default - using the edge function URL
-  return 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action';
+const authConfig = {
+  requireLogin: true,
+  requireAdmin: true
+};
+
+/**
+ * Check if debug mode is enabled
+ * @returns {boolean} Whether debug mode is enabled
+ */
+const isDebugMode = () => {
+  return false;
 };
 
 /**
@@ -57,10 +49,8 @@ const getEdgeFunctionName = () => {
 const getEdgeFunctionUrl = () => {
   const functionName = getEdgeFunctionName();
   
-  if (!supabaseUrl) {
-    console.error('Supabase URL is required for edge functions');
-    return '';
-  }
+  // Always use production URL
+  const supabaseUrl = 'https://injxxchotrvgvvzelhvj.supabase.co';
   
   return `${supabaseUrl}/functions/v1/${functionName}`;
 };
@@ -80,13 +70,6 @@ const useEdgeFunctions = () => {
 };
 
 /**
- * Check if debug mode is enabled
- */
-const isDebugMode = () => {
-  return import.meta.env.VITE_BEDROCK_DEBUG === 'true';
-};
-
-/**
  * Determine if mock data should be used in development
  */
 const shouldUseMockData = () => {
@@ -100,7 +83,7 @@ export const BedrockConfig = {
   useEdgeFunctions: true, // Always use edge functions
   edgeFunctionUrl: getEdgeFunctionUrl(),
   edgeFunctionName: getEdgeFunctionName(),
-  isLocalDevelopment,
+  isLocalDevelopment: false,
   isProduction: true, // Always treat as production mode
   isDev: false, // Never treat as development mode
   

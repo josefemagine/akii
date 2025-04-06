@@ -545,72 +545,109 @@ const callEdgeFunction = async ({ action, data = {}, requireAuth }) => {
   const noAuthActions = ['testEnvironment', 'test'];
   const needsAuth = requireAuth !== undefined ? requireAuth : !noAuthActions.includes(action);
   
-  if (needsAuth) {
-    // Verify configuration before proceeding
-    if (!validateApiConfiguration()) {
-      console.error('[Bedrock] API configuration validation failed');
-      return { data: null, error: 'API configuration error' };
-    }
-    
-    // Get auth token before making the request
-    const token = await getAuthToken();
-    if (!token) {
-      console.error('[Bedrock] No valid auth token available');
-      return { data: null, error: 'Authentication required' };
-    }
-    
+  // Number of retries for network issues
+  const maxAttempts = 3;
+  let attempt = 1;
+  let lastError = null;
+  
+  // Remove any useMock parameters from the data
+  if (data && typeof data === 'object' && 'useMock' in data) {
+    delete data.useMock;
+  }
+  
+  // Try multiple times if we get network errors
+  while (attempt <= maxAttempts) {
     try {
-      const { data: responseData, error } = await callEdgeFunctionDirect(
-        { action, data },
-        { token }
-      );
+      console.log(`[Bedrock] Sending request to /api/super-action (attempt ${attempt}/${maxAttempts})`);
       
-      if (error) {
-        console.error(`[Bedrock] API error for ${action}:`, error);
+      if (needsAuth) {
+        // Get auth token
+        const token = await getAuthToken();
         
-        // Check if this is a special error that needs enhanced handling
-        const specialError = handleSpecialErrors(error);
-        if (specialError) {
-          console.log('[Bedrock] Special error detected:', specialError.code);
-          return { data: null, error: specialError };
+        if (!token) {
+          console.error('[Bedrock] No valid auth token available');
+          return { data: null, error: 'Authentication required' };
         }
         
-        return { data: null, error };
-      }
-      
-      return { data: responseData, error: null };
-    } catch (err) {
-      console.error(`[Bedrock] Error processing authenticated request:`, err);
-      return { data: null, error: err.message || 'Unknown error' };
-    }
-  } else {
-    // For test/environment check endpoints, proceed without auth
-    try {
-      // No auth required, call directly
-      const { data: responseData, error } = await callEdgeFunctionDirect(
-        { action, data },
-        { skipAuth: true }
-      );
-      
-      if (error) {
-        console.error(`[Bedrock] API error for ${action}:`, error);
+        console.log('[Bedrock] Found access_token in session');
         
-        // Check if this is a special error that needs enhanced handling
-        const specialError = handleSpecialErrors(error);
-        if (specialError) {
-          console.log('[Bedrock] Special error detected in no-auth call:', specialError.code);
-          return { data: null, error: specialError };
+        // Call the edge function with auth
+        const { data: responseData, error } = await callEdgeFunctionDirect(
+          { action, data },
+          { skipAuth: false }
+        );
+        
+        if (error) {
+          console.error(`[Bedrock] API error for ${action}:`, error);
+          
+          // Check if this is a special error that needs enhanced handling
+          const specialError = handleSpecialErrors(error);
+          if (specialError) {
+            console.log('[Bedrock] Special error detected:', specialError.code);
+            return { data: null, error: specialError };
+          }
+          
+          return { data: null, error };
         }
         
-        return { data: null, error };
+        console.log(`[Bedrock] Request to ${action} successful`);
+        return { data: responseData, error: null };
+      } else {
+        // For test/environment check endpoints, proceed without auth
+        try {
+          // No auth required, call directly
+          const { data: responseData, error } = await callEdgeFunctionDirect(
+            { action, data },
+            { skipAuth: true }
+          );
+          
+          if (error) {
+            console.error(`[Bedrock] API error for ${action}:`, error);
+            
+            // Check if this is a special error that needs enhanced handling
+            const specialError = handleSpecialErrors(error);
+            if (specialError) {
+              console.log('[Bedrock] Special error detected in no-auth call:', specialError.code);
+              return { data: null, error: specialError };
+            }
+            
+            return { data: null, error };
+          }
+          
+          return { data: responseData, error: null };
+        } catch (err) {
+          console.error(`[Bedrock] Error in test function:`, err);
+          return { data: null, error: err.message || 'Unknown error' };
+        }
       }
+    } catch (error) {
+      lastError = error;
       
-      return { data: responseData, error: null };
-    } catch (err) {
-      console.error(`[Bedrock] Error in test function:`, err);
-      return { data: null, error: err.message || 'Unknown error' };
+      // Only retry on network errors
+      if (error.name === 'TypeError' || error.name === 'NetworkError' || error.name === 'AbortError') {
+        console.error(`[Bedrock] Network error on attempt ${attempt}/${maxAttempts}:`, error);
+        attempt++;
+        
+        if (attempt <= maxAttempts) {
+          // Wait before retrying (simple exponential backoff)
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+          console.log(`[Bedrock] Retrying after ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      } else {
+        // Not a network error, don't retry
+        break;
+      }
     }
   }
+  
+  // If we get here, all attempts failed
+  console.error(`[Bedrock] All ${maxAttempts} attempts failed for ${action}`);
+  return { 
+    data: null, 
+    error: lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error') 
+  };
 };
 
 /**

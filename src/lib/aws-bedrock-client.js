@@ -37,159 +37,101 @@ const FALLBACK_MODELS = [
  * @param {string} options.region - AWS region
  * @param {string} options.accessKeyId - AWS access key ID
  * @param {string} options.secretAccessKey - AWS secret access key
- * @param {boolean} options.useFallbackOnError - Whether to use fallback data on error
  * @returns {Object} Bedrock client object
  */
 export function createBedrockClient(options = {}) {
   const {
     region = 'us-east-1',
     accessKeyId,
-    secretAccessKey,
-    useFallbackOnError = true
+    secretAccessKey
   } = options;
 
   let runtimeClient = null;
   let client = null;
   let initialized = false;
   let error = null;
-  let usingFallback = false;
-  let fallbackReason = null;
 
   try {
-    // Only create real clients if we have credentials
-    if (accessKeyId && secretAccessKey) {
-      // Log the credentials we're using (masked)
-      const maskedAccessKey = accessKeyId ? `${accessKeyId.substring(0, 4)}...${accessKeyId.substring(accessKeyId.length - 4)}` : 'undefined';
-      console.log(`[AWS Bedrock] Initializing client with credentials (KeyID: ${maskedAccessKey}, Region: ${region})`);
-      
-      const credentials = {
-        region,
-        credentials: {
-          accessKeyId,
-          secretAccessKey
-        }
-      };
-
-      runtimeClient = new BedrockRuntimeClient(credentials);
-      client = new BedrockClient(credentials);
-      initialized = true;
-      console.log('[AWS Bedrock] Client initialization successful');
-    } else {
-      fallbackReason = "No credentials provided";
-      if (!useFallbackOnError) {
-        throw new Error("AWS credentials required");
-      } else {
-        console.warn(`[AWS Bedrock] ${fallbackReason}, using fallback data`);
-        usingFallback = true;
-      }
+    // Require real credentials
+    if (!accessKeyId || !secretAccessKey) {
+      throw new Error("AWS credentials are required. Missing access key ID or secret access key.");
     }
-  } catch (err) {
-    console.error("[AWS Bedrock] Failed to initialize client:", err);
-    error = err;
-    fallbackReason = `Initialization error: ${err.message}`;
     
-    if (!useFallbackOnError) {
-      throw err;
-    } else {
-      console.warn(`[AWS Bedrock] ${fallbackReason}, using fallback data`);
-      usingFallback = true;
-    }
+    // Log the credentials we're using (masked)
+    const maskedAccessKey = accessKeyId ? `${accessKeyId.substring(0, 4)}...${accessKeyId.substring(accessKeyId.length - 4)}` : 'undefined';
+    console.log(`[AWS Bedrock] Initializing client with credentials (KeyID: ${maskedAccessKey}, Region: ${region})`);
+    
+    const credentials = {
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey
+      }
+    };
+
+    runtimeClient = new BedrockRuntimeClient(credentials);
+    client = new BedrockClient(credentials);
+    initialized = true;
+    console.log('[AWS Bedrock] Client initialization successful');
+  } catch (err) {
+    console.error('[AWS Bedrock] Client initialization failed:', err);
+    error = err;
   }
-  
-  // Create a client object with methods that handle both real and fallback cases
+
+  // Status object for client
+  const clientStatus = {
+    initialized,
+    success: initialized,
+    error: error ? error.message : null,
+    message: error ? error.message : 'AWS Bedrock client initialized successfully',
+    credentials: {
+      region,
+      hasAccessKey: Boolean(accessKeyId),
+      hasSecretKey: Boolean(secretAccessKey)
+    }
+  };
+
   const bedrockClient = {
     // Add client status properties
-    status: {
-      initialized,
-      usingFallback,
-      fallbackReason,
-      error: error?.message || null,
-      region
-    },
+    clientStatus,
     
     /**
      * List available foundation models
-     * @param {Object} options - List options
-     * @param {string} options.byProvider - Filter by provider
-     * @param {string} options.byStatus - Filter by status
-     * @returns {Promise<Object>} Result with models array
+     * @param {Object} options - Options for listing models
+     * @returns {Promise<Object>} Found models
      */
     listFoundationModels: async (options = {}) => {
-      // If credentials were missing and we're using fallback, return mock data
-      if (!initialized && useFallbackOnError) {
-        console.log("[AWS Bedrock] Using fallback model data");
-        const models = [...FALLBACK_MODELS];
-        
-        // Apply any filters from options
-        const { byProvider, byStatus } = options;
-        let filteredModels = models;
-        
-        if (byProvider) {
-          filteredModels = filteredModels.filter(model => 
-            model.provider.toLowerCase().includes(byProvider.toLowerCase())
-          );
-        }
-        
-        if (byStatus) {
-          filteredModels = filteredModels.filter(model => 
-            model.status === byStatus
-          );
-        }
-        
-        return {
-          models: filteredModels,
-          isFallback: true,
-          fallbackReason
-        };
+      if (!initialized) {
+        throw new Error("AWS Bedrock client not initialized: " + (error ? error.message : "Unknown error"));
       }
       
       try {
-        const command = new ListFoundationModelsCommand({});
+        const command = new ListFoundationModelsCommand({
+          byProvider: options.byProvider,
+          byOutputModality: options.byOutputModality,
+          byInferenceType: options.byInferenceType
+        });
         const response = await client.send(command);
         
-        let models = response.modelSummaries || [];
-        
-        // Apply any filters from options
-        const { byProvider, byStatus } = options;
-        
-        if (byProvider) {
-          models = models.filter(model => 
-            model.providerName.toLowerCase().includes(byProvider.toLowerCase())
-          );
-        }
-        
-        if (byStatus) {
-          models = models.filter(model => 
-            model.modelLifecycle?.status === byStatus
-          );
-        }
-        
-        // Map to a standardized format
-        const formattedModels = models.map(model => ({
+        // Format the response
+        const models = (response.modelSummaries || []).map(model => ({
           modelId: model.modelId,
-          modelName: model.modelName,
-          provider: model.providerName,
+          modelName: model.modelName || model.modelId,
+          provider: model.providerName || 'Unknown',
           modelArn: model.modelArn,
-          status: model.modelLifecycle?.status || 'UNKNOWN'
+          status: model.modelLifecycle?.status || 'UNKNOWN',
+          customizationsSupported: model.customizationsSupported || [],
+          inferenceTypesSupported: model.inferenceTypesSupported || [],
+          inputModalities: model.inputModalities || [],
+          outputModalities: model.outputModalities || []
         }));
         
         return {
-          models: formattedModels,
+          models,
           isFallback: false
         };
       } catch (err) {
-        console.error("[AWS Bedrock] Error listing foundation models:", err);
-        
-        if (useFallbackOnError) {
-          console.log("[AWS Bedrock] Using fallback model data after API error");
-          return {
-            models: FALLBACK_MODELS,
-            isFallback: true,
-            error: err.message,
-            fallbackReason: `API Error: ${err.message}`
-          };
-        }
-        
+        console.error('[AWS Bedrock] Error listing foundation models:', err);
         throw err;
       }
     },
@@ -204,19 +146,8 @@ export function createBedrockClient(options = {}) {
         throw new Error("Model ID is required");
       }
       
-      // If credentials were missing and we're using fallback, return mock data
-      if (!initialized && useFallbackOnError) {
-        console.log("[AWS Bedrock] Using fallback model data for getFoundationModel");
-        const model = FALLBACK_MODELS.find(m => m.modelId === modelId);
-        
-        if (!model) {
-          throw new Error(`Model ${modelId} not found`);
-        }
-        
-        return {
-          model,
-          isFallback: true
-        };
+      if (!initialized) {
+        throw new Error("AWS Bedrock client not initialized: " + (error ? error.message : "Unknown error"));
       }
       
       try {
@@ -244,33 +175,17 @@ export function createBedrockClient(options = {}) {
         };
       } catch (err) {
         console.error(`[AWS Bedrock] Error getting foundation model ${modelId}:`, err);
-        
-        if (useFallbackOnError) {
-          console.log("[AWS Bedrock] Using fallback model data after error");
-          const model = FALLBACK_MODELS.find(m => m.modelId === modelId);
-          
-          if (!model) {
-            throw new Error(`Model ${modelId} not found`);
-          }
-          
-          return {
-            model,
-            isFallback: true,
-            error: err.message
-          };
-        }
-        
         throw err;
       }
     },
     
     /**
-     * Invoke a model with text
-     * @param {Object} options - Invoke options 
+     * Invoke a Bedrock model
+     * @param {Object} options - Options for invoking the model
      * @param {string} options.modelId - Model ID
-     * @param {string} options.prompt - Text prompt
-     * @param {Object} options.parameters - Model parameters
-     * @returns {Promise<Object>} Result with model output
+     * @param {string} options.prompt - Prompt to send to the model
+     * @param {Object} options.parameters - Additional parameters for the model
+     * @returns {Promise<Object>} Model response
      */
     invokeModel: async (options = {}) => {
       const { modelId, prompt, parameters = {} } = options;
@@ -283,13 +198,8 @@ export function createBedrockClient(options = {}) {
         throw new Error("Prompt is required");
       }
       
-      // If credentials were missing and we're using fallback, return mock data
-      if (!initialized && useFallbackOnError) {
-        console.log("[AWS Bedrock] Using fallback response for invokeModel");
-        return {
-          completion: "This is a fallback response because AWS Bedrock credentials are not configured. Please set up your AWS credentials to use real model responses.",
-          isFallback: true
-        };
+      if (!initialized) {
+        throw new Error("AWS Bedrock client not initialized: " + (error ? error.message : "Unknown error"));
       }
       
       try {
@@ -332,76 +242,40 @@ export function createBedrockClient(options = {}) {
         const response = await runtimeClient.send(command);
         
         // Parse the response body
-        const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+        const responseBody = new TextDecoder().decode(response.body);
+        let parsedResponse;
         
-        // Extract the completion based on the model
+        try {
+          parsedResponse = JSON.parse(responseBody);
+        } catch (parseError) {
+          console.error('[AWS Bedrock] Error parsing response JSON:', parseError);
+          return {
+            completion: responseBody,
+            rawResponse: responseBody,
+            parseError: true
+          };
+        }
+        
+        // Extract the completion based on the model type
         let completion = '';
         
         if (modelId.includes('anthropic.claude')) {
-          completion = responseBody.completion || '';
+          completion = parsedResponse.completion || '';
         } else if (modelId.includes('amazon.titan')) {
-          completion = responseBody.results?.[0]?.outputText || '';
+          completion = parsedResponse.results ? parsedResponse.results[0]?.outputText || '' : '';
         } else {
-          // Generic fallback
-          completion = responseBody.generated_text || 
-                      responseBody.completion || 
-                      responseBody.text || 
-                      JSON.stringify(responseBody);
+          // Generic extraction, take the whole response
+          completion = responseBody;
         }
         
         return {
           completion,
-          rawResponse: responseBody,
+          rawResponse: parsedResponse,
           isFallback: false
         };
       } catch (err) {
-        console.error("[AWS Bedrock] Error invoking model:", err);
-        
-        if (useFallbackOnError) {
-          console.log("[AWS Bedrock] Using fallback response after error");
-          return {
-            completion: `Error calling AWS Bedrock model: ${err.message}. This is a fallback response.`,
-            isFallback: true,
-            error: err.message
-          };
-        }
-        
+        console.error('[AWS Bedrock] Error invoking model:', err);
         throw err;
-      }
-    },
-    
-    /**
-     * Test connection to AWS Bedrock
-     * @returns {Promise<Object>} Test result
-     */
-    testConnection: async () => {
-      if (!initialized) {
-        return {
-          success: false,
-          message: "Client not initialized with valid credentials",
-          error: error?.message || fallbackReason || "Missing credentials",
-          fallbackReason
-        };
-      }
-      
-      try {
-        // Try listing models as a connection test
-        const command = new ListFoundationModelsCommand({});
-        await client.send(command);
-        
-        return {
-          success: true,
-          message: "Successfully connected to AWS Bedrock",
-          region
-        };
-      } catch (err) {
-        console.error("[AWS Bedrock] Connection test failed:", err);
-        return {
-          success: false,
-          message: `Connection failed: ${err.message}`,
-          error: err.message,
-          region
-        };
       }
     }
   };
