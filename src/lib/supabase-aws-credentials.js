@@ -38,29 +38,25 @@ export async function fetchBedrockCredentials(options = {}) {
       };
     }
     
-    // First check if the table exists by checking the metadata
+    // Production-ready approach - directly try to query the table
+    // This avoids needing any custom RPC functions
     try {
-      // Verify the table exists first by querying system tables
-      const { data: tableExists, error: tableCheckError } = await supabaseClient
-        .rpc('check_table_exists', { table_name: 'bedrock_credentials' });
-        
-      if (tableCheckError || !tableExists) {
-        console.warn('[Supabase AWS] The bedrock_credentials table does not exist');
-        return {
-          error: 'Credentials table not available in this environment',
-          credentials: null
-        };
-      }
+      console.log(`[Supabase AWS] Attempting to fetch credentials for user ${userId}`);
       
-      // If we get here, the table exists
       const { data, error } = await supabaseClient
         .from('bedrock_credentials')
         .select('aws_access_key_id, aws_secret_access_key, aws_region')
         .eq('user_id', userId)
         .single();
       
+      // Handle specific error cases
       if (error) {
-        if (error.code === '42P01') { // PostgreSQL error code for "relation does not exist"
+        // Check for table not existing errors
+        if (error.code === '42P01' || 
+            error.message?.includes('relation "bedrock_credentials" does not exist') ||
+            error.status === 400 || 
+            error.status === 404) {
+          
           console.warn('[Supabase AWS] The bedrock_credentials table does not exist, using fallback credentials');
           return {
             error: 'Credentials table not available in this environment',
@@ -98,65 +94,12 @@ export async function fetchBedrockCredentials(options = {}) {
         credentials
       };
     } catch (dbError) {
-      // Handle specific PostgreSQL errors
-      if (dbError.code === '42P01' || dbError.message?.includes('relation "bedrock_credentials" does not exist')) {
-        console.warn('[Supabase AWS] The bedrock_credentials table does not exist, using fallback credentials');
-        return {
-          error: 'Credentials table not available in this environment',
-          credentials: null
-        };
-      }
-      
-      // If we get a "function check_table_exists does not exist", it means we need to create the function
-      if (dbError.message?.includes('function check_table_exists') && dbError.message?.includes('does not exist')) {
-        console.warn('[Supabase AWS] The check_table_exists function does not exist. Falling back to direct query.');
-        
-        // Try the direct query approach as fallback
-        try {
-          const { data, error } = await supabaseClient
-            .from('bedrock_credentials')
-            .select('aws_access_key_id, aws_secret_access_key, aws_region')
-            .eq('user_id', userId)
-            .single();
-            
-          if (error) {
-            if (error.code === '42P01') {
-              console.warn('[Supabase AWS] The bedrock_credentials table does not exist');
-              return {
-                error: 'Credentials table not available in this environment',
-                credentials: null
-              };
-            }
-            throw error;
-          }
-          
-          if (!data) {
-            return {
-              error: 'No credentials found',
-              credentials: null
-            };
-          }
-          
-          const credentials = {
-            accessKeyId: data.aws_access_key_id,
-            secretAccessKey: data.aws_secret_access_key,
-            region: data.aws_region || 'us-east-1'
-          };
-          
-          console.log(`[Supabase AWS] Successfully retrieved credentials for user ${userId} (Key ID: ${maskKey(credentials.accessKeyId)})`);
-          
-          return {
-            error: null,
-            credentials
-          };
-        } catch (directQueryError) {
-          console.error('[Supabase AWS] Error in direct query fallback:', directQueryError);
-          throw directQueryError;
-        }
-      }
-      
-      // Other database errors
-      throw dbError;
+      // Catch any other unexpected errors
+      console.error('[Supabase AWS] Unexpected error fetching credentials:', dbError);
+      return {
+        error: 'Failed to fetch credentials due to unexpected error',
+        credentials: null
+      };
     }
   } catch (error) {
     console.error('[Supabase AWS] Error fetching credentials:', error);

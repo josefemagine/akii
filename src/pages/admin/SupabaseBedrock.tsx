@@ -1455,11 +1455,18 @@ const SupabaseBedrock = () => {
       setLoading(true);
       setError(null);
       
-      // Check authentication first
-      const isAuthenticated = await checkAuthStatus();
-      if (!isAuthenticated) {
-        console.log('User not authenticated');
-        setAuthStatus('unauthenticated');
+      // Check authentication first - wrap in try/catch to make more resilient
+      try {
+        const isAuthenticated = await checkAuthStatus();
+        if (!isAuthenticated) {
+          console.log('User not authenticated');
+          setAuthStatus('unauthenticated');
+          setLoading(false);
+          return;
+        }
+      } catch (authError) {
+        console.error('Authentication check failed:', authError);
+        setAuthStatus('error');
         setLoading(false);
         return;
       }
@@ -1478,8 +1485,13 @@ const SupabaseBedrock = () => {
         serverStatus: 'PRODUCTION'
       });
       
-      // Fetch instances
-      await fetchInstances();
+      // Fetch instances - wrap in try/catch to handle errors gracefully
+      try {
+        await fetchInstances();
+      } catch (fetchError) {
+        console.error('Error fetching instances:', fetchError);
+        // Continue execution - non-fatal error
+      }
       
       setLoading(false);
     } catch (error) {
@@ -1829,22 +1841,35 @@ const SupabaseBedrock = () => {
     );
   }
 
-  // Add the useEffect that calls initialize
+  // Fix the useEffect that calls initialize to prevent React error #310
   useEffect(() => {
     console.log('SupabaseBedrock component mounted');
     let isMounted = true;
+    let initializePromise = null;
     
     const initComponent = async () => {
-      if (!isMounted) return;
-      await initialize();
+      try {
+        if (!isMounted) return;
+        
+        // Store the promise to allow cleanup
+        initializePromise = initialize();
+        await initializePromise;
+      } catch (error) {
+        if (isMounted) {
+          console.error('Error initializing SupabaseBedrock component:', error);
+          setError('Error initializing component. Please try again later.');
+          setLoading(false);
+        }
+      }
     };
     
     initComponent();
     
     return () => {
       isMounted = false;
+      // No need to handle the promise in cleanup - just let it know we've unmounted
     };
-  }, [user?.id, directUser?.id]);
+  }, []);  // Remove dependency array to prevent React error #310
 
   return (
     <ErrorBoundary>
