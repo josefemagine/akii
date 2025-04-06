@@ -17,22 +17,23 @@ const CORS_HEADERS = {
 };
 
 /**
- * Formats the authorization header to ensure it's properly prefixed with 'Bearer '
+ * Format the Authorization header to ensure it's in the format 'Bearer {token}'
  * @param {string} authHeader - The original authorization header
  * @returns {string} Properly formatted authorization header
  */
 function formatAuthHeader(authHeader) {
   if (!authHeader) return '';
   
-  // If header already starts with 'Bearer ', return as is
+  // If the header already starts with Bearer, return it as is
   if (authHeader.trim().startsWith('Bearer ')) {
-    return authHeader;
+    return authHeader.trim();
   }
   
-  // Otherwise, add the 'Bearer ' prefix
-  // First, remove any existing prefix if present (like 'bearer ' with lowercase)
-  const token = authHeader.trim().replace(/^(bearer|jwt|token)\s+/i, '');
-  return `Bearer ${token}`;
+  // Remove any existing prefix like 'bearer', 'jwt', 'token'
+  const cleanToken = authHeader.trim().replace(/^(bearer|jwt|token)\s+/i, '');
+  
+  // Return with proper Bearer prefix
+  return `Bearer ${cleanToken}`;
 }
 
 /**

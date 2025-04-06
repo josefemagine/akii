@@ -5,117 +5,156 @@
  * and help diagnose boot errors.
  */
 
-// The URL of the Supabase Edge Function
-const SUPABASE_FUNCTION_URL = 'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action';
-
-// CORS headers for all responses
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey, X-Client-Info',
-  'Access-Control-Allow-Credentials': 'true'
-};
-
 /**
- * Main handler function for the API route
+ * Diagnostic endpoint for testing Supabase Edge Function connectivity
+ * This helps diagnose issues with the edge function including timeouts,
+ * authentication problems, and boot errors
  */
 export default async function handler(req, res) {
-  // Set CORS headers for all responses
-  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
-    res.setHeader(key, value);
-  });
-
-  // Handle OPTIONS requests for CORS preflight
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
   if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+    res.status(204).end();
+    return;
   }
-
-  // For GET or POST requests, perform a basic test
-  if (req.method === 'GET' || req.method === 'POST') {
-    try {
-      // Minimal request to test the function existence without triggering full boot
-      const testBody = {
-        action: 'testEnvironment',
-        data: {
-          minimal: true
-        }
-      };
-
-      // Basic headers required for the call
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-
-      // Get Authorization header if present
-      if (req.headers.authorization) {
-        // Make sure it's properly formatted
-        const auth = req.headers.authorization;
-        headers['Authorization'] = auth.trim().startsWith('Bearer ') 
-          ? auth 
-          : `Bearer ${auth.trim().replace(/^(bearer|jwt|token)\s+/i, '')}`;
+  
+  // Accept both GET and POST for easier testing
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    res.status(405).json({ error: 'Method Not Allowed' });
+    return;
+  }
+  
+  try {
+    const startTime = Date.now();
+    const supabaseUrl = process.env.SUPABASE_URL || 'https://injxxchotrvgvvzelhvj.supabase.co';
+    const functionName = process.env.SUPABASE_FUNCTION_NAME || 'super-action';
+    const functionUrl = `${supabaseUrl}/functions/v1/${functionName}`;
+    
+    console.log(`[DIAGNOSTIC] Testing connection to: ${functionUrl}`);
+    
+    // Extract auth header if provided
+    const authHeader = req.headers.authorization;
+    let formattedAuthHeader = '';
+    
+    if (authHeader) {
+      // Format auth header properly
+      if (authHeader.trim().startsWith('Bearer ')) {
+        formattedAuthHeader = authHeader.trim();
+      } else {
+        const cleanToken = authHeader.trim().replace(/^(bearer|jwt|token)\s+/i, '');
+        formattedAuthHeader = `Bearer ${cleanToken}`;
       }
-
-      console.log(`[Test API] Sending diagnostic request to Supabase Function`);
-      console.log(`[Test API] Headers: ${JSON.stringify(headers, null, 2)}`);
-
-      // Make a simple request to check if the function endpoint is accessible
-      const functionResponse = await fetch(SUPABASE_FUNCTION_URL, {
+    }
+    
+    // Prepare diagnostic request
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-client-info': 'Akii Diagnostic Tool'
+    };
+    
+    // Only include auth header if provided
+    if (formattedAuthHeader) {
+      headers['Authorization'] = formattedAuthHeader;
+    }
+    
+    // Simple diagnostic payload
+    const payload = {
+      action: 'diagnosticCheck',
+      timestamp: new Date().toISOString(),
+      requestInfo: {
+        method: req.method,
+        authProvided: !!authHeader,
+        headers: Object.keys(req.headers)
+      }
+    };
+    
+    // Use AbortController to implement timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+    
+    // Attempt connection with timeout
+    try {
+      const response = await fetch(functionUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify(testBody)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
-
-      // Get response data based on content type
-      let responseData;
-      const contentType = functionResponse.headers.get('content-type');
       
-      if (contentType && contentType.includes('application/json')) {
-        try {
-          responseData = await functionResponse.json();
-        } catch (e) {
-          responseData = { error: 'Failed to parse JSON response', rawText: await functionResponse.text() };
+      clearTimeout(timeoutId);
+      
+      const responseTime = Date.now() - startTime;
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      try {
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          data = await response.text();
         }
-      } else {
-        responseData = await functionResponse.text();
+      } catch (parseError) {
+        data = { error: 'Failed to parse response', message: parseError.message };
       }
-
-      // Return diagnostic information
-      return res.status(200).json({
-        status: 'success',
-        functionStatus: functionResponse.status,
-        functionResponse: responseData,
-        diagnostics: {
-          url: SUPABASE_FUNCTION_URL,
-          requestedAt: new Date().toISOString(),
-          responseStatus: functionResponse.status,
-          responseHeaders: Object.fromEntries([...functionResponse.headers.entries()]),
-          responseSize: JSON.stringify(responseData).length
-        },
-        message: 'Diagnostic test completed. Check the results for Supabase function status.'
-      });
-    } catch (error) {
-      console.error('[Test API] Error during diagnostic test:', error);
       
-      return res.status(500).json({ 
+      // Return diagnostic information
+      res.status(200).json({
+        status: 'completed',
+        diagnostics: {
+          statusCode: response.status,
+          responseTime: `${responseTime}ms`,
+          headers: Object.fromEntries([...response.headers.entries()]),
+          endpoint: functionUrl,
+          authHeaderProvided: !!authHeader,
+          authHeaderFormatted: !!formattedAuthHeader,
+          response: data
+        }
+      });
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      
+      // Handle timeout/abort specifically
+      if (fetchError.name === 'AbortError') {
+        res.status(200).json({
+          status: 'timeout',
+          diagnostics: {
+            error: 'Function Timeout',
+            message: 'The edge function did not respond within the timeout period (8 seconds)',
+            endpoint: functionUrl,
+            authHeaderProvided: !!authHeader,
+            authHeaderFormatted: !!formattedAuthHeader,
+            elapsedTime: `${Date.now() - startTime}ms`
+          }
+        });
+        return;
+      }
+      
+      // Handle other fetch errors
+      res.status(200).json({
         status: 'error',
-        error: 'Diagnostic Test Failed',
-        details: {
-          message: error.message || 'An unexpected error occurred',
-          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-          url: SUPABASE_FUNCTION_URL
-        },
-        troubleshooting: {
-          checkSupabaseStatus: "Verify Supabase is up at https://status.supabase.com",
-          checkProjectStatus: "Login to your Supabase dashboard and check Edge Function status",
-          checkFunctionLogs: "Check the logs in Supabase dashboard for the 'super-action' function"
+        diagnostics: {
+          error: 'Connection Failed',
+          message: fetchError.message,
+          endpoint: functionUrl,
+          authHeaderProvided: !!authHeader,
+          authHeaderFormatted: !!formattedAuthHeader,
+          elapsedTime: `${Date.now() - startTime}ms`
         }
       });
     }
+  } catch (error) {
+    // Handle any other errors
+    console.error('[DIAGNOSTIC] Error testing Supabase Edge Function:', error);
+    res.status(200).json({
+      status: 'error',
+      diagnostics: {
+        error: 'Internal Server Error',
+        message: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      }
+    });
   }
-
-  // For all other HTTP methods, return Method Not Allowed
-  return res.status(405).json({ 
-    error: 'Method Not Allowed',
-    message: 'This endpoint only accepts GET and POST requests'
-  });
 } 

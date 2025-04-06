@@ -208,70 +208,153 @@ const devMockData = {
 };
 
 /**
- * Call the edge function directly using fetch as a fallback
- * This is used when the Supabase client's invoke method fails due to CORS issues
+ * Format the Authorization header to ensure it's in the format 'Bearer {token}'
+ * @param {string} authHeader - The original authorization header
+ * @returns {string} Properly formatted authorization header
  */
-const callEdgeFunctionDirect = async (functionName, action, data, token) => {
+function formatAuthHeader(authHeader) {
+  if (!authHeader) return '';
+  
+  // If the header already starts with Bearer, return it as is
+  if (authHeader.trim().startsWith('Bearer ')) {
+    return authHeader.trim();
+  }
+  
+  // Remove any existing prefix like 'bearer', 'jwt', 'token'
+  const cleanToken = authHeader.trim().replace(/^(bearer|jwt|token)\s+/i, '');
+  
+  // Return with proper Bearer prefix
+  return `Bearer ${cleanToken}`;
+}
+
+/**
+ * Call the Supabase Edge Function directly with timeout and error handling
+ * @param {Object} payload - The payload to send to the edge function
+ * @param {Object} options - Options for the request
+ * @param {boolean} options.skipAuth - Skip sending authentication token
+ * @param {number} options.timeout - Timeout in milliseconds (default: 20000)
+ * @returns {Promise<any>} The response from the edge function
+ */
+async function callEdgeFunctionDirect(payload, options = {}) {
+  // Default options
+  const { 
+    skipAuth = false, 
+    timeout = 20000 
+  } = options;
+  
+  // Get settings from config
+  const functionUrl = `${SUPABASE_URL}/functions/v1/super-action`;
+  const proxyUrl = '/api/super-action';
+  
+  // Use API proxy by default, which helps with CORS, authentication formatting, etc.
+  const url = proxyUrl;
+  
+  // Add client version to payload
+  const finalPayload = {
+    ...payload,
+    clientVersion: CLIENT_VERSION,
+    timestamp: new Date().toISOString()
+  };
+  
+  // Setup headers with correctly formatted authorization if needed
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  
+  // Add authorization header if we have a token and auth is required
+  if (!skipAuth && authToken) {
+    headers['Authorization'] = formatAuthHeader(authToken);
+  }
+  
   try {
-    const url = `${BedrockConfig.edgeFunctionUrl}`;
+    console.log(`[API] Calling edge function with action: ${payload.action}`);
     
-    console.log(`[Bedrock] Calling direct fetch to: ${url} with action: ${action}`);
-    console.log(`[Bedrock] Edge function URL: ${BedrockConfig.edgeFunctionUrl}`);
-    console.log(`[Bedrock] Edge function name: ${BedrockConfig.edgeFunctionName}`);
+    // Use AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
     
-    // Ensure the request body is properly formatted with action in the body
-    const requestBody = {
-      action: action,
-      data: data
-    };
-    
-    console.log(`[Bedrock] Request payload:`, JSON.stringify(requestBody));
-    
-    // Add debugging for auth header
-    if (token) {
-      console.log(`[Bedrock] Auth token available (length: ${token.length})`);
-      // Log the first and last 5 characters of the token for debugging
-      console.log(`[Bedrock] Token: ${token.substring(0, 5)}...${token.substring(token.length - 5)}`);
-    } else {
-      console.warn(`[Bedrock] No auth token available for ${action}`);
-    }
-    
+    // Make the request
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : undefined
-      },
-      body: JSON.stringify(requestBody)
+      headers,
+      body: JSON.stringify(finalPayload),
+      signal: controller.signal
     });
     
+    // Clear the timeout
+    clearTimeout(timeoutId);
+    
+    // Handle non-2xx responses
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Bedrock] Direct fetch error (${response.status}):`, errorText);
+      let errorObject;
       
       try {
-        // Try to parse the error as JSON
-        const errorJson = JSON.parse(errorText);
-        return { data: null, error: errorJson.error || errorJson.message || `API error: ${response.status}` };
-      } catch (_e) { // eslint-disable-line no-unused-vars
-        // If not JSON, return the raw error text
-        return { data: null, error: `API error: ${response.status} ${errorText}` };
+        // Try to parse error as JSON
+        errorObject = JSON.parse(errorText);
+      } catch (e) {
+        // If not JSON, create a basic error object
+        errorObject = { 
+          message: errorText || `HTTP Error ${response.status}`,
+          status: response.status
+        };
       }
+      
+      // Enhance error with HTTP status information
+      const error = new Error(errorObject.message || `HTTP Error ${response.status}`);
+      error.status = response.status;
+      error.details = errorObject;
+      
+      // Special error handling for specific status codes
+      if (response.status === 401) {
+        error.code = 'UNAUTHORIZED';
+        error.message = 'Authentication failed. Check your authentication token.';
+      } else if (response.status === 404) {
+        error.code = 'NOT_FOUND';
+        error.message = 'The requested resource or action was not found.';
+      } else if (response.status === 503) {
+        error.code = 'SERVICE_UNAVAILABLE';
+        error.message = 'The Edge Function service is temporarily unavailable.';
+      } else if (response.status === 504) {
+        error.code = 'FUNCTION_INVOCATION_TIMEOUT';
+        error.message = 'The Edge Function timed out during invocation.';
+      }
+      
+      throw error;
     }
     
-    const responseData = await response.json();
-    
-    if (responseData?.error) {
-      console.error(`[Bedrock] API error in direct fetch for action ${action}:`, responseData.error);
-      return { data: null, error: responseData.error };
+    // Parse the response body based on content type
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      const data = await response.json();
+      return data;
+    } else {
+      return await response.text();
     }
-    
-    return { data: responseData, error: null };
   } catch (error) {
-    console.error(`[Bedrock] Exception in direct fetch for action ${action}:`, error);
-    return { data: null, error: error.message || 'Error in direct fetch' };
+    // Handle abort/timeout errors
+    if (error.name === 'AbortError') {
+      const timeoutError = new Error(`Request timed out after ${timeout}ms`);
+      timeoutError.code = 'REQUEST_TIMEOUT';
+      timeoutError.originalError = error;
+      throw timeoutError;
+    }
+    
+    // If we have a special error code already, just re-throw
+    if (error.code) {
+      throw error;
+    }
+    
+    // Handle other fetch errors
+    console.error(`[API] Error calling edge function:`, error);
+    
+    // Create a descriptive error
+    const fetchError = new Error(`API request failed: ${error.message}`);
+    fetchError.code = 'API_REQUEST_FAILED';
+    fetchError.originalError = error;
+    throw fetchError;
   }
-};
+}
 
 // Get the appropriate API URL based on the environment
 const getApiUrl = () => {
@@ -287,6 +370,35 @@ const handleSpecialErrors = (errorText) => {
   if (!errorText) return null;
   
   const lowerError = errorText.toLowerCase();
+  
+  // Handle function timeout errors
+  if (lowerError.includes('function_invocation_timeout') || 
+      lowerError.includes('gateway timeout') ||
+      lowerError.includes('504')) {
+    return {
+      code: "EDGE_FUNCTION_TIMEOUT",
+      message: "The Edge Function timed out during execution.",
+      details: {
+        original: errorText,
+        resolution: "This may be caused by the boot error. Fix the module import issue first, then check for long-running operations in the function.",
+        suggestion: "If the function continues to time out after fixing the import error, optimize the function's execution time or increase the timeout limit."
+      }
+    };
+  }
+  
+  // Handle authentication formatting errors
+  if (lowerError.includes('auth header is not') || 
+      lowerError.includes('bearer')) {
+    return {
+      code: "EDGE_FUNCTION_AUTH_FORMAT",
+      message: "Authentication token format error.",
+      details: {
+        original: errorText,
+        resolution: "The function is expecting the Authorization header in the format 'Bearer {token}'.",
+        suggestion: "Check the token formatting in both the client and server code."
+      }
+    };
+  }
   
   // Special handling for the specific listAvailableFoundationModels error
   if (lowerError.includes('does not provide an export named \'listavailablefoundationmodels\'') ||
@@ -420,10 +532,8 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
           }
           
           const { data: responseData, error } = await callEdgeFunctionDirect(
-            BedrockConfig.edgeFunctionName, 
-            action, 
-            data, 
-            token
+            { action, data },
+            { skipAuth: false }
           );
           
           if (error) {
@@ -437,7 +547,8 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
               console.log('[Bedrock] Special error detected:', specialError.code);
               
               // For special errors with known fallbacks, provide fallback data
-              if (action === 'listFoundationModels' || (action === 'aws-credential-test' && data.listModels)) {
+              if (action === 'ListFoundationModels' || action === 'listFoundationModels' || 
+                  (action === 'aws-credential-test' && data.listModels)) {
                 return {
                   data: getFallbackModels(data),
                   error: specialError
@@ -454,15 +565,27 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
             // Don't retry auth errors as they're not likely to resolve with retries
             if (errorLower.includes('401') || 
                 errorLower.includes('unauthorized') || 
-                errorLower.includes('auth') || 
+                errorLower.includes('auth header') || 
                 errorLower.includes('bearer')) {
               console.warn('[Bedrock] Authorization error detected, not retrying');
+              
+              // For model listings, provide fallback data
+              if (action === 'ListFoundationModels' || action === 'listFoundationModels' || 
+                  (action === 'aws-credential-test' && data.listModels)) {
+                return {
+                  data: getFallbackModels(data),
+                  error: 'Authentication error, using fallback data'
+                };
+              }
+              
               return { data: null, error };
             }
             
-            // For boot errors and service unavailable errors, try again
+            // For boot errors, timeouts, and service unavailable errors, try again
             if (errorLower.includes('boot_error') || 
                 errorLower.includes('503') ||
+                errorLower.includes('504') ||
+                errorLower.includes('timeout') ||
                 errorLower.includes('failed to start') || 
                 errorLower.includes('function failed')) {
               console.log('[Bedrock] Recoverable error detected, will retry');
@@ -508,10 +631,8 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
       
       // No auth required, call directly
       const { data: responseData, error } = await callEdgeFunctionDirect(
-        BedrockConfig.edgeFunctionName, 
-        action, 
-        data, 
-        ''
+        { action, data },
+        { skipAuth: true }
       );
       
       if (error) {
@@ -676,135 +797,126 @@ const deleteInstance = async (instanceId) => {
 };
 
 /**
- * Test the edge function environment
- * This function attempts to diagnose issues with the Supabase Edge Functions environment
- * 
- * @returns {Promise<Object>} Environment test results
+ * Tests the Supabase Edge Function environment and returns diagnostics
+ * @param {Object} options - Test options
+ * @param {boolean} options.skipAuth - Skip authentication check
+ * @param {boolean} options.useDiagnosticEndpoint - Use the special diagnostic endpoint
+ * @returns {Promise<Object>} - Test results and diagnostics
  */
-const testEnvironment = async () => {
-  console.log('[Bedrock] Testing edge function environment...');
+export async function testEnvironment(options = {}) {
+  console.log('[ENV TEST] Testing edge function environment...');
+  const startTime = Date.now();
   
-  let diagnostics = {
-    standardEndpoint: { attempted: false, success: false, error: null },
-    diagnosticEndpoint: { attempted: false, success: false, error: null },
-    apiVersion: BedrockConfig.apiVersion,
+  // Prepare diagnostics object
+  const diagnostics = {
+    apiVersion: API_VERSION,
+    clientVersion: CLIENT_VERSION,
+    timestamp: new Date().toISOString(),
     environment: {
-      bedrockRegion: BedrockConfig.bedrockRegion,
-      hasApiUrl: !!BedrockConfig.apiUrl,
-      hasCredentials: !!BedrockConfig.accessKeyId && !!BedrockConfig.secretAccessKey,
-      isDevelopment: process.env.NODE_ENV !== 'production',
-      isLocalDevelopment: BedrockConfig.isLocalDevelopment,
+      supabaseUrl: SUPABASE_URL,
+      functionName: 'super-action'
     },
-    clientEnvVars: {
-      VITE_SUPABASE_URL: !!import.meta.env.VITE_SUPABASE_URL,
-      VITE_SUPABASE_ANON_KEY: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
-      VITE_SUPABASE_FUNCTION_NAME: import.meta.env.VITE_SUPABASE_FUNCTION_NAME || null,
-    },
-    errorDetails: null
+    clientEnv: {
+      hasFetch: typeof fetch !== 'undefined',
+      hasSupabase: Boolean(sbClient), 
+      hasAuth: Boolean(authToken) && authToken.length > 10,
+      authTokenLength: authToken ? authToken.length : 0
+    }
   };
   
   try {
-    // First try the standard endpoint without requiring auth
-    diagnostics.standardEndpoint.attempted = true;
-    const standardResult = await callEdgeFunction({ 
-      action: 'testEnvironment', 
-      requireAuth: false 
-    });
-    
-    diagnostics.standardEndpoint.success = !standardResult.error;
-    diagnostics.standardEndpoint.result = standardResult.data;
-    
-    if (standardResult.error) {
-      diagnostics.standardEndpoint.error = standardResult.error;
-      console.warn('[Bedrock] Standard edge function test failed:', standardResult.error);
-      
-      // Check if we received a detailed error object
-      if (typeof standardResult.error === 'object' && standardResult.error.code) {
-        diagnostics.errorDetails = standardResult.error;
+    // First try the diagnostic endpoint - more resilient to errors
+    if (options.useDiagnosticEndpoint !== false) {
+      try {
+        console.log('[ENV TEST] Testing with diagnostic API...');
+        const diagnosticApiUrl = '/api/super-action-test';
         
-        // For module errors, provide specific guidance
-        if (standardResult.error.code === 'EDGE_FUNCTION_MODULE_ERROR') {
-          diagnostics.failureReason = 'MODULE_ERROR';
-          diagnostics.suggestedAction = `The Supabase Edge Function has a module import error. It's trying to import '${standardResult.error.details.missingExport}' from '${standardResult.error.details.module}' but that export doesn't exist. This requires a server-side fix.`;
-        } else if (standardResult.error.code === 'EDGE_FUNCTION_BOOT_ERROR') {
-          diagnostics.failureReason = 'BOOT_ERROR';
-          diagnostics.suggestedAction = 'The Supabase Edge Function is failing to initialize. Check the server logs for more details.';
-        }
-      }
-    } else {
-      console.log('[Bedrock] Edge function test successful', standardResult.data);
-      return {
-        ...diagnostics,
-        success: true,
-        message: 'Edge function environment is configured correctly'
-      };
-    }
-  } catch (error) {
-    diagnostics.standardEndpoint.error = error.message;
-    console.error('[Bedrock] Error testing standard edge function:', error);
-  }
-  
-  // If standard endpoint fails, try the diagnostic endpoint
-  try {
-    diagnostics.diagnosticEndpoint.attempted = true;
-    const response = await fetch('/api/super-action-test', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        action: 'testEnvironment',
-        data: { minimal: true }
-      })
-    });
-    
-    if (!response.ok) {
-      diagnostics.diagnosticEndpoint.error = `HTTP error ${response.status}`;
-      console.error(`[Bedrock] Diagnostic endpoint HTTP error: ${response.status}`);
-    } else {
-      const result = await response.json();
-      
-      diagnostics.diagnosticEndpoint.success = true;
-      diagnostics.diagnosticEndpoint.result = result;
-      
-      // Check if the diagnostic endpoint found a specific error
-      if (result.functionResponse && result.functionResponse.error) {
-        const errorText = result.functionResponse.error;
-        const specialError = handleSpecialErrors(errorText);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
         
-        if (specialError) {
-          diagnostics.errorDetails = specialError;
+        const testResponse = await fetch(diagnosticApiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': options.skipAuth ? undefined : authToken
+          },
+          body: JSON.stringify({
+            action: 'testEnvironment',
+            source: 'client',
+            timestamp: new Date().toISOString(),
+            clientVersion: CLIENT_VERSION
+          }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (testResponse.ok) {
+          const data = await testResponse.json();
+          console.log('[ENV TEST] Diagnostic API response:', data);
           
-          if (specialError.code === 'EDGE_FUNCTION_MODULE_ERROR') {
-            diagnostics.failureReason = 'MODULE_ERROR';
-            diagnostics.suggestedAction = `The Supabase Edge Function has a module import error. It's trying to import '${specialError.details.missingExport}' from '${specialError.details.module}' but that export doesn't exist. This requires a server-side fix.`;
-          }
+          return {
+            success: data.status === 'completed' && data.diagnostics?.statusCode < 400,
+            message: data.status === 'completed' 
+              ? 'Edge function diagnostic test completed successfully' 
+              : `Diagnostic test ${data.status}: ${data.diagnostics?.error || 'Unknown error'}`,
+            data: data.diagnostics,
+            elapsedTime: `${Date.now() - startTime}ms`,
+            source: 'diagnostic-endpoint'
+          };
         }
+      } catch (diagnosticError) {
+        console.warn('[ENV TEST] Diagnostic endpoint error:', diagnosticError);
+        // Continue to standard test if diagnostic endpoint fails
       }
-      
-      console.log('[Bedrock] Diagnostic endpoint test result:', result);
     }
+    
+    // Try standard edge function if diagnostic endpoint isn't available
+    console.log('[ENV TEST] Falling back to direct edge function test...');
+    const testData = await callEdgeFunctionDirect({
+      action: 'testEnvironment',
+      data: { client: 'browser' }
+    }, { 
+      skipAuth: options.skipAuth 
+    });
+    
+    return {
+      success: true,
+      message: 'Edge function environment test completed successfully',
+      data: testData,
+      elapsedTime: `${Date.now() - startTime}ms`,
+      source: 'edge-function'
+    };
   } catch (error) {
-    diagnostics.diagnosticEndpoint.error = error.message;
-    console.error('[Bedrock] Error testing diagnostic endpoint:', error);
+    console.error('[ENV TEST] Environment test failed:', error);
+    
+    // Create meaningful error message based on error type
+    let errorMessage = error.message;
+    
+    if (error.code === 'FUNCTION_INVOCATION_TIMEOUT') {
+      errorMessage = 'The edge function timed out (30s limit). This may indicate a boot error or resource constraint.';
+    } else if (error.status === 401) {
+      errorMessage = 'Authentication failed. Check that your token is valid and properly formatted.';
+    } else if (error.name === 'AbortError') {
+      errorMessage = 'The request timed out waiting for a response.';
+    } else if (error.code === 'BOOT_ERROR') {
+      errorMessage = 'The edge function failed to boot. Check server logs for missing export errors.';
+    }
+    
+    return {
+      success: false,
+      message: `Edge function test failed: ${errorMessage}`,
+      error: {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        status: error.status
+      },
+      diagnostics,
+      elapsedTime: `${Date.now() - startTime}ms`
+    };
   }
-  
-  // Set overall success/failure message
-  let message = 'Edge function environment test failed. See diagnostics for details.';
-  
-  // Add specific guidance based on the detected issue
-  if (diagnostics.failureReason === 'MODULE_ERROR') {
-    message = `Edge function has a module import error. The server-side code requires updating.`;
-  } else if (diagnostics.failureReason === 'BOOT_ERROR') {
-    message = `Edge function is failing to initialize. Check server logs for details.`;
-  }
-  
-  return {
-    ...diagnostics,
-    success: false,
-    message
-  };
-};
+}
 
 /**
  * Send a message to a Bedrock AI model
