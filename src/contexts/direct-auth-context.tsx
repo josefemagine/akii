@@ -179,6 +179,9 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setIsLoading(true);
       console.log('DirectAuth: Refreshing auth state');
       
+      // Dynamically import required functions
+      const { isLoggedIn, getProfileDirectly, ensureProfileExists, getMinimalUser } = await import('@/lib/direct-db-access');
+      
       // First check if user is logged in according to localStorage
       const isLoggedInState = isLoggedIn();
       console.log('DirectAuth: isLoggedIn check result:', isLoggedInState);
@@ -496,7 +499,7 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       try {
         // Force initialize localStorage with default values
-        const { initializeLocalStorage } = await import('@/lib/direct-db-access');
+        const { initializeLocalStorage, isLoggedIn, getMinimalUser, getProfileDirectly } = await import('@/lib/direct-db-access');
         initializeLocalStorage();
         
         // Check local storage for session data first
@@ -626,11 +629,14 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     initAuth();
     
     // Listen for auth state changes in authState effect
-    const handleAuthStateChange = (event: CustomEvent) => {
+    const handleAuthStateChange = async (event: CustomEvent) => {
       console.log('DirectAuth: Received auth state change event', event.detail);
       
       // Force immediate auth state refresh
       const syncWithSupabaseAuth = async () => {
+        // Dynamically import required functions
+        const { getProfileDirectly, ensureProfileExists } = await import('@/lib/direct-db-access');
+        
         if (event.detail?.isLoggedIn) {
           const userId = event.detail.userId;
           if (userId) {

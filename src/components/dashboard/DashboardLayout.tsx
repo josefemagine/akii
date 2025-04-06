@@ -7,7 +7,6 @@ import Header from "./Header";
 import TrialBanner from "./TrialBanner";
 import { useDirectAuth } from "@/contexts/direct-auth-context";
 import { useAuth } from "@/contexts/auth-compatibility";
-import { ensureProfileExists, isLoggedIn } from "@/lib/direct-db-access";
 import { isProduction, ensureDashboardAccess } from "@/lib/production-recovery";
 
 // Define consistent dashboard styling variables
@@ -222,6 +221,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             return;
           }
           
+          // Dynamically import ensureProfileExists
+          const { ensureProfileExists } = await import('@/lib/direct-db-access');
+          
           const { data: profileData, error } = await ensureProfileExists(currentUserId);
           
           if (profileData) {
@@ -233,6 +235,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             // If we couldn't create the profile, let's try one more time
             setTimeout(async () => {
               console.log("DashboardLayout: Retrying profile creation");
+              // Dynamically import ensureProfileExists again
+              const { ensureProfileExists } = await import('@/lib/direct-db-access');
               const retryResult = await ensureProfileExists(currentUserId);
               if (retryResult.data) {
                 console.log("DashboardLayout: Profile retry successful:", retryResult.data);
@@ -255,7 +259,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   
   // Verify auth state periodically
   useEffect(() => {
-    const authCheck = setInterval(() => {
+    const authCheck = setInterval(async () => {
+      // Dynamically import isLoggedIn
+      const { isLoggedIn } = await import('@/lib/direct-db-access');
       const isLoggedInStatus = isLoggedIn();
       console.log("DashboardLayout: Periodic auth check:", { isLoggedInStatus });
       
