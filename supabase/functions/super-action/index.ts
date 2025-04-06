@@ -2,7 +2,8 @@
 // @ts-ignore - Deno-specific import
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 // @ts-ignore - Deno-specific import
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.21.0";
+import * as jose from 'https://esm.sh/jose@4.14.4';
 // Import our AWS integration functions
 // @ts-ignore - Deno-specific import
 import {
@@ -31,11 +32,68 @@ import { runAwsBedrockTests } from "./aws-test.ts";
 // CORS headers for all responses
 const CORS_HEADERS = CONFIG.CORS_HEADERS;
 
-// Initialize Supabase client
-const supabaseClient = createClient(
-  CONFIG.SUPABASE_URL,
-  CONFIG.SUPABASE_SERVICE_ROLE_KEY
-);
+// Load config from environment
+const CONFIG_ENV = {
+  SUPABASE_URL: Deno.env.get('SUPABASE_URL') || '',
+  SUPABASE_SERVICE_ROLE_KEY: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
+  SUPABASE_ANON_KEY: Deno.env.get('SUPABASE_ANON_KEY') || '',
+  JWT_SECRET: Deno.env.get('SUPABASE_JWT_SECRET') || '',
+  AWS_REGION: Deno.env.get('AWS_REGION') || 'us-east-1', 
+  AWS_ACCESS_KEY_ID: Deno.env.get('AWS_ACCESS_KEY_ID') || '',
+  AWS_SECRET_ACCESS_KEY: Deno.env.get('AWS_SECRET_ACCESS_KEY') || ''
+};
+
+// Import AWS Bedrock functions separately with error handling
+let aws;
+try {
+  aws = await import('./aws.ts');
+} catch (error) {
+  console.error("Error importing AWS module:", error);
+  // Provide fallback implementations for required functions
+  aws = {
+    listAvailableFoundationModels: async () => ({ success: false, error: "AWS module failed to load", models: [], count: 0 }),
+    listProvisionedModelThroughputs: async () => ({ success: false, error: "AWS module failed to load", instances: [] }),
+    createProvisionedModelThroughput: async () => ({ success: false, error: "AWS module failed to load" }),
+    getProvisionedModelThroughput: async () => ({ success: false, error: "AWS module failed to load" }),
+    deleteProvisionedModelThroughput: async () => ({ success: false, error: "AWS module failed to load" }),
+    invokeBedrockModel: async () => ({ success: false, error: "AWS module failed to load" }),
+    getModelUsageStatistics: async () => ({ success: false, error: "AWS module failed to load" }),
+    verifyAwsCredentials: async () => ({ success: false, error: "AWS module failed to load" }),
+    runAwsPermissionsTest: async () => ({ success: false, error: "AWS module failed to load" })
+  };
+}
+
+// Destructure AWS functions with fallbacks
+const {
+  listAvailableFoundationModels = async () => ({ success: false, error: "Function not available", models: [], count: 0 }),
+  listProvisionedModelThroughputs = async () => ({ success: false, error: "Function not available", instances: [] }),
+  createProvisionedModelThroughput = async () => ({ success: false, error: "Function not available" }),
+  getProvisionedModelThroughput = async () => ({ success: false, error: "Function not available" }),
+  deleteProvisionedModelThroughput = async () => ({ success: false, error: "Function not available" }),
+  invokeBedrockModel = async () => ({ success: false, error: "Function not available" }),
+  getModelUsageStatistics = async () => ({ success: false, error: "Function not available" }),
+  verifyAwsCredentials = async () => ({ success: false, error: "Function not available" }),
+  runAwsPermissionsTest = async () => ({ success: false, error: "Function not available" })
+} = aws;
+
+// Initialize Supabase client with error handling
+let supabaseClient;
+try {
+  supabaseClient = createClient(
+    CONFIG_ENV.SUPABASE_URL,
+    CONFIG_ENV.SUPABASE_SERVICE_ROLE_KEY
+  );
+} catch (error) {
+  console.error("Error initializing Supabase client:", error);
+  // Create a dummy client that will return appropriate errors
+  supabaseClient = {
+    from: () => ({
+      select: () => ({ data: null, error: { message: "Supabase client failed to initialize" } }),
+      insert: () => ({ data: null, error: { message: "Supabase client failed to initialize" } }),
+      delete: () => ({ data: null, error: { message: "Supabase client failed to initialize" } })
+    })
+  };
+}
 
 // JWT token validation
 async function validateJwtToken(request: Request): Promise<{ user: any, error: string | null }> {
@@ -90,13 +148,13 @@ async function handleTestEnv(request: Request): Promise<Response> {
           // @ts-ignore - Deno global
           isProduction: Deno.env.get("DENO_ENV") !== "development",
           aws: {
-            region: CONFIG.AWS_REGION,
-            hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID),
-            hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
-            accessKeyFormat: CONFIG.AWS_ACCESS_KEY_ID ? (CONFIG.AWS_ACCESS_KEY_ID.startsWith("AKIA") ? "valid" : "invalid") : "missing",
-            secretKeyLength: CONFIG.AWS_SECRET_ACCESS_KEY ? CONFIG.AWS_SECRET_ACCESS_KEY.length : 0,
-            accessKeyLength: CONFIG.AWS_ACCESS_KEY_ID ? CONFIG.AWS_ACCESS_KEY_ID.length : 0,
-            accessKeyStart: CONFIG.AWS_ACCESS_KEY_ID ? CONFIG.AWS_ACCESS_KEY_ID.substring(0, 4) : "",
+            region: CONFIG_ENV.AWS_REGION,
+            hasAccessKey: Boolean(CONFIG_ENV.AWS_ACCESS_KEY_ID),
+            hasSecretKey: Boolean(CONFIG_ENV.AWS_SECRET_ACCESS_KEY),
+            accessKeyFormat: CONFIG_ENV.AWS_ACCESS_KEY_ID ? (CONFIG_ENV.AWS_ACCESS_KEY_ID.startsWith("AKIA") ? "valid" : "invalid") : "missing",
+            secretKeyLength: CONFIG_ENV.AWS_SECRET_ACCESS_KEY ? CONFIG_ENV.AWS_SECRET_ACCESS_KEY.length : 0,
+            accessKeyLength: CONFIG_ENV.AWS_ACCESS_KEY_ID ? CONFIG_ENV.AWS_ACCESS_KEY_ID.length : 0,
+            accessKeyStart: CONFIG_ENV.AWS_ACCESS_KEY_ID ? CONFIG_ENV.AWS_ACCESS_KEY_ID.substring(0, 4) : "",
             configValid: awsConfig.isValid,
             missingVars: awsConfig.missingVars,
             formatErrors: awsConfig.formatErrors
@@ -104,8 +162,8 @@ async function handleTestEnv(request: Request): Promise<Response> {
           // @ts-ignore - Deno global
           platform: Deno.build.os,
           supabase: {
-            hasUrl: Boolean(CONFIG.SUPABASE_URL),
-            hasServiceKey: Boolean(CONFIG.SUPABASE_SERVICE_ROLE_KEY),
+            hasUrl: Boolean(CONFIG_ENV.SUPABASE_URL),
+            hasServiceKey: Boolean(CONFIG_ENV.SUPABASE_SERVICE_ROLE_KEY),
           },
           user: {
             id: user.id,
@@ -142,10 +200,10 @@ async function handleAwsDiagnostics(request: Request): Promise<Response> {
   try {
     // Return AWS diagnostic information
     const awsKeys = {
-      region: CONFIG.AWS_REGION,
-      accessKeyId: CONFIG.AWS_ACCESS_KEY_ID ? `${CONFIG.AWS_ACCESS_KEY_ID.substring(0, 4)}...${CONFIG.AWS_ACCESS_KEY_ID.slice(-4)}` : 'missing',
-      secretKeyPresent: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
-      secretKeyLength: CONFIG.AWS_SECRET_ACCESS_KEY ? CONFIG.AWS_SECRET_ACCESS_KEY.length : 0
+      region: CONFIG_ENV.AWS_REGION,
+      accessKeyId: CONFIG_ENV.AWS_ACCESS_KEY_ID ? `${CONFIG_ENV.AWS_ACCESS_KEY_ID.substring(0, 4)}...${CONFIG_ENV.AWS_ACCESS_KEY_ID.slice(-4)}` : 'missing',
+      secretKeyPresent: Boolean(CONFIG_ENV.AWS_SECRET_ACCESS_KEY),
+      secretKeyLength: CONFIG_ENV.AWS_SECRET_ACCESS_KEY ? CONFIG_ENV.AWS_SECRET_ACCESS_KEY.length : 0
     };
     
     console.log("[API] AWS diagnostics requested, keys info:", awsKeys);
@@ -1131,8 +1189,8 @@ serve(async (req: Request) => {
       // Only proceed if user is authenticated
       try {
         // Load environment variables directly from Deno for debugging
-        const accessKeyId = CONFIG.AWS_ACCESS_KEY_ID || "";
-        const secretKey = CONFIG.AWS_SECRET_ACCESS_KEY || "";
+        const accessKeyId = CONFIG_ENV.AWS_ACCESS_KEY_ID || "";
+        const secretKey = CONFIG_ENV.AWS_SECRET_ACCESS_KEY || "";
         
         // Define the interface for the info object
         interface EnvDebugInfo {
@@ -1177,7 +1235,7 @@ serve(async (req: Request) => {
         // Safely format the keys - showing more details but still maintaining security
         const envInfo: EnvDebugInfo = {
           config: {
-            aws_region: CONFIG.AWS_REGION,
+            aws_region: CONFIG_ENV.AWS_REGION,
             aws_access_key_id_full: accessKeyId ? 
               // Show first 4 chars and last 4 chars with * in between
               `${accessKeyId.substring(0, 4)}****${accessKeyId.length > 8 ? accessKeyId.slice(-4) : ''}` : 
@@ -1228,10 +1286,10 @@ serve(async (req: Request) => {
         // Test AWS SDK connection
         try {
           const client = new BedrockClient({
-            region: CONFIG.AWS_REGION,
+            region: CONFIG_ENV.AWS_REGION,
             credentials: {
-              accessKeyId: CONFIG.AWS_ACCESS_KEY_ID || "",
-              secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY || ""
+              accessKeyId: CONFIG_ENV.AWS_ACCESS_KEY_ID || "",
+              secretAccessKey: CONFIG_ENV.AWS_SECRET_ACCESS_KEY || ""
             }
           });
           
@@ -1291,10 +1349,10 @@ serve(async (req: Request) => {
     try {
       // Validate AWS credentials before proceeding (EXCEPT for test endpoints)
       if (!['test', 'aws-diagnostics', 'aws-credential-test', 'emergency-debug', 'verify-aws-credentials'].includes(action)) {
-        if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
+        if (!CONFIG_ENV.AWS_ACCESS_KEY_ID || !CONFIG_ENV.AWS_SECRET_ACCESS_KEY) {
           console.error("[API] Missing AWS credentials:", { 
-            hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID), 
-            hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
+            hasAccessKey: Boolean(CONFIG_ENV.AWS_ACCESS_KEY_ID), 
+            hasSecretKey: Boolean(CONFIG_ENV.AWS_SECRET_ACCESS_KEY),
             action: action
           });
           
