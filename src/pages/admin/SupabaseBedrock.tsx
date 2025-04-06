@@ -17,6 +17,9 @@ import { BedrockConfig } from "@/lib/bedrock-config";
 import supabase from "@/lib/supabase-client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AwsPermissionTester from '../../components/aws-permission-tester';
+import { useUser } from '@/contexts/UserContext';
+import { initBedrockClientWithSupabaseCredentials } from '@/lib/supabase-aws-credentials';
+import { CheckCircle2 } from 'lucide-react';
 
 // Error boundary component to catch React errors
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
@@ -995,6 +998,7 @@ const SupabaseBedrock = () => {
   
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useUser();
   const [instances, setInstances] = useState<BedrockInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1023,6 +1027,22 @@ const SupabaseBedrock = () => {
   const [testModalOpen, setTestModalOpen] = useState(false);
   const [testData, setTestData] = useState<any>(null);
   const [testingConnection, setTestingConnection] = useState(false);
+  
+  // Credentials state
+  const [client, setClient] = useState(null);
+  const [clientStatus, setClientStatus] = useState({
+    success: false,
+    usingFallback: true,
+    message: 'Initializing...',
+    credentials: null
+  });
+  const [credentials, setCredentials] = useState({
+    aws_access_key_id: '',
+    aws_secret_access_key: '',
+    aws_region: 'us-east-1'
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState(null);
   
   // Check authentication status
   const checkAuthStatus = async () => {
@@ -1558,6 +1578,170 @@ const SupabaseBedrock = () => {
     }
   };
   
+  // Initialize client with Supabase credentials
+  useEffect(() => {
+    async function initializeClient() {
+      if (!user?.id) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const result = await initBedrockClientWithSupabaseCredentials({
+          userId: user.id,
+          useFallbackOnError: true
+        });
+        
+        setClient(result.client);
+        setClientStatus({
+          success: result.success,
+          usingFallback: result.usingFallback,
+          message: result.message,
+          credentials: result.credentials
+        });
+        
+        // Pre-fill form if credentials exist
+        if (result.credentials?.hasCredentials) {
+          // Fetch raw credentials to pre-fill form
+          const { data } = await supabase
+            .from('bedrock_credentials')
+            .select('aws_access_key_id, aws_secret_access_key, aws_region')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (data) {
+            setCredentials({
+              aws_access_key_id: data.aws_access_key_id || '',
+              aws_secret_access_key: data.aws_secret_access_key || '',
+              aws_region: data.aws_region || 'us-east-1'
+            });
+          }
+        }
+        
+        // Fetch models
+        await fetchModels(result.client);
+      } catch (err) {
+        console.error('Error initializing Bedrock client:', err);
+        setError(err.message || 'Failed to initialize AWS Bedrock client');
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    initializeClient();
+  }, [user?.id]);
+  
+  // Fetch models
+  async function fetchModels(bedrockClient = client) {
+    if (!bedrockClient) return;
+    
+    try {
+      setLoadingModels(true);
+      const result = await bedrockClient.listFoundationModels();
+      setAvailableModels(result.models || []);
+    } catch (err) {
+      console.error('Error fetching models:', err);
+      setError(err.message || 'Failed to fetch foundation models');
+    } finally {
+      setLoadingModels(false);
+    }
+  }
+  
+  // Test connection
+  async function testConnection() {
+    if (!client) return;
+    
+    try {
+      setLoading(true);
+      const result = await client.testConnection();
+      
+      if (result.success) {
+        setClientStatus(prev => ({
+          ...prev,
+          success: true,
+          message: 'Connection successful'
+        }));
+      } else {
+        throw new Error(result.message || 'Connection test failed');
+      }
+    } catch (err) {
+      console.error('Connection test failed:', err);
+      setError(err.message || 'Connection test failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+  
+  // Save credentials
+  async function saveCredentials(e) {
+    e.preventDefault();
+    
+    if (!user?.id) {
+      setError('User ID not available');
+      return;
+    }
+    
+    try {
+      setIsSaving(true);
+      setSaveMessage(null);
+      setError(null);
+      
+      // Save to Supabase
+      const { error } = await supabase
+        .from('bedrock_credentials')
+        .upsert({
+          user_id: user.id,
+          aws_access_key_id: credentials.aws_access_key_id,
+          aws_secret_access_key: credentials.aws_secret_access_key,
+          aws_region: credentials.aws_region
+        }, { onConflict: 'user_id' });
+      
+      if (error) throw error;
+      
+      setSaveMessage('Credentials saved successfully');
+      
+      // Reinitialize client with new credentials
+      const result = await initBedrockClientWithSupabaseCredentials({
+        userId: user.id,
+        useFallbackOnError: true
+      });
+      
+      setClient(result.client);
+      setClientStatus({
+        success: result.success,
+        usingFallback: result.usingFallback,
+        message: result.message,
+        credentials: result.credentials
+      });
+      
+      // Refresh models list
+      await fetchModels(result.client);
+    } catch (err) {
+      console.error('Error saving credentials:', err);
+      setError(err.message || 'Failed to save credentials');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+  
+  // Handle input change
+  function handleInputChange(e) {
+    const { name, value } = e.target;
+    setCredentials(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  }
+  
+  if (loading && !client) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Initializing AWS Bedrock client...</p>
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <BedrockDashboardContent
