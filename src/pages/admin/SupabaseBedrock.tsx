@@ -360,6 +360,21 @@ const SupabaseBedrock = () => {
         console.error("Error fetching instances:", error);
         setError(`Failed to fetch instances: ${error}`);
         setConnectionStatus('error');
+        
+        // Even with error, we still might have fallback data
+        if (data && data.instances) {
+          console.log("Received fallback instance data despite error");
+          setInstances(data.instances || []);
+        } else {
+          setInstances([]);
+        }
+        
+        // Show a more user-friendly error message
+        toast({
+          title: "Connection Issue",
+          description: "Could not connect to the API. Showing limited functionality.",
+          variant: "destructive"
+        });
         return;
       }
       
@@ -369,6 +384,13 @@ const SupabaseBedrock = () => {
       console.error("Exception fetching instances:", error);
       setError(`Exception fetching instances: ${error instanceof Error ? error.message : String(error)}`);
       setConnectionStatus('error');
+      setInstances([]);
+      
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while fetching instances",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -560,7 +582,7 @@ const SupabaseBedrock = () => {
     }
   };
   
-  // Add fetchAvailableModels function after checkAuthStatus
+  // Update fetchAvailableModels function to handle API errors better
   const fetchAvailableModels = async (filters: Partial<ModelFilter> = {}) => {
     try {
       // Check if authenticated before fetching
@@ -575,50 +597,61 @@ const SupabaseBedrock = () => {
 
       setLoadingModels(true);
       setError(null);
-
+      
       // Call the API to fetch models with any active filters
       const { data, error } = await BedrockClient.listFoundationModels(filters);
 
+      // Handle error but still process data if available (for fallbacks)
       if (error) {
         console.error("Error fetching foundation models:", error);
         setError(error);
-        setAvailableModels([]);
-        toast({
-          title: "Error Fetching Models",
-          description: error,
-          variant: "destructive"
-        });
-        return;
+        
+        // Only show toast for real errors, not for fallbacks
+        if (!data || !data.models || data.models.length === 0) {
+          toast({
+            title: "Error Fetching Models",
+            description: error,
+            variant: "destructive"
+          });
+        } else {
+          // For fallbacks, show a less severe message
+          toast({
+            title: "API Connection Issue",
+            description: "Using fallback model data due to API limitations",
+            variant: "default"
+          });
+        }
       }
 
-      if (!data || !data.models) {
+      // Process data if available, even if there was an error (fallback data)
+      if (data && data.models) {
+        const models = data.models || [];
+        console.log(`Fetched ${models.length} models from AWS Bedrock${data.note ? ` (${data.note})` : ''}`);
+
+        // Sort models by provider and name for better usability
+        const sortedModels = [...models].sort((a, b) => {
+          // Sort by provider first
+          const providerA = a.providerName || '';
+          const providerB = b.providerName || '';
+          if (providerA !== providerB) {
+            return providerA.localeCompare(providerB);
+          }
+          
+          // Then by model name/ID
+          return (a.modelName || a.modelId || '').localeCompare(b.modelName || b.modelId || '');
+        });
+
+        setAvailableModels(sortedModels);
+        setSelectedModelId(sortedModels.length > 0 ? sortedModels[0].modelId : '');
+      } else {
         console.warn("No models returned from API");
         setAvailableModels([]);
-        return;
       }
-
-      // Process the models from the response
-      const models = data.models || [];
-      console.log(`Fetched ${models.length} models from AWS Bedrock`);
-
-      // Sort models by provider and name for better usability
-      const sortedModels = [...models].sort((a, b) => {
-        // Sort by provider first
-        const providerA = a.providerName || '';
-        const providerB = b.providerName || '';
-        if (providerA !== providerB) {
-          return providerA.localeCompare(providerB);
-        }
-        
-        // Then by model name/ID
-        return (a.modelName || a.modelId || '').localeCompare(b.modelName || b.modelId || '');
-      });
-
-      setAvailableModels(sortedModels);
-      setSelectedModelId(sortedModels.length > 0 ? sortedModels[0].modelId : '');
     } catch (err) {
       console.error("Error in fetchAvailableModels:", err);
       setError(err instanceof Error ? err.message : String(err));
+      setAvailableModels([]);
+      
       toast({
         title: "Error",
         description: "Failed to fetch available models",
