@@ -9,8 +9,8 @@ import * as jose from 'https://esm.sh/jose@4.14.4';
 // Import AWS Bedrock functions
 // @ts-ignore - Deno-specific import
 import {
-  listFoundationModels,
-  listProvisionedModelThroughputs,
+  listFoundationModels as importedListFoundationModels,
+  listProvisionedModelThroughputs as importedListProvisionedModelThroughputs,
   createProvisionedModelThroughput,
   getProvisionedModelThroughput,
   deleteProvisionedModelThroughput,
@@ -24,19 +24,28 @@ import {
 // @ts-ignore - Deno-specific import
 import {
   BedrockClient,
-  ListFoundationModelsCommand
+  ListFoundationModelsCommand,
+  ListProvisionedModelThroughputsCommand
 } from "npm:@aws-sdk/client-bedrock@3.462.0";
 
-// Configuration object
 // @ts-ignore - Deno-specific import
+import { BedrockRuntimeClient } from "npm:@aws-sdk/client-bedrock-runtime@3.462.0";
+
+// Configuration object
+// @ts-ignore - Deno-specific global
 const CONFIG = {
   // AWS Configuration
+  // @ts-ignore - Deno-specific global
   AWS_REGION: Deno.env.get("AWS_REGION") || "us-east-1",
+  // @ts-ignore - Deno-specific global
   AWS_ACCESS_KEY_ID: Deno.env.get("AWS_ACCESS_KEY_ID") || "",
+  // @ts-ignore - Deno-specific global
   AWS_SECRET_ACCESS_KEY: Deno.env.get("AWS_SECRET_ACCESS_KEY") || "",
   
   // Supabase Configuration
+  // @ts-ignore - Deno-specific global
   SUPABASE_URL: Deno.env.get("SUPABASE_URL") || "",
+  // @ts-ignore - Deno-specific global
   SUPABASE_SERVICE_ROLE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
   
   // CORS Headers
@@ -439,7 +448,7 @@ async function handleGetInstances(request: Request): Promise<Response> {
 
   try {
     // Call AWS Bedrock API to list instances
-    const awsResponse = await listProvisionedModelThroughputs();
+    const awsResponse = await importedListProvisionedModelThroughputs();
     
     if (!awsResponse.success) {
       throw new Error(awsResponse.error || "Failed to list instances from AWS Bedrock");
@@ -1103,7 +1112,7 @@ async function handleAwsCredentialTest(request: Request): Promise<Response> {
       
       // Call AWS to list all available foundation models with optional filters
       console.log("[API] Listing foundation models with filters:", filters);
-      const awsResponse = await listFoundationModels(
+      const awsResponse = await importedListFoundationModels(
         Object.keys(filters).length > 0 ? filters : undefined
       );
       
@@ -1244,7 +1253,7 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
 
   try {
     // Parse request data to get any filter parameters
-    let requestBody = {};
+    let requestBody: any = {};
     try {
       const text = await request.text();
       console.log("[API] Request body text:", text);
@@ -1280,7 +1289,7 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
     
     // Call AWS to list all available foundation models with optional filters
     console.log("[API] Listing foundation models with filters:", filters);
-    const awsResponse = await listFoundationModels(
+    const awsResponse = await importedListFoundationModels(
       Object.keys(filters).length > 0 ? filters : undefined
     );
     
