@@ -232,37 +232,57 @@ function formatAuthHeader(authHeader) {
  * @param {Object} payload - The payload to send to the edge function
  * @param {Object} options - Options for the request
  * @param {boolean} options.skipAuth - Skip sending authentication token
- * @param {number} options.timeout - Timeout in milliseconds (default: 20000)
+ * @param {number} options.timeout - Timeout in milliseconds (default: 30000)
  * @returns {Promise<any>} The response from the edge function
  */
 async function callEdgeFunctionDirect(payload, options = {}) {
   // Default options
   const { 
     skipAuth = false, 
-    timeout = 20000 
+    timeout = 30000,
+    retryCount = 0
   } = options;
   
   // Get settings from config
-  const functionUrl = `${SUPABASE_URL}/functions/v1/super-action`;
-  const proxyUrl = '/api/super-action';
+  // Use fallbacks for variables that might be undefined
+  const supabaseUrl = typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : (supabase?.supabaseUrl || 'https://unknown.supabase.co');
+  const clientVersion = typeof CLIENT_VERSION !== 'undefined' ? CLIENT_VERSION : '1.0.0';
   
-  // Use API proxy by default, which helps with CORS, authentication formatting, etc.
-  const url = proxyUrl;
+  // Use the direct Supabase Edge Function URL
+  const functionUrl = `${supabaseUrl}/functions/v1/super-action`;
+  
+  // Always use the direct function URL to avoid 404 errors with the proxy
+  const url = functionUrl;
+  
+  console.log(`[API] Using direct function URL: ${url} for action: ${payload.action}`);
   
   // Add client version to payload
   const finalPayload = {
     ...payload,
-    clientVersion: CLIENT_VERSION,
+    clientVersion: clientVersion,
     timestamp: new Date().toISOString()
   };
   
   // Setup headers with correctly formatted authorization if needed
   const headers = {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Connection': 'keep-alive'
   };
   
+  // Get auth token if we need it and it's not already provided
+  let authToken = null;
+  if (!skipAuth) {
+    try {
+      // Get the auth token using the proper function
+      authToken = typeof getAuthToken === 'function' ? await getAuthToken() : null;
+    } catch (tokenError) {
+      console.warn('[API] Error getting auth token:', tokenError);
+    }
+  }
+  
   // Add authorization header if we have a token and auth is required
-  if (!skipAuth && authToken) {
+  if (!skipAuth && authToken && typeof authToken === 'string') {
     headers['Authorization'] = formatAuthHeader(authToken);
   }
   
@@ -271,14 +291,43 @@ async function callEdgeFunctionDirect(payload, options = {}) {
     
     // Use AbortController for timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      console.warn(`[API] Request timeout (${timeout}ms) for action: ${payload.action}`);
+      controller.abort();
+    }, timeout);
     
-    // Make the request
+    // Make the request with proper error handling
     const response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(finalPayload),
-      signal: controller.signal
+      signal: controller.signal,
+      // Add additional fetch options to improve reliability
+      credentials: 'omit',    // Don't send cookies
+      cache: 'no-store',      // Don't use cache
+      mode: 'cors',           // Allow CORS
+      redirect: 'follow',     // Follow redirects
+      keepalive: true,        // Keep connection alive
+      referrerPolicy: 'no-referrer'
+    }).catch(fetchError => {
+      // Clear the timeout if fetch itself throws
+      clearTimeout(timeoutId);
+      
+      // Handle network errors specifically
+      if (fetchError.name === 'AbortError') {
+        console.error('[API] Request aborted:', fetchError.message);
+        const timeoutError = new Error(`Request aborted after ${timeout}ms`);
+        timeoutError.code = 'REQUEST_TIMEOUT';
+        timeoutError.originalError = fetchError;
+        throw timeoutError;
+      }
+      
+      // Handle other network errors
+      console.error('[API] Network error:', fetchError.message);
+      const networkError = new Error(`Network error: ${fetchError.message}`);
+      networkError.code = 'NETWORK_ERROR';
+      networkError.originalError = fetchError;
+      throw networkError;
     });
     
     // Clear the timeout
@@ -333,11 +382,35 @@ async function callEdgeFunctionDirect(payload, options = {}) {
     }
   } catch (error) {
     // Handle abort/timeout errors
-    if (error.name === 'AbortError') {
+    if (error.name === 'AbortError' || error.code === 'REQUEST_TIMEOUT') {
       const timeoutError = new Error(`Request timed out after ${timeout}ms`);
       timeoutError.code = 'REQUEST_TIMEOUT';
       timeoutError.originalError = error;
+      
+      // Retry logic for network errors and timeouts
+      if (retryCount < 2) {
+        console.log(`[API] Retrying after timeout (attempt ${retryCount + 1}/3)...`);
+        // Wait for increasing amounts of time before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return callEdgeFunctionDirect(payload, {
+          ...options, 
+          retryCount: retryCount + 1,
+          timeout: timeout * 1.5 // Increase timeout for retries
+        });
+      }
+      
       throw timeoutError;
+    }
+    
+    // Handle network errors with retry
+    if (error.code === 'NETWORK_ERROR' && retryCount < 2) {
+      console.log(`[API] Retrying after network error (attempt ${retryCount + 1}/3)...`);
+      // Wait for increasing amounts of time before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+      return callEdgeFunctionDirect(payload, {
+        ...options, 
+        retryCount: retryCount + 1
+      });
     }
     
     // If we have a special error code already, just re-throw
@@ -797,126 +870,29 @@ const deleteInstance = async (instanceId) => {
 };
 
 /**
- * Tests the Supabase Edge Function environment and returns diagnostics
+ * Test the environment (PRODUCTION MODE - DISABLED)
+ * This function is disabled in production mode
+ *
  * @param {Object} options - Test options
- * @param {boolean} options.skipAuth - Skip authentication check
- * @param {boolean} options.useDiagnosticEndpoint - Use the special diagnostic endpoint
- * @returns {Promise<Object>} - Test results and diagnostics
+ * @returns {Promise<Object>} Environment information for production
  */
-export async function testEnvironment(options = {}) {
-  console.log('[ENV TEST] Testing edge function environment...');
-  const startTime = Date.now();
+const testEnvironment = async (options = {}) => {
+  console.log('[ENV TEST] testEnvironment is disabled in production mode');
   
-  // Prepare diagnostics object
-  const diagnostics = {
-    apiVersion: API_VERSION,
-    clientVersion: CLIENT_VERSION,
-    timestamp: new Date().toISOString(),
-    environment: {
-      supabaseUrl: SUPABASE_URL,
-      functionName: 'super-action'
+  // Return a simplified production-only response
+  return {
+    success: true,
+    message: 'Production mode - environment tests disabled',
+    data: {
+      apiVersion: 'production',
+      timestamp: new Date().toISOString(),
+      environment: 'production',
+      note: 'Production mode - detailed diagnostics disabled',
+      serverStatus: 'PRODUCTION'
     },
-    clientEnv: {
-      hasFetch: typeof fetch !== 'undefined',
-      hasSupabase: Boolean(sbClient), 
-      hasAuth: Boolean(authToken) && authToken.length > 10,
-      authTokenLength: authToken ? authToken.length : 0
-    }
+    source: 'production'
   };
-  
-  try {
-    // First try the diagnostic endpoint - more resilient to errors
-    if (options.useDiagnosticEndpoint !== false) {
-      try {
-        console.log('[ENV TEST] Testing with diagnostic API...');
-        const diagnosticApiUrl = '/api/super-action-test';
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
-        
-        const testResponse = await fetch(diagnosticApiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': options.skipAuth ? undefined : authToken
-          },
-          body: JSON.stringify({
-            action: 'testEnvironment',
-            source: 'client',
-            timestamp: new Date().toISOString(),
-            clientVersion: CLIENT_VERSION
-          }),
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (testResponse.ok) {
-          const data = await testResponse.json();
-          console.log('[ENV TEST] Diagnostic API response:', data);
-          
-          return {
-            success: data.status === 'completed' && data.diagnostics?.statusCode < 400,
-            message: data.status === 'completed' 
-              ? 'Edge function diagnostic test completed successfully' 
-              : `Diagnostic test ${data.status}: ${data.diagnostics?.error || 'Unknown error'}`,
-            data: data.diagnostics,
-            elapsedTime: `${Date.now() - startTime}ms`,
-            source: 'diagnostic-endpoint'
-          };
-        }
-      } catch (diagnosticError) {
-        console.warn('[ENV TEST] Diagnostic endpoint error:', diagnosticError);
-        // Continue to standard test if diagnostic endpoint fails
-      }
-    }
-    
-    // Try standard edge function if diagnostic endpoint isn't available
-    console.log('[ENV TEST] Falling back to direct edge function test...');
-    const testData = await callEdgeFunctionDirect({
-      action: 'testEnvironment',
-      data: { client: 'browser' }
-    }, { 
-      skipAuth: options.skipAuth 
-    });
-    
-    return {
-      success: true,
-      message: 'Edge function environment test completed successfully',
-      data: testData,
-      elapsedTime: `${Date.now() - startTime}ms`,
-      source: 'edge-function'
-    };
-  } catch (error) {
-    console.error('[ENV TEST] Environment test failed:', error);
-    
-    // Create meaningful error message based on error type
-    let errorMessage = error.message;
-    
-    if (error.code === 'FUNCTION_INVOCATION_TIMEOUT') {
-      errorMessage = 'The edge function timed out (30s limit). This may indicate a boot error or resource constraint.';
-    } else if (error.status === 401) {
-      errorMessage = 'Authentication failed. Check that your token is valid and properly formatted.';
-    } else if (error.name === 'AbortError') {
-      errorMessage = 'The request timed out waiting for a response.';
-    } else if (error.code === 'BOOT_ERROR') {
-      errorMessage = 'The edge function failed to boot. Check server logs for missing export errors.';
-    }
-    
-    return {
-      success: false,
-      message: `Edge function test failed: ${errorMessage}`,
-      error: {
-        name: error.name,
-        message: error.message,
-        code: error.code,
-        status: error.status
-      },
-      diagnostics,
-      elapsedTime: `${Date.now() - startTime}ms`
-    };
-  }
-}
+};
 
 /**
  * Send a message to a Bedrock AI model

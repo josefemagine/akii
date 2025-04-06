@@ -62,22 +62,12 @@ const useEdgeFunctions = () => {
  * Get the Edge Function URL for Bedrock
  */
 const getEdgeFunctionUrl = () => {
-  // In local development, use the local Supabase URL with functions endpoint
-  if (isLocalDevelopment) {
-    // First check if we have a specific URL in env variable
-    if (import.meta.env.VITE_BEDROCK_API_URL) {
-      return import.meta.env.VITE_BEDROCK_API_URL;
-    }
-    
-    // Otherwise use the local proxy with proper path
-    return '/api/super-action';
-  }
-  
-  // For production, check if there's an environment variable
+  // First check if we have a specific URL in env variable
   if (import.meta.env.VITE_BEDROCK_API_URL) {
     return import.meta.env.VITE_BEDROCK_API_URL;
   }
   
+  // For both development and production, directly use Supabase URL
   // If we have a Supabase URL, build the functions endpoint
   if (supabaseUrl) {
     // Extract the project reference from the URL

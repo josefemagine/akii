@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createBedrockClient } from './aws-bedrock-client';
 
 // Import from client singleton if available
-import supabase from './supabase';
+import supabase from './supabase-singleton';
 
 /**
  * Fetch AWS Bedrock credentials from Supabase
@@ -18,9 +18,8 @@ import supabase from './supabase';
 export async function fetchBedrockCredentials(options = {}) {
   const { userId, client = null } = options;
   
-  // If no user ID, return error
   if (!userId) {
-    console.error('[Supabase AWS] User ID is required');
+    console.error('[Supabase AWS] No user ID provided');
     return {
       error: 'User ID is required',
       credentials: null
@@ -28,43 +27,137 @@ export async function fetchBedrockCredentials(options = {}) {
   }
   
   try {
-    // Use provided client, global singleton, or create temporary client
+    // Use the provided client, the singleton instance, or create a temporary one as last resort
     const supabaseClient = client || supabase || createTemporaryClient();
     
     if (!supabaseClient) {
-      throw new Error('No Supabase client available');
-    }
-    
-    // Query the bedrock_credentials table
-    const { data, error } = await supabaseClient
-      .from('bedrock_credentials')
-      .select('aws_access_key_id, aws_secret_access_key, aws_region')
-      .eq('user_id', userId)
-      .single();
-    
-    if (error) {
-      throw error;
-    }
-    
-    if (!data) {
-      console.warn(`[Supabase AWS] No credentials found for user ${userId}`);
+      console.error('[Supabase AWS] Could not create Supabase client');
       return {
-        error: 'No credentials found',
+        error: 'Could not create Supabase client',
         credentials: null
       };
     }
     
-    // Convert to standard format
-    const credentials = {
-      accessKeyId: data.aws_access_key_id,
-      secretAccessKey: data.aws_secret_access_key,
-      region: data.aws_region || 'us-east-1'
-    };
-    
-    return {
-      error: null,
-      credentials
-    };
+    // First check if the table exists by checking the metadata
+    try {
+      // Verify the table exists first by querying system tables
+      const { data: tableExists, error: tableCheckError } = await supabaseClient
+        .rpc('check_table_exists', { table_name: 'bedrock_credentials' });
+        
+      if (tableCheckError || !tableExists) {
+        console.warn('[Supabase AWS] The bedrock_credentials table does not exist');
+        return {
+          error: 'Credentials table not available in this environment',
+          credentials: null
+        };
+      }
+      
+      // If we get here, the table exists
+      const { data, error } = await supabaseClient
+        .from('bedrock_credentials')
+        .select('aws_access_key_id, aws_secret_access_key, aws_region')
+        .eq('user_id', userId)
+        .single();
+      
+      if (error) {
+        if (error.code === '42P01') { // PostgreSQL error code for "relation does not exist"
+          console.warn('[Supabase AWS] The bedrock_credentials table does not exist, using fallback credentials');
+          return {
+            error: 'Credentials table not available in this environment',
+            credentials: null
+          };
+        }
+        
+        // Other query error
+        console.error('[Supabase AWS] Error fetching credentials:', error);
+        return {
+          error: `Failed to fetch credentials: ${error.message}`,
+          credentials: null
+        };
+      }
+      
+      if (!data || !data.aws_access_key_id || !data.aws_secret_access_key) {
+        console.warn(`[Supabase AWS] No credentials found for user ${userId}`);
+        return {
+          error: 'No credentials found',
+          credentials: null
+        };
+      }
+      
+      // Convert to standard format and log success (with masked keys)
+      const credentials = {
+        accessKeyId: data.aws_access_key_id,
+        secretAccessKey: data.aws_secret_access_key,
+        region: data.aws_region || 'us-east-1'
+      };
+      
+      console.log(`[Supabase AWS] Successfully retrieved credentials for user ${userId} (Key ID: ${maskKey(credentials.accessKeyId)})`);
+      
+      return {
+        error: null,
+        credentials
+      };
+    } catch (dbError) {
+      // Handle specific PostgreSQL errors
+      if (dbError.code === '42P01' || dbError.message?.includes('relation "bedrock_credentials" does not exist')) {
+        console.warn('[Supabase AWS] The bedrock_credentials table does not exist, using fallback credentials');
+        return {
+          error: 'Credentials table not available in this environment',
+          credentials: null
+        };
+      }
+      
+      // If we get a "function check_table_exists does not exist", it means we need to create the function
+      if (dbError.message?.includes('function check_table_exists') && dbError.message?.includes('does not exist')) {
+        console.warn('[Supabase AWS] The check_table_exists function does not exist. Falling back to direct query.');
+        
+        // Try the direct query approach as fallback
+        try {
+          const { data, error } = await supabaseClient
+            .from('bedrock_credentials')
+            .select('aws_access_key_id, aws_secret_access_key, aws_region')
+            .eq('user_id', userId)
+            .single();
+            
+          if (error) {
+            if (error.code === '42P01') {
+              console.warn('[Supabase AWS] The bedrock_credentials table does not exist');
+              return {
+                error: 'Credentials table not available in this environment',
+                credentials: null
+              };
+            }
+            throw error;
+          }
+          
+          if (!data) {
+            return {
+              error: 'No credentials found',
+              credentials: null
+            };
+          }
+          
+          const credentials = {
+            accessKeyId: data.aws_access_key_id,
+            secretAccessKey: data.aws_secret_access_key,
+            region: data.aws_region || 'us-east-1'
+          };
+          
+          console.log(`[Supabase AWS] Successfully retrieved credentials for user ${userId} (Key ID: ${maskKey(credentials.accessKeyId)})`);
+          
+          return {
+            error: null,
+            credentials
+          };
+        } catch (directQueryError) {
+          console.error('[Supabase AWS] Error in direct query fallback:', directQueryError);
+          throw directQueryError;
+        }
+      }
+      
+      // Other database errors
+      throw dbError;
+    }
   } catch (error) {
     console.error('[Supabase AWS] Error fetching credentials:', error);
     return {
@@ -75,10 +168,31 @@ export async function fetchBedrockCredentials(options = {}) {
 }
 
 /**
+ * Mask sensitive keys for logging
+ * @param {string} key - The key to mask
+ * @returns {string} The masked key
+ */
+function maskKey(key) {
+  if (!key) return 'undefined';
+  if (key.length <= 8) return '***';
+  
+  // Only show first 4 and last 4 characters
+  return `${key.substring(0, 4)}...${key.substring(key.length - 4)}`;
+}
+
+/**
  * Create a temporary Supabase client for one-time operations
+ * Only used as a fallback if the singleton isn't available
  * @returns {Object|null} A Supabase client or null if environment variables not available
  */
 function createTemporaryClient() {
+  // Always try to use the singleton first
+  if (supabase) {
+    console.log('[Supabase AWS] Using singleton client');
+    return supabase;
+  }
+  
+  console.warn('[Supabase AWS] Using temporary client as fallback. This is not recommended.');
   try {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;

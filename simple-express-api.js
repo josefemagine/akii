@@ -37,11 +37,71 @@ app.get('/api/health', (req, res) => {
 });
 
 // Simple test endpoint
-app.get('/api/super-action-test', (req, res) => {
-  res.status(200).json({
-    message: 'Test API route is working',
-    info: 'This is a simplified test endpoint for the super-action API',
-    method: req.method
+app.all('/api/super-action-test', (req, res) => {
+  // Handle OPTIONS requests for CORS preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  // For GET requests, return a simple success message
+  if (req.method === 'GET') {
+    return res.status(200).json({
+      message: 'Test API route is working',
+      info: 'This is a simplified test endpoint for the super-action API',
+      method: req.method
+    });
+  }
+
+  // Handle POST requests
+  if (req.method === 'POST') {
+    console.log('[API TEST] Received POST request:', req.body);
+    
+    // Get action and data from request body
+    const { action, data, clientVersion, timestamp } = req.body || {};
+    
+    // Get authorization header for diagnostics
+    const authHeader = req.headers.authorization;
+    const hasAuth = Boolean(authHeader);
+    
+    // For testEnvironment action, return diagnostic data
+    if (action === 'testEnvironment') {
+      return res.status(200).json({
+        status: 'completed',
+        diagnostics: {
+          statusCode: 200,
+          apiVersion: '1.0.0',
+          environment: process.env.NODE_ENV || 'development',
+          serverInfo: {
+            nodeVersion: process.version,
+            platform: process.platform
+          },
+          auth: {
+            hasAuthHeader: hasAuth,
+            headerLength: authHeader ? authHeader.length : 0
+          },
+          request: {
+            action,
+            clientVersion,
+            timestamp,
+            received: new Date().toISOString()
+          },
+          message: 'Diagnostic test completed successfully'
+        }
+      });
+    }
+    
+    // For any other action, return a generic success response
+    return res.status(200).json({
+      status: 'completed',
+      message: `Action '${action}' acknowledged`,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  // For all other HTTP methods, return Method Not Allowed
+  return res.status(405).json({ 
+    error: 'Method Not Allowed',
+    message: 'This endpoint only accepts GET and POST requests'
   });
 });
 

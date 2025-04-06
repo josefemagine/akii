@@ -1,6 +1,7 @@
 import { _supabase } from './supabase.js';
 import { insertIntoTable, fetchFromTable, _updateInTable, deleteFromTable } from './direct-db-access.js';
 import { createClient } from '@supabase/supabase-js';
+import supabaseSingleton from './supabase-singleton';
 
 /**
  * Model mapping for Bedrock instances
@@ -146,15 +147,23 @@ export async function deleteBedrockInstance(instanceId) {
  * @returns {Object} The initialized client
  */
 export function initBedrockDbClient(options = {}) {
+  if (supabaseSingleton) {
+    return supabaseSingleton;
+  }
+  
+  if (_supabase) {
+    return _supabase;
+  }
+  
   const { supabaseUrl, supabaseKey } = options;
   
   if (!supabaseUrl || !supabaseKey) {
     console.error('Missing Supabase credentials in initBedrockDbClient');
-    // Return a dummy client or throw error
     return null;
   }
   
   try {
+    console.warn('[Bedrock DB] Creating temporary Supabase client. This may cause GoTrueClient duplication warnings.');
     return createClient(supabaseUrl, supabaseKey);
   } catch (error) {
     console.error('Error initializing Supabase client for Bedrock:', error);
@@ -183,11 +192,13 @@ export async function fetchBedrockCredentials(options = {}) {
   }
   
   try {
+    const client = supabaseClient || (useLocalClient ? (supabaseSingleton || _supabase) : null);
+    
     const { data: _data, error } = await getFromTable(
       'bedrock_credentials',
       ['aws_access_key_id', 'aws_secret_access_key', 'aws_region'],
       { user_id: userId },
-      supabaseClient,
+      client,
       useLocalClient
     );
     
@@ -201,19 +212,20 @@ export async function fetchBedrockCredentials(options = {}) {
       };
     }
     
-    const credentials = _data[0];
+    const credentials = {
+      accessKeyId: _data[0].aws_access_key_id,
+      secretAccessKey: _data[0].aws_secret_access_key,
+      region: _data[0].aws_region || 'us-east-1'
+    };
+    
     return {
       error: null,
-      credentials: {
-        accessKeyId: credentials.aws_access_key_id,
-        secretAccessKey: credentials.aws_secret_access_key,
-        region: credentials.aws_region || 'us-east-1'
-      }
+      credentials
     };
   } catch (error) {
     console.error('Error fetching Bedrock credentials:', error);
     return {
-      error: error.message || 'Failed to fetch AWS credentials',
+      error: error.message || 'Failed to fetch credentials',
       credentials: null
     };
   }

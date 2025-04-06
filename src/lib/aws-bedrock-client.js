@@ -52,10 +52,16 @@ export function createBedrockClient(options = {}) {
   let client = null;
   let initialized = false;
   let error = null;
+  let usingFallback = false;
+  let fallbackReason = null;
 
   try {
     // Only create real clients if we have credentials
     if (accessKeyId && secretAccessKey) {
+      // Log the credentials we're using (masked)
+      const maskedAccessKey = accessKeyId ? `${accessKeyId.substring(0, 4)}...${accessKeyId.substring(accessKeyId.length - 4)}` : 'undefined';
+      console.log(`[AWS Bedrock] Initializing client with credentials (KeyID: ${maskedAccessKey}, Region: ${region})`);
+      
       const credentials = {
         region,
         credentials: {
@@ -67,21 +73,40 @@ export function createBedrockClient(options = {}) {
       runtimeClient = new BedrockRuntimeClient(credentials);
       client = new BedrockClient(credentials);
       initialized = true;
-    } else if (!useFallbackOnError) {
-      throw new Error("AWS credentials required");
+      console.log('[AWS Bedrock] Client initialization successful');
     } else {
-      console.warn("[AWS Bedrock] No credentials provided, using fallback data");
+      fallbackReason = "No credentials provided";
+      if (!useFallbackOnError) {
+        throw new Error("AWS credentials required");
+      } else {
+        console.warn(`[AWS Bedrock] ${fallbackReason}, using fallback data`);
+        usingFallback = true;
+      }
     }
   } catch (err) {
     console.error("[AWS Bedrock] Failed to initialize client:", err);
     error = err;
+    fallbackReason = `Initialization error: ${err.message}`;
     
     if (!useFallbackOnError) {
       throw err;
+    } else {
+      console.warn(`[AWS Bedrock] ${fallbackReason}, using fallback data`);
+      usingFallback = true;
     }
   }
   
-  return {
+  // Create a client object with methods that handle both real and fallback cases
+  const bedrockClient = {
+    // Add client status properties
+    status: {
+      initialized,
+      usingFallback,
+      fallbackReason,
+      error: error?.message || null,
+      region
+    },
+    
     /**
      * List available foundation models
      * @param {Object} options - List options
@@ -113,7 +138,8 @@ export function createBedrockClient(options = {}) {
         
         return {
           models: filteredModels,
-          isFallback: true
+          isFallback: true,
+          fallbackReason
         };
       }
       
@@ -155,11 +181,12 @@ export function createBedrockClient(options = {}) {
         console.error("[AWS Bedrock] Error listing foundation models:", err);
         
         if (useFallbackOnError) {
-          console.log("[AWS Bedrock] Using fallback model data after error");
+          console.log("[AWS Bedrock] Using fallback model data after API error");
           return {
             models: FALLBACK_MODELS,
             isFallback: true,
-            error: err.message
+            error: err.message,
+            fallbackReason: `API Error: ${err.message}`
           };
         }
         
@@ -352,7 +379,8 @@ export function createBedrockClient(options = {}) {
         return {
           success: false,
           message: "Client not initialized with valid credentials",
-          error: error?.message || "Missing credentials"
+          error: error?.message || fallbackReason || "Missing credentials",
+          fallbackReason
         };
       }
       
@@ -363,18 +391,22 @@ export function createBedrockClient(options = {}) {
         
         return {
           success: true,
-          message: "Successfully connected to AWS Bedrock"
+          message: "Successfully connected to AWS Bedrock",
+          region
         };
       } catch (err) {
         console.error("[AWS Bedrock] Connection test failed:", err);
         return {
           success: false,
           message: `Connection failed: ${err.message}`,
-          error: err.message
+          error: err.message,
+          region
         };
       }
     }
   };
+  
+  return bedrockClient;
 }
 
 /**
@@ -390,25 +422,41 @@ export function createMockBedrockClient() {
 
 /**
  * Initialize a Bedrock client with environment variables or defaults
+ * @param {Object} options - Additional options to override defaults
+ * @param {boolean} options.useFallbackOnError - Whether to use fallback data on error
+ * @param {string} options.region - AWS region to use
  * @returns {Object} Initialized Bedrock client
  */
-export function initDefaultBedrockClient() {
+export function initDefaultBedrockClient(options = {}) {
   let accessKeyId, secretAccessKey, region;
+  const useFallbackOnError = options.useFallbackOnError !== undefined ? options.useFallbackOnError : true;
+  
+  // Production mode - explicitly disable fallbacks unless specified
+  if (import.meta.env.PROD && options.useFallbackOnError !== true) {
+    console.log('[AWS Bedrock] Production mode detected - fallbacks disabled by default');
+    // Keep useFallbackOnError as false in production unless explicitly enabled
+  }
   
   // Try to get credentials from environment
   try {
     accessKeyId = import.meta.env.VITE_AWS_ACCESS_KEY_ID;
     secretAccessKey = import.meta.env.VITE_AWS_SECRET_ACCESS_KEY;
-    region = import.meta.env.VITE_AWS_REGION || 'us-east-1';
+    region = options.region || import.meta.env.VITE_AWS_REGION || 'us-east-1';
+    
+    if (!accessKeyId || !secretAccessKey) {
+      console.warn('[AWS Bedrock] No AWS credentials found in environment variables');
+    } else {
+      console.log(`[AWS Bedrock] Found AWS credentials in environment variables (Region: ${region})`);
+    }
   } catch (err) {
-    console.warn("[AWS Bedrock] Could not load environment variables");
+    console.warn("[AWS Bedrock] Could not load environment variables:", err);
   }
   
   return createBedrockClient({
     accessKeyId,
     secretAccessKey,
     region,
-    useFallbackOnError: true
+    useFallbackOnError
   });
 }
 

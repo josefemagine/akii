@@ -98,20 +98,38 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
     // Then check direct auth context admin status
     const directAuthAdmin = !!directIsAdmin;
     
-    // Special case for development
+    // Check local storage for admin status (for direct navigation)
+    const localStorageAdmin = localStorage.getItem('akii-is-admin') === 'true';
+    
+    // Special case for specific accounts (especially for development)
     const isJosefUser = 
       (user?.email === 'josef@holm.com') || 
-      (directUser?.email === 'josef@holm.com');
+      (directUser?.email === 'josef@holm.com') ||
+      (localStorage.getItem('akii-auth-user-email') === 'josef@holm.com');
     
     // Set admin status based on any valid source
-    const finalIsAdmin = standardAuthAdmin || directAuthAdmin || isJosefUser;
+    const finalIsAdmin = standardAuthAdmin || directAuthAdmin || localStorageAdmin || isJosefUser;
+    
+    // Always set local storage based on current determination
+    if (finalIsAdmin) {
+      localStorage.setItem('akii-is-admin', 'true');
+      // Also save email for special case detection
+      if (user?.email) {
+        localStorage.setItem('akii-auth-user-email', user.email);
+      } else if (directUser?.email) {
+        localStorage.setItem('akii-auth-user-email', directUser.email);
+      }
+    }
     
     console.log('PrivateRoute Admin Check:', {
       path: location.pathname,
       standardAuthAdmin,
       directAuthAdmin,
+      localStorageAdmin,
       isJosefUser,
-      finalIsAdmin
+      finalIsAdmin,
+      userEmail: user?.email || directUser?.email,
+      storedEmail: localStorage.getItem('akii-auth-user-email')
     });
     
     setIsAdmin(finalIsAdmin);
