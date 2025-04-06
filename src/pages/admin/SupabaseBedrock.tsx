@@ -18,6 +18,60 @@ import supabase from "@/lib/supabase-client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import AwsPermissionTester from '../../components/aws-permission-tester';
 
+// Error boundary component to catch React errors
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
+  constructor(props: {children: React.ReactNode}) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    // Update state so the next render will show the fallback UI
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log error information
+    console.error("Error in Supabase Bedrock component:", error);
+    console.error("Error details:", errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // Custom error UI
+      return (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Something went wrong</CardTitle>
+            <CardDescription>
+              There was an error loading the Bedrock dashboard
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>
+                {this.state.error?.message || "Unknown error"}
+              </AlertDescription>
+            </Alert>
+            <div className="mt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => this.setState({ hasError: false, error: null })}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" /> Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 // Plan configuration - maps to AWS Bedrock models and commitment options
 const planConfig = {
   starter: {
@@ -261,6 +315,8 @@ const modelFilters: ModelFilter[] = [
 
 // Main component
 const SupabaseBedrock = () => {
+  console.log("[DEBUG] Starting SupabaseBedrock component initialization");
+  
   const { toast } = useToast();
   const navigate = useNavigate();
   const [instances, setInstances] = useState<BedrockInstance[]>([]);
@@ -997,285 +1053,287 @@ const SupabaseBedrock = () => {
   }
   
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Bedrock AI Instances</h1>
-        
-        <div className="flex items-center gap-2">
-          <ConnectionStatusBadge status={connectionStatus} />
-          <AuthStatusBadge status={authStatus} />
-          <Button variant="outline" size="sm" onClick={checkAuthStatus} disabled={authStatus === 'checking'}>
-            {authStatus === 'checking' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            <span className="sr-only">Refresh Auth</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={refreshInstances} disabled={refreshing}>
-            {refreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            <span className="sr-only">Refresh</span>
-          </Button>
-        </div>
-      </div>
-      
-      <MockDataNotice />
-      
-      {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      
-      <Tabs defaultValue="instances">
-        <TabsList className="mb-4">
-          <TabsTrigger value="instances">Instances</TabsTrigger>
-          <TabsTrigger value="create">Create Instance</TabsTrigger>
-          {showDiagnostics && (
-            <TabsTrigger value="diagnostics">API Diagnostics</TabsTrigger>
-          )}
-        </TabsList>
-        
-        <TabsContent value="instances">
-          <Card>
-            <CardHeader>
-              <CardTitle>Bedrock Instances</CardTitle>
-              <CardDescription>
-                Manage your provisioned AWS Bedrock AI models
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {instances.length === 0 ? (
-                <div className="text-center p-4">
-                  <p className="text-muted-foreground">No instances found. Create a new instance to get started.</p>
-                </div>
+    <ErrorBoundary>
+      <div className="container mx-auto p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">Bedrock AI Instances</h1>
+          
+          <div className="flex items-center gap-2">
+            <ConnectionStatusBadge status={connectionStatus} />
+            <AuthStatusBadge status={authStatus} />
+            <Button variant="outline" size="sm" onClick={checkAuthStatus} disabled={authStatus === 'checking'}>
+              {authStatus === 'checking' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-2">ID</th>
-                        <th className="text-left p-2">Model</th>
-                        <th className="text-left p-2">Status</th>
-                        <th className="text-left p-2">Units</th>
-                        <th className="text-left p-2">Created</th>
-                        <th className="text-left p-2">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {instances.map((instance) => (
-                        <tr key={instance.id} className="border-b hover:bg-muted/50">
-                          <td className="p-2">{instance.id}</td>
-                          <td className="p-2">{instance.model_id.split('.').pop()}</td>
-                          <td className="p-2"><StatusBadge status={instance.status} /></td>
-                          <td className="p-2">{instance.model_units}</td>
-                          <td className="p-2">{new Date(instance.created_at).toLocaleString()}</td>
-                          <td className="p-2">
-                            <Button variant="destructive" size="sm" onClick={() => handleDeleteInstance(instance.instance_id)}>
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <RefreshCw className="h-4 w-4" />
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <span className="sr-only">Refresh Auth</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={refreshInstances} disabled={refreshing}>
+              {refreshing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              <span className="sr-only">Refresh</span>
+            </Button>
+          </div>
+        </div>
         
-        <TabsContent value="create">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create Bedrock Instance</CardTitle>
-              <CardDescription>
-                Provision a new AWS Bedrock AI model
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-md font-medium">Model Selection</h3>
-                <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
-                  {showFilters ? 'Hide Filters' : 'Show Filters'}
-                </Button>
-              </div>
-              
-              {showFilters && <ModelFilters />}
-              
-              <div className="grid w-full gap-2">
-                <Label htmlFor="plan">Model</Label>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <Select 
-                      value={selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId} 
-                      onValueChange={setSelectedModelId}
-                    >
-                      <SelectTrigger id="model">
-                        <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model"} />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-80 overflow-auto">
-                        {loadingModels ? (
-                          <SelectItem value="loading" disabled>Loading available models...</SelectItem>
-                        ) : availableModels.length > 0 ? (
-                          availableModels.map((model) => (
-                            <SelectItem key={model.modelId} value={model.modelId}>
-                              {model.providerName} - {model.modelName}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <>
-                            <SelectItem value="amazon.titan-text-lite-v1">Amazon - Titan Text Lite</SelectItem>
-                            <SelectItem value="amazon.titan-text-express-v1">Amazon - Titan Text Express</SelectItem>
-                            <SelectItem value="anthropic.claude-instant-v1">Anthropic - Claude Instant</SelectItem>
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={handleFetchModels} 
-                    disabled={loadingModels || authStatus !== 'authenticated'}
-                    title="Refresh model list"
-                  >
-                    {loadingModels ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-                <div className="text-sm text-muted-foreground flex justify-between">
-                  <span>Select the AI model you want to provision.</span>
-                  <span>
-                    {availableModels.length > 0 ? (
-                      <>Showing {availableModels.length} model{availableModels.length !== 1 ? 's' : ''}</>
-                    ) : !loadingModels ? (
-                      <>No models found</>
-                    ) : null}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="grid w-full gap-2">
-                <Label htmlFor="model-details">Model Details</Label>
-                <div className="bg-muted rounded-md p-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="text-sm font-medium">Model:</span>
-                    </div>
-                    <div>
-                      <span className="text-sm">
-                        {selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId || 'None selected'}
-                      </span>
-                    </div>
-                    
-                    <div>
-                      <span className="text-sm font-medium">Provider:</span>
-                    </div>
-                    <div>
-                      <span className="text-sm">
-                        {selectedModelId ? selectedModelId.split('.')[0] : 'Unknown'}
-                      </span>
-                    </div>
-                    
-                    {selectedModelId && availableModels.length > 0 && (
-                      <>
-                        <div>
-                          <span className="text-sm font-medium">Input Types:</span>
-                        </div>
-                        <div>
-                          <span className="text-sm">
-                            {availableModels.find(m => m.modelId === selectedModelId)?.inputModalities?.join(', ') || 'Not specified'}
-                          </span>
-                        </div>
-                        
-                        <div>
-                          <span className="text-sm font-medium">Output Types:</span>
-                        </div>
-                        <div>
-                          <span className="text-sm">
-                            {availableModels.find(m => m.modelId === selectedModelId)?.outputModalities?.join(', ') || 'Not specified'}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    
-                    <div>
-                      <span className="text-sm font-medium">Commitment:</span>
-                    </div>
-                    <div>
-                      <span className="text-sm">1 Month</span>
-                    </div>
-                    
-                    <div>
-                      <span className="text-sm font-medium">Model Units:</span>
-                    </div>
-                    <div>
-                      <span className="text-sm">1</span>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  These details will be used to provision your Bedrock instance.
-                </p>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={handleProvisionInstance} disabled={submitting}>
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Provisioning...
-                  </>
-                ) : (
-                  'Create Instance'
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
+        <MockDataNotice />
         
-        {showDiagnostics && (
-          <TabsContent value="diagnostics">
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        <Tabs defaultValue="instances">
+          <TabsList className="mb-4">
+            <TabsTrigger value="instances">Instances</TabsTrigger>
+            <TabsTrigger value="create">Create Instance</TabsTrigger>
+            {showDiagnostics && (
+              <TabsTrigger value="diagnostics">API Diagnostics</TabsTrigger>
+            )}
+          </TabsList>
+          
+          <TabsContent value="instances">
             <Card>
               <CardHeader>
-                <CardTitle>API Diagnostics</CardTitle>
+                <CardTitle>Bedrock Instances</CardTitle>
                 <CardDescription>
-                  Technical details about the API environment
+                  Manage your provisioned AWS Bedrock AI models
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96">
-                  {JSON.stringify(envDiagnostics, null, 2)}
-                </pre>
+                {instances.length === 0 ? (
+                  <div className="text-center p-4">
+                    <p className="text-muted-foreground">No instances found. Create a new instance to get started.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2">ID</th>
+                          <th className="text-left p-2">Model</th>
+                          <th className="text-left p-2">Status</th>
+                          <th className="text-left p-2">Units</th>
+                          <th className="text-left p-2">Created</th>
+                          <th className="text-left p-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {instances.map((instance) => (
+                          <tr key={instance.id} className="border-b hover:bg-muted/50">
+                            <td className="p-2">{instance.id}</td>
+                            <td className="p-2">{instance.model_id.split('.').pop()}</td>
+                            <td className="p-2"><StatusBadge status={instance.status} /></td>
+                            <td className="p-2">{instance.model_units}</td>
+                            <td className="p-2">{new Date(instance.created_at).toLocaleString()}</td>
+                            <td className="p-2">
+                              <Button variant="destructive" size="sm" onClick={() => handleDeleteInstance(instance.instance_id)}>
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
-        )}
-      </Tabs>
-      
-      <ApiConfiguration />
-      
-      {/* Add the AWS Permission Tester component */}
-      <AwsPermissionTester />
-      
-      {/* Add the test modal */}
-      <TestModal 
-        isOpen={testModalOpen} 
-        setIsOpen={setTestModalOpen} 
-        testData={testData} 
-      />
-    </div>
+          
+          <TabsContent value="create">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create Bedrock Instance</CardTitle>
+                <CardDescription>
+                  Provision a new AWS Bedrock AI model
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-md font-medium">Model Selection</h3>
+                  <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+                    {showFilters ? 'Hide Filters' : 'Show Filters'}
+                  </Button>
+                </div>
+                
+                {showFilters && <ModelFilters />}
+                
+                <div className="grid w-full gap-2">
+                  <Label htmlFor="plan">Model</Label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Select 
+                        value={selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId} 
+                        onValueChange={setSelectedModelId}
+                      >
+                        <SelectTrigger id="model">
+                          <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model"} />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-80 overflow-auto">
+                          {loadingModels ? (
+                            <SelectItem value="loading" disabled>Loading available models...</SelectItem>
+                          ) : availableModels.length > 0 ? (
+                            availableModels.map((model) => (
+                              <SelectItem key={model.modelId} value={model.modelId}>
+                                {model.providerName} - {model.modelName}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <>
+                              <SelectItem value="amazon.titan-text-lite-v1">Amazon - Titan Text Lite</SelectItem>
+                              <SelectItem value="amazon.titan-text-express-v1">Amazon - Titan Text Express</SelectItem>
+                              <SelectItem value="anthropic.claude-instant-v1">Anthropic - Claude Instant</SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handleFetchModels} 
+                      disabled={loadingModels || authStatus !== 'authenticated'}
+                      title="Refresh model list"
+                    >
+                      {loadingModels ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <div className="text-sm text-muted-foreground flex justify-between">
+                    <span>Select the AI model you want to provision.</span>
+                    <span>
+                      {availableModels.length > 0 ? (
+                        <>Showing {availableModels.length} model{availableModels.length !== 1 ? 's' : ''}</>
+                      ) : !loadingModels ? (
+                        <>No models found</>
+                      ) : null}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="grid w-full gap-2">
+                  <Label htmlFor="model-details">Model Details</Label>
+                  <div className="bg-muted rounded-md p-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-sm font-medium">Model:</span>
+                      </div>
+                      <div>
+                        <span className="text-sm">
+                          {selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId || 'None selected'}
+                        </span>
+                      </div>
+                      
+                      <div>
+                        <span className="text-sm font-medium">Provider:</span>
+                      </div>
+                      <div>
+                        <span className="text-sm">
+                          {selectedModelId ? selectedModelId.split('.')[0] : 'Unknown'}
+                        </span>
+                      </div>
+                      
+                      {selectedModelId && availableModels.length > 0 && (
+                        <>
+                          <div>
+                            <span className="text-sm font-medium">Input Types:</span>
+                          </div>
+                          <div>
+                            <span className="text-sm">
+                              {availableModels.find(m => m.modelId === selectedModelId)?.inputModalities?.join(', ') || 'Not specified'}
+                            </span>
+                          </div>
+                          
+                          <div>
+                            <span className="text-sm font-medium">Output Types:</span>
+                          </div>
+                          <div>
+                            <span className="text-sm">
+                              {availableModels.find(m => m.modelId === selectedModelId)?.outputModalities?.join(', ') || 'Not specified'}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                      
+                      <div>
+                        <span className="text-sm font-medium">Commitment:</span>
+                      </div>
+                      <div>
+                        <span className="text-sm">1 Month</span>
+                      </div>
+                      
+                      <div>
+                        <span className="text-sm font-medium">Model Units:</span>
+                      </div>
+                      <div>
+                        <span className="text-sm">1</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    These details will be used to provision your Bedrock instance.
+                  </p>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={handleProvisionInstance} disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Provisioning...
+                    </>
+                  ) : (
+                    'Create Instance'
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
+          
+          {showDiagnostics && (
+            <TabsContent value="diagnostics">
+              <Card>
+                <CardHeader>
+                  <CardTitle>API Diagnostics</CardTitle>
+                  <CardDescription>
+                    Technical details about the API environment
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96">
+                    {JSON.stringify(envDiagnostics, null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+        </Tabs>
+        
+        <ApiConfiguration />
+        
+        {/* Add the AWS Permission Tester component */}
+        <AwsPermissionTester />
+        
+        {/* Add the test modal */}
+        <TestModal 
+          isOpen={testModalOpen} 
+          setIsOpen={setTestModalOpen} 
+          testData={testData} 
+        />
+      </div>
+    </ErrorBoundary>
   );
 };
 
