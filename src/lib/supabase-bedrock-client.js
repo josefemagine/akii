@@ -61,6 +61,9 @@ const getAuthToken = async () => {
     
     // If there's an access_token in the session, use it
     if (session.access_token) {
+      // Add debug logging
+      console.log('[Bedrock] Found access_token in session');
+      
       // Check if token is about to expire and try to refresh
       if (needsTokenRefresh(session)) {
         console.log('[Bedrock] Token needs refresh, attempting to refresh');
@@ -74,7 +77,9 @@ const getAuthToken = async () => {
           }
           
           // Use the new token if refresh succeeded
-          return data.session?.access_token || session.access_token;
+          const newToken = data.session?.access_token || session.access_token;
+          console.log('[Bedrock] Token refreshed successfully');
+          return newToken;
         } catch (refreshError) {
           console.error('[Bedrock] Exception during token refresh:', refreshError);
           // Return the original token as fallback
@@ -211,6 +216,8 @@ const callEdgeFunctionDirect = async (functionName, action, data, token) => {
     const url = `${BedrockConfig.edgeFunctionUrl}`;
     
     console.log(`[Bedrock] Calling direct fetch to: ${url} with action: ${action}`);
+    console.log(`[Bedrock] Edge function URL: ${BedrockConfig.edgeFunctionUrl}`);
+    console.log(`[Bedrock] Edge function name: ${BedrockConfig.edgeFunctionName}`);
     
     // Ensure the request body is properly formatted with action in the body
     const requestBody = {
@@ -219,6 +226,15 @@ const callEdgeFunctionDirect = async (functionName, action, data, token) => {
     };
     
     console.log(`[Bedrock] Request payload:`, JSON.stringify(requestBody));
+    
+    // Add debugging for auth header
+    if (token) {
+      console.log(`[Bedrock] Auth token available (length: ${token.length})`);
+      // Log the first and last 5 characters of the token for debugging
+      console.log(`[Bedrock] Token: ${token.substring(0, 5)}...${token.substring(token.length - 5)}`);
+    } else {
+      console.warn(`[Bedrock] No auth token available for ${action}`);
+    }
     
     const response = await fetch(url, {
       method: 'POST',
@@ -237,7 +253,7 @@ const callEdgeFunctionDirect = async (functionName, action, data, token) => {
         // Try to parse the error as JSON
         const errorJson = JSON.parse(errorText);
         return { data: null, error: errorJson.error || errorJson.message || `API error: ${response.status}` };
-      } catch (_e) {
+      } catch (_e) { // eslint-disable-line no-unused-vars
         // If not JSON, return the raw error text
         return { data: null, error: `API error: ${response.status} ${errorText}` };
       }
@@ -290,6 +306,12 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
   }
   
   if (requiresAuth) {
+    // Verify configuration before proceeding
+    if (!validateApiConfiguration()) {
+      console.error('[Bedrock] API configuration validation failed');
+      return { data: null, error: 'API configuration error' };
+    }
+    
     // Get auth token before making the request
     const token = await getAuthToken();
     if (!token) {
@@ -336,12 +358,6 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
       return { data: null, error: 'Authentication required' };
     }
     
-    // Check API configuration
-    if (!validateApiConfiguration()) {
-      console.error('[Bedrock] API configuration error');
-      return { data: null, error: 'API configuration error' };
-    }
-    
     try {
       // Retry mechanism for edge function calls
       const maxRetries = 2;
@@ -371,13 +387,24 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
             console.error(`[Bedrock] API error for ${action} (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
             lastError = error;
             
+            // Check for specific error conditions
+            const errorLower = String(error).toLowerCase();
+            
             // Don't retry auth errors as they're not likely to resolve with retries
-            if (error.includes('401') || error.includes('Unauthorized') || error.includes('Auth')) {
+            if (errorLower.includes('401') || 
+                errorLower.includes('unauthorized') || 
+                errorLower.includes('auth') || 
+                errorLower.includes('bearer')) {
+              console.warn('[Bedrock] Authorization error detected, not retrying');
               return { data: null, error };
             }
             
-            // For boot errors, try again
-            if (error.includes('BOOT_ERROR') || error.includes('503')) {
+            // For boot errors and service unavailable errors, try again
+            if (errorLower.includes('boot_error') || 
+                errorLower.includes('503') ||
+                errorLower.includes('failed to start') || 
+                errorLower.includes('function failed')) {
+              console.log('[Bedrock] Recoverable error detected, will retry');
               retryCount++;
               continue;
             }
@@ -385,6 +412,8 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
             return { data: null, error };
           }
           
+          // Successfully received response data
+          console.log(`[Bedrock] Request to ${action} successful`);
           return { data: responseData, error: null };
         } catch (err) {
           console.error(`[Bedrock] Exception in edge function call (attempt ${retryCount + 1}/${maxRetries + 1}):`, err);
@@ -399,6 +428,7 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
       }
       
       // If we get here, all retries failed
+      console.error('[Bedrock] All retry attempts failed');
       return { data: null, error: lastError || 'Edge function call failed after retries' };
     } catch (err) {
       console.error(`[Bedrock] All attempts failed for edge function call ${action}:`, err);
@@ -656,62 +686,7 @@ const listFoundationModels = async (filters = {}) => {
     
     // Return mock foundation models
     return { 
-      data: {
-        models: [
-          {
-            modelId: "amazon.titan-text-lite-v1",
-            modelName: "Titan Text Lite",
-            providerName: "Amazon",
-            inputModalities: ["TEXT"],
-            outputModalities: ["TEXT"],
-            inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
-            customizationsSupported: [],
-            responseStreamingSupported: true
-          },
-          {
-            modelId: "amazon.titan-text-express-v1",
-            modelName: "Titan Text Express",
-            providerName: "Amazon",
-            inputModalities: ["TEXT"],
-            outputModalities: ["TEXT"],
-            inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
-            customizationsSupported: [],
-            responseStreamingSupported: true
-          },
-          {
-            modelId: "anthropic.claude-instant-v1",
-            modelName: "Claude Instant v1",
-            providerName: "Anthropic",
-            inputModalities: ["TEXT"],
-            outputModalities: ["TEXT"],
-            inferenceTypesSupported: ["ON_DEMAND"],
-            customizationsSupported: [],
-            responseStreamingSupported: true
-          },
-          {
-            modelId: "anthropic.claude-v2",
-            modelName: "Claude v2",
-            providerName: "Anthropic",
-            inputModalities: ["TEXT"],
-            outputModalities: ["TEXT"],
-            inferenceTypesSupported: ["ON_DEMAND"],
-            customizationsSupported: [],
-            responseStreamingSupported: true
-          },
-          {
-            modelId: "stability.stable-diffusion-xl-v1",
-            modelName: "Stable Diffusion XL",
-            providerName: "Stability AI",
-            inputModalities: ["TEXT"],
-            outputModalities: ["IMAGE"],
-            inferenceTypesSupported: ["ON_DEMAND"],
-            customizationsSupported: [],
-            responseStreamingSupported: false
-          }
-        ],
-        appliedFilters: validatedFilters,
-        totalCount: 5
-      }, 
+      data: getFallbackModels(validatedFilters),
       error: null 
     };
   }
@@ -729,6 +704,7 @@ const listFoundationModels = async (filters = {}) => {
     });
     
     if (!result.error && result.data && result.data.models) {
+      console.log('[Bedrock] Successfully fetched foundation models from API');
       return result;
     }
     
@@ -742,6 +718,7 @@ const listFoundationModels = async (filters = {}) => {
     });
     
     if (!permissionsResult.error && permissionsResult.data) {
+      console.log('[Bedrock] Successfully fetched foundation models from permissions endpoint');
       // Format the result to match the expected structure
       return {
         data: {
@@ -781,83 +758,121 @@ const listFoundationModels = async (filters = {}) => {
     // If all else fails, return a limited set of default models
     console.log('[Bedrock] All methods failed, returning default models');
     return {
-      data: {
-        models: [
-          {
-            modelId: "amazon.titan-text-lite-v1",
-            modelName: "Titan Text Lite",
-            providerName: "Amazon",
-            inputModalities: ["TEXT"],
-            outputModalities: ["TEXT"],
-            inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
-            customizationsSupported: [],
-            responseStreamingSupported: true
-          },
-          {
-            modelId: "amazon.titan-text-express-v1",
-            modelName: "Titan Text Express",
-            providerName: "Amazon",
-            inputModalities: ["TEXT"],
-            outputModalities: ["TEXT"],
-            inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
-            customizationsSupported: [],
-            responseStreamingSupported: true
-          },
-          {
-            modelId: "anthropic.claude-instant-v1",
-            modelName: "Claude Instant v1",
-            providerName: "Anthropic",
-            inputModalities: ["TEXT"],
-            outputModalities: ["TEXT"],
-            inferenceTypesSupported: ["ON_DEMAND"],
-            customizationsSupported: [],
-            responseStreamingSupported: true
-          }
-        ],
-        appliedFilters: validatedFilters,
-        totalCount: 3,
-        note: "Using default models due to API errors"
-      },
+      data: getFallbackModels(validatedFilters),
       error: null
     };
   } catch (error) {
     console.error('[Bedrock] All foundation model listing methods failed:', error);
     // Return a minimal set of models as a fallback with an error message
     return {
-      data: {
-        models: [
-          {
-            modelId: "amazon.titan-text-lite-v1",
-            modelName: "Titan Text Lite",
-            providerName: "Amazon",
-            inputModalities: ["TEXT"],
-            outputModalities: ["TEXT"],
-            inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"]
-          },
-          {
-            modelId: "amazon.titan-text-express-v1",
-            modelName: "Titan Text Express",
-            providerName: "Amazon",
-            inputModalities: ["TEXT"],
-            outputModalities: ["TEXT"],
-            inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"]
-          },
-          {
-            modelId: "anthropic.claude-instant-v1",
-            modelName: "Claude Instant v1",
-            providerName: "Anthropic",
-            inputModalities: ["TEXT"],
-            outputModalities: ["TEXT"],
-            inferenceTypesSupported: ["ON_DEMAND"]
-          }
-        ],
-        appliedFilters: validatedFilters,
-        totalCount: 3,
-        note: "Using fallback models due to API errors"
-      },
+      data: getFallbackModels(validatedFilters),
       error: `Failed to fetch foundation models from API: ${error instanceof Error ? error.message : String(error)}`
     };
   }
+};
+
+/**
+ * Returns a fallback set of models that's always available
+ * Used when the API is unavailable or there's an authentication issue
+ */
+const getFallbackModels = (filters = {}) => {
+  console.log('[Bedrock] Generating fallback models with filters:', filters);
+  
+  // Define the fallback model set that's always available
+  const fallbackModels = {
+    models: [
+      {
+        modelId: "amazon.titan-text-lite-v1",
+        modelName: "Titan Text Lite",
+        providerName: "Amazon",
+        inputModalities: ["TEXT"],
+        outputModalities: ["TEXT"],
+        inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
+        customizationsSupported: [],
+        responseStreamingSupported: true
+      },
+      {
+        modelId: "amazon.titan-text-express-v1",
+        modelName: "Titan Text Express",
+        providerName: "Amazon",
+        inputModalities: ["TEXT"],
+        outputModalities: ["TEXT"],
+        inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
+        customizationsSupported: [],
+        responseStreamingSupported: true
+      },
+      {
+        modelId: "anthropic.claude-instant-v1",
+        modelName: "Claude Instant v1",
+        providerName: "Anthropic",
+        inputModalities: ["TEXT"],
+        outputModalities: ["TEXT"],
+        inferenceTypesSupported: ["ON_DEMAND"],
+        customizationsSupported: [],
+        responseStreamingSupported: true
+      },
+      {
+        modelId: "anthropic.claude-v2",
+        modelName: "Claude v2",
+        providerName: "Anthropic",
+        inputModalities: ["TEXT"],
+        outputModalities: ["TEXT"],
+        inferenceTypesSupported: ["ON_DEMAND"],
+        customizationsSupported: [],
+        responseStreamingSupported: true
+      },
+      {
+        modelId: "stability.stable-diffusion-xl-v1",
+        modelName: "Stable Diffusion XL",
+        providerName: "Stability AI",
+        inputModalities: ["TEXT"],
+        outputModalities: ["IMAGE"],
+        inferenceTypesSupported: ["ON_DEMAND"],
+        customizationsSupported: [],
+        responseStreamingSupported: false
+      }
+    ],
+    appliedFilters: filters,
+    totalCount: 5,
+    note: "Using fallback models due to API unavailability"
+  };
+  
+  // Apply simple filtering if filters are specified
+  if (Object.keys(filters).length > 0) {
+    // Filter by provider
+    if (filters.byProvider) {
+      const providerFilter = filters.byProvider.toLowerCase();
+      fallbackModels.models = fallbackModels.models.filter(model => 
+        model.providerName.toLowerCase().includes(providerFilter)
+      );
+    }
+    
+    // Filter by output modality
+    if (filters.byOutputModality) {
+      fallbackModels.models = fallbackModels.models.filter(model => 
+        model.outputModalities.includes(filters.byOutputModality)
+      );
+    }
+    
+    // Filter by input modality
+    if (filters.byInputModality) {
+      fallbackModels.models = fallbackModels.models.filter(model => 
+        model.inputModalities.includes(filters.byInputModality)
+      );
+    }
+    
+    // Filter by inference type
+    if (filters.byInferenceType) {
+      fallbackModels.models = fallbackModels.models.filter(model => 
+        model.inferenceTypesSupported.includes(filters.byInferenceType)
+      );
+    }
+    
+    // Update the total count after filtering
+    fallbackModels.totalCount = fallbackModels.models.length;
+  }
+  
+  return fallbackModels;
 };
 
 // Expose client functions
