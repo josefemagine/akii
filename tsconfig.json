@@ -28,7 +28,8 @@
     "src/tempobook", 
     "src/contexts/AuthContext.tsx.new.tsx", 
     "src/contexts/ConsolidatedAuthContext.tsx", 
-    "src/contexts/SimpleAuthContext.tsx"
+    "src/contexts/SimpleAuthContext.tsx",
+    "supabase/functions"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
