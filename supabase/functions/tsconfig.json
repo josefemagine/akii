@@ -1,16 +1,18 @@
 {
   "compilerOptions": {
-    "target": "ES2021",
+    "target": "ESNext",
     "module": "ESNext",
-    "moduleResolution": "node",
-    "lib": ["ES2021", "DOM"],
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM"],
     "isolatedModules": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": false,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": []
+    "allowImportingTsExtensions": true,
+    "checkJs": false,
+    "types": ["./deno.d.ts"]
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules"]

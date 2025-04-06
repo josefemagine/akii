@@ -7,7 +7,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.21.0";
 import * as jose from 'https://esm.sh/jose@4.14.4';
 
 // Import AWS Bedrock functions
-// @ts-ignore - Deno-specific import
 import {
   listFoundationModels as importedListFoundationModels,
   listProvisionedModelThroughputs as importedListProvisionedModelThroughputs,
@@ -18,17 +17,15 @@ import {
   getBedrockUsageStats,
   verifyAwsCredentials,
   runAwsPermissionsTest
-} from "./aws.ts";
+} from "./aws";
 
 // Import AWS SDK directly for credential testing
-// @ts-ignore - Deno-specific import
 import {
   BedrockClient,
   ListFoundationModelsCommand,
   ListProvisionedModelThroughputsCommand
 } from "npm:@aws-sdk/client-bedrock@3.462.0";
 
-// @ts-ignore - Deno-specific import
 import { BedrockRuntimeClient } from "npm:@aws-sdk/client-bedrock-runtime@3.462.0";
 
 // Configuration object
