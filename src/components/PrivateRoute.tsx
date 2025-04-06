@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
+import { useUser } from '@/contexts/UserContext';
 
 interface PrivateRouteProps {
   children: React.ReactNode;
@@ -79,9 +79,22 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
   adminOnly = false,
   redirectTo = '/login',
 }) => {
-  const { user, isLoading, isAdmin } = useSupabaseAuth();
+  const { user, sessionLoaded } = useUser();
   const location = useLocation();
   const [circuitOpen, setCircuitOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check if user is admin
+  useEffect(() => {
+    if (user) {
+      // Check user metadata for admin role
+      setIsAdmin(
+        user.app_metadata?.role === 'admin' || 
+        user.user_metadata?.isAdmin === true ||
+        user.app_metadata?.is_admin === true
+      );
+    }
+  }, [user]);
 
   // Monitor for redirect loops
   useEffect(() => {
@@ -107,7 +120,7 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
   }, [location.pathname]);
 
   // Show loading state while checking authentication
-  if (isLoading) {
+  if (!sessionLoaded) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background">
         <div className="w-12 h-12 border-t-4 border-primary rounded-full animate-spin mb-4"></div>

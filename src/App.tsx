@@ -197,10 +197,10 @@ export default function App() {
 
   return (
     <Suspense fallback={<LoadingScreen />}>
-      <SupabaseAuthProvider>
-        <DirectAuthProvider>
-          <AuthProvider>
-            <UserProvider>
+      <UserProvider>
+        <SupabaseAuthProvider>
+          <DirectAuthProvider>
+            <AuthProvider>
               <SearchProvider>
                 <ScrollToTop />
                 <EnvWarning />
@@ -294,10 +294,10 @@ export default function App() {
                 </Routes>
                 <Toaster />
               </SearchProvider>
-            </UserProvider>
-          </AuthProvider>
-        </DirectAuthProvider>
-      </SupabaseAuthProvider>
+            </AuthProvider>
+          </DirectAuthProvider>
+        </SupabaseAuthProvider>
+      </UserProvider>
     </Suspense>
   );
 }
