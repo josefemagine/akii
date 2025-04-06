@@ -268,7 +268,7 @@ const DataFlowAnimation = () => {
             variants={platformVariants}
             className="text-white text-base font-medium mb-1 text-center"
           >
-            Multi-platform Deployment
+            Plug-and-play Apps and Integrations
           </motion.div>
 
           {/* Flow arrows connecting Private AI with platforms */}

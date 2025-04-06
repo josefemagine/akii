@@ -77,8 +77,8 @@ createRoot(document.getElementById("root") as HTMLElement).render(
         v7_relativeSplatPath: true
       }}
     >
-      <App />
+            <App />
       <Analytics />
-    </BrowserRouter>
+        </BrowserRouter>
   </StrictMode>
 );
