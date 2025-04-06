@@ -51,15 +51,16 @@ export async function fetchBedrockCredentials(options = {}) {
       
       // Handle specific error cases
       if (error) {
-        // Check for table not existing errors
+        // Check for table not existing errors or permission errors
         if (error.code === '42P01' || 
             error.message?.includes('relation "bedrock_credentials" does not exist') ||
             error.status === 400 || 
-            error.status === 404) {
+            error.status === 404 ||
+            error.status === 403) {
           
-          console.warn('[Supabase AWS] The bedrock_credentials table does not exist, using fallback credentials');
+          console.warn('[Supabase AWS] Permission denied or table does not exist, using fallback credentials');
           return {
-            error: 'Credentials table not available in this environment',
+            error: 'Credentials table not available or permission denied',
             credentials: null
           };
         }
@@ -67,7 +68,7 @@ export async function fetchBedrockCredentials(options = {}) {
         // Other query error
         console.error('[Supabase AWS] Error fetching credentials:', error);
         return {
-          error: `Failed to fetch credentials: ${error.message}`,
+          error: `Failed to fetch credentials: ${error.message || 'Unknown database error'}`,
           credentials: null
         };
       }

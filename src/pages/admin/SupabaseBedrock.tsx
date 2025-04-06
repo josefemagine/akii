@@ -1471,19 +1471,24 @@ const SupabaseBedrock = () => {
         return;
       }
       
-      // Set connection status and diagnostics directly without calling testEnvironment
+      // Set connection status and diagnostics directly for production
       setConnectionStatus('connected');
-      setEnvDiagnostics({
-        apiVersion: 'production',
-        timestamp: new Date().toISOString(),
-        environment: 'production',
-        clientEnv: {
-          supabaseUrl: BedrockConfig.apiUrl || 'production',
-          functionName: BedrockConfig.edgeFunctionName || 'super-action'
-        },
-        note: 'Production mode - diagnostics not available',
-        serverStatus: 'PRODUCTION'
-      });
+      try {
+        setEnvDiagnostics({
+          apiVersion: 'production',
+          timestamp: new Date().toISOString(),
+          environment: 'production',
+          clientEnv: {
+            supabaseUrl: BedrockConfig.apiUrl || 'production',
+            functionName: BedrockConfig.edgeFunctionName || 'super-action'
+          },
+          note: 'Production mode - diagnostics not available',
+          serverStatus: 'PRODUCTION'
+        });
+      } catch (diagError) {
+        console.error('Error setting diagnostics:', diagError);
+        // Non-critical error, continue execution
+      }
       
       // Fetch instances - wrap in try/catch to handle errors gracefully
       try {
@@ -1645,10 +1650,14 @@ const SupabaseBedrock = () => {
   
   // Replace the useEffect that handles credentials with this implementation:
   useEffect(() => {
+    let isMounted = true;
+    
     async function initializeClient() {
       if (!user?.id) return;
       
       try {
+        if (!isMounted) return;
+        
         setLoading(true);
         setError(null);
         
@@ -1658,10 +1667,13 @@ const SupabaseBedrock = () => {
           useFallbackOnError: true
         });
         
+        if (!isMounted) return;
+        
         // Check if we have a table missing error
         const tableMissing = 
           result.message?.includes('table not available') || 
-          result.message?.includes('relation') && result.message?.includes('does not exist');
+          result.message?.includes('relation') && result.message?.includes('does not exist') ||
+          result.message?.includes('permission denied');
         
         // Update table exists state
         setCredentialsTableExists(!tableMissing);
@@ -1684,7 +1696,7 @@ const SupabaseBedrock = () => {
               .eq('user_id', user.id)
               .single();
               
-            if (data) {
+            if (data && isMounted) {
               setCredentials({
                 aws_access_key_id: data.aws_access_key_id || '',
                 aws_secret_access_key: data.aws_secret_access_key || '',
@@ -1697,16 +1709,27 @@ const SupabaseBedrock = () => {
           }
         } else {
           // Set empty credentials for the form
-          setCredentials({
-            aws_access_key_id: '',
-            aws_secret_access_key: '',
-            aws_region: 'us-east-1'
-          });
+          if (isMounted) {
+            setCredentials({
+              aws_access_key_id: '',
+              aws_secret_access_key: '',
+              aws_region: 'us-east-1'
+            });
+          }
         }
         
-        // Fetch models
-        await fetchModels(result.client);
+        // Fetch models if component still mounted
+        if (isMounted) {
+          try {
+            await fetchModels(result.client);
+          } catch (modelError) {
+            console.warn('Error fetching models during initialization:', modelError);
+            // Non-critical error, continue execution
+          }
+        }
       } catch (err) {
+        if (!isMounted) return;
+        
         console.error('Error initializing Bedrock client:', err);
         setError('Failed to initialize AWS Bedrock client. Using fallback data.');
         
@@ -1723,11 +1746,17 @@ const SupabaseBedrock = () => {
           credentials: null
         });
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
     
     initializeClient();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [user?.id]);
   
   // Fetch models
@@ -1845,15 +1874,12 @@ const SupabaseBedrock = () => {
   useEffect(() => {
     console.log('SupabaseBedrock component mounted');
     let isMounted = true;
-    let initializePromise = null;
     
     const initComponent = async () => {
       try {
         if (!isMounted) return;
         
-        // Store the promise to allow cleanup
-        initializePromise = initialize();
-        await initializePromise;
+        await initialize();
       } catch (error) {
         if (isMounted) {
           console.error('Error initializing SupabaseBedrock component:', error);
@@ -1865,11 +1891,11 @@ const SupabaseBedrock = () => {
     
     initComponent();
     
+    // Clean up function
     return () => {
       isMounted = false;
-      // No need to handle the promise in cleanup - just let it know we've unmounted
     };
-  }, []);  // Remove dependency array to prevent React error #310
+  }, []); // Empty dependency array to run once on mount
 
   return (
     <ErrorBoundary>
