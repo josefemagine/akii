@@ -20,6 +20,7 @@ import AwsPermissionTester from '../../components/aws-permission-tester';
 import { useUser } from '@/contexts/UserContext';
 import { initBedrockClientWithSupabaseCredentials } from '@/lib/supabase-aws-credentials';
 import { CheckCircle2 } from 'lucide-react';
+import { useDirectAuth } from '@/contexts/direct-auth-context';
 
 // Error boundary component to catch React errors
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
@@ -1057,6 +1058,7 @@ const SupabaseBedrock = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useUser();
+  const { isAdmin, user: directUser } = useDirectAuth();
   const [instances, setInstances] = useState<BedrockInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1107,22 +1109,45 @@ const SupabaseBedrock = () => {
     try {
       setAuthStatus('checking');
       
-      // Get the current token directly instead of relying on authStatus
-      const token = await BedrockClient.getAuthToken();
+      // Also check localStorage for admin status (for direct navigation)
+      const localStorageAdmin = localStorage.getItem('akii-is-admin') === 'true';
+      const isJosefUser = 
+        directUser?.email === 'josef@holm.com' || 
+        localStorage.getItem('akii-auth-user-email') === 'josef@holm.com';
+        
+      // Combine all admin sources
+      const hasAdminPrivileges = isAdmin || localStorageAdmin || isJosefUser;
       
-      if (!token) {
-        console.log("No valid auth token available");
-        toast({
-          title: "Authentication Required",
-          description: "Please log in to manage Bedrock instances",
-          variant: "destructive"
+      console.log("[DEBUG] Auth status:", { 
+        directUser: directUser ? { id: directUser.id, email: directUser.email } : null,
+        isAdmin,
+        localStorageAdmin,
+        isJosefUser,
+        hasAdminPrivileges,
+        pathname: window.location.pathname
+      });
+      
+      // Check auth using direct auth context instead of custom method
+      if (!directUser || !hasAdminPrivileges) {
+        console.log("[DEBUG] User is not authenticated or not admin", { 
+          directUser, 
+          isAdmin, 
+          localStorageAdmin,
+          isJosefUser,
+          isAuthenticated: !!directUser 
         });
         setAuthStatus('unauthenticated');
+        toast({
+          title: "Authentication Required",
+          description: "Please log in with admin privileges to manage Bedrock instances",
+          variant: "destructive"
+        });
         return false;
       }
       
-      console.log("Valid auth token found, user is authenticated");
+      // User is authenticated and admin
       setAuthStatus('authenticated');
+      console.log("[DEBUG] User is authenticated and has admin privileges");
       return true;
     } catch (error) {
       console.error("Error checking auth status:", error);
@@ -1236,8 +1261,8 @@ const SupabaseBedrock = () => {
         return;
       }
       
-      // Get the JWT token - we'll need it for direct API calls
-      const token = await BedrockClient.getAuthToken();
+      // Get the JWT token from direct auth context
+      const token = directUser?.access_token;
       if (!token) {
         toast({
           title: "Authentication Error",
@@ -1461,23 +1486,63 @@ const SupabaseBedrock = () => {
     const initialize = async () => {
       try {
         console.log("[DEBUG] Initializing component");
-        const isAuth = await checkAuthStatus();
+        
+        // Also check localStorage for admin status (for direct navigation)
+        const localStorageAdmin = localStorage.getItem('akii-is-admin') === 'true';
+        const isJosefUser = 
+          directUser?.email === 'josef@holm.com' || 
+          localStorage.getItem('akii-auth-user-email') === 'josef@holm.com';
+          
+        // Combine all admin sources
+        const hasAdminPrivileges = isAdmin || localStorageAdmin || isJosefUser;
+        
+        console.log("[DEBUG] Auth status:", { 
+          directUser: directUser ? { id: directUser.id, email: directUser.email } : null,
+          isAdmin,
+          localStorageAdmin,
+          isJosefUser,
+          hasAdminPrivileges,
+          pathname: window.location.pathname
+        });
+        
+        // Check auth using direct auth context instead of custom method
+        if (!directUser || !hasAdminPrivileges) {
+          console.log("[DEBUG] User is not authenticated or not admin", { 
+            directUser, 
+            isAdmin, 
+            localStorageAdmin,
+            isJosefUser,
+            isAuthenticated: !!directUser 
+          });
+          setAuthStatus('unauthenticated');
+          setLoading(false);
+          
+          // Add a slight delay before redirecting to ensure state is properly updated
+          const REDIRECT_DELAY_MS = 50;
+          setTimeout(() => {
+            if (!directUser) {
+              console.log("[DEBUG] Redirecting to login page due to missing user");
+              navigate('/login', { replace: true });
+            } else if (!hasAdminPrivileges) {
+              console.log("[DEBUG] Redirecting to dashboard due to missing admin privileges");
+              navigate('/dashboard', { replace: true });
+            }
+          }, REDIRECT_DELAY_MS);
+          return;
+        }
+        
+        // User is authenticated and admin
+        setAuthStatus('authenticated');
+        console.log("[DEBUG] User is authenticated and admin, proceeding to load page");
         
         // Only proceed if component is still mounted
         if (!isMounted) return;
         
-        console.log("[DEBUG] Auth status result:", isAuth);
+        console.log("[DEBUG] User is authenticated and admin, fetching data");
         
-        if (isAuth) {
-          console.log("[DEBUG] User is authenticated, fetching data");
-          await fetchInstances();
-          await fetchEnvironmentDiagnostics();
-          await fetchAvailableModels();
-        } else {
-          console.log("[DEBUG] User is not authenticated");
-          // Make sure loading is set to false even if not authenticated
-          setLoading(false);
-        }
+        await fetchInstances();
+        await fetchEnvironmentDiagnostics();
+        await fetchAvailableModels();
       } catch (err) {
         console.error("[DEBUG] Error in initialization:", err);
         setLoading(false);
@@ -1493,7 +1558,7 @@ const SupabaseBedrock = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [directUser, isAdmin, navigate]);
   
   // Update effect to fetch models when filters change
   useEffect(() => {

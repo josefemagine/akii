@@ -134,7 +134,7 @@ const DataFlowAnimation = () => {
       initial="initial"
       animate={controls}
       variants={containerVariants}
-      style={{ minHeight: "520px" }}
+      style={{ minHeight: "530px" }}
     >
       {/* Background grid pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
@@ -157,7 +157,7 @@ const DataFlowAnimation = () => {
       />
 
       {/* Animation content */}
-      <div className="relative w-full h-full p-4 flex flex-col justify-between min-h-[480px] pt-2">
+      <div className="relative w-full h-full p-4 flex flex-col justify-between min-h-[490px] pt-2">
         {/* First stage: Data Sources flowing to Akii Vault */}
         <div className="flex flex-col items-center">
           <motion.div 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useUser } from '@/contexts/UserContext';
+import { useDirectAuth } from '@/contexts/direct-auth-context';
 
 interface PrivateRouteProps {
   children: React.ReactNode;
@@ -80,21 +81,41 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
   redirectTo = '/login',
 }) => {
   const { user, sessionLoaded } = useUser();
+  const { isAdmin: directIsAdmin, user: directUser } = useDirectAuth();
   const location = useLocation();
   const [circuitOpen, setCircuitOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Check if user is admin
+  // Check if user is admin using multiple auth contexts
   useEffect(() => {
-    if (user) {
-      // Check user metadata for admin role
-      setIsAdmin(
-        user.app_metadata?.role === 'admin' || 
-        user.user_metadata?.isAdmin === true ||
-        user.app_metadata?.is_admin === true
-      );
-    }
-  }, [user]);
+    // First check standard user context
+    const standardAuthAdmin = !!(
+      user?.app_metadata?.role === 'admin' || 
+      user?.user_metadata?.isAdmin === true ||
+      user?.app_metadata?.is_admin === true
+    );
+    
+    // Then check direct auth context admin status
+    const directAuthAdmin = !!directIsAdmin;
+    
+    // Special case for development
+    const isJosefUser = 
+      (user?.email === 'josef@holm.com') || 
+      (directUser?.email === 'josef@holm.com');
+    
+    // Set admin status based on any valid source
+    const finalIsAdmin = standardAuthAdmin || directAuthAdmin || isJosefUser;
+    
+    console.log('PrivateRoute Admin Check:', {
+      path: location.pathname,
+      standardAuthAdmin,
+      directAuthAdmin,
+      isJosefUser,
+      finalIsAdmin
+    });
+    
+    setIsAdmin(finalIsAdmin);
+  }, [user, directIsAdmin, directUser, location.pathname]);
 
   // Monitor for redirect loops
   useEffect(() => {
