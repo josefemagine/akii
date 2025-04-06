@@ -1244,23 +1244,31 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
 
   try {
     // Parse request data to get any filter parameters
-    let requestBody;
+    let requestBody = {};
     try {
-      requestBody = await request.json();
-      console.log("[API] Received listFoundationModels request:", JSON.stringify(requestBody));
+      const text = await request.text();
+      console.log("[API] Request body text:", text);
+      
+      try {
+        requestBody = JSON.parse(text);
+        console.log("[API] Parsed JSON request body:", JSON.stringify(requestBody));
+      } catch (parseError) {
+        console.error("[API] Failed to parse JSON:", parseError);
+        requestBody = {};
+      }
     } catch (e) {
-      // If no JSON body or parsing failed, we'll proceed without filters
-      console.log("[API] No filter parameters provided in request body");
-      requestBody = {};
+      console.log("[API] No request body or could not read:", e);
     }
     
     // Extract filter parameters from the request data
     const filters: any = {};
-    // Handle both direct data properties and nested data object for backwards compatibility
-    const data = (requestBody.data && typeof requestBody.data === 'object') 
-      ? requestBody.data 
-      : requestBody;
     
+    // Handle different request body structures:
+    // 1. {action: "listFoundationModels", data: {byProvider: "..."}} - from client.js
+    // 2. {action: "listFoundationModels", byProvider: "..."} - flat structure
+    // 3. {byProvider: "..."} - direct parameters
+    
+    const data = requestBody.data || requestBody;
     console.log("[API] Extracting filters from data:", JSON.stringify(data));
     
     // Check for each possible filter
@@ -1305,245 +1313,73 @@ async function handleListFoundationModels(request: Request): Promise<Response> {
   }
 }
 
-// Main request handler
+// Main HTTP handler
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: CONFIG.CORS_HEADERS });
+    return new Response(null, { 
+      headers: { ...CONFIG.CORS_HEADERS }
+    });
   }
   
-  let requestBody;
-  let action = "";
-  let data = {};
-  
   try {
-    // Parse JSON request body
+    // Log request details (sanitize for security)
+    let requestUrl = req.url.replace(/token=[^&]+/, 'token=REDACTED');
+    console.log(`[API] Request received: ${req.method} ${requestUrl}`);
+    
+    // For all other requests, parse the request body
+    let requestBody: any = {};
+    let requestText = "";
+    let action = "";
+    let data: any = {};
+    
     try {
-      requestBody = await req.clone().json();
-      console.log("[API] Received request body:", requestBody);
+      // Read the request body as text
+      requestText = await req.text();
+      console.log(`[API] Raw request body: ${requestText.substring(0, 500)}${requestText.length > 500 ? '...' : ''}`);
       
-      // Extract action and data from the request body
-      if (typeof requestBody === 'object') {
-        action = requestBody.action || "";
-        // Handle both nested and flat data structures
-        data = requestBody.data !== undefined ? requestBody.data : {};
-        
-        // Log the extracted action and data
-        console.log(`[API] Extracted action: ${action}, data:`, data);
-      }
-    } catch (error) {
-      console.error("[API] Error parsing request body:", error);
-      return new Response(
-        JSON.stringify({ error: "Invalid request body", message: "The request body could not be parsed as JSON" }),
-        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-    
-    if (!action) {
-      console.error("[API] Missing action in request:", requestBody);
-      return new Response(
-        JSON.stringify({ error: "Missing action", message: "No action specified in the request" }),
-        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-    
-    console.log(`[API] Processing action: ${action}, data:`, data);
-    
-    // EMERGENCY DEBUG CODE - With enhanced security
-    if (action === "emergency-debug") {
-      console.log("[API] Running emergency-debug endpoint - this should only be used for diagnostics by administrators");
-      
-      // Always validate the token for security - no unauthenticated access
-      const { user, error } = await validateJwtToken(req);
-      if (error) {
-        console.log("[API] Unauthorized attempt to access emergency-debug endpoint");
-        return new Response(
-          JSON.stringify({ error: "Unauthorized", message: "Admin authentication required" }),
-          { status: 401, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
-        );
-      }
-      
-      // Only proceed if user is authenticated
+      // Try to parse as JSON
       try {
-        // Load environment variables directly from Deno for debugging
-        const accessKeyId = CONFIG.AWS_ACCESS_KEY_ID || "";
-        const secretKey = CONFIG.AWS_SECRET_ACCESS_KEY || "";
+        requestBody = JSON.parse(requestText);
+        console.log(`[API] Parsed request body: ${JSON.stringify(requestBody).substring(0, 500)}...`);
         
-        // Define the interface for the info object
-        interface EnvDebugInfo {
-          config: {
-            aws_region: string;
-            aws_access_key_id_full: string;
-            aws_secret_access_key_parts: string;
-            has_access_key: boolean;
-            has_secret_key: boolean;
-            access_key_valid_format: boolean;
-            access_key_length: number;
-            secret_key_length: number;
-            potential_issues: {
-              access_key_format: boolean;
-              secret_key_too_short: boolean;
-              missing_access_key: boolean;
-              missing_secret_key: boolean;
-            };
-          };
-          environment: {
-            AWS_REGION: string;
-            AWS_ACCESS_KEY_ID: string;
-            AWS_SECRET_ACCESS_KEY: string;
-            AWS_ACCESS_KEY_ID_LENGTH: number;
-            AWS_SECRET_ACCESS_KEY_LENGTH: number;
-          };
-          validation: ReturnType<typeof validateConfig>;
-          timestamps: {
-            current: string;
-            timezone: string;
-          };
-          api_test?: {
-            success: boolean;
-            models_count?: number;
-            first_model?: string | null;
-            error?: string;
-            error_name?: string;
-            stack?: string;
-          };
+        // Extract action and data from the request body
+        action = requestBody.action || "";
+        
+        // Handle data extraction - could be directly in the body or nested under 'data'
+        if (requestBody.data !== undefined) {
+          // Data is nested
+          data = requestBody.data;
+        } else {
+          // Data might be directly in the body (excluding the action field)
+          const { action: _, ...restOfBody } = requestBody;
+          data = restOfBody;
         }
         
-        // Safely format the keys - showing more details but still maintaining security
-        const envInfo: EnvDebugInfo = {
-          config: {
-            aws_region: CONFIG.AWS_REGION,
-            aws_access_key_id_full: accessKeyId ? 
-              // Show first 4 chars and last 4 chars with * in between
-              `${accessKeyId.substring(0, 4)}****${accessKeyId.length > 8 ? accessKeyId.slice(-4) : ''}` : 
-              "<not-set>",
-            aws_secret_access_key_parts: secretKey ? 
-              // Show first 2 chars and last 4 chars with * in between
-              `${secretKey.substring(0, 2)}****${secretKey.length > 6 ? secretKey.slice(-4) : ''}` : 
-              "<not-set>",
-            has_access_key: Boolean(accessKeyId),
-            has_secret_key: Boolean(secretKey),
-            access_key_valid_format: accessKeyId?.startsWith('AKIA') || false,
-            access_key_length: accessKeyId?.length || 0,
-            secret_key_length: secretKey?.length || 0,
-            // Validate common issues with keys
-            potential_issues: {
-              access_key_format: !accessKeyId?.startsWith('AKIA') && accessKeyId?.length > 0,
-              secret_key_too_short: secretKey?.length < 30 && secretKey?.length > 0,
-              missing_access_key: !accessKeyId,
-              missing_secret_key: !secretKey
-            }
-          },
-          environment: {
-            // @ts-ignore - Deno global
-            AWS_REGION: Deno?.env?.get("AWS_REGION") || "<not-set>",
-            // Only show partial key with masking
-            // @ts-ignore - Deno global 
-            AWS_ACCESS_KEY_ID: Deno?.env?.get("AWS_ACCESS_KEY_ID") ? 
-              // @ts-ignore - Deno global - Show first 4 and last 4 characters with * between
-              `${Deno.env.get("AWS_ACCESS_KEY_ID")?.substring(0, 4)}****${Deno.env.get("AWS_ACCESS_KEY_ID")?.slice(-4)}` : 
-              "<not-set-in-env>",
-            // @ts-ignore - Deno global - Show first 2 and last 4 characters with * between
-            AWS_SECRET_ACCESS_KEY: Deno?.env?.get("AWS_SECRET_ACCESS_KEY") ?
-              // @ts-ignore - Deno global
-              `${Deno.env.get("AWS_SECRET_ACCESS_KEY")?.substring(0, 2)}****${Deno.env.get("AWS_SECRET_ACCESS_KEY")?.slice(-4)}` :
-              "<not-set-in-env>",
-            // @ts-ignore - Deno global
-            AWS_ACCESS_KEY_ID_LENGTH: (Deno?.env?.get("AWS_ACCESS_KEY_ID") || "").length,
-            // @ts-ignore - Deno global
-            AWS_SECRET_ACCESS_KEY_LENGTH: (Deno?.env?.get("AWS_SECRET_ACCESS_KEY") || "").length,
-          },
-          validation: validateConfig(),
-          timestamps: {
-            current: new Date().toISOString(),
-            timezone: "UTC"
-          }
-        };
-        
-        // Test AWS SDK connection
-        try {
-          const client = new BedrockClient({
-            region: CONFIG.AWS_REGION,
-            credentials: {
-              accessKeyId: CONFIG.AWS_ACCESS_KEY_ID || "",
-              secretAccessKey: CONFIG.AWS_SECRET_ACCESS_KEY || ""
-            }
-          });
-          
-          const command = new ListFoundationModelsCommand({});
-          const result = await client.send(command);
-          
-          // Add API test results to the response
-          envInfo.api_test = {
-            success: true,
-            models_count: result.modelSummaries?.length || 0,
-            first_model: result.modelSummaries && result.modelSummaries.length > 0 ? 
-              result.modelSummaries[0].modelId : null
-          };
-        } catch (apiError) {
-          // Include API errors in the response
-          envInfo.api_test = {
-            success: false,
-            error: apiError instanceof Error ? apiError.message : String(apiError),
-            error_name: apiError instanceof Error ? apiError.name : "Unknown",
-            stack: apiError instanceof Error ? apiError.stack?.split("\n").slice(0, 3).join("\n") : undefined
-          };
+        console.log(`[API] Extracted action: "${action}", data keys: ${Object.keys(data).join(', ')}`);
+      } catch (parseError) {
+        console.error(`[API] Failed to parse request body as JSON: ${parseError}`);
+        requestBody = {};
+      }
+    } catch (e) {
+      console.error(`[API] Error reading request body: ${e}`);
+    }
+    
+    // Extract action from query string if not found in body
+    if (!action) {
+      try {
+        const url = new URL(req.url);
+        action = url.searchParams.get("action") || "";
+        if (action) {
+          console.log(`[API] Using action from query string: ${action}`);
         }
-        
-        return new Response(
-          JSON.stringify({
-            message: "Emergency debug information (AWS credentials)",
-            env: envInfo,
-            user: {
-              id: user.id, 
-              email: user.email
-            }
-          }),
-          { headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
-        );
-      } catch (error) {
-        console.error("[EMERGENCY-DEBUG] Error:", error);
-        return new Response(
-          JSON.stringify({ 
-            error: "Emergency Debug Error",
-            message: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined 
-          }),
-          { status: 500, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
-        );
+      } catch (e) {
+        console.error(`[API] Error parsing URL: ${e}`);
       }
     }
     
-    // Map legacy action names to new ones
-    if (action === 'testEnvironment') {
-      console.log(`[API] Mapping legacy action 'testEnvironment' to 'test'`);
-      action = 'test';
-    } else if (action === 'provisionInstance') {
-      console.log(`[API] Mapping legacy action 'provisionInstance' to 'createInstance'`);
-      action = 'createInstance';
-    }
-    
-    try {
-      // Validate AWS credentials before proceeding (EXCEPT for test endpoints)
-      if (!['test', 'aws-diagnostics', 'aws-credential-test', 'emergency-debug', 'verify-aws-credentials'].includes(action)) {
-        if (!CONFIG.AWS_ACCESS_KEY_ID || !CONFIG.AWS_SECRET_ACCESS_KEY) {
-          console.error("[API] Missing AWS credentials:", { 
-            hasAccessKey: Boolean(CONFIG.AWS_ACCESS_KEY_ID), 
-            hasSecretKey: Boolean(CONFIG.AWS_SECRET_ACCESS_KEY),
-            action: action
-          });
-          
-          return new Response(
-            JSON.stringify({ 
-              error: "Service Misconfigured", 
-              message: "AWS credentials are not properly configured. Contact your administrator." 
-            }),
-            { status: 503, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
-          );
-        }
-      }
-      
-      // Route the request based on action
-      console.log(`[API] Routing request to handler for action: ${action}`);
+    // Handle the request based on the action
+    if (action) {
+      // Process the action
       switch (action) {
         case "test":
           return await handleTestEnv(req);
@@ -1594,32 +1430,11 @@ serve(async (req: Request) => {
             { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
           );
       }
-    } catch (error) {
-      // Handle AWS SDK specific errors
-      let errorMessage = error instanceof Error ? error.message : String(error);
-      let statusCode = 500;
-      
-      // More specific error handling based on AWS error patterns
-      if (errorMessage.includes("The security token included in the request is invalid") || 
-          errorMessage.includes("request signature we calculated does not match")) {
-        errorMessage = "AWS authentication failed. The access credentials are invalid or expired.";
-        statusCode = 401;
-      } else if (errorMessage.includes("Missing Authentication Token")) {
-        errorMessage = "AWS request is missing proper authentication. Check AWS configuration.";
-        statusCode = 401;
-      } else if (errorMessage.includes("AccessDenied") || errorMessage.includes("not authorized")) {
-        errorMessage = "AWS access denied. The credentials don't have permission to perform this action.";
-        statusCode = 403;
-      }
-      
-      console.error(`[API] Error processing request for action ${action}:`, error);
+    } else {
+      console.error("[API] Missing action in request:", requestBody);
       return new Response(
-        JSON.stringify({ 
-          error: "AWS API Error", 
-          message: errorMessage,
-          action: action
-        }),
-        { status: statusCode, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Missing action", message: "No action specified in the request" }),
+        { status: 400, headers: { ...CONFIG.CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
   } catch (error) {

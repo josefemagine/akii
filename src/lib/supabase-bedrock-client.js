@@ -188,24 +188,37 @@ const callEdgeFunctionDirect = async (functionName, action, data, token) => {
   try {
     const url = `${BedrockConfig.edgeFunctionUrl}`;
     
-    console.log(`[Bedrock] Trying direct fetch to: ${url}`);
+    console.log(`[Bedrock] Calling direct fetch to: ${url} with action: ${action}`);
+    
+    // Ensure the request body is properly formatted with action in the body
+    const requestBody = {
+      action: action,
+      data: data
+    };
+    
+    console.log(`[Bedrock] Request payload:`, JSON.stringify(requestBody));
     
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': token ? `Bearer ${token}` : undefined
       },
-      body: JSON.stringify({
-        action,
-        data
-      })
+      body: JSON.stringify(requestBody)
     });
     
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[Bedrock] Direct fetch error (${response.status}):`, errorText);
-      return { data: null, error: `API error: ${response.status} ${errorText}` };
+      
+      try {
+        // Try to parse the error as JSON
+        const errorJson = JSON.parse(errorText);
+        return { data: null, error: errorJson.error || errorJson.message || `API error: ${response.status}` };
+      } catch (e) {
+        // If not JSON, return the raw error text
+        return { data: null, error: `API error: ${response.status} ${errorText}` };
+      }
     }
     
     const responseData = await response.json();
@@ -248,72 +261,75 @@ const callEdgeFunction = async ({ action, data = {}, useMock = BedrockConfig.use
       console.error('[Bedrock] No valid auth token available');
       return { data: null, error: 'Authentication required' };
     }
-  }
-  
-  // Use mock data in development mode if enabled and available
-  if (useMock && !BedrockConfig.isProduction && devMockData[action]) {
-    console.log(`[Bedrock] Using mock data for action: ${action}`);
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-    return { data: devMockData[action], error: null };
-  }
-
-  try {
-    // Get a valid token
-    const token = await getAuthToken();
     
-    // Determine the API URL
-    const apiUrl = getApiUrl();
-    
-    // Create the properly structured request body
-    const requestBody = {
-      action: action,
-      data: data  // Properly nest data under the data key instead of spreading it
-    };
-    
-    // Log complete request details
-    console.log(`[Bedrock] Making API request to ${apiUrl}`, { 
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : undefined
-      },
-      body: JSON.stringify(requestBody)
-    });
-    
-    // Make the API call
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
-      body: JSON.stringify(requestBody)
-    });
-    
-    // Parse the response
-    const result = await response.json();
-    
-    // Log response details
-    console.log(`[Bedrock] API response for ${action}:`, { 
-      status: response.status,
-      result: result
-    });
-    
-    if (!response.ok) {
-      console.error(`[Bedrock] API error for ${action}:`, result);
-      return { 
-        data: null, 
-        error: result.message || result.error || `API error: ${response.status}` 
-      };
+    // Use mock data if configured (for development without edge functions)
+    if (useMock && process.env.NODE_ENV !== 'production') {
+      console.log('[Bedrock] Using mock data for action:', action);
+      // Return mock data if available for this action
+      if (devMockData[action]) {
+        return { data: devMockData[action], error: null };
+      } else {
+        console.warn(`[Bedrock] No mock data available for action: ${action}`);
+        return { data: null, error: 'No mock data available for this action' };
+      }
     }
     
-    return { data: result, error: null };
-  } catch (error) {
-    console.error(`[Bedrock] Exception during ${action}:`, error);
-    return { 
-      data: null, 
-      error: error.message || 'An unexpected error occurred' 
-    };
+    // Check API configuration
+    if (!validateApiConfiguration()) {
+      return { data: null, error: 'API configuration error' };
+    }
+    
+    try {
+      // Try using direct fetch for all requests
+      console.log(`[Bedrock] Sending request to ${getApiUrl()}`);
+      
+      // Call the edge function directly
+      const { data: responseData, error } = await callEdgeFunctionDirect(
+        BedrockConfig.edgeFunctionName, 
+        action, 
+        data, 
+        token
+      );
+      
+      if (error) {
+        console.error(`[Bedrock] API error for ${action}:`, error);
+        return { data: null, error };
+      }
+      
+      return { data: responseData, error: null };
+    } catch (err) {
+      console.error(`[Bedrock] Error calling edge function for ${action}:`, err);
+      return { data: null, error: err.message || 'Unknown error' };
+    }
+  } else {
+    // For test/environment check endpoints, proceed without auth
+    try {
+      // Use mock data if configured for development
+      if (useMock && process.env.NODE_ENV !== 'production') {
+        console.log('[Bedrock] Using mock data for non-auth action:', action);
+        if (devMockData[action]) {
+          return { data: devMockData[action], error: null };
+        }
+      }
+      
+      // No auth required, call directly
+      const { data: responseData, error } = await callEdgeFunctionDirect(
+        BedrockConfig.edgeFunctionName, 
+        action, 
+        data, 
+        ''
+      );
+      
+      if (error) {
+        console.error(`[Bedrock] API error for ${action}:`, error);
+        return { data: null, error };
+      }
+      
+      return { data: responseData, error: null };
+    } catch (err) {
+      console.error(`[Bedrock] Error in test function:`, err);
+      return { data: null, error: err.message || 'Unknown error' };
+    }
   }
 };
 

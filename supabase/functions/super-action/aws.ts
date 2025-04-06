@@ -50,15 +50,49 @@ export async function listAvailableFoundationModels(filters?: any) {
     console.log(`[AWS] Listing available foundation models with filters:`, filters);
     const client = getBedrockClient();
     
-    const command = new ListFoundationModelsCommand({});
+    // Prepare command parameters with any filters provided
+    const params: any = {};
+    
+    // Apply filters if provided
+    if (filters) {
+      // Provider filter (e.g., "amazon", "anthropic", "ai21", "cohere", "meta", "stability")
+      if (filters.byProvider) {
+        params.byProvider = filters.byProvider;
+      }
+      
+      // Output modality filter (e.g., "TEXT", "IMAGE")
+      if (filters.byOutputModality) {
+        params.byOutputModality = filters.byOutputModality;
+      }
+      
+      // Input modality filter (e.g., "TEXT")
+      if (filters.byInputModality) {
+        params.byInputModality = filters.byInputModality;
+      }
+      
+      // Inference type filter (e.g., "ON_DEMAND", "PROVISIONED")
+      if (filters.byInferenceType) {
+        params.byInferenceType = filters.byInferenceType;
+      }
+      
+      // Customization type filter (e.g., "FINE_TUNING")
+      if (filters.byCustomizationType) {
+        params.byCustomizationType = filters.byCustomizationType;
+      }
+    }
+    
+    console.log(`[AWS] Sending ListFoundationModelsCommand with params:`, params);
+    const command = new ListFoundationModelsCommand(params);
     const response = await client.send(command);
     
     const models = response.modelSummaries || [];
+    console.log(`[AWS] Found ${models.length} models matching criteria`);
     
     return {
       success: true,
       models,
-      count: models.length
+      count: models.length,
+      appliedFilters: filters || {}
     };
   } catch (error) {
     console.error("[AWS] Error listing foundation models:", error);
