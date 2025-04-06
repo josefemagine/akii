@@ -495,111 +495,164 @@ const ModelFilters = ({ activeFilters, setActiveFilters, loadingModels, fetchAva
   );
 };
 
-// Create ApiConfiguration component
-const ApiConfiguration = ({ 
+// Replace the separate ApiConfiguration and AWS Connection section with this:
+const CombinedApiConfigPanel = ({
   connectionStatus,
   authStatus,
   handleLogin,
   checkAuthStatus,
-  fetchDetailedTestData,
-  fetchEnvironmentDiagnostics,
   refreshInstances,
   testingConnection,
-  refreshing
-}) => (
-  <Card className="mb-6">
-    <CardHeader>
-      <CardTitle>API Configuration</CardTitle>
-      <CardDescription>Current configuration and connection status</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div>
-          <Label className="mb-1 block text-sm font-medium">API URL:</Label>
-          <div className="text-sm text-gray-700 dark:text-gray-300">
-            {BedrockConfig.isLocalDevelopment ? '/api/super-action' : BedrockConfig.edgeFunctionUrl}
+  refreshing,
+  credentials,
+  clientStatus,
+  testConnection
+}) => {
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>AWS Bedrock Connection</CardTitle>
+            <CardDescription>
+              API configuration and AWS credentials status
+            </CardDescription>
           </div>
-        </div>
-        
-        <div>
-          <Label className="mb-1 block text-sm font-medium">Edge Functions:</Label>
-          <div className="text-sm text-gray-700 dark:text-gray-300">
-            {BedrockConfig.useEdgeFunctions ? 'Enabled' : 'Disabled'}
-          </div>
-        </div>
-        
-        <div>
-          <Label className="mb-1 block text-sm font-medium">Environment:</Label>
-          <div className="text-sm text-gray-700 dark:text-gray-300">
-            {BedrockConfig.isProduction ? 'Production' : 'Development'}
-          </div>
-        </div>
-        
-        <div>
-          <Label className="mb-1 block text-sm font-medium">Function Name:</Label>
-          <div className="text-sm text-gray-700 dark:text-gray-300">{BedrockConfig.edgeFunctionName}</div>
-        </div>
-        
-        <div>
-          <Label className="mb-1 block text-sm font-medium">Authentication:</Label>
-          <div className="text-sm text-gray-700 dark:text-gray-300">Supabase JWT</div>
-        </div>
-        
-        <div>
-          <Label className="mb-1 block text-sm font-medium">Edge Function URL:</Label>
-          <div className="text-sm text-gray-700 dark:text-gray-300">{BedrockConfig.edgeFunctionUrl}</div>
-        </div>
-      </div>
-      
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div>
-          <Label className="mb-1 block text-sm font-medium">Connection:</Label>
-          <ConnectionStatusBadge status={connectionStatus} />
-        </div>
-        
-        <div>
-          <Label className="mb-1 block text-sm font-medium">Auth Status:</Label>
           <div className="flex items-center gap-2">
-            <AuthStatusBadge status={authStatus} />
-            {authStatus === 'unauthenticated' && (
-              <Button variant="outline" size="sm" onClick={handleLogin}>
-                <LogIn className="h-4 w-4 mr-2" /> Log In
-              </Button>
-            )}
-            {(authStatus === 'authenticated' || authStatus === 'expired') && (
-              <Button variant="outline" size="sm" onClick={checkAuthStatus}>
-                <RefreshCw className="h-4 w-4 mr-2" /> Refresh Auth
+            <Badge 
+              variant={clientStatus?.success ? "default" : "destructive"}
+              className={clientStatus?.success ? "bg-green-100 text-green-800 border-green-200" : ""}
+            >
+              {clientStatus?.success ? "Connected" : "Not Connected"}
+            </Badge>
+            <Badge 
+              variant={authStatus === 'authenticated' ? "outline" : "destructive"}
+              className={authStatus === 'authenticated' ? "bg-blue-50 text-blue-800 border-blue-200" : ""}
+            >
+              {authStatus === 'authenticated' ? "Authenticated" : "Auth Error"}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium mb-2">Supabase API</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">API URL:</p>
+                  <p className="font-mono bg-muted p-1 rounded">/api/super-action</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Environment:</p>
+                  <p className="font-medium">Production</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Authentication:</p>
+                  <p className="font-medium">Supabase JWT</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Edge Functions:</p>
+                  <p className="font-medium">Enabled</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium mb-2">AWS Credentials</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Region:</p>
+                  <p className="font-medium">{credentials?.region || 'Not Configured'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Access Key:</p>
+                  <p className="font-medium">
+                    {credentials?.hasCredentials ? 
+                      '••••••••••••••••' : 
+                      <span className="text-amber-600">Not Configured</span>
+                    }
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Status:</p>
+                  <p className={`font-medium ${clientStatus.usingFallback ? 'text-amber-600' : 'text-green-600'}`}>
+                    {clientStatus.usingFallback ? 'Using Fallback Data' : 'Using AWS API'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">Message:</p>
+                  <p className="font-medium text-xs">{clientStatus.message}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="h-px bg-border"></div>
+        
+        <div className="flex flex-col sm:flex-row justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={testConnection}
+              disabled={testingConnection}
+            >
+              {testingConnection ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <TestTube className="mr-2 h-4 w-4" />
+              )}
+              Test AWS Connection
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => checkAuthStatus()}
+              disabled={authStatus === 'checking'}
+            >
+              {authStatus === 'checking' ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Check Auth Status
+            </Button>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={refreshInstances}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh Data
+            </Button>
+            {authStatus !== 'authenticated' && (
+              <Button 
+                variant="default" 
+                size="sm"
+                onClick={handleLogin}
+              >
+                <LogIn className="mr-2 h-4 w-4" />
+                Login
               </Button>
             )}
           </div>
         </div>
-      </div>
-      
-      <div className="flex justify-end gap-2">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={fetchDetailedTestData} 
-          disabled={testingConnection || authStatus !== 'authenticated'}
-        >
-          {testingConnection ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <TestTube className="h-4 w-4 mr-2" />
-          )}
-          Test Edge Function
-        </Button>
-        <Button variant="outline" size="sm" onClick={fetchEnvironmentDiagnostics}>
-          <Settings className="h-4 w-4 mr-2" /> Test Environment
-        </Button>
-        <Button variant="outline" size="sm" onClick={refreshInstances} disabled={refreshing}>
-          {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          Refresh
-        </Button>
-      </div>
-    </CardContent>
-  </Card>
-);
+      </CardContent>
+    </Card>
+  );
+};
 
 // Extract the main content into a separate component to simplify rendering logic
 const BedrockDashboardContent = ({ 
@@ -623,6 +676,7 @@ const BedrockDashboardContent = ({
   showFilters, 
   activeFilters, 
   planConfig,
+  client,
   // Functions
   checkAuthStatus,
   handleLogin,
@@ -636,6 +690,7 @@ const BedrockDashboardContent = ({
   setActiveFilters,
   setSelectedModelId,
   setSelectedPlan,
+  testConnection
 }) => {
   
   // Create a wrapper function for button clicks
@@ -967,20 +1022,23 @@ const BedrockDashboardContent = ({
         )}
       </Tabs>
       
-      <ApiConfiguration 
+      <CombinedApiConfigPanel
         connectionStatus={connectionStatus}
         authStatus={authStatus}
         handleLogin={handleLogin}
         checkAuthStatus={checkAuthStatus}
-        fetchDetailedTestData={fetchDetailedTestData}
-        fetchEnvironmentDiagnostics={fetchEnvironmentDiagnostics}
         refreshInstances={refreshInstances}
         testingConnection={testingConnection}
         refreshing={refreshing}
+        credentials={client?.clientStatus?.credentials || null}
+        clientStatus={client?.clientStatus || {
+          success: false,
+          usingFallback: true,
+          message: 'Not initialized',
+          credentials: null
+        }}
+        testConnection={testConnection}
       />
-      
-      {/* Add the AWS Permission Tester component */}
-      <AwsPermissionTester />
       
       {/* Add the test modal */}
       <TestModal 
@@ -1765,6 +1823,7 @@ const SupabaseBedrock = () => {
         showFilters={showFilters}
         activeFilters={activeFilters}
         planConfig={planConfig}
+        client={client}
         // Functions
         checkAuthStatus={checkAuthStatus}
         handleLogin={handleLogin}
@@ -1778,6 +1837,7 @@ const SupabaseBedrock = () => {
         setActiveFilters={setActiveFilters}
         setSelectedModelId={setSelectedModelId}
         setSelectedPlan={setSelectedPlan}
+        testConnection={testConnection}
       />
     </ErrorBoundary>
   );

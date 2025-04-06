@@ -61,10 +61,11 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
   const [showSubElements, setShowSubElements] = React.useState(false);
   const fullText1 = "Your AI.";
   const fullText2 = "Your Data.";
-  const staticPrefix = "Plug. Play. ";
+  const staticPrefix = "Plug & ";
   
   // Words to cycle through in this order
   const rotatingWords = [
+    "Play.",
     "Perform.",
     "Support.",
     "Sell.",
