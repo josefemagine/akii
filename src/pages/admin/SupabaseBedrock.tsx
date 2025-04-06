@@ -1661,6 +1661,8 @@ const SupabaseBedrock = () => {
         setLoading(true);
         setError(null);
         
+        console.log('[Bedrock] Initializing client with Supabase Edge Function credentials');
+        
         // Initialize client and check if table exists
         const result = await initBedrockClientWithSupabaseCredentials({
           userId: user.id,
@@ -1668,15 +1670,6 @@ const SupabaseBedrock = () => {
         });
         
         if (!isMounted) return;
-        
-        // Check if we have a table missing error
-        const tableMissing = 
-          result.message?.includes('table not available') || 
-          result.message?.includes('relation') && result.message?.includes('does not exist') ||
-          result.message?.includes('permission denied');
-        
-        // Update table exists state
-        setCredentialsTableExists(!tableMissing);
         
         setClient(result.client);
         setClientStatus({
@@ -1687,25 +1680,20 @@ const SupabaseBedrock = () => {
         });
         
         // If we have credentials, try to pre-fill the form
-        if (result.credentials?.hasCredentials && !tableMissing) {
+        if (result.credentials?.hasCredentials) {
           try {
-            // Fetch raw credentials to pre-fill form
-            const { data } = await supabaseSingleton
-              .from('bedrock_credentials')
-              .select('aws_access_key_id, aws_secret_access_key, aws_region')
-              .eq('user_id', user.id)
-              .single();
-              
-            if (data && isMounted) {
+            // We will use default values since we can't directly read credentials
+            if (isMounted) {
+              // Set masked placeholders for existing credentials
               setCredentials({
-                aws_access_key_id: data.aws_access_key_id || '',
-                aws_secret_access_key: data.aws_secret_access_key || '',
-                aws_region: data.aws_region || 'us-east-1'
+                aws_access_key_id: result.credentials ? '••••••••••••••••' : '',
+                aws_secret_access_key: result.credentials ? '••••••••••••••••' : '',
+                aws_region: result.credentials.region || 'us-east-1'
               });
             }
           } catch (credError) {
             // Silently handle credential fetch errors
-            console.warn('Failed to fetch raw credentials for form:', credError);
+            console.warn('Failed to process credentials for form:', credError);
           }
         } else {
           // Set empty credentials for the form
@@ -1814,17 +1802,21 @@ const SupabaseBedrock = () => {
       setSaveMessage(null);
       setError(null);
       
-      // Save to Supabase
-      const { error } = await supabaseSingleton
-        .from('bedrock_credentials')
-        .upsert({
-          user_id: user.id,
-          aws_access_key_id: credentials.aws_access_key_id,
-          aws_secret_access_key: credentials.aws_secret_access_key,
-          aws_region: credentials.aws_region
-        }, { onConflict: 'user_id' });
+      // Save credentials via edge function instead of direct table access
+      const { data, error } = await supabaseSingleton.functions.invoke('super-action', {
+        body: {
+          action: 'saveCredentials',
+          userId: user.id,
+          credentials: {
+            aws_access_key_id: credentials.aws_access_key_id,
+            aws_secret_access_key: credentials.aws_secret_access_key,
+            aws_region: credentials.aws_region
+          }
+        }
+      });
       
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       
       setSaveMessage('Credentials saved successfully');
       
@@ -1899,20 +1891,6 @@ const SupabaseBedrock = () => {
 
   return (
     <ErrorBoundary>
-      {!credentialsTableExists && (
-        <Alert className="mb-6 bg-amber-50 border-amber-200">
-          <InfoIcon className="h-4 w-4 text-amber-600" />
-          <AlertTitle className="text-amber-800 font-medium">Database Table Not Found</AlertTitle>
-          <AlertDescription className="text-amber-700">
-            The <code className="bg-amber-100 px-1 rounded">bedrock_credentials</code> table has not been created in your Supabase database. 
-            The application will continue to function using fallback data. 
-            <br />
-            <span className="text-xs mt-1 block">
-              To enable storing AWS credentials, run the migration script found in <code className="bg-amber-100 px-1 rounded">src/migrations/create_bedrock_credentials_table.sql</code>
-            </span>
-          </AlertDescription>
-        </Alert>
-      )}
       <BedrockDashboardContent
         loading={loading}
         refreshing={refreshing}

@@ -38,42 +38,36 @@ export async function fetchBedrockCredentials(options = {}) {
       };
     }
     
-    // Production-ready approach - directly try to query the table
-    // This avoids needing any custom RPC functions
+    console.log(`[Supabase AWS] Attempting to fetch credentials for user ${userId} via edge function`);
+    
     try {
-      console.log(`[Supabase AWS] Attempting to fetch credentials for user ${userId}`);
-      
-      const { data, error } = await supabaseClient
-        .from('bedrock_credentials')
-        .select('aws_access_key_id, aws_secret_access_key, aws_region')
-        .eq('user_id', userId)
-        .single();
-      
-      // Handle specific error cases
-      if (error) {
-        // Check for table not existing errors or permission errors
-        if (error.code === '42P01' || 
-            error.message?.includes('relation "bedrock_credentials" does not exist') ||
-            error.status === 400 || 
-            error.status === 404 ||
-            error.status === 403) {
-          
-          console.warn('[Supabase AWS] Permission denied or table does not exist, using fallback credentials');
-          return {
-            error: 'Credentials table not available or permission denied',
-            credentials: null
-          };
+      // Use the super-action edge function to fetch credentials instead of direct table access
+      // This bypasses RLS policies and provides a secure way to fetch credentials
+      const { data, error } = await supabaseClient.functions.invoke('super-action', {
+        body: {
+          action: 'getCredentials',
+          userId: userId
         }
-        
-        // Other query error
-        console.error('[Supabase AWS] Error fetching credentials:', error);
+      });
+      
+      if (error) {
+        console.error('[Supabase AWS] Edge function error:', error);
         return {
-          error: `Failed to fetch credentials: ${error.message || 'Unknown database error'}`,
+          error: `Edge function error: ${error.message || 'Unknown error'}`,
           credentials: null
         };
       }
       
-      if (!data || !data.aws_access_key_id || !data.aws_secret_access_key) {
+      if (!data || data.error) {
+        console.warn('[Supabase AWS] Edge function returned an error:', data?.error);
+        return {
+          error: data?.error || 'Edge function returned no data',
+          credentials: null
+        };
+      }
+      
+      // The edge function should return credentials in this format
+      if (!data.credentials || !data.credentials.aws_access_key_id || !data.credentials.aws_secret_access_key) {
         console.warn(`[Supabase AWS] No credentials found for user ${userId}`);
         return {
           error: 'No credentials found',
@@ -83,22 +77,51 @@ export async function fetchBedrockCredentials(options = {}) {
       
       // Convert to standard format and log success (with masked keys)
       const credentials = {
-        accessKeyId: data.aws_access_key_id,
-        secretAccessKey: data.aws_secret_access_key,
-        region: data.aws_region || 'us-east-1'
+        accessKeyId: data.credentials.aws_access_key_id,
+        secretAccessKey: data.credentials.aws_secret_access_key,
+        region: data.credentials.aws_region || 'us-east-1'
       };
       
-      console.log(`[Supabase AWS] Successfully retrieved credentials for user ${userId} (Key ID: ${maskKey(credentials.accessKeyId)})`);
+      console.log(`[Supabase AWS] Successfully retrieved credentials via edge function for user ${userId} (Key ID: ${maskKey(credentials.accessKeyId)})`);
       
       return {
         error: null,
         credentials
       };
-    } catch (dbError) {
-      // Catch any other unexpected errors
-      console.error('[Supabase AWS] Unexpected error fetching credentials:', dbError);
+    } catch (funcError) {
+      // Detailed error handling for edge function call
+      console.error('[Supabase AWS] Error calling edge function:', funcError);
+      
+      // Check if this is a network error
+      if (funcError.message && (
+          funcError.message.includes('NetworkError') || 
+          funcError.message.includes('Failed to fetch')
+      )) {
+        return {
+          error: 'Network error connecting to Supabase Edge Function',
+          credentials: null
+        };
+      }
+      
+      // Check if this is a 404 error (edge function not found)
+      if (funcError.status === 404 || (funcError.message && funcError.message.includes('404'))) {
+        return {
+          error: 'Edge function not found (404). Ensure the super-action function is deployed.',
+          credentials: null
+        };
+      }
+      
+      // Check for auth errors
+      if (funcError.status === 401 || funcError.status === 403 || 
+          (funcError.message && (funcError.message.includes('401') || funcError.message.includes('403')))) {
+        return {
+          error: 'Authentication error accessing edge function. Please login again.',
+          credentials: null
+        };
+      }
+      
       return {
-        error: 'Failed to fetch credentials due to unexpected error',
+        error: `Error calling edge function: ${funcError.message || 'Unknown error'}`,
         credentials: null
       };
     }
