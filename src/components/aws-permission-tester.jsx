@@ -225,6 +225,67 @@ const AwsPermissionTester = () => {
       setError(`Failed to parse response: ${e.message}`);
     }
   };
+
+  // Return the component's JSX
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle>AWS Permissions Test</CardTitle>
+        <CardDescription>Test your AWS credentials and permissions for Bedrock</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
+          {results && (
+            <div className="mt-4">
+              <h3 className="text-lg font-medium mb-2">Test Results</h3>
+              <pre className="bg-muted p-4 rounded-md overflow-auto text-sm max-h-60">
+                {JSON.stringify(results, null, 2)}
+              </pre>
+            </div>
+          )}
+          
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Button onClick={runPermissionTests} disabled={isLoading}>
+                {isLoading ? (
+                  <><RotateCw className="mr-2 h-4 w-4 animate-spin" /> Testing...</>
+                ) : (
+                  <><CheckCircle className="mr-2 h-4 w-4" /> Test AWS Permissions</>
+                )}
+              </Button>
+              
+              <Button variant="outline" onClick={runManualTest} disabled={isLoading}>
+                {isLoading ? (
+                  <><RotateCw className="mr-2 h-4 w-4 animate-spin" /> Testing...</>
+                ) : (
+                  <><Wrench className="mr-2 h-4 w-4" /> Manual Test</>
+                )}
+              </Button>
+            </div>
+            
+            {logs.length > 0 && (
+              <div className="mt-4">
+                <h3 className="text-sm font-medium mb-2">Logs</h3>
+                <div className="bg-muted p-2 rounded-md overflow-auto text-xs max-h-40">
+                  {logs.map((log, index) => (
+                    <div key={index} className="whitespace-pre-wrap mb-1">{log}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 };
 
 export default AwsPermissionTester;
