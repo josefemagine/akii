@@ -233,6 +233,7 @@ function formatAuthHeader(authHeader) {
  * @param {Object} options - Options for the request
  * @param {boolean} options.skipAuth - Skip sending authentication token
  * @param {number} options.timeout - Timeout in milliseconds (default: 30000)
+ * @param {boolean} options.useCredentialsOmit - Use credentials: 'omit' instead of 'include'
  * @returns {Promise<any>} The response from the edge function
  */
 async function callEdgeFunctionDirect(payload, options = {}) {
@@ -240,7 +241,8 @@ async function callEdgeFunctionDirect(payload, options = {}) {
   const { 
     skipAuth = false, 
     timeout = 30000,
-    retryCount = 0
+    retryCount = 0,
+    useCredentialsOmit = false
   } = options;
   
   // Get the direct Supabase Edge Function URL from Bedrock config
@@ -297,7 +299,8 @@ async function callEdgeFunctionDirect(payload, options = {}) {
   
   try {
     console.log(`[API] Sending request to ${url} with action "${payload.action}"`);
-    console.log('[API] Request headers:', JSON.stringify(headers, null, 2));
+    console.log('[API] Request headers:', headers);
+    console.log('[API] Using credentials mode:', useCredentialsOmit ? 'omit' : 'include');
     
     // Make the request with fetch
     const response = await fetch(url, {
@@ -305,7 +308,7 @@ async function callEdgeFunctionDirect(payload, options = {}) {
       headers,
       body: JSON.stringify(finalPayload),
       signal: controller.signal,
-      credentials: 'include', // Include cookies for cross-origin requests
+      credentials: useCredentialsOmit ? 'omit' : 'include', // Choose credentials mode based on option
       mode: 'cors' // Explicitly request CORS mode
     });
     
@@ -371,6 +374,16 @@ async function callEdgeFunctionDirect(payload, options = {}) {
       };
       
       console.log('[API] CORS debug info:', corsInfo);
+      
+      // Retry with a different credentials mode if this is the first attempt
+      if (retryCount === 0) {
+        console.log('[API] Retrying with credentials: omit to see if CORS issue resolves');
+        return callEdgeFunctionDirect(payload, {
+          ...options,
+          retryCount: retryCount + 1,
+          useCredentialsOmit: true
+        });
+      }
       
       return { 
         error: 'Network or CORS error: Could not connect to API. This may be due to cross-origin restrictions.',

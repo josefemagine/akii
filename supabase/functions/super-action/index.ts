@@ -165,27 +165,24 @@ function setCorsHeaders(req: Request, response: Response): Response {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Max-Age": "86400",
+    "Vary": "Origin"
   };
   
-  // Apply CORS headers to the response
-  const headersEntries: [string, string][] = [];
+  // Convert response headers to a plain object
+  const existingHeaders: Record<string, string> = {};
   response.headers.forEach((value, key) => {
-    headersEntries.push([key, value]);
+    existingHeaders[key] = value;
   });
   
-  const responseWithCors = new Response(
-    response.body,
-    {
-      status: response.status,
-      statusText: response.statusText,
-      headers: new Headers({
-        ...Object.fromEntries(headersEntries),
-        ...corsHeaders,
-      }),
+  // Create a new response with the combined headers
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: {
+      ...existingHeaders,
+      ...corsHeaders
     }
-  );
-  
-  return responseWithCors;
+  });
 }
 
 // Function to convert the modelId to a model ARN if needed
@@ -217,15 +214,29 @@ serve(async (req) => {
   // Handle preflight request
   if (req.method === "OPTIONS") {
     console.log("Handling OPTIONS preflight request");
+    
+    // Get the origin from the request
+    const origin = req.headers.get("origin");
+    // Add all production domains including www.akii.com 
+    const validOrigins = [
+      "https://www.akii.com",
+      "https://akii.com",
+      "http://localhost:3000",
+      "http://localhost:5173"
+    ];
+    
+    // Use the requested origin if it's in our allowed list, otherwise use the first one
+    const corsOrigin = validOrigins.includes(origin || "") ? origin! : validOrigins[0];
+    
     return new Response(null, { 
       status: 204,
-      headers: new Headers({
-        "Access-Control-Allow-Origin": req.headers.get("origin") || "*",
+      headers: {
+        "Access-Control-Allow-Origin": corsOrigin,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Max-Age": "86400"
-      })
+      }
     });
   }
 
