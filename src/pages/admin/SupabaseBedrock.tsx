@@ -1515,6 +1515,58 @@ const SupabaseBedrock = () => {
       setLoadingModels(true);
       setError(null); // Clear the main error
       
+      // First try to get only accessible models that support provisioned throughput 
+      // This is our new endpoint that filters for granted access and provisioning support
+      const accessibleResult = await BedrockClient.listAccessibleModels();
+      
+      // Check if we got accessible models
+      if (accessibleResult.models && accessibleResult.models.length > 0) {
+        console.log(`[MODEL FETCH] Found ${accessibleResult.models.length} accessible models that support provisioned throughput`);
+        console.log("[MODEL FETCH] Sample accessible model:", accessibleResult.models[0]);
+        
+        // Sort models by provider and name for better usability
+        const sortedModels = [...accessibleResult.models].sort((a, b) => {
+          // Sort by provider first
+          const providerA = a.providerName || a.provider || '';
+          const providerB = b.providerName || b.provider || '';
+          if (providerA !== providerB) {
+            return providerA.localeCompare(providerB);
+          }
+          
+          // Then by model name/ID
+          return (a.modelName || a.name || a.modelId || a.id || '').localeCompare(
+            b.modelName || b.name || b.modelId || b.id || ''
+          );
+        });
+        
+        console.log("[MODEL FETCH] Setting available models with accessible models:", sortedModels.length);
+        
+        // Set state with the sorted accessible models
+        setAvailableModels(sortedModels);
+        
+        // Only set selected model if none is already selected
+        if (sortedModels.length > 0 && !selectedModelId) {
+          const firstModelId = sortedModels[0]?.modelId || sortedModels[0]?.id;
+          console.log("[MODEL FETCH] Setting initial selected model:", firstModelId);
+          
+          if (firstModelId) {
+            // Use a timeout to ensure this happens in a new render cycle
+            setTimeout(() => {
+              console.log("[MODEL FETCH] Actually setting selected model ID:", firstModelId);
+              setSelectedModelId(firstModelId);
+            }, 0);
+          } else {
+            console.error("[MODEL FETCH] First model has no modelId or id! Full model:", sortedModels[0]);
+          }
+        }
+        
+        setLoadingModels(false);
+        return;
+      }
+      
+      // Fallback to old method if no accessible models found
+      console.log("[MODEL FETCH] No accessible models found, falling back to listing all models");
+      
       // Call the API to fetch models with any active filters
       const { data, error } = await BedrockClient.listFoundationModels(filters);
       console.log("[MODEL FETCH] API response received:", { 
@@ -1522,7 +1574,7 @@ const SupabaseBedrock = () => {
         hasError: !!error,
         dataLength: data?.models?.length
       });
-
+      
       // Handle error but still process data if available (for fallbacks)
       if (error) {
         console.error("[MODEL FETCH] Error fetching foundation models:", error);
@@ -1832,6 +1884,34 @@ const SupabaseBedrock = () => {
         return;
       }
       
+      // Check if the model is in our list of accessible models
+      const modelExists = availableModels.some(model => 
+        (model.modelId === modelId || model.id === modelId)
+      );
+      
+      if (!modelExists) {
+        console.error(`[PROVISION] Model ${modelId} not found in available models or you may not have access`);
+        
+        // Fetch accessible models to verify
+        console.log("[PROVISION] Checking model access explicitly");
+        const accessibleModels = await BedrockClient.listAccessibleModels();
+        
+        const hasAccess = accessibleModels.models?.some(model => 
+          (model.modelId === modelId || model.id === modelId)
+        );
+        
+        if (!hasAccess) {
+          setError(`You don't have access to model ${modelId} or it doesn't support provisioned throughput. Please request access to this model in the AWS console.`);
+          toast({
+            title: "Model Access Required",
+            description: "You need to request access to this model in your AWS console before creating an instance.",
+            variant: "destructive",
+          });
+          setSubmitting(false);
+          return;
+        }
+      }
+      
       console.log(`[PROVISION] Creating instance for model: ${modelId}`);
       
       // Set default commitment duration and model units
@@ -1860,13 +1940,25 @@ const SupabaseBedrock = () => {
         if (response.error) {
           console.error(`[PROVISION] Error from API: ${response.error}`);
           
-          // Display a clearer error message
-          setError(`Error provisioning instance: ${response.error}`);
-          toast({
-            title: "Provisioning Failed",
-            description: `The API returned an error: ${response.error}`,
-            variant: "destructive",
-          });
+          // Check for specific error messages
+          const errorMsg = typeof response.error === 'string' ? response.error : JSON.stringify(response.error);
+          
+          if (errorMsg.includes("Operation not allowed")) {
+            setError(`AWS Bedrock error: Operation not allowed. Your AWS account may not be approved for provisioned throughput or you don't have access to this model.`);
+            toast({
+              title: "AWS Account Setup Required",
+              description: "You need to request access to AWS Bedrock provisioned throughput in your AWS console.",
+              variant: "destructive",
+            });
+          } else {
+            // Display a clearer error message
+            setError(`Error provisioning instance: ${response.error}`);
+            toast({
+              title: "Provisioning Failed",
+              description: `The API returned an error: ${response.error}`,
+              variant: "destructive",
+            });
+          }
           return;
         }
         

@@ -1,5 +1,5 @@
-// Use the Supabase Edge Functions serve pattern
-import { serve } from "https://deno.land/std@0.170.0/http/server.ts";
+// Regular import for Deno versions used in Supabase Edge Functions
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 import {
   BedrockClient,
@@ -15,6 +15,27 @@ const VALID_ORIGINS = [
   "https://akii.com",
   "http://localhost:3000",
   "http://localhost:5173"
+];
+
+// Define which models support provisioned throughput
+const MODELS_WITH_PROVISIONED_THROUGHPUT = [
+  "anthropic.claude-v2",
+  "anthropic.claude-v2:1",
+  "anthropic.claude-instant-v1",
+  "anthropic.claude-3-sonnet-20240229-v1:0",
+  "anthropic.claude-3-haiku-20240307-v1:0",
+  "meta.llama2-13b-chat-v1",
+  "meta.llama2-70b-chat-v1",
+  "cohere.command-text-v14",
+  "cohere.command-light-text-v14"
+];
+
+// Define regions that support provisioned throughput
+const REGIONS_WITH_PROVISIONED_THROUGHPUT = [
+  "us-east-1",
+  "us-west-2",
+  "eu-central-1"
+  // Note: eu-west-3 may not support all provisioned throughput models
 ];
 
 // Function to get the appropriate CORS origin
@@ -212,6 +233,74 @@ function getCommitmentDuration(duration: string): string {
   return "ONE_MONTH";
 }
 
+// Function to check if a model supports provisioned throughput
+function modelSupportsProvisionedThroughput(modelId: string): boolean {
+  return MODELS_WITH_PROVISIONED_THROUGHPUT.some(supportedModel => 
+    modelId.includes(supportedModel)
+  );
+}
+
+// Function to check if region supports provisioned throughput
+function regionSupportsProvisionedThroughput(region: string): boolean {
+  return REGIONS_WITH_PROVISIONED_THROUGHPUT.includes(region);
+}
+
+// Function to check AWS account prerequisites for provisioned throughput
+async function checkAwsAccountPrerequisites(client: BedrockClient) {
+  try {
+    console.log("Checking AWS account prerequisites for provisioned throughput");
+    
+    // First check if we can list existing provisioned throughputs
+    try {
+      const command = new ListProvisionedModelThroughputsCommand({});
+      await client.send(command);
+      return {
+        success: true,
+        message: "Account appears to be set up for provisioned throughput"
+      };
+    } catch (error) {
+      if (error.name === "ValidationException" && error.message === "Operation not allowed") {
+        return {
+          success: false,
+          message: "Your AWS account may not be approved for provisioned throughput",
+          details: {
+            error: error.message,
+            recommendation: "You need to request access to Bedrock provisioned throughput via AWS console"
+          }
+        };
+      }
+      
+      if (error.name === "AccessDeniedException") {
+        return {
+          success: false,
+          message: "Your AWS credentials do not have permission to use provisioned throughput",
+          details: {
+            error: error.message,
+            recommendation: "Check your IAM permissions"
+          }
+        };
+      }
+      
+      // Any other error
+      return {
+        success: false,
+        message: "Error checking provisioned throughput prerequisites",
+        details: {
+          error: error.message,
+          errorType: error.name
+        }
+      };
+    }
+  } catch (error) {
+    console.error("Error checking AWS account prerequisites:", error);
+    return {
+      success: false,
+      message: "Failed to check AWS account prerequisites",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
 // Main serve function
 serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -329,6 +418,199 @@ serve(async (req) => {
         },
         success: true
       };
+    } else if (action === "aws-provisioned-throughput-test") {
+      console.log("Running AWS provisioned throughput test");
+      
+      // Test if specific regions support provisioned throughput
+      const regionsToTest = ["us-east-1", "us-west-2", "eu-central-1", "eu-west-3"];
+      const regionResults = {};
+      
+      // Test each region
+      for (const testRegion of regionsToTest) {
+        console.log(`Testing region ${testRegion}`);
+        
+        try {
+          // Create a client for the specific region
+          const regionalClient = new BedrockClient({
+            region: testRegion,
+            credentials: {
+              accessKeyId,
+              secretAccessKey,
+            }
+          });
+          
+          // Try to list provisioned models in this region
+          try {
+            const command = new ListProvisionedModelThroughputsCommand({});
+            await regionalClient.send(command);
+            regionResults[testRegion] = {
+              success: true,
+              message: "Region supports provisioned throughput"
+            };
+          } catch (error) {
+            regionResults[testRegion] = {
+              success: false,
+              message: error.message || "Error testing region",
+              errorType: error.name,
+              isValidationError: error.name === "ValidationException" && error.message === "Operation not allowed"
+            };
+          }
+        } catch (error) {
+          regionResults[testRegion] = {
+            success: false,
+            message: "Failed to initialize client",
+            error: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
+      
+      // Check account prerequisites in the current region
+      const prerequisitesCheck = await checkAwsAccountPrerequisites(client);
+      
+      // Test model availability
+      const modelResults = {};
+      const modelsToTest = [
+        "anthropic.claude-v2",
+        "anthropic.claude-3-sonnet-20240229-v1:0",
+        "meta.llama2-13b-chat-v1"
+      ];
+      
+      for (const modelId of modelsToTest) {
+        try {
+          console.log(`Testing model ${modelId}`);
+          const modelArn = getModelArn(modelId, region);
+          
+          try {
+            // Simply test if the model is listable
+            const command = new ListFoundationModelsCommand({});
+            const response = await client.send(command);
+            
+            // Check if this model is in the list
+            const isModelAvailable = response.modelSummaries?.some(model => 
+              model.modelId === modelId || model.modelId?.includes(modelId)
+            );
+            
+            modelResults[modelId] = {
+              success: isModelAvailable,
+              message: isModelAvailable ? "Model is available" : "Model not found in region",
+              supportsProvisionedThroughput: modelSupportsProvisionedThroughput(modelId),
+              arn: modelArn
+            };
+          } catch (error) {
+            modelResults[modelId] = {
+              success: false,
+              message: "Error checking model",
+              error: error instanceof Error ? error.message : String(error),
+              arn: modelArn
+            };
+          }
+        } catch (error) {
+          modelResults[modelId] = {
+            success: false,
+            message: "Failed to test model",
+            error: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
+      
+      // Return comprehensive diagnostic results
+      result = {
+        test_results: {
+          timestamp: new Date().toISOString(),
+          region: region,
+          accountPrerequisites: prerequisitesCheck,
+          regionTests: regionResults,
+          modelTests: modelResults,
+          recommendations: {
+            recommendedRegion: REGIONS_WITH_PROVISIONED_THROUGHPUT[0],
+            recommendedModels: MODELS_WITH_PROVISIONED_THROUGHPUT.slice(0, 3),
+            nextSteps: "If tests show 'Operation not allowed', your AWS account may not be set up for provisioned throughput. Check AWS Bedrock console for activation."
+          }
+        },
+        success: true
+      };
+    } else if (action === "ListAccessibleModels") {
+      console.log("Fetching accessible foundation models");
+      
+      try {
+        // Create a proper command - this will return all models
+        const command = new ListFoundationModelsCommand({});
+        
+        const response = await client.send(command);
+        
+        // Capture diagnostic info
+        diagnosticInfo = {
+          requestId: response.$metadata.requestId,
+          httpStatusCode: response.$metadata.httpStatusCode,
+          attempts: response.$metadata.attempts
+        };
+        
+        console.log("Foundation models response metadata:", diagnosticInfo);
+        
+        // Check if models array exists
+        const allModels = response.modelSummaries || [];
+        console.log(`Found ${allModels.length} foundation models in total`);
+        
+        // Log a sample model to debug structure
+        if (allModels.length > 0) {
+          console.log("Sample model structure:", JSON.stringify(allModels[0]));
+        }
+        
+        // Filter for models with GRANTED access and check if they support provisioned throughput
+        const accessibleModels = allModels.filter(model => {
+          // Check if model has granted access - some API versions might not include modelAccessStatus
+          // If modelAccessStatus is missing, we'll assume access is granted if we can see the model
+          const hasAccess = model.modelAccessStatus ? model.modelAccessStatus === "GRANTED" : true;
+          
+          // Check if model supports provisioned throughput
+          const modelId = model.modelId || "";
+          const supportsProvisionedThroughput = modelSupportsProvisionedThroughput(modelId);
+          
+          // For debugging
+          if (supportsProvisionedThroughput) {
+            console.log(`Model ${modelId} supports provisioned throughput, access status: ${model.modelAccessStatus || 'unknown'}`);
+          }
+          
+          return hasAccess && supportsProvisionedThroughput;
+        });
+        
+        console.log(`Found ${accessibleModels.length} accessible models that support provisioned throughput`);
+        
+        // Format models with additional information
+        const formattedModels = accessibleModels.map(model => ({
+          id: model.modelId,
+          name: model.modelName,
+          provider: model.providerName,
+          inferenceTypes: model.inferenceTypesSupported || [],
+          customizationsSupported: model.customizationsSupported || [],
+          supportsProvisionedThroughput: true,
+          accessStatus: model.modelAccessStatus || 'ASSUMED_GRANTED',
+          region: region,
+          inputModalities: model.inputModalities || [],
+          outputModalities: model.outputModalities || []
+        }));
+        
+        // Return the filtered list of accessible models
+        result = {
+          models: formattedModels,
+          count: formattedModels.length,
+          allModelsCount: allModels.length,
+          provisionedSupportedModels: MODELS_WITH_PROVISIONED_THROUGHPUT,
+          diagnosticInfo,
+          timestamp: new Date().toISOString()
+        };
+      } catch (error) {
+        console.error("Error fetching accessible foundation models:", error);
+        // Provide detailed error information
+        diagnosticInfo = {
+          errorName: error.name,
+          errorMessage: error.message,
+          errorCode: error.$metadata?.httpStatusCode || error.Code,
+          errorType: error.name === 'TimeoutError' ? 'TIMEOUT' : 
+                    (error.name === 'AccessDeniedException' ? 'ACCESS_DENIED' : 'API_ERROR')
+        };
+        throw error;
+      }
     } else if (action === "ListProvisionedModelThroughputs") {
       console.log("Fetching provisioned model throughputs");
       
@@ -493,40 +775,110 @@ serve(async (req) => {
         });
       }
       
+      // Check if the model supports provisioned throughput
+      if (!modelSupportsProvisionedThroughput(data.modelId)) {
+        console.log(`Model ${data.modelId} does not support provisioned throughput`);
+        const errorResponse = JSON.stringify({
+          success: false,
+          error: "The selected model does not support provisioned throughput",
+          details: {
+            modelId: data.modelId,
+            supportedModels: MODELS_WITH_PROVISIONED_THROUGHPUT,
+            documentation: "https://docs.aws.amazon.com/bedrock/latest/userguide/prov-throughput.html"
+          },
+          timestamp: new Date().toISOString()
+        });
+        return new Response(errorResponse, { 
+          status: 400, 
+          headers: corsHeaders 
+        });
+      }
+      
+      // Check if the region supports provisioned throughput
+      if (!regionSupportsProvisionedThroughput(region)) {
+        console.log(`Region ${region} may not fully support provisioned throughput`);
+        const errorResponse = JSON.stringify({
+          success: false,
+          error: "The selected AWS region may not support provisioned throughput for this model",
+          details: {
+            region: region,
+            supportedRegions: REGIONS_WITH_PROVISIONED_THROUGHPUT,
+            recommendation: "Try using us-east-1 (N. Virginia) or us-west-2 (Oregon) region"
+          },
+          timestamp: new Date().toISOString()
+        });
+        return new Response(errorResponse, { 
+          status: 400, 
+          headers: corsHeaders 
+        });
+      }
+      
       try {
+        // First check if the AWS account is set up for provisioned throughput
+        const prerequisitesCheck = await checkAwsAccountPrerequisites(client);
+        console.log("AWS prerequisites check result:", JSON.stringify(prerequisitesCheck));
+        
+        if (!prerequisitesCheck.success) {
+          const errorResponse = JSON.stringify({
+            success: false,
+            error: "AWS account prerequisites check failed",
+            details: prerequisitesCheck,
+            timestamp: new Date().toISOString()
+          });
+          return new Response(errorResponse, { 
+            status: 400, 
+            headers: corsHeaders 
+          });
+        }
+        
+        // If prerequisites check passed, continue with the provisioned throughput creation
         // Prepare the model ARN and other parameters
         const modelArn = getModelArn(data.modelId, region);
         const commitmentDuration = getCommitmentDuration(data.commitmentDuration);
         const modelUnits = Number(data.modelUnits) || 1;
         
-        // Log the full request parameters
-        console.log("Create instance parameters:", JSON.stringify({
+        // Log the full request parameters with more details
+        const requestParams = {
           modelId: data.modelId,
           modelArn: modelArn,
           commitmentDuration: commitmentDuration,
           modelUnits: modelUnits,
-          timestamp: new Date().toISOString()
-        }));
+          timestamp: new Date().toISOString(),
+          region: region
+        };
+        
+        console.log("Create instance parameters:", JSON.stringify(requestParams));
         
         try {
+          // Create a unique, identifiable provisioned model name
+          const dateStr = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+          const provisionedModelName = `akii-pmt-${dateStr}`;
+          console.log(`Attempting to create provisioned model with name: ${provisionedModelName}`);
+          
           // Create the actual AWS Bedrock provisioned model throughput
           const command = new CreateProvisionedModelThroughputCommand({
             modelId: modelArn,
-            provisionedModelName: `pmt-${Date.now()}`,
+            provisionedModelName: provisionedModelName,
             commitmentDuration: commitmentDuration,
             modelUnits: modelUnits
           });
           
-          const awsResponse = await client.send(command);
+          // Add a longer timeout for this specific operation
+          const awsResponse = await Promise.race([
+            client.send(command),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error("AWS Bedrock API timeout after 20 seconds")), 20000)
+            )
+          ]) as any;
           
-          console.log("AWS Bedrock API response:", awsResponse);
+          console.log("AWS Bedrock API response:", JSON.stringify(awsResponse));
           
           // Format the response to match the expected format
           result = {
             success: true,
             instance: {
               id: Date.now(),
-              instance_id: awsResponse.provisionedModelId || `pmt-${Date.now()}`,
+              instance_id: awsResponse.provisionedModelId || provisionedModelName,
               model_id: data.modelId,
               commitment_duration: commitmentDuration,
               model_units: modelUnits,
@@ -538,22 +890,89 @@ serve(async (req) => {
         } catch (awsError) {
           console.error("AWS API error creating provisioned model throughput:", awsError);
           
-          // Fallback to providing a simulated instance with error info
-          // This helps frontend testing without failing completely
-          result = {
-            success: false,
-            error: `AWS Bedrock API error: ${awsError instanceof Error ? awsError.message : String(awsError)}`,
-            errorDetails: {
-              name: awsError instanceof Error ? awsError.name : 'UnknownError',
-              requestId: awsError.requestId || 'unknown',
-              time: new Date().toISOString()
-            }
+          // Extract detailed error information with more specific message parsing
+          let errorMessage = awsError.message || "Unknown error";
+          
+          // Try to extract the specific validation message from AWS
+          if (errorMessage === "Operation not allowed" && awsError.name === "ValidationException") {
+            errorMessage = "Operation not allowed. Your AWS account may not be approved for provisioned throughput or the feature may be unavailable in this region.";
+          }
+          
+          const errorDetails = {
+            name: awsError.name,
+            message: errorMessage,
+            code: awsError.$fault,
+            httpStatus: awsError.$metadata?.httpStatusCode,
+            requestId: awsError.$metadata?.requestId,
+            attempts: awsError.$metadata?.attempts || 1
           };
           
-          // Return a proper error response
+          console.log("Error details:", JSON.stringify(errorDetails));
+          
+          // Determine possible causes based on error type
+          let possibleCauses = [];
+          let recommendedActions = [];
+          
+          if (awsError.name === "ValidationException") {
+            possibleCauses = [
+              "The model ID format may be incorrect",
+              "The selected model may not support provisioned throughput",
+              "The requested model units may be outside allowed range",
+              "The commitment duration value may be invalid"
+            ];
+            recommendedActions = [
+              "Verify that the model supports provisioned throughput",
+              "Try a different foundation model",
+              "Check the AWS Bedrock documentation for this specific model",
+              "Verify the model ARN format is correct"
+            ];
+          } else if (awsError.name === "AccessDeniedException") {
+            possibleCauses = [
+              "IAM permissions may be insufficient",
+              "AWS account may not have access to this feature"
+            ];
+            recommendedActions = [
+              "Check IAM policy for bedrock:CreateProvisionedModelThroughput permission",
+              "Ensure your AWS account has been approved for Bedrock provisioned throughput"
+            ];
+          } else if (awsError.name === "ServiceQuotaExceededException") {
+            possibleCauses = [
+              "You may have reached your account's quota for provisioned models",
+              "You may have reached your quota for model units"
+            ];
+            recommendedActions = [
+              "Check your Service Quotas in the AWS console",
+              "Request a quota increase if needed"
+            ];
+          } else {
+            possibleCauses = [
+              "This may be an AWS Bedrock service issue",
+              "The API parameters may be invalid",
+              "Network connectivity issues"
+            ];
+            recommendedActions = [
+              "Check the AWS status page",
+              "Try again later"
+            ];
+          }
+          
+          // Provide a detailed error response
+          result = {
+            success: false,
+            error: `AWS Bedrock API error: ${awsError.name}: ${awsError.message}`,
+            errorDetails: {
+              ...errorDetails,
+              possibleCauses,
+              recommendedActions,
+              requestParameters: requestParams
+            },
+            timestamp: new Date().toISOString()
+          };
+          
+          // Return a proper error response with appropriate status code
           const errorResponse = JSON.stringify(result);
           return new Response(errorResponse, { 
-            status: 500, 
+            status: awsError.$metadata?.httpStatusCode || 500, 
             headers: corsHeaders 
           });
         }

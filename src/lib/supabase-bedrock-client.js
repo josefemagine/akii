@@ -1181,6 +1181,47 @@ const getFallbackModels = (filters = {}) => {
   };
 };
 
+// Add a new method to get accessible models that support provisioned throughput
+async function listAccessibleModels() {
+  console.log('[Bedrock] Fetching accessible foundation models that support provisioned throughput');
+  
+  try {
+    const response = await callEdgeFunctionDirect({
+      action: 'ListAccessibleModels',
+      data: {}
+    });
+    
+    if (response.error) {
+      console.error('[Bedrock] API error for ListAccessibleModels:', response.error);
+      return { 
+        error: response.error, 
+        models: [] 
+      };
+    }
+    
+    if (!response.data || !response.data.models) {
+      console.error('[Bedrock] Invalid response from ListAccessibleModels');
+      return { 
+        error: 'Invalid response from API',
+        models: [] 
+      };
+    }
+    
+    console.log(`[Bedrock] Found ${response.data.count} accessible models that support provisioned throughput`);
+    return {
+      models: response.data.models,
+      count: response.data.count,
+      timestamp: response.data.timestamp
+    };
+  } catch (error) {
+    console.error('[Bedrock] Error fetching accessible models:', error);
+    return {
+      error: error.message || 'Failed to fetch accessible models',
+      models: []
+    };
+  }
+}
+
 // Expose client functions
 export const BedrockClient = {
   // Authentication
@@ -1198,7 +1239,8 @@ export const BedrockClient = {
   invokeModel,
   getUsageStats,
   testAwsPermissions,
-  listFoundationModels
+  listFoundationModels,
+  listAccessibleModels
 };
 
 export default BedrockClient; 
