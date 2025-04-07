@@ -17,15 +17,49 @@ const VALID_ORIGINS = [
   "http://localhost:5173"
 ];
 
-// CORS headers
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*", // Will be replaced dynamically based on request origin
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info, apikey, X-Client-Info",
-  "Access-Control-Allow-Credentials": "true",
-  "Content-Type": "application/json",
-  "Vary": "Origin"
-};
+// Function to get the appropriate CORS origin
+function getCorsOrigin(requestOrigin: string | null): string {
+  console.log("Request origin:", requestOrigin);
+  
+  // Safety check - if no origin, use the first valid origin
+  if (!requestOrigin) {
+    return VALID_ORIGINS[0];
+  }
+  
+  // Check if the origin is in our allowed list
+  const isValidOrigin = VALID_ORIGINS.includes(requestOrigin);
+  console.log(`Origin ${requestOrigin} valid: ${isValidOrigin}`);
+  
+  return isValidOrigin ? requestOrigin : VALID_ORIGINS[0];
+}
+
+// Function to create CORS headers for a specific origin
+function createCorsHeaders(origin: string | null): Record<string, string> {
+  const corsOrigin = getCorsOrigin(origin);
+  
+  return {
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info, apikey, X-Client-Info",
+    "Access-Control-Allow-Credentials": "true",
+    "Content-Type": "application/json",
+    "Vary": "Origin"
+  };
+}
+
+// Function to create preflight response headers
+function createPreflightHeaders(origin: string | null): Record<string, string> {
+  const corsOrigin = getCorsOrigin(origin);
+  
+  return {
+    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin"
+  };
+}
 
 // Define interface for request data to fix property access errors
 interface RequestData {
@@ -180,33 +214,26 @@ function getCommitmentDuration(duration: string): string {
 
 // Main serve function
 serve(async (req) => {
-  // Get the origin from the request for CORS handling
   const origin = req.headers.get("origin");
-  // Use the requested origin if it's in our allowed list, otherwise use the first one
-  const corsOrigin = VALID_ORIGINS.includes(origin || "") ? origin! : VALID_ORIGINS[0];
+  console.log(`Received request from origin: ${origin}`);
   
-  // Handle preflight request with improved CORS headers
+  // Handle preflight request
   if (req.method === "OPTIONS") {
-    console.log("Handling OPTIONS preflight request from origin:", origin);
+    console.log("Handling OPTIONS preflight request");
+    const preflightHeaders = createPreflightHeaders(origin);
+    console.log("Preflight response headers:", preflightHeaders);
     
     return new Response(null, { 
       status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": corsOrigin,
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-        "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Max-Age": "86400",
-        "Vary": "Origin"
-      }
+      headers: preflightHeaders
     });
   }
 
   try {
-    // Log request origin and details for debugging
-    console.log(`Request from Origin: ${origin}, Method: ${req.method}, URL: ${req.url}`);
-    console.log("Request headers:", Object.fromEntries([...req.headers.entries()]));
-
+    // Create CORS headers for this request
+    const corsHeaders = createCorsHeaders(origin);
+    console.log("CORS response headers:", corsHeaders);
+    
     // Get AWS configuration from environment
     const region = Deno.env.get("AWS_REGION") || "us-east-1";
     const accessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID") || "";
@@ -257,12 +284,7 @@ serve(async (req) => {
         }), 
         { 
           status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": corsOrigin,
-            "Access-Control-Allow-Credentials": "true",
-            "Vary": "Origin"
-          }
+          headers: corsHeaders
         }
       );
       return errorResponse;
@@ -466,13 +488,8 @@ serve(async (req) => {
           timestamp: new Date().toISOString()
         });
         return new Response(errorResponse, { 
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": corsOrigin,
-            "Access-Control-Allow-Credentials": "true",
-            "Vary": "Origin"
-          }
+          status: 400, 
+          headers: corsHeaders 
         });
       }
       
@@ -536,13 +553,8 @@ serve(async (req) => {
           // Return a proper error response
           const errorResponse = JSON.stringify(result);
           return new Response(errorResponse, { 
-            status: 500,
-            headers: {
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": corsOrigin,
-              "Access-Control-Allow-Credentials": "true",
-              "Vary": "Origin"
-            }
+            status: 500, 
+            headers: corsHeaders 
           });
         }
       } catch (error) {
@@ -552,13 +564,8 @@ serve(async (req) => {
           timestamp: new Date().toISOString()
         });
         return new Response(errorResponse, { 
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": corsOrigin,
-            "Access-Control-Allow-Credentials": "true",
-            "Vary": "Origin"
-          }
+          status: 500, 
+          headers: corsHeaders 
         });
       }
     } else {
@@ -566,13 +573,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "Unsupported action", action }),
         { 
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": corsOrigin,
-            "Access-Control-Allow-Credentials": "true",
-            "Vary": "Origin"
-          }
+          status: 400, 
+          headers: corsHeaders 
         }
       );
     }
@@ -580,13 +582,8 @@ serve(async (req) => {
     // Return the result with CORS headers
     const responseBody = JSON.stringify(result || { error: "No action matched" });
     return new Response(responseBody, { 
-      status: 200,
-      headers: { 
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": corsOrigin,
-        "Access-Control-Allow-Credentials": "true",
-        "Vary": "Origin"
-      }
+      status: 200, 
+      headers: corsHeaders 
     });
   } catch (error) {
     console.error("Unhandled server error:", error);
@@ -596,13 +593,8 @@ serve(async (req) => {
         timestamp: new Date().toISOString()
       }),
       { 
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": corsOrigin,
-          "Access-Control-Allow-Credentials": "true",
-          "Vary": "Origin"
-        }
+        status: 500, 
+        headers: createCorsHeaders(origin) 
       }
     );
   }

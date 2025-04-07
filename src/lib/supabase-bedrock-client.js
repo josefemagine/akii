@@ -301,15 +301,16 @@ async function callEdgeFunctionDirect(payload, options = {}) {
   try {
     console.log(`[API] Sending request to ${url} with action "${payload.action}"`);
     console.log('[API] Request headers:', headers);
-    console.log('[API] Using credentials mode:', useCredentialsOmit ? 'omit' : 'include');
     
-    // Make the request with fetch - ensure we're consistent with the credentials mode
+    // Make the request with fetch - ALWAYS use credentials: 'include' for production
+    console.log('[API] Using credentials mode: include (required for CORS with authentication)');
+    
     const response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(finalPayload),
       signal: controller.signal,
-      credentials: 'include', // Always use 'include' to support CORS with credentials
+      credentials: 'include', // Always use 'include' for consistency
       mode: 'cors' // Explicitly request CORS mode
     });
     
@@ -361,11 +362,13 @@ async function callEdgeFunctionDirect(payload, options = {}) {
       return { error: `Request timed out after ${timeout}ms` };
     }
     
-    // Handle CORS errors specifically
+    // Handle CORS errors specifically and add detailed diagnostics
     if (error instanceof TypeError && 
         (error.message.includes('Failed to fetch') || 
          error.message.includes('NetworkError') ||
          error.message.includes('Network request failed'))) {
+      
+      // Log as much detail as possible to help with debugging
       console.error('[API] CORS error or network failure:', error);
       
       // Add detailed debugging information
@@ -374,13 +377,29 @@ async function callEdgeFunctionDirect(payload, options = {}) {
         targetUrl: url,
         hasCredentials: !!authToken,
         browserInfo: navigator.userAgent,
-        timeStamp: new Date().toISOString()
+        timeStamp: new Date().toISOString(),
+        errorMessage: error.message,
+        errorType: error.name,
+        possibleCauses: [
+          "The server's Access-Control-Allow-Origin header might not include this origin",
+          "The server's Access-Control-Allow-Credentials header might not be set to 'true'",
+          "The server might not be accepting the HTTP method",
+          "The server might be down or unreachable",
+          "Network connectivity issues"
+        ],
+        troubleshootingSuggestions: [
+          "Check server logs for CORS configuration",
+          "Ensure the server has this origin in its allowed origins list",
+          "Verify CORS preflight (OPTIONS) requests are being handled correctly",
+          "Check if the server is accessible from this location"
+        ]
       };
       
       console.log('[API] CORS debug info:', corsInfo);
       
+      // More focused error message for production
       return { 
-        error: 'Network or CORS error: Could not connect to API. The server might not be allowing cross-origin requests from this domain.',
+        error: `Network or CORS error: Cannot connect to API from ${window.location.origin}. The server's CORS configuration may need to be updated.`,
         corsInfo,
         originalError: error.message
       };
