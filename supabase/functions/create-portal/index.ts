@@ -20,7 +20,7 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase client
+    // Create Supabase client for the function
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') || '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
@@ -41,6 +41,7 @@ serve(async (req) => {
       });
     }
 
+    // Get the user session from the auth header
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
@@ -51,34 +52,35 @@ serve(async (req) => {
       });
     }
 
-    // Fetch the user's stripe customer ID
+    // Fetch the user's profile to get Stripe customer ID
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('stripe_customer_id')
       .eq('id', user.id)
       .single();
 
-    if (profileError || !profile?.stripe_customer_id) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'No Stripe customer found for this user',
-          details: profileError || 'Missing stripe_customer_id'
-        }), 
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+    if (profileError) {
+      return new Response(JSON.stringify({ error: 'Error fetching profile', details: profileError }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    // Create the billing portal session
-    const portalSession = await stripe.billingPortal.sessions.create({
+    if (!profile.stripe_customer_id) {
+      return new Response(JSON.stringify({ error: 'No Stripe customer found for this user' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Create a billing portal session
+    const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
-      return_url: `${Deno.env.get('CLIENT_URL')}/dashboard/subscription`,
+      return_url: `${Deno.env.get('CLIENT_URL')}/dashboard/billing`,
     });
 
     return new Response(
-      JSON.stringify({ url: portalSession.url }),
+      JSON.stringify({ url: session.url }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

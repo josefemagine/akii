@@ -271,22 +271,27 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   // Handle theme changes
   useEffect(() => {
-    // Try to load theme preference from localStorage
-    const savedTheme = safeLocalStorage.getItem('theme');
-    if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
+    // Get or set default theme preference
+    const savedTheme = safeLocalStorage.getItem('dashboard-theme');
+    
+    // Always default to dark theme if no preference is set
+    if (!savedTheme) {
+      safeLocalStorage.setItem('dashboard-theme', 'dark');
+      safeSetState(setTheme, 'dark');
+    } else if (savedTheme === 'light' || savedTheme === 'dark') {
       safeSetState(setTheme, savedTheme as "light" | "dark");
-    } else {
-      // Check system preference
-      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      safeSetState(setTheme, systemPrefersDark ? 'dark' : 'light');
     }
     
-    // Listen for system theme changes
+    // Listen for system theme changes - only apply if explicitly enabled in user settings
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent) => {
-      // Only apply if no user preference is set
-      if (!safeLocalStorage.getItem('theme')) {
-        safeSetState(setTheme, e.matches ? 'dark' : 'light');
+      // Only apply system theme if user has opted in to system theme syncing
+      const syncWithSystem = safeLocalStorage.getItem('sync-system-theme') === 'true';
+      
+      if (syncWithSystem) {
+        const newTheme = e.matches ? 'dark' : 'light';
+        safeLocalStorage.setItem('dashboard-theme', newTheme);
+        safeSetState(setTheme, newTheme as "light" | "dark");
       }
     };
     
@@ -299,7 +304,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   const handleThemeChange = (newTheme: "light" | "dark") => {
     safeSetState(setTheme, newTheme);
-    safeLocalStorage.setItem('theme', newTheme);
+    safeLocalStorage.setItem('dashboard-theme', newTheme);
   };
 
   const handleSidebarToggle = () => {

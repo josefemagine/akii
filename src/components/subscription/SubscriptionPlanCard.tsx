@@ -21,7 +21,6 @@ type SubscriptionPlanProps = {
   description: string;
   features: PlanFeature[];
   messageLimit: number;
-  agentLimit: number;
   highlighted?: boolean;
   onSelect: () => void;
   buttonText?: string;
@@ -34,7 +33,6 @@ export default function SubscriptionPlanCard({
   description,
   features = [],
   messageLimit,
-  agentLimit,
   highlighted = false,
   onSelect,
   buttonText = "Select Plan",
@@ -59,10 +57,6 @@ export default function SubscriptionPlanCard({
             <span className="text-sm">
               {messageLimit.toLocaleString()} AI messages per month
             </span>
-          </div>
-          <div className="flex items-center">
-            <Check className="mr-2 h-4 w-4 text-primary" />
-            <span className="text-sm">Up to {agentLimit} AI agents</span>
           </div>
           {features.map((feature, index) => (
             <div key={index} className="flex items-center">

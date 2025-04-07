@@ -14,11 +14,15 @@ import { CheckCircle, CreditCard, ArrowRight, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { User } from "@/types/custom-types";
+import { stripeClient } from "@/lib/stripe-client";
+import { useToast } from "@/components/ui/use-toast";
 
 const SubscriptionPage = () => {
   const { user: authUser, isAdmin } = useAuth();
   const user = authUser as User | null;
   const currentPlan = user?.subscription?.plan || "free";
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
 
   // If user is admin, show special message
   if (isAdmin) {
@@ -103,6 +107,44 @@ const SubscriptionPage = () => {
     fetchSubscriptionPlans();
   }, []);
 
+  // Function to handle subscription checkout
+  const handleSubscribe = async (planId: string, isAnnual: boolean = false) => {
+    try {
+      setIsLoading(true);
+      const url = await stripeClient.createCheckoutSession(planId, isAnnual);
+      // Redirect to Stripe checkout
+      window.location.href = url;
+    } catch (error) {
+      console.error("Error creating checkout session:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create checkout session. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to manage existing subscription
+  const handleManageSubscription = async () => {
+    try {
+      setIsLoading(true);
+      const url = await stripeClient.createPortalSession();
+      // Redirect to Stripe portal
+      window.location.href = url;
+    } catch (error) {
+      console.error("Error creating portal session:", error);
+      toast({
+        title: "Error",
+        description: "Failed to open billing portal. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -160,6 +202,11 @@ const SubscriptionPage = () => {
             </div>
           </div>
         </CardContent>
+        <CardFooter>
+          <Button onClick={handleManageSubscription} disabled={isLoading || currentPlan === "free"}>
+            {isLoading ? "Loading..." : "Manage Subscription"}
+          </Button>
+        </CardFooter>
       </Card>
 
       <Tabs defaultValue="monthly">
@@ -214,7 +261,7 @@ const SubscriptionPage = () => {
                     <Button
                       variant="outline"
                       className="w-full"
-                      disabled={currentPlan === "free"}
+                      disabled={currentPlan === "free" || isLoading}
                     >
                       {currentPlan === "free" ? "Current Plan" : "Downgrade"}
                     </Button>
@@ -257,10 +304,12 @@ const SubscriptionPage = () => {
                     </ul>
                   </CardContent>
                   <CardFooter>
-                    <Button className="w-full" disabled={currentPlan === "pro"}>
-                      {currentPlan === "pro"
-                        ? "Current Plan"
-                        : "Upgrade to Pro"}
+                    <Button
+                      className="w-full"
+                      disabled={currentPlan === "professional" || isLoading}
+                      onClick={() => handleSubscribe("pro", false)}
+                    >
+                      {isLoading ? "Loading..." : currentPlan === "professional" ? "Current Plan" : "Upgrade"}
                     </Button>
                   </CardFooter>
                 </Card>
@@ -307,13 +356,12 @@ const SubscriptionPage = () => {
                   </CardContent>
                   <CardFooter>
                     <Button
-                      variant="outline"
                       className="w-full"
-                      disabled={currentPlan === "enterprise"}
+                      variant="secondary"
+                      onClick={() => handleSubscribe("scale", false)}
+                      disabled={currentPlan === "business" || isLoading}
                     >
-                      {currentPlan === "enterprise"
-                        ? "Current Plan"
-                        : "Contact Sales"}
+                      {isLoading ? "Loading..." : currentPlan === "business" ? "Current Plan" : "Upgrade"}
                     </Button>
                   </CardFooter>
                 </Card>
@@ -365,7 +413,7 @@ const SubscriptionPage = () => {
                     <Button
                       variant="outline"
                       className="w-full"
-                      disabled={currentPlan === "free"}
+                      disabled={currentPlan === "free" || isLoading}
                     >
                       {currentPlan === "free" ? "Current Plan" : "Downgrade"}
                     </Button>
@@ -416,10 +464,12 @@ const SubscriptionPage = () => {
                     </ul>
                   </CardContent>
                   <CardFooter>
-                    <Button className="w-full" disabled={currentPlan === "pro"}>
-                      {currentPlan === "pro"
-                        ? "Current Plan"
-                        : "Upgrade to Pro"}
+                    <Button
+                      className="w-full"
+                      disabled={currentPlan === "professional" || isLoading}
+                      onClick={() => handleSubscribe("pro", true)}
+                    >
+                      {isLoading ? "Loading..." : currentPlan === "professional" ? "Current Plan" : "Upgrade"}
                     </Button>
                   </CardFooter>
                 </Card>
@@ -474,13 +524,12 @@ const SubscriptionPage = () => {
                   </CardContent>
                   <CardFooter>
                     <Button
-                      variant="outline"
                       className="w-full"
-                      disabled={currentPlan === "enterprise"}
+                      variant="secondary"
+                      onClick={() => handleSubscribe("scale", true)}
+                      disabled={currentPlan === "business" || isLoading}
                     >
-                      {currentPlan === "enterprise"
-                        ? "Current Plan"
-                        : "Contact Sales"}
+                      {isLoading ? "Loading..." : currentPlan === "business" ? "Current Plan" : "Upgrade"}
                     </Button>
                   </CardFooter>
                 </Card>

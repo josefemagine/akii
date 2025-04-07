@@ -116,6 +116,23 @@ export default function App() {
       }
     });
   }, []);
+
+  // Set dark theme as the default theme for the application
+  useEffect(() => {
+    // Set dark theme to localStorage if no theme is set
+    const currentTheme = localStorage.getItem('dashboard-theme');
+    if (!currentTheme) {
+      localStorage.setItem('dashboard-theme', 'dark');
+    }
+    
+    // Apply dark class to html element for initial render
+    const isDarkMode = currentTheme === 'dark' || !currentTheme;
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
   
   // Initialize production recovery for auth persistence
   useEffect(() => {

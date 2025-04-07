@@ -311,109 +311,106 @@ export default function PlansPage() {
   };
 
   return (
-    <div className="container py-6 space-y-6">
+    <div className="container py-10 space-y-6 max-w-7xl">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Plans Management</h1>
-          <p className="text-muted-foreground">
-            Manage pricing plans, features, and Bedrock model assignments.
+          <h1 className="text-3xl font-bold tracking-tight">Subscription Plans</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your subscription plans and pricing tiers
           </p>
         </div>
         <Button onClick={handleCreatePlan}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Create Plan
+          <PlusCircle className="h-4 w-4 mr-2" />
+          New Plan
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Plans</CardTitle>
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle>Plan Management</CardTitle>
           <CardDescription>
-            Configure pricing, features, and model assignments for each plan.
+            All subscription plans available to your customers
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex justify-center py-8">
+            <div className="py-20 flex justify-center items-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
+          ) : plans.length === 0 ? (
+            <div className="py-12 text-center border border-dashed rounded-md bg-muted/20 border-border">
+              <h3 className="text-lg font-medium mb-2">No plans found</h3>
+              <p className="text-muted-foreground mb-4">
+                You haven't created any subscription plans yet.
+              </p>
+              <Button onClick={handleCreatePlan}>
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Create Your First Plan
+              </Button>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Price (Monthly)</TableHead>
-                  <TableHead>Price (Annual)</TableHead>
-                  <TableHead>Trial</TableHead>
-                  <TableHead>Has Overage</TableHead>
-                  <TableHead>Bedrock Model</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {plans.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
-                      No plans found. Create your first plan to get started.
-                    </TableCell>
+            <div className="rounded-md border border-border overflow-hidden">
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow className="hover:bg-muted/50">
+                    <TableHead className="w-[250px]">Plan</TableHead>
+                    <TableHead>Price (Monthly/Annual)</TableHead>
+                    <TableHead>Message Limit</TableHead>
+                    <TableHead>Bedrock Model</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  plans.map((plan) => (
-                    <TableRow key={plan.id}>
+                </TableHeader>
+                <TableBody>
+                  {plans.map((plan) => (
+                    <TableRow key={plan.id} className="hover:bg-muted/20">
                       <TableCell className="font-medium">
                         <div className="flex items-center space-x-2">
                           <span>{plan.name}</span>
                           {plan.is_popular && (
-                            <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                            <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
                               Popular
                             </Badge>
                           )}
                         </div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-muted-foreground text-sm mt-1">
                           {plan.description}
                         </div>
                       </TableCell>
-                      <TableCell>{formatCurrency(plan.price_monthly)}</TableCell>
-                      <TableCell>{formatCurrency(plan.price_annual)}</TableCell>
                       <TableCell>
-                        {plan.has_trial ? (
-                          <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
-                            {plan.trial_days} days
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">
-                            No trial
-                          </Badge>
-                        )}
+                        <div className="flex flex-col">
+                          <span>
+                            {formatCurrency(plan.price_monthly)} / month
+                          </span>
+                          <span className="text-muted-foreground text-sm">
+                            {formatCurrency(plan.price_annual)} / year
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell>
-                        {plan.has_overage ? (
-                          <div className="flex items-center gap-2">
-                            <Check className="h-4 w-4 text-green-500" />
-                            <span className="text-xs text-muted-foreground">
-                              ${plan.overage_rate}/1k tokens
+                        <div className="flex flex-col">
+                          <span>{plan.message_limit.toLocaleString()} messages</span>
+                          {plan.has_overage && (
+                            <span className="text-muted-foreground text-sm">
+                              ${plan.overage_rate} per message overage
                             </span>
-                          </div>
-                        ) : (
-                          <X className="h-4 w-4 text-red-500" />
-                        )}
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
-                        <div className="text-sm">
-                          {getModelName(plan.bedrock_model_id)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {plan.bedrock_model_id.split(".")[0]}
-                        </div>
+                        <span>{getModelName(plan.bedrock_model_id)}</span>
                       </TableCell>
                       <TableCell>
                         {plan.is_active ? (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+                            <Check className="h-3.5 w-3.5 mr-1" />
                             Active
                           </Badge>
                         ) : (
-                          <Badge variant="secondary">Inactive</Badge>
+                          <Badge variant="outline" className="bg-muted text-muted-foreground border-border">
+                            <X className="h-3.5 w-3.5 mr-1" />
+                            Inactive
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -422,292 +419,248 @@ export default function PlansPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleEditPlan(plan)}
+                            className="border-border hover:bg-muted"
                           >
-                            <Edit className="h-4 w-4" />
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
                           </Button>
                           <Button
-                            variant="destructive"
+                            variant="outline"
                             size="sm"
                             onClick={() => handleDeletePlan(plan)}
+                            className="border-destructive/50 text-destructive hover:bg-destructive/10"
                           >
-                            <Trash className="h-4 w-4" />
+                            <Trash className="h-4 w-4 mr-1" />
+                            Delete
                           </Button>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
       {/* Plan Edit/Create Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingPlan ? `Edit ${editingPlan.name} Plan` : "Create New Plan"}
-            </DialogTitle>
-            <DialogDescription>
-              Configure the plan details, pricing, and feature set.
+        <DialogContent className="max-w-4xl bg-background border-border dark:bg-gray-800">
+          <DialogHeader className="text-foreground">
+            <DialogTitle>{editingPlan ? 'Edit Plan' : 'Create a new subscription plan for your customers'}</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {editingPlan
+                ? 'Make changes to the subscription plan below.'
+                : 'Fill in the details below to create a new subscription plan.'}
             </DialogDescription>
           </DialogHeader>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <Tabs defaultValue="basic" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                  <TabsTrigger value="pricing">Pricing & Limits</TabsTrigger>
-                  <TabsTrigger value="features">Features & Model</TabsTrigger>
+                <TabsList className="grid grid-cols-4 w-full bg-muted dark:bg-gray-700 mb-4">
+                  <TabsTrigger value="basic" className="data-[state=active]:bg-background dark:data-[state=active]:bg-gray-800">Basic Details</TabsTrigger>
+                  <TabsTrigger value="pricing" className="data-[state=active]:bg-background dark:data-[state=active]:bg-gray-800">Pricing</TabsTrigger>
+                  <TabsTrigger value="limits" className="data-[state=active]:bg-background dark:data-[state=active]:bg-gray-800">Limits</TabsTrigger>
+                  <TabsTrigger value="features" className="data-[state=active]:bg-background dark:data-[state=active]:bg-gray-800">Features</TabsTrigger>
                 </TabsList>
-
-                <TabsContent value="basic" className="space-y-4 pt-4">
+                
+                <TabsContent value="basic" className="mt-0 space-y-4 bg-background dark:bg-gray-800">
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Plan Name</FormLabel>
+                          <FormLabel className="text-foreground">Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g. Professional" {...field} />
+                            <Input placeholder="Pro" {...field} className="border-input bg-background dark:bg-gray-700 text-foreground" />
                           </FormControl>
+                          <FormDescription className="text-muted-foreground">
+                            A short, descriptive name for the subscription plan
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-
+                    
                     <FormField
                       control={form.control}
                       name="code"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Plan Code</FormLabel>
+                          <FormLabel className="text-foreground">Code</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g. pro" {...field} />
+                            <Input placeholder="pro" {...field} className="border-input bg-background dark:bg-gray-700 text-foreground" />
                           </FormControl>
-                          <FormDescription>
-                            Unique identifier used in the system
+                          <FormDescription className="text-muted-foreground">
+                            An internal code for this plan (e.g., 'pro', 'enterprise')
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
-
+                  
                   <FormField
                     control={form.control}
                     name="description"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Description</FormLabel>
+                        <FormLabel className="text-foreground">Description</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="e.g. Perfect for small to medium businesses"
+                            placeholder="Perfect for small teams and businesses"
                             {...field}
+                            className="border-input bg-background dark:bg-gray-700 text-foreground"
                           />
                         </FormControl>
+                        <FormDescription className="text-muted-foreground">
+                          A detailed description of what the plan offers
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
-                  <div className="grid grid-cols-2 gap-4">
+                  
+                  <div className="flex items-center space-x-2">
                     <FormField
                       control={form.control}
                       name="is_active"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Active Status</FormLabel>
-                            <FormDescription>
-                              Make this plan available to customers
-                            </FormDescription>
-                          </div>
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                           <FormControl>
                             <Switch
                               checked={field.value}
                               onCheckedChange={field.onChange}
+                              className="data-[state=checked]:bg-primary"
                             />
                           </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel className="text-foreground">Active</FormLabel>
+                            <FormDescription className="text-muted-foreground">
+                              Inactive plans won't be shown to customers
+                            </FormDescription>
+                          </div>
                         </FormItem>
                       )}
                     />
-
+                    
                     <FormField
                       control={form.control}
                       name="is_popular"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Featured Plan</FormLabel>
-                            <FormDescription>
-                              Highlight this plan as recommended
-                            </FormDescription>
-                          </div>
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                           <FormControl>
                             <Switch
                               checked={field.value}
                               onCheckedChange={field.onChange}
+                              className="data-[state=checked]:bg-primary"
                             />
                           </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel className="text-foreground">Popular</FormLabel>
+                            <FormDescription className="text-muted-foreground">
+                              Highlight this as a popular choice
+                            </FormDescription>
+                          </div>
                         </FormItem>
                       )}
                     />
                   </div>
                 </TabsContent>
-
-                <TabsContent value="pricing" className="space-y-4 pt-4">
+                
+                <TabsContent value="pricing" className="mt-0 space-y-4 bg-background dark:bg-gray-800">
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="price_monthly"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Monthly Price ($)</FormLabel>
+                          <FormLabel className="text-foreground">Monthly Price ($)</FormLabel>
                           <FormControl>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="e.g. 99.99"
-                              {...field}
+                            <Input 
+                              type="number" 
+                              placeholder="99" 
+                              {...field} 
+                              className="border-input bg-background dark:bg-gray-700 text-foreground"
                             />
                           </FormControl>
+                          <FormDescription className="text-muted-foreground">
+                            The monthly subscription price in USD
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-
+                    
                     <FormField
                       control={form.control}
                       name="price_annual"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Annual Price ($)</FormLabel>
+                          <FormLabel className="text-foreground">Annual Price ($)</FormLabel>
                           <FormControl>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="e.g. 999.99"
-                              {...field}
+                            <Input 
+                              type="number" 
+                              placeholder="990" 
+                              {...field} 
+                              className="border-input bg-background dark:bg-gray-700 text-foreground"
                             />
                           </FormControl>
-                          <FormDescription>
-                            Leave at 0 for automatic 16% discount
+                          <FormDescription className="text-muted-foreground">
+                            The annual subscription price in USD (leave at 0 for auto 16% discount)
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
-
-                  <FormField
-                    control={form.control}
-                    name="message_limit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Monthly Message Limit</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="0"
-                            placeholder="e.g. 5000"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
+                  
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="has_trial"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Free Trial</FormLabel>
-                            <FormDescription>
-                              Allow users to try this plan before paying
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-
+                    <div>
+                      <FormField
+                        control={form.control}
+                        name="has_trial"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-3 space-y-0 mb-2">
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                className="data-[state=checked]:bg-primary"
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className="text-foreground">Has Trial</FormLabel>
+                              <FormDescription className="text-muted-foreground">
+                                Allow customers to try this plan before paying
+                              </FormDescription>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    
                     {form.watch("has_trial") && (
                       <FormField
                         control={form.control}
                         name="trial_days"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Trial Duration (Days)</FormLabel>
+                            <FormLabel className="text-foreground">Trial Days</FormLabel>
                             <FormControl>
-                              <Input
-                                type="number"
-                                min="1"
-                                max="90"
-                                placeholder="e.g. 14"
-                                {...field}
+                              <Input 
+                                type="number" 
+                                placeholder="14" 
+                                {...field} 
+                                className="border-input bg-background dark:bg-gray-700 text-foreground"
                               />
                             </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="has_overage"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Overage Pricing</FormLabel>
-                            <FormDescription>
-                              Charge for usage beyond the plan limit
+                            <FormDescription className="text-muted-foreground">
+                              Number of days for the trial period
                             </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-
-                    {form.watch("has_overage") && (
-                      <FormField
-                        control={form.control}
-                        name="overage_rate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Overage Rate ($ per 1k tokens)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.001"
-                                placeholder="e.g. 0.01"
-                                {...field}
-                              />
-                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -715,24 +668,94 @@ export default function PlansPage() {
                     )}
                   </div>
                 </TabsContent>
-
-                <TabsContent value="features" className="space-y-4 pt-4">
+                
+                <TabsContent value="limits" className="mt-0 space-y-4 bg-background dark:bg-gray-800">
+                  <FormField
+                    control={form.control}
+                    name="message_limit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">Monthly Message Limit</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="5000" 
+                            {...field} 
+                            className="border-input bg-background dark:bg-gray-700 text-foreground"
+                          />
+                        </FormControl>
+                        <FormDescription className="text-muted-foreground">
+                          Maximum number of messages per month
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <FormField
+                        control={form.control}
+                        name="has_overage"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-3 space-y-0 mb-2">
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                className="data-[state=checked]:bg-primary"
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className="text-foreground">Allow Overage</FormLabel>
+                              <FormDescription className="text-muted-foreground">
+                                Allow customers to exceed limits for an additional fee
+                              </FormDescription>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    
+                    {form.watch("has_overage") && (
+                      <FormField
+                        control={form.control}
+                        name="overage_rate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-foreground">Overage Rate ($)</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="number" 
+                                placeholder="0.01" 
+                                {...field} 
+                                step="0.001"
+                                className="border-input bg-background dark:bg-gray-700 text-foreground"
+                              />
+                            </FormControl>
+                            <FormDescription className="text-muted-foreground">
+                              Cost per message beyond the limit
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+                  
                   <FormField
                     control={form.control}
                     name="bedrock_model_id"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Assigned Bedrock Model</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
+                        <FormLabel className="text-foreground">Bedrock Model</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="w-full border-input bg-background dark:bg-gray-700 text-foreground">
                               <SelectValue placeholder="Select a model" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent className="bg-popover dark:bg-gray-700 border-border text-foreground">
                             {bedrockModels.map((model) => (
                               <SelectItem key={model.id} value={model.id}>
                                 {model.name} ({model.provider})
@@ -740,60 +763,120 @@ export default function PlansPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        <FormDescription>
-                          This model will be assigned to all users on this plan
+                        <FormDescription className="text-muted-foreground">
+                          The default AWS Bedrock model for this plan
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  
-                  {/* Feature list editing would go here */}
-                  <div className="rounded-lg border p-4 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h3 className="text-base font-medium">Plan Features</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Add features that will be displayed to customers
-                        </p>
-                      </div>
-                      <Button type="button" variant="outline" size="sm">
-                        <PlusCircle className="h-4 w-4 mr-2" />
-                        Add Feature
-                      </Button>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-md">
-                        <span>Unlimited AI agents</span>
-                        <Button type="button" variant="ghost" size="sm">
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-md">
-                        <span>Web, mobile, and API access</span>
-                        <Button type="button" variant="ghost" size="sm">
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-md">
-                        <span>Team collaboration</span>
-                        <Button type="button" variant="ghost" size="sm">
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+                </TabsContent>
+                
+                <TabsContent value="features" className="mt-0 bg-background dark:bg-gray-800">
+                  <FormField
+                    control={form.control}
+                    name="features"
+                    render={({ field }) => (
+                      <FormItem className="space-y-4">
+                        <div className="space-y-2">
+                          <FormLabel className="text-foreground">Features</FormLabel>
+                          <FormDescription className="text-muted-foreground">
+                            Add features that will be displayed on the subscription plan card
+                          </FormDescription>
+                        </div>
+                        
+                        {field.value.length > 0 ? (
+                          <div className="space-y-2">
+                            {field.value.map((feature, index) => (
+                              <div key={index} className="flex items-center gap-2 p-2 rounded bg-muted dark:bg-gray-700">
+                                <span className="text-foreground flex-1">{feature}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newFeatures = [...field.value];
+                                    newFeatures.splice(index, 1);
+                                    field.onChange(newFeatures);
+                                  }}
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive/90"
+                                >
+                                  <Trash className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center p-4 border border-dashed rounded border-input dark:border-gray-600">
+                            <p className="text-muted-foreground">No features added yet</p>
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id="new-feature"
+                            placeholder="Add a new feature..."
+                            className="flex-1 border-input bg-background dark:bg-gray-700 text-foreground"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const input = e.currentTarget;
+                                const feature = input.value.trim();
+                                if (feature) {
+                                  field.onChange([...field.value, feature]);
+                                  input.value = '';
+                                }
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              const input = document.getElementById('new-feature') as HTMLInputElement;
+                              const feature = input.value.trim();
+                              if (feature) {
+                                field.onChange([...field.value, feature]);
+                                input.value = '';
+                              }
+                            }}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </TabsContent>
               </Tabs>
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  {editingPlan ? "Update Plan" : "Create Plan"}
-                </Button>
+              
+              <DialogFooter className="flex justify-between pt-4 border-t border-border">
+                {editingPlan && (
+                  <Button 
+                    type="button"
+                    variant="destructive"
+                    onClick={() => {
+                      setIsDialogOpen(false);
+                      setPlanToDelete(editingPlan);
+                      setDeleteDialogOpen(true);
+                    }}
+                    className="mr-auto"
+                  >
+                    <Trash className="h-4 w-4 mr-2" />
+                    Delete Plan
+                  </Button>
+                )}
+                <div className="flex gap-2">
+                  <Button 
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsDialogOpen(false)}
+                    className="bg-background dark:bg-gray-800 border-border text-foreground hover:bg-muted"
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">{editingPlan ? 'Update Plan' : 'Create Plan'}</Button>
+                </div>
               </DialogFooter>
             </form>
           </Form>
@@ -802,19 +885,31 @@ export default function PlansPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete the "{planToDelete?.name}" plan? This action cannot be undone.
+        <DialogContent className="bg-background dark:bg-gray-800 border-border">
+          <DialogHeader className="text-foreground">
+            <DialogTitle>Are you sure?</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              This will permanently delete the "{planToDelete?.name}" plan.
+              {planToDelete?.is_active && (
+                <span className="block mt-2 font-medium text-destructive">
+                  Warning: This plan is currently active and may have subscribers.
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteDialogOpen(false)}
+              className="bg-background dark:bg-gray-800 border-border text-foreground hover:bg-muted"
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={confirmDeletePlan}>
-              Delete
+            <Button 
+              variant="destructive" 
+              onClick={confirmDeletePlan}
+            >
+              Delete Plan
             </Button>
           </DialogFooter>
         </DialogContent>

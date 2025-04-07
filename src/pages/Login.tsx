@@ -55,6 +55,22 @@ export default function Login() {
     
     console.log('Login: Cleared any potential redirect loop state');
   }, []);
+
+  // Set dark theme as default
+  useEffect(() => {
+    // Set dark theme in localStorage
+    localStorage.setItem('dashboard-theme', 'dark');
+    
+    // Apply dark class to document element
+    document.documentElement.classList.add('dark');
+    
+    return () => {
+      // Clean up only if navigating away (not to dashboard)
+      if (!user) {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+  }, [user]);
   
   // If user is already logged in, redirect to dashboard or the page they came from
   useEffect(() => {
@@ -117,7 +133,7 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900 dark">
       {/* Left side - Login form */}
       <div className="flex-1 flex justify-center items-center">
         <div className="w-full max-w-md p-8">

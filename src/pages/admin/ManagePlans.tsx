@@ -55,13 +55,14 @@ import { AlertCircle, CheckCircle, PlusCircle, RefreshCw, Trash2 } from 'lucide-
 
 // Define the plan schema for form validation
 const planSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().min(1, 'Plan name is required'),
   description: z.string().min(1, 'Description is required'),
-  price_monthly: z.coerce.number().min(0, 'Monthly price must be a positive number'),
-  price_yearly: z.coerce.number().min(0, 'Yearly price must be a positive number'),
-  message_limit: z.coerce.number().min(0, 'Message limit must be a positive number'),
-  agent_limit: z.coerce.number().min(0, 'Agent limit must be a positive number'),
+  price_monthly: z.coerce.number().min(0, 'Price must be a positive number'),
+  price_annual: z.coerce.number().min(0, 'Price must be a positive number'),
   is_active: z.boolean().default(true),
+  message_limit: z.coerce.number().min(0, 'Message limit must be a positive number'),
+  stripe_price_id: z.string().optional(),
+  stripe_product_id: z.string().optional(),
   features: z.array(z.string()).default([]),
 });
 
@@ -90,10 +91,11 @@ export default function ManagePlans() {
       name: '',
       description: '',
       price_monthly: 0,
-      price_yearly: 0,
-      message_limit: 0,
-      agent_limit: 0,
+      price_annual: 0,
       is_active: true,
+      message_limit: 0,
+      stripe_price_id: '',
+      stripe_product_id: '',
       features: [],
     },
   });
@@ -142,11 +144,12 @@ export default function ManagePlans() {
       name: plan.name,
       description: plan.description,
       price_monthly: plan.price_monthly,
-      price_yearly: plan.price_yearly,
-      message_limit: plan.message_limit,
-      agent_limit: plan.agent_limit,
+      price_annual: plan.price_annual,
       is_active: plan.is_active,
-      features: plan.features || [],
+      message_limit: plan.message_limit,
+      stripe_price_id: plan.stripe_price_id || '',
+      stripe_product_id: plan.stripe_product_id || '',
+      features: [],
     });
     
     setOpenDialog(true);
@@ -162,10 +165,11 @@ export default function ManagePlans() {
       name: '',
       description: '',
       price_monthly: 0,
-      price_yearly: 0,
-      message_limit: 0,
-      agent_limit: 0,
+      price_annual: 0,
       is_active: true,
+      message_limit: 0,
+      stripe_price_id: '',
+      stripe_product_id: '',
       features: [],
     });
     
@@ -322,7 +326,7 @@ export default function ManagePlans() {
                   <TableRow key={plan.id}>
                     <TableCell className="font-medium">{plan.name}</TableCell>
                     <TableCell>${plan.price_monthly}</TableCell>
-                    <TableCell>${plan.price_yearly}</TableCell>
+                    <TableCell>${plan.price_annual}</TableCell>
                     <TableCell>
                       {plan.is_active ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
@@ -488,7 +492,7 @@ export default function ManagePlans() {
 
                   <FormField
                     control={form.control}
-                    name="price_yearly"
+                    name="price_annual"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Yearly Price ($)</FormLabel>
@@ -527,28 +531,6 @@ export default function ManagePlans() {
                         </FormControl>
                         <FormDescription>
                           Maximum number of AI messages allowed per month
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="agent_limit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Agent Limit</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="0"
-                            placeholder="5"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Maximum number of AI agents allowed
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

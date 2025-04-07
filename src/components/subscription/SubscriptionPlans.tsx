@@ -21,7 +21,6 @@ export default function SubscriptionPlans({
       price: "$99",
       description: "Great for daily AI workflows",
       messageLimit: 5000,
-      agentLimit: 10,
       features: [
         { name: "Full API Access", included: true },
         { name: "All integrations", included: true },
@@ -35,7 +34,6 @@ export default function SubscriptionPlans({
       price: "$499",
       description: "Designed for high-traffic or multi-agent use",
       messageLimit: 25000,
-      agentLimit: 25,
       features: [
         { name: "Full API Access", included: true },
         { name: "All integrations + advanced tuning", included: true },
@@ -49,7 +47,6 @@ export default function SubscriptionPlans({
       price: "Custom",
       description: "For organizations with advanced needs",
       messageLimit: 50000,
-      agentLimit: 999,
       features: [
         { name: "Full API Access", included: true },
         { name: "SDKs, custom support", included: true },
@@ -71,7 +68,6 @@ export default function SubscriptionPlans({
           description={plan.description}
           features={plan.features}
           messageLimit={plan.messageLimit}
-          agentLimit={plan.agentLimit}
           highlighted={plan.highlighted}
           onSelect={() => onSelectPlan(plan.id)}
           buttonText={plan.buttonText}

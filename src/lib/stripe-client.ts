@@ -17,7 +17,7 @@ export const stripeClient = {
   async createCheckoutSession(planId: string, isBillingAnnual: boolean) {
     try {
       // Call the create-checkout endpoint
-      const { data, error } = await supabase.functions.invoke('stripe-api/create-checkout', {
+      const { data, error } = await supabase.functions.invoke('stripe/create-checkout', {
         body: {
           planId,
           billingCycle: isBillingAnnual ? 'annual' : 'monthly',
@@ -40,7 +40,7 @@ export const stripeClient = {
    */
   async createPortalSession() {
     try {
-      const { data, error } = await supabase.functions.invoke('stripe-api/create-portal', {
+      const { data, error } = await supabase.functions.invoke('stripe/create-portal', {
         body: {},
       });
 

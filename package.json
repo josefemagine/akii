@@ -23,7 +23,8 @@
     "setup-admin": "node src/scripts/setup-admin.js",
     "update-admin": "node src/scripts/update-admin.js",
     "run-migrations": "supabase db push",
-    "dev:with-api": "concurrently \"npm run dev\" \"npm run simple-api\""
+    "dev:with-api": "concurrently \"npm run dev\" \"npm run simple-api\"",
+    "deploy:stripe-api": "supabase functions deploy stripe-api"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock": "^3.782.0",

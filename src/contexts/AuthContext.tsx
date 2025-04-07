@@ -747,6 +747,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if ('theme_preference' in profile && profile.theme_preference) {
           localStorage.setItem("dashboard-theme", profile.theme_preference as string);
           console.log("Loaded theme preference from profile:", profile.theme_preference);
+        } else {
+          // Set dark theme as default if no preference exists
+          localStorage.setItem("dashboard-theme", "dark");
+          console.log("Set default dark theme preference");
         }
         
         setState((prev) => ({ ...prev, profile: profile }));
