@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { testAwsPermissions } from "@/lib/supabase-bedrock-client";
+import { BedrockClient } from "@/lib/supabase-bedrock-client";
 
 // Type definitions for test results
 interface PermissionTest {
@@ -66,7 +66,7 @@ const AWSTestConnectionModal: React.FC<AWSTestConnectionModalProps> = ({
     setError(null);
     
     try {
-      const results = await testAwsPermissions();
+      const results = await BedrockClient.testAwsPermissions();
       
       if (results.success) {
         setTestResults(results.test_results as TestResult);
