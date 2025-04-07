@@ -1,16 +1,19 @@
 {
   "importMap": "./import_map.json",
   "tasks": {
-    "dev": "deno run --allow-net --allow-env index.ts"
+    "dev": "deno run --allow-net --allow-env index.ts",
+    "deploy": "supabase functions deploy super-action"
   },
   "compilerOptions": {
     "allowJs": true,
     "lib": ["deno.window"],
-    "strict": true
+    "strict": false,
+    "noImplicitAny": false
   },
   "imports": {
     "@aws-sdk/client-bedrock": "npm:@aws-sdk/client-bedrock@3.485.0",
     "@aws-sdk/client-bedrock-runtime": "npm:@aws-sdk/client-bedrock-runtime@3.485.0",
-    "@aws-sdk/credential-providers": "npm:@aws-sdk/credential-providers@3.485.0"
+    "@aws-sdk/credential-providers": "npm:@aws-sdk/credential-providers@3.485.0",
+    "./aws-bundled.ts": "./aws-bundled.ts"
   }
 } 
