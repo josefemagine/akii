@@ -929,21 +929,9 @@ const BedrockDashboardContent = ({
                         ) : availableModels.length > 0 ? (
                           availableModels.map((model) => (
                             <SelectItem key={model.modelId} value={model.modelId}>
-                              <div className="flex flex-col py-1">
-                                <div className="font-medium">{model.providerName} - {model.modelName || model.modelId}</div>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {model.inferenceTypesSupported?.length > 0 && 
-                                    <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-1 py-0.5 rounded">
-                                      {model.inferenceTypesSupported.join(', ')}
-                                    </span>
-                                  }
-                                  {model.customizationsSupported?.includes('FINE_TUNING') && 
-                                    <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-1 py-0.5 rounded">
-                                      Fine-tunable
-                                    </span>
-                                  }
-                                </div>
-                              </div>
+                              {model.providerName || model.modelId.split('.')[0]} - {model.modelName || model.modelId.split('.')[1]} 
+                              {model.customizationsSupported?.includes('FINE_TUNING') && " (Fine-tunable)"}
+                              {model.inferenceTypesSupported?.length > 0 && ` [${model.inferenceTypesSupported.join(', ')}]`}
                             </SelectItem>
                           ))
                         ) : (
@@ -1879,21 +1867,9 @@ const SupabaseBedrock = () => {
                           ) : availableModels.length > 0 ? (
                             availableModels.map((model) => (
                               <SelectItem key={model.modelId} value={model.modelId}>
-                                <div className="flex flex-col py-1">
-                                  <div className="font-medium">{model.providerName} - {model.modelName || model.modelId}</div>
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {model.inferenceTypesSupported?.length > 0 && 
-                                      <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-1 py-0.5 rounded">
-                                        {model.inferenceTypesSupported.join(', ')}
-                                      </span>
-                                    }
-                                    {model.customizationsSupported?.includes('FINE_TUNING') && 
-                                      <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-1 py-0.5 rounded">
-                                        Fine-tunable
-                                      </span>
-                                    }
-                                  </div>
-                                </div>
+                                {model.providerName || model.modelId.split('.')[0]} - {model.modelName || model.modelId.split('.')[1]} 
+                                {model.customizationsSupported?.includes('FINE_TUNING') && " (Fine-tunable)"}
+                                {model.inferenceTypesSupported?.length > 0 && ` [${model.inferenceTypesSupported.join(', ')}]`}
                               </SelectItem>
                             ))
                           ) : (
