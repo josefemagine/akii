@@ -1,11 +1,10 @@
 // deno-lint-ignore-file no-explicit-any
-/// <reference lib="deno.ns" />
 
 // Regular import for Deno versions used in Supabase Edge Functions
 // Use Deno.serve directly (built-in since Deno 1.25)
 // Remove the import for serve
 
-// @ts-ignore - Deno imports
+// @ts-ignore - Supabase Edge Functions
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 import {
@@ -16,10 +15,25 @@ import {
   DeleteProvisionedModelThroughputCommand
 } from "npm:@aws-sdk/client-bedrock";
 
+// Add FoundationModel type definition at the top of the file after imports
+interface FoundationModel {
+  modelId: string;
+  modelName: string;
+  providerName: string;
+  modelArn: string;
+  responseStreamingSupported: boolean;
+  inputModalities: string[];
+  outputModalities: string[];
+  inferenceTypesSupported: string[];
+  region: string;
+  modelAccessStatus: string;
+  supportsProvisionedThroughput: boolean;
+  customizationsSupported: string[];
+}
+
 // Define valid origins list at the top level
 const VALID_ORIGINS = [
-  "https://www.akii.com",
-  "https://akii.com"
+  "https://www.holm.com"
 ];
 
 // Define which models support provisioned throughput
@@ -35,36 +49,30 @@ const MODELS_WITH_PROVISIONED_THROUGHPUT = [
   "cohere.command-light-text-v14"
 ];
 
-// Define regions that support provisioned throughput
+// Always only use us-east-1 
 const REGIONS_WITH_PROVISIONED_THROUGHPUT = [
-  "us-east-1",
-  "us-west-2",
-  "eu-central-1"
-  // Note: eu-west-3 may not support all provisioned throughput models
+  "us-east-1"
+  // Note: Other regions like us-west-2, eu-central-1, and eu-west-3 may not support all provisioned throughput models
 ];
+
+// Add AWS credential variable references
+const AWS_ACCESS_KEY_ID = Deno.env.get("AWS_ACCESS_KEY_ID") || "";
+const AWS_SECRET_ACCESS_KEY = Deno.env.get("AWS_SECRET_ACCESS_KEY") || "";
+const AWS_REGION = "us-east-1";  // Hardcoded to us-east-1
 
 // Function to get the appropriate CORS origin
 function getCorsOrigin(requestOrigin: string | null): string {
   console.log("Request origin:", requestOrigin);
   
-  // Safety check - if no origin, use the first valid origin
-  if (!requestOrigin) {
-    return VALID_ORIGINS[0];
-  }
-  
-  // Check if the origin is in our allowed list
-  const isValidOrigin = VALID_ORIGINS.includes(requestOrigin);
-  console.log(`Origin ${requestOrigin} valid: ${isValidOrigin}`);
-  
-  return isValidOrigin ? requestOrigin : VALID_ORIGINS[0];
+  // Always return www.holm.com as the only valid origin
+  return "https://www.holm.com";
 }
 
 // Function to create CORS headers for a specific origin
 function createCorsHeaders(origin: string | null): Record<string, string> {
-  const corsOrigin = getCorsOrigin(origin);
-  
+  // Always use www.holm.com as the origin
   return {
-    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Origin": "https://www.holm.com",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info, apikey, X-Client-Info",
     "Access-Control-Allow-Credentials": "true",
@@ -75,10 +83,9 @@ function createCorsHeaders(origin: string | null): Record<string, string> {
 
 // Function to create preflight response headers
 function createPreflightHeaders(origin: string | null): Record<string, string> {
-  const corsOrigin = getCorsOrigin(origin);
-  
+  // Always use www.holm.com as the origin
   return {
-    "Access-Control-Allow-Origin": corsOrigin,
+    "Access-Control-Allow-Origin": "https://www.holm.com",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Credentials": "true",
@@ -372,6 +379,106 @@ async function extractUserIdFromJwt(req: Request): Promise<string | null> {
   }
 }
 
+// Function for listing all foundation models (accessible to the user)
+// This no longer filters by provisioned throughput status so frontend can handle filtering
+async function listFoundationModels(client: BedrockClient): Promise<FoundationModel[]> {
+  console.log("[AWS] Listing all foundation models");
+  
+  try {
+    // Use a hardcoded us-east-1 region regardless of client region
+    const command = new ListFoundationModelsCommand({});
+    const response = await client.send(command);
+    
+    console.log(`[AWS] Retrieved ${response.modelSummaries?.length || 0} foundation models`);
+    
+    // Map AWS response to simplified model format
+    const models = response.modelSummaries?.map(model => ({
+      modelId: model.modelId || "",
+      modelName: model.modelName || "",
+      providerName: model.providerName || "",
+      modelArn: model.modelArn || "",
+      responseStreamingSupported: model.responseStreamingSupported || false,
+      inputModalities: model.inputModalities || ["TEXT"],
+      outputModalities: model.outputModalities || ["TEXT"],
+      inferenceTypesSupported: model.inferenceTypesSupported || ["ON_DEMAND"],
+      // Include all fields without filtering
+      region: "us-east-1",
+      modelAccessStatus: model.modelAccessStatus || "UNKNOWN",
+      supportsProvisionedThroughput: true, // We'll leave it to frontend to determine this
+      customizationsSupported: model.customizationsSupported || []
+    })) || [];
+    
+    console.log(`[AWS] Converted ${models.length} models to simplified format`);
+    return models;
+  } catch (error) {
+    console.error("[AWS] Error in listFoundationModels:", error);
+    // Return empty array on error
+    return [];
+  }
+}
+
+// Handler for ListAccessibleModels action
+async function handleListAccessibleModels(req: Request): Promise<Response> {
+  try {
+    console.log("[API] Handling ListAccessibleModels request");
+    
+    // Get the client
+    const client = getBedrockClient(); 
+    
+    // Get foundation models (all available in us-east-1)
+    const allModels = await listFoundationModels(client);
+    console.log(`[API] Retrieved ${allModels.length} foundation models`);
+    
+    // Return all models without filtering - let frontend do the filtering
+    return createSuccessResponse({
+      models: allModels,
+      count: allModels.length,
+      region: "us-east-1"
+    });
+  } catch (error) {
+    console.error("[API] Error in handleListAccessibleModels:", error);
+    return createErrorResponse("Error listing accessible models", error);
+  }
+}
+
+// Function to create a success response with proper headers
+function createSuccessResponse(data: any): Response {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status: 200,
+      headers: createCorsHeaders(null)
+    }
+  );
+}
+
+// Function to create an error response with proper headers
+function createErrorResponse(message: string, error: any): Response {
+  const errorData = {
+    error: message,
+    details: error instanceof Error ? error.message : String(error)
+  };
+  
+  return new Response(
+    JSON.stringify(errorData),
+    {
+      status: 400,
+      headers: createCorsHeaders(null)
+    }
+  );
+}
+
+// Function to get a Bedrock client configured for us-east-1
+function getBedrockClient(): BedrockClient {
+  return new BedrockClient({
+    region: "us-east-1",
+    credentials: {
+      accessKeyId: AWS_ACCESS_KEY_ID,
+      secretAccessKey: AWS_SECRET_ACCESS_KEY
+    }
+  });
+}
+
 // Main serve function
 serve(async (req) => {
   console.log("Edge Function running. Supabase Edge Function Diagnostic Start");
@@ -609,71 +716,15 @@ serve(async (req) => {
       console.log("Fetching accessible foundation models");
       
       try {
-        // Create a proper command - this will return all models
-        const command = new ListFoundationModelsCommand({});
+        // Get foundation models (all available in us-east-1)
+        const allModels = await listFoundationModels(client);
+        console.log(`[API] Retrieved ${allModels.length} foundation models`);
         
-        const response = await client.send(command);
-        
-        // Capture diagnostic info
-        diagnosticInfo = {
-          requestId: response.$metadata.requestId,
-          httpStatusCode: response.$metadata.httpStatusCode,
-          attempts: response.$metadata.attempts
-        };
-        
-        console.log("Foundation models response metadata:", diagnosticInfo);
-        
-        // Check if models array exists
-        const allModels = response.modelSummaries || [];
-        console.log(`Found ${allModels.length} foundation models in total`);
-        
-        // Log a sample model to debug structure
-        if (allModels.length > 0) {
-          console.log("Sample model structure:", JSON.stringify(allModels[0]));
-        }
-        
-        // Filter for models with GRANTED access and check if they support provisioned throughput
-        const accessibleModels = allModels.filter(model => {
-          // Check if model has granted access - some API versions might not include modelAccessStatus
-          // If modelAccessStatus is missing, we'll assume access is granted if we can see the model
-          const hasAccess = model.modelAccessStatus ? model.modelAccessStatus === "GRANTED" : true;
-          
-          // Check if model supports provisioned throughput
-          const modelId = model.modelId || "";
-          const supportsProvisionedThroughput = modelSupportsProvisionedThroughput(modelId);
-          
-          // For debugging
-          if (supportsProvisionedThroughput) {
-            console.log(`Model ${modelId} supports provisioned throughput, access status: ${model.modelAccessStatus || 'unknown'}`);
-          }
-          
-          return hasAccess && supportsProvisionedThroughput;
-        });
-        
-        console.log(`Found ${accessibleModels.length} accessible models that support provisioned throughput`);
-        
-        // Format models with additional information
-        const formattedModels = accessibleModels.map(model => ({
-          id: model.modelId,
-          name: model.modelName,
-          provider: model.providerName,
-          inferenceTypes: model.inferenceTypesSupported || [],
-          customizationsSupported: model.customizationsSupported || [],
-          supportsProvisionedThroughput: true,
-          accessStatus: model.modelAccessStatus || 'ASSUMED_GRANTED',
-          region: region,
-          inputModalities: model.inputModalities || [],
-          outputModalities: model.outputModalities || []
-        }));
-        
-        // Return the filtered list of accessible models
+        // Return all models without filtering - let frontend do the filtering
         result = {
-          models: formattedModels,
-          count: formattedModels.length,
-          allModelsCount: allModels.length,
-          provisionedSupportedModels: MODELS_WITH_PROVISIONED_THROUGHPUT,
-          diagnosticInfo,
-          timestamp: new Date().toISOString()
+          models: allModels,
+          count: allModels.length,
+          region: "us-east-1"
         };
       } catch (error) {
         console.error("Error fetching accessible foundation models:", error);
