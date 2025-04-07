@@ -1113,7 +1113,8 @@ const SupabaseBedrock = () => {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   
   // Test modal state
-  const [testModalOpen, setTestModalOpen] = useState(false);
+  const [oldTestModalOpen, setOldTestModalOpen] = useState(false);
+  const [awsTestModalOpen, setAwsTestModalOpen] = useState(false);
   const [testData, setTestData] = useState<any>(null);
   const [testingConnection, setTestingConnection] = useState(false);
   
@@ -1310,6 +1311,9 @@ const SupabaseBedrock = () => {
         message: 'Connection successful'
       }));
       
+      // Open the AWS test modal instead of the old test modal
+      setAwsTestModalOpen(true);
+      
       toast({
         title: "Connection Successful",
         description: "AWS Bedrock connection verified successfully",
@@ -1346,7 +1350,7 @@ const SupabaseBedrock = () => {
     });
   };
   
-  // Replace the fetchDetailedTestData function with a production-ready version
+  // Fix the fetchDetailedTestData function
   const fetchDetailedTestData = async () => {
     setTestingConnection(true);
     setError(null);
@@ -1385,7 +1389,7 @@ const SupabaseBedrock = () => {
       };
       
       setTestData(testData);
-      setTestModalOpen(true);
+      setOldTestModalOpen(true); // Use the old test modal state
       setShowDiagnostics(true);
       setTestingConnection(false);
       
@@ -1711,9 +1715,9 @@ const SupabaseBedrock = () => {
     }
   };
 
-  // Define the openTestModal function with useCallback to avoid unnecessary re-renders
-  const openTestModal = useCallback(() => {
-    setTestModalOpen(true);
+  // Define a specific function for the AWS test modal
+  const openAwsTestModal = useCallback(() => {
+    setAwsTestModalOpen(true);
   }, []);
 
   // Add this line to define serverErrorDetails
@@ -1723,6 +1727,12 @@ const SupabaseBedrock = () => {
     <ErrorBoundary>
       <div className="container p-6 space-y-6">
         <h1 className="text-2xl font-bold">AWS Bedrock Settings</h1>
+        
+        {/* Use the new AWS test modal */}
+        <AWSTestConnectionModal 
+          isOpen={awsTestModalOpen}
+          onClose={() => setAwsTestModalOpen(false)}
+        />
         
         <CombinedApiConfigPanel
           connectionStatus={connectionStatus}
@@ -1735,7 +1745,7 @@ const SupabaseBedrock = () => {
           credentials={{}} // Provide empty object if needed
           clientStatus={{}} // Provide empty object if needed
           testConnection={testConnection}
-          openTestModal={openTestModal}
+          openTestModal={openAwsTestModal} // Pass the AWS test modal opener
         />
         
         <MockDataNotice />
@@ -1993,14 +2003,9 @@ const SupabaseBedrock = () => {
         </Tabs>
         
         <TestModal 
-          isOpen={testModalOpen} 
-          setIsOpen={setTestModalOpen} 
+          isOpen={oldTestModalOpen} 
+          setIsOpen={setOldTestModalOpen} 
           testData={testData} 
-        />
-        
-        <AWSTestConnectionModal 
-          isOpen={testModalOpen}
-          onClose={() => setTestModalOpen(false)}
         />
       </div>
     </ErrorBoundary>
