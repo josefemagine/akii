@@ -245,7 +245,7 @@ const AWSTestConnectionModal: React.FC<AWSTestConnectionModalProps> = ({
             variant="outline"
             onClick={runTests}
             disabled={testing}
-            className="mr-2 dark:text-slate-200 dark:border-slate-700"
+            className="mr-2 dark:text-slate-100 dark:border-slate-700 dark:hover:border-slate-600 font-medium"
           >
             {testing ? (
               <>
