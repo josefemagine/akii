@@ -928,41 +928,21 @@ const BedrockDashboardContent = ({
                           <SelectItem value="loading" disabled>Loading available models...</SelectItem>
                         ) : availableModels.length > 0 ? (
                           availableModels.map((model) => (
-                            <SelectItem key={model.modelId} value={model.modelId} className="py-3 border-b last:border-b-0">
-                              <div className="space-y-1">
-                                <div className="font-medium">
-                                  {model.providerName} - {model.modelName || model.modelId}
-                                </div>
-                                <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
-                                  <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{model.modelId}</span>
-                                  {model.inferenceTypesSupported?.length > 0 && (
-                                    <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
+                            <SelectItem key={model.modelId} value={model.modelId}>
+                              <div className="flex flex-col py-1">
+                                <div className="font-medium">{model.providerName} - {model.modelName || model.modelId}</div>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {model.inferenceTypesSupported?.length > 0 && 
+                                    <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-1 py-0.5 rounded">
                                       {model.inferenceTypesSupported.join(', ')}
                                     </span>
-                                  )}
-                                  {model.customizationsSupported?.length > 0 && (
-                                    <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded">
-                                      {model.customizationsSupported.includes('FINE_TUNING') ? 'Fine-tunable' : ''}
-                                      {model.customizationsSupported.filter(c => c !== 'FINE_TUNING').length > 0 ? 
-                                        (model.customizationsSupported.includes('FINE_TUNING') ? ', ' : '') + 
-                                        model.customizationsSupported.filter(c => c !== 'FINE_TUNING').join(', ') : 
-                                        ''}
+                                  }
+                                  {model.customizationsSupported?.includes('FINE_TUNING') && 
+                                    <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-1 py-0.5 rounded">
+                                      Fine-tunable
                                     </span>
-                                  )}
+                                  }
                                 </div>
-                                {(model.inputModalities?.length > 0 || model.outputModalities?.length > 0) && (
-                                  <div className="text-xs text-muted-foreground">
-                                    {model.inputModalities?.length > 0 && (
-                                      <span>Input: {model.inputModalities.join(', ')}</span>
-                                    )}
-                                    {model.inputModalities?.length > 0 && model.outputModalities?.length > 0 && (
-                                      <span> • </span>
-                                    )}
-                                    {model.outputModalities?.length > 0 && (
-                                      <span>Output: {model.outputModalities.join(', ')}</span>
-                                    )}
-                                  </div>
-                                )}
                               </div>
                             </SelectItem>
                           ))
@@ -1898,41 +1878,21 @@ const SupabaseBedrock = () => {
                             <SelectItem value="loading" disabled>Loading available models...</SelectItem>
                           ) : availableModels.length > 0 ? (
                             availableModels.map((model) => (
-                              <SelectItem key={model.modelId} value={model.modelId} className="py-3 border-b last:border-b-0">
-                                <div className="space-y-1">
-                                  <div className="font-medium">
-                                    {model.providerName} - {model.modelName || model.modelId}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
-                                    <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{model.modelId}</span>
-                                    {model.inferenceTypesSupported?.length > 0 && (
-                                      <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
+                              <SelectItem key={model.modelId} value={model.modelId}>
+                                <div className="flex flex-col py-1">
+                                  <div className="font-medium">{model.providerName} - {model.modelName || model.modelId}</div>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {model.inferenceTypesSupported?.length > 0 && 
+                                      <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-1 py-0.5 rounded">
                                         {model.inferenceTypesSupported.join(', ')}
                                       </span>
-                                    )}
-                                    {model.customizationsSupported?.length > 0 && (
-                                      <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded">
-                                        {model.customizationsSupported.includes('FINE_TUNING') ? 'Fine-tunable' : ''}
-                                        {model.customizationsSupported.filter(c => c !== 'FINE_TUNING').length > 0 ? 
-                                          (model.customizationsSupported.includes('FINE_TUNING') ? ', ' : '') + 
-                                          model.customizationsSupported.filter(c => c !== 'FINE_TUNING').join(', ') : 
-                                          ''}
+                                    }
+                                    {model.customizationsSupported?.includes('FINE_TUNING') && 
+                                      <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-1 py-0.5 rounded">
+                                        Fine-tunable
                                       </span>
-                                    )}
+                                    }
                                   </div>
-                                  {(model.inputModalities?.length > 0 || model.outputModalities?.length > 0) && (
-                                    <div className="text-xs text-muted-foreground">
-                                      {model.inputModalities?.length > 0 && (
-                                        <span>Input: {model.inputModalities.join(', ')}</span>
-                                      )}
-                                      {model.inputModalities?.length > 0 && model.outputModalities?.length > 0 && (
-                                        <span> • </span>
-                                      )}
-                                      {model.outputModalities?.length > 0 && (
-                                        <span>Output: {model.outputModalities.join(', ')}</span>
-                                      )}
-                                    </div>
-                                  )}
                                 </div>
                               </SelectItem>
                             ))
