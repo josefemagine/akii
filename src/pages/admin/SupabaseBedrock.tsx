@@ -1011,7 +1011,16 @@ const BedrockDashboardContent = ({
                         ))
                       ) : (
                         <div className="text-center p-8 text-muted-foreground">
-                          No models available. Click Refresh to load models.
+                          <p className="mb-4">No models available. Click below to load available AWS Bedrock models.</p>
+                          <Button 
+                            onClick={() => fetchAvailableModels(activeFilters)} 
+                            disabled={loadingModels || authStatus !== 'authenticated'}
+                            size="lg"
+                            className="bg-green-600 hover:bg-green-700 text-white font-medium"
+                          >
+                            <RefreshCw className="mr-2 h-5 w-5" />
+                            Load AWS Bedrock Models
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -1465,7 +1474,8 @@ const SupabaseBedrock = () => {
   const fetchAvailableModels = async (filters: Partial<ModelFilter> = {}) => {
     try {
       // Check if authenticated before fetching
-      if (authStatus !== 'authenticated') {
+      if (authStatus !== 'authenticated' && authStatus !== 'unknown') {
+        console.log("Not authenticated yet, skipping model fetch");
         toast({
           title: "Authentication Required",
           description: "You must be logged in to view available models",
@@ -1474,11 +1484,13 @@ const SupabaseBedrock = () => {
         return;
       }
 
+      console.log("Starting fetchAvailableModels with filters:", filters);
       setLoadingModels(true);
       setError(null); // Clear the main error
       
       // Call the API to fetch models with any active filters
       const { data, error } = await BedrockClient.listFoundationModels(filters);
+      console.log("API response:", { data, error });
 
       // Handle error but still process data if available (for fallbacks)
       if (error) {
@@ -1506,6 +1518,7 @@ const SupabaseBedrock = () => {
       if (data && data.models) {
         const models = data.models || [];
         console.log(`Fetched ${models.length} models from AWS Bedrock${data.note ? ` (${data.note})` : ''}`);
+        console.log("First few models:", models.slice(0, 3));
 
         // Sort models by provider and name for better usability
         const sortedModels = [...models].sort((a, b) => {
@@ -1521,7 +1534,10 @@ const SupabaseBedrock = () => {
         });
 
         setAvailableModels(sortedModels);
-        setSelectedModelId(sortedModels.length > 0 ? sortedModels[0].modelId : '');
+        if (sortedModels.length > 0 && !selectedModelId) {
+          console.log("Setting initial selected model:", sortedModels[0].modelId);
+          setSelectedModelId(sortedModels[0].modelId);
+        }
       } else {
         console.warn("No models returned from API");
         setAvailableModels([]);
@@ -1588,6 +1604,15 @@ const SupabaseBedrock = () => {
         await fetchInstances();
       } catch (fetchError) {
         console.error('Error fetching instances:', fetchError);
+        // Continue execution - non-fatal error
+      }
+      
+      // AUTOMATICALLY FETCH AVAILABLE MODELS ON COMPONENT INITIALIZATION
+      try {
+        console.log('Automatically fetching available models on initialization');
+        await fetchAvailableModels();
+      } catch (modelError) {
+        console.error('Error fetching available models during initialization:', modelError);
         // Continue execution - non-fatal error
       }
       
@@ -1998,7 +2023,16 @@ const SupabaseBedrock = () => {
                           ))
                         ) : (
                           <div className="text-center p-8 text-muted-foreground">
-                            No models available. Click Refresh to load models.
+                            <p className="mb-4">No models available. Click below to load available AWS Bedrock models.</p>
+                            <Button 
+                              onClick={() => fetchAvailableModels(activeFilters)} 
+                              disabled={loadingModels || authStatus !== 'authenticated'}
+                              size="lg"
+                              className="bg-green-600 hover:bg-green-700 text-white font-medium"
+                            >
+                              <RefreshCw className="mr-2 h-5 w-5" />
+                              Load AWS Bedrock Models
+                            </Button>
                           </div>
                         )}
                       </div>
