@@ -947,15 +947,11 @@ const testAwsPermissions = async () => {
 };
 
 /**
- * List available foundation models with optional filters
- * Aligns with AWS Bedrock API operation: ListFoundationModels
- * @param {Object} filters - Optional filters for the models list
- * @param {string} filters.byProvider - Filter by provider (e.g. 'amazon', 'anthropic')
- * @param {string} filters.byOutputModality - Filter by output type (e.g. 'TEXT', 'IMAGE')
- * @param {string} filters.byInferenceType - Filter by inference type (e.g. 'ON_DEMAND', 'PROVISIONED')
- * @returns {Promise<{data: Array, error: string|null}>} Available models or error
+ * List all foundation models from AWS Bedrock.
+ * @param {Object} filters - Optional filters for modelType, supported modalities, etc.
+ * @returns {Promise<{models: Array<Object>}>} - List of foundation models
  */
-const listFoundationModels = async (filters = {}) => {
+export async function listFoundationModels(filters = {}) {
   console.log('[Bedrock] Fetching available foundation models', Object.keys(filters).length > 0 ? `with filters: ${JSON.stringify(filters)}` : 'with no filters');
   
   // Validate filters to ensure they're properly formatted
@@ -1006,225 +1002,33 @@ const listFoundationModels = async (filters = {}) => {
       error: error instanceof Error ? error.message : String(error)
     };
   }
-};
+}
 
 /**
- * Returns a fallback set of models that's always available
- * Used when the API is unavailable or there's an authentication issue
- * @param {Object} filters - Optional filters for the models list
- * @returns {Object} Filtered models object with metadata
+ * List accessible foundation models from AWS Bedrock that support provisioned throughput.
+ * This filters for models that the account has access to and can be provisioned.
+ * @returns {Promise<{models: Array<Object>}>} - List of accessible models supporting provisioned throughput
  */
-const getFallbackModels = (filters = {}) => {
-  console.log('[Bedrock] Generating fallback models with filters:', filters);
-  
-  // Define the fallback model set that's always available
-  const allFallbackModels = [
-    {
-      modelId: "amazon.titan-text-lite-v1",
-      modelName: "Titan Text Lite",
-      providerName: "Amazon",
-      inputModalities: ["TEXT"],
-      outputModalities: ["TEXT"],
-      inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
-      customizationsSupported: [],
-      responseStreamingSupported: true
-    },
-    {
-      modelId: "amazon.titan-text-express-v1",
-      modelName: "Titan Text Express",
-      providerName: "Amazon",
-      inputModalities: ["TEXT"],
-      outputModalities: ["TEXT"],
-      inferenceTypesSupported: ["ON_DEMAND", "PROVISIONED"],
-      customizationsSupported: [],
-      responseStreamingSupported: true
-    },
-    {
-      modelId: "anthropic.claude-instant-v1",
-      modelName: "Claude Instant v1",
-      providerName: "Anthropic",
-      inputModalities: ["TEXT"],
-      outputModalities: ["TEXT"],
-      inferenceTypesSupported: ["ON_DEMAND"],
-      customizationsSupported: [],
-      responseStreamingSupported: true
-    },
-    {
-      modelId: "anthropic.claude-v2",
-      modelName: "Claude v2",
-      providerName: "Anthropic",
-      inputModalities: ["TEXT"],
-      outputModalities: ["TEXT"],
-      inferenceTypesSupported: ["ON_DEMAND"],
-      customizationsSupported: [],
-      responseStreamingSupported: true
-    },
-    {
-      modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
-      modelName: "Claude 3 Sonnet",
-      providerName: "Anthropic",
-      inputModalities: ["TEXT"],
-      outputModalities: ["TEXT"],
-      inferenceTypesSupported: ["ON_DEMAND"],
-      customizationsSupported: [],
-      responseStreamingSupported: true
-    },
-    {
-      modelId: "meta.llama2-13b-chat-v1",
-      modelName: "Llama 2 Chat (13B)",
-      providerName: "Meta",
-      inputModalities: ["TEXT"],
-      outputModalities: ["TEXT"],
-      inferenceTypesSupported: ["ON_DEMAND"],
-      customizationsSupported: [],
-      responseStreamingSupported: false
-    },
-    {
-      modelId: "meta.llama2-70b-chat-v1",
-      modelName: "Llama 2 Chat (70B)",
-      providerName: "Meta",
-      inputModalities: ["TEXT"],
-      outputModalities: ["TEXT"],
-      inferenceTypesSupported: ["ON_DEMAND"],
-      customizationsSupported: [],
-      responseStreamingSupported: false
-    },
-    {
-      modelId: "stability.stable-diffusion-xl-v1",
-      modelName: "Stable Diffusion XL",
-      providerName: "Stability AI",
-      inputModalities: ["TEXT"],
-      outputModalities: ["IMAGE"],
-      inferenceTypesSupported: ["ON_DEMAND"],
-      customizationsSupported: [],
-      responseStreamingSupported: false
-    },
-    {
-      modelId: "cohere.command-text-v14",
-      modelName: "Command Text",
-      providerName: "Cohere",
-      inputModalities: ["TEXT"],
-      outputModalities: ["TEXT"],
-      inferenceTypesSupported: ["ON_DEMAND"],
-      customizationsSupported: [],
-      responseStreamingSupported: true
-    },
-    {
-      modelId: "ai21.j2-mid-v1",
-      modelName: "Jurassic-2 Mid",
-      providerName: "AI21 Labs",
-      inputModalities: ["TEXT"],
-      outputModalities: ["TEXT"],
-      inferenceTypesSupported: ["ON_DEMAND"],
-      customizationsSupported: [],
-      responseStreamingSupported: false
-    }
-  ];
-  
-  // Start with all models
-  let filteredModels = [...allFallbackModels];
-  
-  // Apply filters if specified
-  if (Object.keys(filters).length > 0) {
-    // Filter by provider
-    if (filters.byProvider) {
-      const providerFilter = filters.byProvider.toLowerCase();
-      filteredModels = filteredModels.filter(model => 
-        model.providerName.toLowerCase().includes(providerFilter)
-      );
-    }
-    
-    // Filter by output modality
-    if (filters.byOutputModality) {
-      filteredModels = filteredModels.filter(model => 
-        model.outputModalities.includes(filters.byOutputModality)
-      );
-    }
-    
-    // Filter by input modality
-    if (filters.byInputModality) {
-      filteredModels = filteredModels.filter(model => 
-        model.inputModalities.includes(filters.byInputModality)
-      );
-    }
-    
-    // Filter by inference type
-    if (filters.byInferenceType) {
-      filteredModels = filteredModels.filter(model => 
-        model.inferenceTypesSupported.includes(filters.byInferenceType)
-      );
-    }
-    
-    // Filter by customization type if specified
-    if (filters.byCustomizationType) {
-      filteredModels = filteredModels.filter(model => 
-        model.customizationsSupported && 
-        model.customizationsSupported.includes(filters.byCustomizationType)
-      );
-    }
-    
-    // Filter by streaming support if specified
-    if (filters.byStreamingSupport) {
-      const streamingRequired = filters.byStreamingSupport.toLowerCase() === 'true';
-      filteredModels = filteredModels.filter(model => 
-        model.responseStreamingSupported === streamingRequired
-      );
-    }
-  }
-  
-  // Return the filtered models with metadata
-  return {
-    models: filteredModels,
-    appliedFilters: filters,
-    totalCount: filteredModels.length,
-    note: "Using fallback models while server issues are being fixed",
-    serverStatus: "BOOT_ERROR_FALLBACK",
-    filtering: {
-      appliedFilters: Object.keys(filters).length,
-      originalCount: allFallbackModels.length,
-      filteredCount: filteredModels.length
-    }
-  };
-};
-
-// Add a new method to get accessible models that support provisioned throughput
-async function listAccessibleModels() {
-  console.log('[Bedrock] Fetching accessible foundation models that support provisioned throughput');
+export async function listAccessibleModels() {
+  console.log("[BEDROCK] Calling listAccessibleModels");
+  const endpoint = `${BedrockConfig.edgeFunctionUrl}/ListAccessibleModels`;
   
   try {
-    const response = await callEdgeFunctionDirect({
-      action: 'ListAccessibleModels',
-      data: {}
-    });
+    const result = await callEdgeFunction(
+      BedrockConfig.edgeFunctionName, {
+        action: "ListAccessibleModels"
+      }
+    );
     
-    if (response.error) {
-      console.error('[Bedrock] API error for ListAccessibleModels:', response.error);
-      return { 
-        error: response.error, 
-        models: [] 
-      };
-    }
-    
-    if (!response.data || !response.data.models) {
-      console.error('[Bedrock] Invalid response from ListAccessibleModels');
-      return { 
-        error: 'Invalid response from API',
-        models: [] 
-      };
-    }
-    
-    console.log(`[Bedrock] Found ${response.data.count} accessible models that support provisioned throughput`);
-    return {
-      models: response.data.models,
-      count: response.data.count,
-      timestamp: response.data.timestamp
-    };
+    console.log(`[BEDROCK] Retrieved ${result?.models?.length || 0} accessible models`);
+    return result;
   } catch (error) {
-    console.error('[Bedrock] Error fetching accessible models:', error);
-    return {
-      error: error.message || 'Failed to fetch accessible models',
-      models: []
-    };
+    console.error("[BEDROCK] Error in listAccessibleModels:", error);
+    // Fall back to the regular list models if accessible models fails
+    console.log("[BEDROCK] Falling back to listFoundationModels");
+    return listFoundationModels({
+      inferenceTypesSupported: "PROVISIONED_THROUGHPUT"
+    });
   }
 }
 

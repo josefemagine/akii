@@ -1,0 +1,180 @@
+import React, { useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
+import { Alert, AlertCircle, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Trash2 } from 'lucide-react';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { TestModal } from '@/components/ui/test-modal';
+import { AWSTestConnectionModal } from '@/components/ui/aws-test-connection-modal';
+import { MockDataNotice } from '@/components/ui/mock-data-notice';
+import { AwsCredentialsNotice } from '@/components/ui/aws-credentials-notice';
+import { ServerErrorNotice } from '@/components/ui/server-error-notice';
+import { CombinedApiConfigPanel } from '@/components/ui/combined-api-config-panel';
+
+const SupabaseBedrock = () => {
+  const [customInstanceName, setCustomInstanceName] = useState<string>('');
+
+  return (
+    <ErrorBoundary>
+      <div className="container p-6 space-y-6">
+        <h1 className="text-2xl font-bold">AWS Bedrock Settings</h1>
+        
+        <CombinedApiConfigPanel
+          connectionStatus={connectionStatus}
+          authStatus={authStatus}
+          handleLogin={handleLogin}
+          checkAuthStatus={checkAuthStatus}
+          refreshInstances={refreshInstances}
+          testingConnection={testingConnection}
+          refreshing={refreshing}
+          credentials={{}}
+          clientStatus={{}}
+          testConnection={testConnection}
+          openTestModal={openTestModal}
+        />
+        
+        <MockDataNotice />
+        
+        {client && client.clientStatus?.usingFallback && <AwsCredentialsNotice clientStatus={client.clientStatus} />}
+        
+        {serverErrorDetails && <ServerErrorNotice errorDetails={serverErrorDetails} />}
+        
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        <Tabs defaultValue="instances">
+          <TabsList className="mb-4">
+            <TabsTrigger value="instances">Instances</TabsTrigger>
+            <TabsTrigger value="create">Create Instance</TabsTrigger>
+            {showDiagnostics && (
+              <TabsTrigger value="diagnostics">API Diagnostics</TabsTrigger>
+            )}
+          </TabsList>
+          
+          <TabsContent value="instances">
+            <Card>
+              <CardHeader>
+                <CardTitle>Bedrock Instances</CardTitle>
+                <CardDescription>
+                  Manage your provisioned AWS Bedrock AI models
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {instances.length === 0 ? (
+                  <div className="text-center p-4">
+                    <p className="text-muted-foreground">No instances found. Create a new instance to get started.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2">ID</th>
+                          <th className="text-left p-2">Model</th>
+                          <th className="text-left p-2">Status</th>
+                          <th className="text-left p-2">Units</th>
+                          <th className="text-left p-2">Created</th>
+                          <th className="text-left p-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {instances.map((instance) => (
+                          <tr key={instance.id} className="border-b hover:bg-muted/50">
+                            <td className="p-2">{instance.id}</td>
+                            <td className="p-2">{instance.model_id.split('.').pop()}</td>
+                            <td className="p-2"><StatusBadge status={instance.status} /></td>
+                            <td className="p-2">{instance.model_units}</td>
+                            <td className="p-2">{new Date(instance.created_at).toLocaleString()}</td>
+                            <td className="p-2">
+                              <Button variant="destructive" size="sm" onClick={() => handleDeleteInstance(instance.instance_id)}>
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="create">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create Bedrock Instance</CardTitle>
+                <CardDescription>
+                  Provision a new AWS Bedrock AI model
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid w-full gap-2">
+                  <Label htmlFor="instance-name">Instance Name</Label>
+                  <Input
+                    id="instance-name"
+                    placeholder="Custom instance name (optional)"
+                    value={customInstanceName}
+                    onChange={(e) => setCustomInstanceName(e.target.value)}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Optional: Provide a custom name for this instance or leave blank for auto-generated name
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {showDiagnostics && (
+            <TabsContent value="diagnostics">
+              <Card>
+                <CardHeader>
+                  <CardTitle>API Diagnostics</CardTitle>
+                  <CardDescription>
+                    Technical details about the API environment
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <pre className="bg-muted p-4 rounded-md overflow-auto max-h-96">
+                    {JSON.stringify(envDiagnostics, null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+        </Tabs>
+        
+        <TestModal 
+          isOpen={oldTestModalOpen} 
+          setIsOpen={setOldTestModalOpen} 
+          testData={testData} 
+        />
+        
+        <AWSTestConnectionModal 
+          isOpen={awsTestModalOpen}
+          onClose={() => setAwsTestModalOpen(false)}
+        />
+      </div>
+    </ErrorBoundary>
+  );
+};
+
+const fetchAvailableModels = async (filters: Record<string, string> = {}) => {
+  // ... existing code 
+};
+
+const handleProvisionInstance = async () => {
+  // ... existing code
+  const instanceName = customInstanceName || `akii-${modelId.split('/').pop()}-${new Date().toISOString().split('T')[0]}`;
+  // ... rest of function
+}; 

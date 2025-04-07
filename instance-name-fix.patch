@@ -1,0 +1,35 @@
+For the component state:
+```tsx
+// Add this to the state definitions of SupabaseBedrock component
+const [customInstanceName, setCustomInstanceName] = useState<string>('');
+```
+
+For the fetchAvailableModels function signature:
+```tsx
+// Change this:
+const fetchAvailableModels = async (filters: Partial<ModelFilter> = {}) => {
+
+// To:
+const fetchAvailableModels = async (filters: Record<string, string> = {}) => {
+```
+
+For the handleProvisionInstance function:
+```tsx
+// Use customInstanceName in the handleProvisionInstance function:
+const instanceName = customInstanceName || `akii-${modelId.split('/').pop()}-${new Date().toISOString().split('T')[0]}`;
+```
+
+For the UI components:
+```tsx
+<div>
+  <span className="text-sm font-medium">Instance Name:</span>
+</div>
+<div className="flex gap-2 items-center">
+  <Input
+    placeholder="Custom instance name (optional)"
+    className="h-8 text-sm"
+    value={customInstanceName}
+    onChange={(e) => setCustomInstanceName(e.target.value)}
+  />
+</div>
+``` 
