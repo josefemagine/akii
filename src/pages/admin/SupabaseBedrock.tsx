@@ -128,15 +128,27 @@ type AuthStatus = 'unknown' | 'checking' | 'authenticated' | 'unauthenticated' |
 
 // After imports, add this interface for model data
 interface FoundationModel {
-  modelId: string;
+  // Standard field names we use in the app
+  modelId?: string;
   modelName?: string;
   providerName?: string;
   inputModalities?: string[];
   outputModalities?: string[];
-  inferenceTypes?: string[];
   inferenceTypesSupported?: string[];
   customizationsSupported?: string[];
   responseStreamingSupported?: boolean;
+  
+  // Alternative field names from the API
+  id?: string;
+  name?: string;
+  provider?: string;
+  inputs?: string[];
+  outputs?: string[];
+  inferenceTypes?: string[];
+  customizations?: string[];
+  
+  // Allow any other properties
+  [key: string]: any;
 }
 
 // Map plan to friendly display format
@@ -1485,7 +1497,7 @@ const SupabaseBedrock = () => {
     }
   };
   
-  // Update fetchAvailableModels function to handle API errors better
+  // Update fetchAvailableModels function to handle field name differences
   const fetchAvailableModels = async (filters: Partial<ModelFilter> = {}) => {
     try {
       // Check if authenticated before fetching
@@ -1535,25 +1547,48 @@ const SupabaseBedrock = () => {
 
       // Process data if available, even if there was an error (fallback data)
       if (data && data.models) {
-        const models = data.models || [];
-        console.log(`[MODEL FETCH] Fetched ${models.length} models from AWS Bedrock${data.note ? ` (${data.note})` : ''}`);
+        const rawModels = data.models || [];
+        console.log(`[MODEL FETCH] Fetched ${rawModels.length} models from AWS Bedrock${data.note ? ` (${data.note})` : ''}`);
         
-        if (models.length > 0) {
-          console.log("[MODEL FETCH] First model structure:", JSON.stringify(models[0], null, 2));
-          console.log("[MODEL FETCH] Sample modelId value:", models[0]?.modelId);
+        if (rawModels.length > 0) {
+          console.log("[MODEL FETCH] First model structure:", JSON.stringify(rawModels[0], null, 2));
+          
+          // Check if models use 'id' instead of 'modelId' field
+          const usesIdField = rawModels[0]?.id && !rawModels[0]?.modelId;
+          console.log("[MODEL FETCH] API response uses 'id' field instead of 'modelId':", usesIdField);
         }
 
-        if (models.length === 0) {
+        if (rawModels.length === 0) {
           console.warn("[MODEL FETCH] Received empty models array");
           setAvailableModels([]);
           return;
         }
 
+        // Normalize model objects to match the expected interface
+        const normalizedModels = rawModels.map(model => {
+          // If the model already has the correct fields, just return it
+          if (model.modelId) return model;
+          
+          // Otherwise, map the fields from the API response format to our expected format
+          return {
+            modelId: model.id || '',
+            modelName: model.name || '',
+            providerName: model.provider || '',
+            inputModalities: model.inputModalities || [],
+            outputModalities: model.outputModalities || [],
+            inferenceTypesSupported: model.inferenceTypes || [],
+            customizationsSupported: model.customizationsSupported || [],
+            responseStreamingSupported: model.responseStreamingSupported || false,
+            // Keep original fields too for reference
+            ...model
+          };
+        });
+
         // Validate models have required fields
-        const validModels = models.filter(model => {
+        const validModels = normalizedModels.filter(model => {
           const hasModelId = !!model.modelId;
           if (!hasModelId) {
-            console.error("[MODEL FETCH] Found model without modelId:", model);
+            console.error("[MODEL FETCH] Found model without modelId after normalization:", model);
           }
           return hasModelId;
         });
@@ -1565,7 +1600,8 @@ const SupabaseBedrock = () => {
           return;
         }
 
-        console.log(`[MODEL FETCH] Found ${validModels.length} valid models out of ${models.length} total`);
+        console.log(`[MODEL FETCH] Found ${validModels.length} valid models out of ${rawModels.length} total`);
+        console.log("[MODEL FETCH] Sample normalized model:", validModels[0]);
 
         // Sort models by provider and name for better usability
         const sortedModels = [...validModels].sort((a, b) => {
@@ -2070,56 +2106,57 @@ const SupabaseBedrock = () => {
                             
                             {/* Models list */}
                             {availableModels
-                              .filter(model => model && model.modelId)
+                              .filter(model => model && (model.modelId || model.id))
                               .map((model, index) => (
                                 <div 
-                                  key={model.modelId || `model-${index}`}
+                                  key={model.modelId || model.id || `model-${index}`}
                                   onClick={() => {
-                                    console.log("[SELECTION] Selected model:", model.modelId);
-                                    setSelectedModelId(model.modelId);
+                                    console.log("[SELECTION] Selected model:", model.modelId || model.id);
+                                    setSelectedModelId(model.modelId || model.id);
                                   }}
                                   className={`p-4 border-b last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors ${
-                                    selectedModelId === model.modelId ? 'bg-primary/10 border-l-4 border-l-primary' : ''
+                                    selectedModelId === (model.modelId || model.id) ? 'bg-primary/10 border-l-4 border-l-primary' : ''
                                   }`}
                                 >
                                   <div className="flex items-center justify-between">
                                     <div className="font-medium text-base">
-                                      {model.providerName || model.modelId?.split('.')[0] || 'Unknown'} - {model.modelName || (model.modelId?.split('.')[1] || model.modelId)}
+                                      {model.providerName || model.provider || (model.modelId || model.id)?.split('.')[0] || 'Unknown'} - {model.modelName || model.name || ((model.modelId || model.id)?.split('.')[1] || (model.modelId || model.id))}
                                     </div>
-                                    <Badge variant={selectedModelId === model.modelId ? "default" : "outline"}>
-                                      {selectedModelId === model.modelId ? "Selected" : "Select"}
+                                    <Badge variant={selectedModelId === (model.modelId || model.id) ? "default" : "outline"}>
+                                      {selectedModelId === (model.modelId || model.id) ? "Selected" : "Select"}
                                     </Badge>
                                   </div>
                                   
                                   <div className="mt-2 flex flex-wrap gap-2">
                                     <span className="inline-flex text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded font-mono">
-                                      {model.modelId}
+                                      {model.modelId || model.id}
                                     </span>
                                     
-                                    {model.inferenceTypesSupported?.length > 0 && (
+                                    {(model.inferenceTypesSupported?.length > 0 || model.inferenceTypes?.length > 0) && (
                                       <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-2 py-1 rounded">
-                                        {model.inferenceTypesSupported.join(', ')}
+                                        {(model.inferenceTypesSupported || model.inferenceTypes || []).join(', ')}
                                       </span>
                                     )}
                                     
-                                    {model.customizationsSupported?.includes('FINE_TUNING') && (
+                                    {((model.customizationsSupported || model.customizations || [])?.includes('FINE_TUNING')) && (
                                       <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-2 py-1 rounded">
                                         Fine-tunable
                                       </span>
                                     )}
                                   </div>
                                   
-                                  {(model.inputModalities?.length > 0 || model.outputModalities?.length > 0) && (
+                                  {((model.inputModalities?.length > 0 || model.inputs?.length > 0) || 
+                                     (model.outputModalities?.length > 0 || model.outputs?.length > 0)) && (
                                     <div className="mt-2 text-xs text-muted-foreground">
-                                      {model.inputModalities?.length > 0 && (
+                                      {(model.inputModalities?.length > 0 || model.inputs?.length > 0) && (
                                         <span className="mr-3">
-                                          <span className="font-medium">Input:</span> {model.inputModalities.join(', ')}
+                                          <span className="font-medium">Input:</span> {(model.inputModalities || model.inputs || []).join(', ')}
                                         </span>
                                       )}
                                       
-                                      {model.outputModalities?.length > 0 && (
+                                      {(model.outputModalities?.length > 0 || model.outputs?.length > 0) && (
                                         <span>
-                                          <span className="font-medium">Output:</span> {model.outputModalities.join(', ')}
+                                          <span className="font-medium">Output:</span> {(model.outputModalities || model.outputs || []).join(', ')}
                                         </span>
                                       )}
                                     </div>
@@ -2216,7 +2253,9 @@ const SupabaseBedrock = () => {
                           </div>
                           <div>
                             <span className="text-sm">
-                              {availableModels.find(m => m.modelId === selectedModelId)?.inputModalities?.join(', ') || 'Not specified'}
+                              {availableModels.find(m => (m.modelId || m.id) === selectedModelId)?.inputModalities?.join(', ') || 
+                               availableModels.find(m => (m.modelId || m.id) === selectedModelId)?.inputs?.join(', ') || 
+                               'Not specified'}
                             </span>
                           </div>
                           
@@ -2225,7 +2264,9 @@ const SupabaseBedrock = () => {
                           </div>
                           <div>
                             <span className="text-sm">
-                              {availableModels.find(m => m.modelId === selectedModelId)?.outputModalities?.join(', ') || 'Not specified'}
+                              {availableModels.find(m => (m.modelId || m.id) === selectedModelId)?.outputModalities?.join(', ') || 
+                               availableModels.find(m => (m.modelId || m.id) === selectedModelId)?.outputs?.join(', ') || 
+                               'Not specified'}
                             </span>
                           </div>
                         </>
