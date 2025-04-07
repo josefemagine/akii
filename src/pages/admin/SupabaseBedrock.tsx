@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -742,6 +742,16 @@ const BedrockDashboardContent = ({
   // Toast
   toast
 }) => {
+  console.log("[DEBUG] Rendering BedrockDashboardContent with props:", {
+    loading,
+    refreshing,
+    authStatus,
+    connectionStatus,
+    instances: instances?.length,
+    availableModels: availableModels?.length,
+    selectedModelId,
+    customInstanceName
+  });
   
   // Create a wrapper function for button clicks
   const handleFetchModels = (e: React.MouseEvent) => {
@@ -1290,10 +1300,12 @@ const SupabaseBedrock = () => {
       showFilters={showFilters}
       activeFilters={activeFilters}
       planConfig={planConfig}
-      client={null}
+      client={new BedrockClient()}
+      // User data for auth debugging
       user={user}
       directUser={directUser}
       isAdmin={isAdmin}
+      // Functions
       checkAuthStatus={checkAuthStatus}
       handleLogin={handleLogin}
       refreshInstances={refreshInstances}
@@ -1309,12 +1321,14 @@ const SupabaseBedrock = () => {
       setSelectedPlan={setSelectedPlan}
       testConnection={testConnection}
       openTestModal={openTestModal}
+      // Form state
       customInstanceName={customInstanceName}
       setCustomInstanceName={setCustomInstanceName}
+      // Toast
       toast={toast}
     />
   );
 };
 
-// Export the wrapper component for backward compatibility
+// Export the wrapper component
 export default SupabaseBedrock;

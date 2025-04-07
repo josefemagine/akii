@@ -525,67 +525,44 @@ const handleSpecialErrors = (errorText) => {
  * @returns {Promise<{data: any, error: string|null}>} Function response
  */
 const callEdgeFunction = async ({ action, data = {}, requireAuth }) => {
-  console.log(`[Bedrock] Calling edge function with action: ${action}`, { data });
+  console.log(`[DEBUG] callEdgeFunction called with action: ${action}, data:`, data, `requireAuth: ${requireAuth}`);
   
-  // For non-testing/debugging actions, require authentication by default
-  // This can be overridden with the requireAuth parameter
-  const noAuthActions = ['testEnvironment', 'test'];
-  const needsAuth = requireAuth !== undefined ? requireAuth : !noAuthActions.includes(action);
-  
-  // Number of retries for network issues
-  const maxAttempts = 3;
-  let attempt = 1;
-  let lastError = null;
-  
-  // Remove any useMock parameters from the data
-  if (data && typeof data === 'object' && 'useMock' in data) {
-    delete data.useMock;
-  }
-  
-  // Try multiple times if we get network errors
-  while (attempt <= maxAttempts) {
-    try {
-      console.log(`[Bedrock] Sending request to /api/super-action (attempt ${attempt}/${maxAttempts})`);
-      
-      if (needsAuth) {
-        // Get auth token
-        const token = await getAuthToken();
+  try {
+    // For non-testing/debugging actions, require authentication by default
+    // This can be overridden with the requireAuth parameter
+    const noAuthActions = ['testEnvironment', 'test'];
+    const needsAuth = requireAuth !== undefined ? requireAuth : !noAuthActions.includes(action);
+    
+    // Number of retries for network issues
+    const maxAttempts = 3;
+    let attempt = 1;
+    let lastError = null;
+    
+    // Remove any useMock parameters from the data
+    if (data && typeof data === 'object' && 'useMock' in data) {
+      delete data.useMock;
+    }
+    
+    // Try multiple times if we get network errors
+    while (attempt <= maxAttempts) {
+      try {
+        console.log(`[Bedrock] Sending request to /api/super-action (attempt ${attempt}/${maxAttempts})`);
         
-        if (!token) {
-          console.error('[Bedrock] No valid auth token available');
-          return { data: null, error: 'Authentication required' };
-        }
-        
-        console.log('[Bedrock] Found access_token in session');
-        
-        // Call the edge function with auth
-        const { data: responseData, error } = await callEdgeFunctionDirect(
-          { action, data },
-          { skipAuth: false }
-        );
-        
-        if (error) {
-          console.error(`[Bedrock] API error for ${action}:`, error);
+        if (needsAuth) {
+          // Get auth token
+          const token = await getAuthToken();
           
-          // Check if this is a special error that needs enhanced handling
-          const specialError = handleSpecialErrors(error);
-          if (specialError) {
-            console.log('[Bedrock] Special error detected:', specialError.code);
-            return { data: null, error: specialError };
+          if (!token) {
+            console.error('[Bedrock] No valid auth token available');
+            return { data: null, error: 'Authentication required' };
           }
           
-          return { data: null, error };
-        }
-        
-        console.log(`[Bedrock] Request to ${action} successful`);
-        return { data: responseData, error: null };
-      } else {
-        // For test/environment check endpoints, proceed without auth
-        try {
-          // No auth required, call directly
+          console.log('[Bedrock] Found access_token in session');
+          
+          // Call the edge function with auth
           const { data: responseData, error } = await callEdgeFunctionDirect(
             { action, data },
-            { skipAuth: true }
+            { skipAuth: false }
           );
           
           if (error) {
@@ -594,47 +571,75 @@ const callEdgeFunction = async ({ action, data = {}, requireAuth }) => {
             // Check if this is a special error that needs enhanced handling
             const specialError = handleSpecialErrors(error);
             if (specialError) {
-              console.log('[Bedrock] Special error detected in no-auth call:', specialError.code);
+              console.log('[Bedrock] Special error detected:', specialError.code);
               return { data: null, error: specialError };
             }
             
             return { data: null, error };
           }
           
+          console.log(`[Bedrock] Request to ${action} successful`);
           return { data: responseData, error: null };
-        } catch (err) {
-          console.error(`[Bedrock] Error in test function:`, err);
-          return { data: null, error: err.message || 'Unknown error' };
+        } else {
+          // For test/environment check endpoints, proceed without auth
+          try {
+            // No auth required, call directly
+            const { data: responseData, error } = await callEdgeFunctionDirect(
+              { action, data },
+              { skipAuth: true }
+            );
+            
+            if (error) {
+              console.error(`[Bedrock] API error for ${action}:`, error);
+              
+              // Check if this is a special error that needs enhanced handling
+              const specialError = handleSpecialErrors(error);
+              if (specialError) {
+                console.log('[Bedrock] Special error detected in no-auth call:', specialError.code);
+                return { data: null, error: specialError };
+              }
+              
+              return { data: null, error };
+            }
+            
+            return { data: responseData, error: null };
+          } catch (err) {
+            console.error(`[Bedrock] Error in test function:`, err);
+            return { data: null, error: err.message || 'Unknown error' };
+          }
         }
-      }
-    } catch (error) {
-      lastError = error;
-      
-      // Only retry on network errors
-      if (error.name === 'TypeError' || error.name === 'NetworkError' || error.name === 'AbortError') {
-        console.error(`[Bedrock] Network error on attempt ${attempt}/${maxAttempts}:`, error);
-        attempt++;
+      } catch (error) {
+        lastError = error;
         
-        if (attempt <= maxAttempts) {
-          // Wait before retrying (simple exponential backoff)
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
-          console.log(`[Bedrock] Retrying after ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
+        // Only retry on network errors
+        if (error.name === 'TypeError' || error.name === 'NetworkError' || error.name === 'AbortError') {
+          console.error(`[Bedrock] Network error on attempt ${attempt}/${maxAttempts}:`, error);
+          attempt++;
+          
+          if (attempt <= maxAttempts) {
+            // Wait before retrying (simple exponential backoff)
+            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+            console.log(`[Bedrock] Retrying after ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        } else {
+          // Not a network error, don't retry
+          break;
         }
-      } else {
-        // Not a network error, don't retry
-        break;
       }
     }
+    
+    // If we get here, all attempts failed
+    console.error(`[Bedrock] All ${maxAttempts} attempts failed for ${action}`);
+    return { 
+      data: null, 
+      error: lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error') 
+    };
+  } catch (error) {
+    console.error(`[DEBUG] Error in callEdgeFunction for action ${action}:`, error);
+    throw error;
   }
-  
-  // If we get here, all attempts failed
-  console.error(`[Bedrock] All ${maxAttempts} attempts failed for ${action}`);
-  return { 
-    data: null, 
-    error: lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error') 
-  };
 };
 
 /**
@@ -1010,22 +1015,22 @@ export async function listFoundationModels(filters = {}) {
  * @returns {Promise<{models: Array<Object>}>} - List of accessible models supporting provisioned throughput
  */
 export async function listAccessibleModels() {
-  console.log("[BEDROCK] Calling listAccessibleModels");
+  console.log("[DEBUG] listAccessibleModels called");
   
   try {
     // Use the proper callEdgeFunction format with action property
-    const result = await callEdgeFunction({
+    const response = await callEdgeFunction({
       action: "ListAccessibleModels",
       data: {},
       requireAuth: true
     });
     
-    console.log(`[BEDROCK] Retrieved ${result?.models?.length || 0} accessible models`);
-    return result;
+    const models = response?.models || [];
+    console.log(`[DEBUG] listAccessibleModels got ${models.length} models:`, models);
+    return response;
   } catch (error) {
-    console.error("[BEDROCK] Error in listAccessibleModels:", error);
-    // Fall back to the regular list models if accessible models fails
-    console.log("[BEDROCK] Falling back to listFoundationModels");
+    console.error("[DEBUG] Error in listAccessibleModels:", error);
+    console.log("[DEBUG] Falling back to listFoundationModels");
     return listFoundationModels({
       inferenceTypesSupported: "PROVISIONED_THROUGHPUT"
     });
