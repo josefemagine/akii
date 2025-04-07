@@ -272,7 +272,8 @@ async function callEdgeFunctionDirect(payload, options = {}) {
     'Accept': 'application/json',
     'Connection': 'keep-alive',
     'X-Client-Info': navigator.userAgent || 'Unknown Client',
-    'Origin': window.location.origin
+    'Origin': window.location.origin,
+    'Referer': window.location.origin
   };
   
   // Get auth token if we need it and it's not already provided
@@ -302,13 +303,13 @@ async function callEdgeFunctionDirect(payload, options = {}) {
     console.log('[API] Request headers:', headers);
     console.log('[API] Using credentials mode:', useCredentialsOmit ? 'omit' : 'include');
     
-    // Make the request with fetch
+    // Make the request with fetch - ensure we're consistent with the credentials mode
     const response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(finalPayload),
       signal: controller.signal,
-      credentials: useCredentialsOmit ? 'omit' : 'include', // Choose credentials mode based on option
+      credentials: 'include', // Always use 'include' to support CORS with credentials
       mode: 'cors' // Explicitly request CORS mode
     });
     
@@ -361,8 +362,11 @@ async function callEdgeFunctionDirect(payload, options = {}) {
     }
     
     // Handle CORS errors specifically
-    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-      console.error('[API] Possible CORS error or network failure:', error);
+    if (error instanceof TypeError && 
+        (error.message.includes('Failed to fetch') || 
+         error.message.includes('NetworkError') ||
+         error.message.includes('Network request failed'))) {
+      console.error('[API] CORS error or network failure:', error);
       
       // Add detailed debugging information
       const corsInfo = {
@@ -375,18 +379,8 @@ async function callEdgeFunctionDirect(payload, options = {}) {
       
       console.log('[API] CORS debug info:', corsInfo);
       
-      // Retry with a different credentials mode if this is the first attempt
-      if (retryCount === 0) {
-        console.log('[API] Retrying with credentials: omit to see if CORS issue resolves');
-        return callEdgeFunctionDirect(payload, {
-          ...options,
-          retryCount: retryCount + 1,
-          useCredentialsOmit: true
-        });
-      }
-      
       return { 
-        error: 'Network or CORS error: Could not connect to API. This may be due to cross-origin restrictions.',
+        error: 'Network or CORS error: Could not connect to API. The server might not be allowing cross-origin requests from this domain.',
         corsInfo,
         originalError: error.message
       };

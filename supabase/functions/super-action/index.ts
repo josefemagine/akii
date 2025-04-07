@@ -9,13 +9,22 @@ import {
   DeleteProvisionedModelThroughputCommand
 } from "npm:@aws-sdk/client-bedrock";
 
+// Define valid origins list at the top level
+const VALID_ORIGINS = [
+  "https://www.akii.com",
+  "https://akii.com",
+  "http://localhost:3000",
+  "http://localhost:5173"
+];
+
 // CORS headers
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*", // Will be replaced dynamically based on request origin
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info, apikey, X-Client-Info",
   "Access-Control-Allow-Credentials": "true",
-  "Content-Type": "application/json"
+  "Content-Type": "application/json",
+  "Vary": "Origin"
 };
 
 // Define interface for request data to fix property access errors
@@ -145,46 +154,6 @@ async function runAwsPermissionsTest() {
   }
 }
 
-// Set CORS headers function
-function setCorsHeaders(req: Request, response: Response): Response {
-  const origin = req.headers.get("origin");
-  // Add all production domains including www.akii.com 
-  const validOrigins = [
-    "https://www.akii.com",
-    "https://akii.com",
-    "http://localhost:3000",
-    "http://localhost:5173"
-  ];
-  
-  // Use the requested origin if it's in our allowed list, otherwise use the first one
-  const corsOrigin = validOrigins.includes(origin || "") ? origin! : validOrigins[0];
-  
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": corsOrigin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Max-Age": "86400",
-    "Vary": "Origin"
-  };
-  
-  // Convert response headers to a plain object
-  const existingHeaders: Record<string, string> = {};
-  response.headers.forEach((value, key) => {
-    existingHeaders[key] = value;
-  });
-  
-  // Create a new response with the combined headers
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: {
-      ...existingHeaders,
-      ...corsHeaders
-    }
-  });
-}
-
 // Function to convert the modelId to a model ARN if needed
 function getModelArn(modelId: string, region: string): string {
   // If the modelId is already an ARN, return it as is
@@ -211,22 +180,14 @@ function getCommitmentDuration(duration: string): string {
 
 // Main serve function
 serve(async (req) => {
-  // Handle preflight request
+  // Get the origin from the request for CORS handling
+  const origin = req.headers.get("origin");
+  // Use the requested origin if it's in our allowed list, otherwise use the first one
+  const corsOrigin = VALID_ORIGINS.includes(origin || "") ? origin! : VALID_ORIGINS[0];
+  
+  // Handle preflight request with improved CORS headers
   if (req.method === "OPTIONS") {
-    console.log("Handling OPTIONS preflight request");
-    
-    // Get the origin from the request
-    const origin = req.headers.get("origin");
-    // Add all production domains including www.akii.com 
-    const validOrigins = [
-      "https://www.akii.com",
-      "https://akii.com",
-      "http://localhost:3000",
-      "http://localhost:5173"
-    ];
-    
-    // Use the requested origin if it's in our allowed list, otherwise use the first one
-    const corsOrigin = validOrigins.includes(origin || "") ? origin! : validOrigins[0];
+    console.log("Handling OPTIONS preflight request from origin:", origin);
     
     return new Response(null, { 
       status: 204,
@@ -235,14 +196,14 @@ serve(async (req) => {
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
         "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Max-Age": "86400"
+        "Access-Control-Max-Age": "86400",
+        "Vary": "Origin"
       }
     });
   }
 
   try {
     // Log request origin and details for debugging
-    const origin = req.headers.get("origin");
     console.log(`Request from Origin: ${origin}, Method: ${req.method}, URL: ${req.url}`);
     console.log("Request headers:", Object.fromEntries([...req.headers.entries()]));
 
@@ -289,11 +250,22 @@ serve(async (req) => {
       }
     } catch (parseError) {
       console.error("Error parsing request data:", parseError);
-      const errorResponse = JSON.stringify({
-        error: `Invalid request data: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
-        timestamp: new Date().toISOString()
-      });
-      return setCorsHeaders(req, new Response(errorResponse, { status: 400 }));
+      const errorResponse = new Response(
+        JSON.stringify({
+          error: `Invalid request data: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+          timestamp: new Date().toISOString()
+        }), 
+        { 
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": corsOrigin,
+            "Access-Control-Allow-Credentials": "true",
+            "Vary": "Origin"
+          }
+        }
+      );
+      return errorResponse;
     }
     
     const { action, data } = requestData;
@@ -493,7 +465,15 @@ serve(async (req) => {
           error: "modelId is required for creating provisioned model throughput",
           timestamp: new Date().toISOString()
         });
-        return setCorsHeaders(req, new Response(errorResponse, { status: 400 }));
+        return new Response(errorResponse, { 
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": corsOrigin,
+            "Access-Control-Allow-Credentials": "true",
+            "Vary": "Origin"
+          }
+        });
       }
       
       try {
@@ -555,7 +535,15 @@ serve(async (req) => {
           
           // Return a proper error response
           const errorResponse = JSON.stringify(result);
-          return setCorsHeaders(req, new Response(errorResponse, { status: 500 }));
+          return new Response(errorResponse, { 
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": corsOrigin,
+              "Access-Control-Allow-Credentials": "true",
+              "Vary": "Origin"
+            }
+          });
         }
       } catch (error) {
         console.error("Error creating provisioned model throughput:", error);
@@ -563,28 +551,59 @@ serve(async (req) => {
           error: `Failed to create provisioned model: ${error instanceof Error ? error.message : String(error)}`,
           timestamp: new Date().toISOString()
         });
-        return setCorsHeaders(req, new Response(errorResponse, { status: 500 }));
+        return new Response(errorResponse, { 
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": corsOrigin,
+            "Access-Control-Allow-Credentials": "true",
+            "Vary": "Origin"
+          }
+        });
       }
     } else {
       console.log(`Unsupported action: ${action}`);
-      return setCorsHeaders(req, new Response(
+      return new Response(
         JSON.stringify({ error: "Unsupported action", action }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      ));
+        { 
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": corsOrigin,
+            "Access-Control-Allow-Credentials": "true",
+            "Vary": "Origin"
+          }
+        }
+      );
     }
 
     // Return the result with CORS headers
     const responseBody = JSON.stringify(result || { error: "No action matched" });
-    return setCorsHeaders(req, new Response(responseBody, { 
+    return new Response(responseBody, { 
       status: 200,
-      headers: { "Content-Type": "application/json" }
-    }));
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": corsOrigin,
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin"
+      }
+    });
   } catch (error) {
     console.error("Unhandled server error:", error);
-    const errorResponse = JSON.stringify({
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`,
-      timestamp: new Date().toISOString()
-    });
-    return setCorsHeaders(req, new Response(errorResponse, { status: 500 }));
+    return new Response(
+      JSON.stringify({
+        error: `Server error: ${error instanceof Error ? error.message : String(error)}`,
+        timestamp: new Date().toISOString()
+      }),
+      { 
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": corsOrigin,
+          "Access-Control-Allow-Credentials": "true",
+          "Vary": "Origin"
+        }
+      }
+    );
   }
 });
