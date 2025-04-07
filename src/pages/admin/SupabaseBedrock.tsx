@@ -23,6 +23,7 @@ import { useUser } from '@/contexts/UserContext';
 import { initBedrockClientWithSupabaseCredentials } from '@/lib/supabase-aws-credentials';
 import { CheckCircle2 } from 'lucide-react';
 import { useDirectAuth } from '@/contexts/direct-auth-context';
+import AWSTestConnectionModal from "@/components/aws/AWSTestConnectionModal";
 
 // Error boundary component to catch React errors
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
@@ -509,7 +510,8 @@ const CombinedApiConfigPanel = ({
   refreshing,
   credentials,
   clientStatus,
-  testConnection
+  testConnection,
+  openTestModal
 }) => {
   return (
     <Card className="mb-6">
@@ -602,28 +604,11 @@ const CombinedApiConfigPanel = ({
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={testConnection}
+              onClick={openTestModal}
               disabled={testingConnection}
             >
-              {testingConnection ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <TestTube className="mr-2 h-4 w-4" />
-              )}
+              <TestTube className="mr-2 h-4 w-4" />
               Test AWS Connection
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => checkAuthStatus()}
-              disabled={authStatus === 'checking'}
-            >
-              {authStatus === 'checking' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Check Auth Status
             </Button>
           </div>
           <div className="flex gap-2 justify-end">
@@ -733,7 +718,8 @@ const BedrockDashboardContent = ({
   setActiveFilters,
   setSelectedModelId,
   setSelectedPlan,
-  testConnection
+  testConnection,
+  openTestModal
 }) => {
   
   // Create a wrapper function for button clicks
@@ -809,31 +795,22 @@ const BedrockDashboardContent = ({
   }
   
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Bedrock AI Instances</h1>
-        
-        <div className="flex items-center gap-2">
-          <ConnectionStatusBadge status={connectionStatus} />
-          <AuthStatusBadge status={authStatus} />
-          <Button variant="outline" size="sm" onClick={checkAuthStatus} disabled={authStatus === 'checking'}>
-            {authStatus === 'checking' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            <span className="sr-only">Refresh Auth</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={refreshInstances} disabled={refreshing}>
-            {refreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            <span className="sr-only">Refresh</span>
-          </Button>
-        </div>
-      </div>
+    <div className="container p-6 space-y-6">
+      <h1 className="text-2xl font-bold">AWS Bedrock Settings</h1>
+      
+      <CombinedApiConfigPanel
+        connectionStatus={connectionStatus}
+        authStatus={authStatus}
+        handleLogin={handleLogin}
+        checkAuthStatus={checkAuthStatus}
+        refreshInstances={refreshInstances}
+        testingConnection={testingConnection}
+        refreshing={refreshing}
+        credentials={{}} // Provide empty object if needed
+        clientStatus={{}} // Provide empty object if needed
+        testConnection={testConnection}
+        openTestModal={openTestModal}
+      />
       
       <MockDataNotice />
       
@@ -1089,29 +1066,15 @@ const BedrockDashboardContent = ({
         )}
       </Tabs>
       
-      <CombinedApiConfigPanel
-        connectionStatus={connectionStatus}
-        authStatus={authStatus}
-        handleLogin={handleLogin}
-        checkAuthStatus={checkAuthStatus}
-        refreshInstances={refreshInstances}
-        testingConnection={testingConnection}
-        refreshing={refreshing}
-        credentials={client?.clientStatus?.credentials || null}
-        clientStatus={client?.clientStatus || {
-          success: false,
-          usingFallback: true,
-          message: 'Not initialized',
-          credentials: null
-        }}
-        testConnection={testConnection}
-      />
-      
-      {/* Add the test modal */}
       <TestModal 
         isOpen={testModalOpen} 
         setIsOpen={setTestModalOpen} 
         testData={testData} 
+      />
+      
+      <AWSTestConnectionModal 
+        isOpen={testModalOpen}
+        onClose={() => setTestModalOpen(false)}
       />
     </div>
   );
@@ -1750,45 +1713,64 @@ const SupabaseBedrock = () => {
 
   return (
     <ErrorBoundary>
-      <BedrockDashboardContent
-        loading={loading}
-        refreshing={refreshing}
-        authStatus={authStatus}
-        error={error}
-        connectionStatus={connectionStatus}
-        instances={instances}
-        testModalOpen={testModalOpen}
-        testData={testData}
-        setTestModalOpen={setTestModalOpen}
-        showDiagnostics={showDiagnostics}
-        envDiagnostics={envDiagnostics}
-        testingConnection={testingConnection}
-        submitting={submitting}
-        selectedPlan={selectedPlan}
-        selectedModelId={selectedModelId}
-        availableModels={availableModels}
-        loadingModels={loadingModels}
-        showFilters={showFilters}
-        activeFilters={activeFilters}
-        planConfig={planConfig}
-        client={client}
-        user={user}
-        directUser={directUser}
-        isAdmin={isAdmin}
-        checkAuthStatus={checkAuthStatus}
-        handleLogin={handleLogin}
-        refreshInstances={refreshInstances}
-        fetchEnvironmentDiagnostics={fetchEnvironmentDiagnostics}
-        fetchDetailedTestData={fetchDetailedTestData}
-        fetchAvailableModels={fetchAvailableModels}
-        handleProvisionInstance={handleProvisionInstance}
-        handleDeleteInstance={handleDeleteInstance}
-        setShowFilters={setShowFilters}
-        setActiveFilters={setActiveFilters}
-        setSelectedModelId={setSelectedModelId}
-        setSelectedPlan={setSelectedPlan}
-        testConnection={testConnection}
-      />
+      <div className="container p-6 space-y-6">
+        <h1 className="text-2xl font-bold">AWS Bedrock Settings</h1>
+        
+        <CombinedApiConfigPanel
+          connectionStatus={connectionStatus}
+          authStatus={authStatus}
+          handleLogin={handleLogin}
+          checkAuthStatus={checkAuthStatus}
+          refreshInstances={refreshInstances}
+          testingConnection={testingConnection}
+          refreshing={refreshing}
+          credentials={{}} // Provide empty object if needed
+          clientStatus={{}} // Provide empty object if needed
+          testConnection={testConnection}
+          openTestModal={openTestModal}
+        />
+        
+        <BedrockDashboardContent
+          loading={loading}
+          refreshing={refreshing}
+          authStatus={authStatus}
+          error={error}
+          connectionStatus={connectionStatus}
+          instances={instances}
+          testModalOpen={testModalOpen}
+          testData={testData}
+          setTestModalOpen={setTestModalOpen}
+          showDiagnostics={showDiagnostics}
+          envDiagnostics={envDiagnostics}
+          testingConnection={testingConnection}
+          submitting={submitting}
+          selectedPlan={selectedPlan}
+          selectedModelId={selectedModelId}
+          availableModels={availableModels}
+          loadingModels={loadingModels}
+          showFilters={showFilters}
+          activeFilters={activeFilters}
+          planConfig={planConfig}
+          client={client}
+          user={user}
+          directUser={directUser}
+          isAdmin={isAdmin}
+          checkAuthStatus={checkAuthStatus}
+          handleLogin={handleLogin}
+          refreshInstances={refreshInstances}
+          fetchEnvironmentDiagnostics={fetchEnvironmentDiagnostics}
+          fetchDetailedTestData={fetchDetailedTestData}
+          fetchAvailableModels={fetchAvailableModels}
+          handleProvisionInstance={handleProvisionInstance}
+          handleDeleteInstance={handleDeleteInstance}
+          setShowFilters={setShowFilters}
+          setActiveFilters={setActiveFilters}
+          setSelectedModelId={setSelectedModelId}
+          setSelectedPlan={setSelectedPlan}
+          testConnection={testConnection}
+          openTestModal={() => setTestModalOpen(true)}
+        />
+      </div>
     </ErrorBoundary>
   );
 };
