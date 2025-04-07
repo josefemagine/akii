@@ -369,6 +369,11 @@ async function extractUserIdFromJwt(req: Request): Promise<string | null> {
 
 // Main serve function
 serve(async (req) => {
+  console.log("Edge Function running. Supabase Edge Function Diagnostic Start");
+  console.log(`Request URL: ${req.url}`);
+  console.log(`Request method: ${req.method}`);
+  console.log(`Request headers: ${[...req.headers.entries()].map(([key, value]) => `${key}: ${value}`).join(', ')}`);
+
   const origin = req.headers.get("origin");
   console.log(`Received request from origin: ${origin}`);
   

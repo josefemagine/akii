@@ -1300,7 +1300,7 @@ const SupabaseBedrock = () => {
       showFilters={showFilters}
       activeFilters={activeFilters}
       planConfig={planConfig}
-      client={new BedrockClient()}
+      client={BedrockClient}
       // User data for auth debugging
       user={user}
       directUser={directUser}
