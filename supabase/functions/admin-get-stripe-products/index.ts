@@ -10,6 +10,18 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
   apiVersion: '2023-10-16',
 });
 
+// Initialize Supabase client
+const supabaseAdmin = createClient(
+  Deno.env.get('SUPABASE_URL') || '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  }
+);
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -20,18 +32,6 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase client
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') || '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
-
     // Get authentication context
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -51,34 +51,53 @@ serve(async (req) => {
       });
     }
 
-    // Fetch the user's stripe customer ID
+    // Check if user is an admin
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('stripe_customer_id')
+      .select('is_admin')
       .eq('id', user.id)
       .single();
 
-    if (profileError || !profile?.stripe_customer_id) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'No Stripe customer found for this user',
-          details: profileError || 'Missing stripe_customer_id'
-        }), 
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+    if (profileError || !profile?.is_admin) {
+      return new Response(JSON.stringify({ error: 'Admin privileges required' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    // Create the billing portal session
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: profile.stripe_customer_id,
-      return_url: `${Deno.env.get('CLIENT_URL')}/dashboard/subscription`,
+    // Get all products from Stripe
+    const productsResponse = await stripe.products.list({
+      active: true,
+      limit: 100,
+    });
+
+    // Get all prices from Stripe
+    const pricesResponse = await stripe.prices.list({
+      active: true,
+      limit: 100,
+    });
+
+    // Map prices to their respective products
+    const productsWithPrices = productsResponse.data.map(product => {
+      const productPrices = pricesResponse.data.filter(price => price.product === product.id);
+      
+      return {
+        ...product,
+        prices: productPrices.map(price => ({
+          id: price.id,
+          currency: price.currency,
+          unit_amount: price.unit_amount,
+          recurring: price.recurring,
+          metadata: price.metadata,
+        })),
+      };
     });
 
     return new Response(
-      JSON.stringify({ url: portalSession.url }),
+      JSON.stringify({
+        success: true,
+        products: productsWithPrices,
+      }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -86,7 +105,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error creating portal session:', error);
+    console.error('Error fetching Stripe products:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {

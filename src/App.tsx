@@ -91,6 +91,7 @@ const PrivateAIAPI = lazy(() => import("./pages/products/PrivateAIAPI"));
 const ZapierIntegration = lazy(() => import("./pages/products/ZapierIntegration"));
 const N8nIntegration = lazy(() => import("./pages/products/N8nIntegration"));
 const AdminSupabaseBedrock = lazy(() => import("./pages/admin/SupabaseBedrock"));
+import ManagePlans from "./pages/admin/ManagePlans";
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -285,6 +286,7 @@ export default function App() {
                     <Route path="workflows" element={<Workflows />} />
                     <Route path="user-detail/:userId" element={<UserDetailPage />} />
                     <Route path="manage-instances" element={<ManageInstances />} />
+                    <Route path="plans" element={<ManagePlans />} />
                   </Route>
                   
                   {/* Fallback route */}

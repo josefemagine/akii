@@ -1,37 +1,6 @@
-import serve from "https://deno.land/std@0.168.0/http/server.ts";
-import createClient from "https://esm.sh/@supabase/supabase-js@2.1.0";
-import Stripe from "https://esm.sh/stripe@12.0.0?dts";
-
-// Import CORS headers helper
-import { corsHeaders } from "../_shared/cors.ts";
-
-// Initialize Stripe
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-  apiVersion: '2023-10-16',
-});
-
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders,
-    });
-  }
-
+// Handler for creating billing portal sessions
+export async function handleCreatePortal(req: Request, { stripe, supabaseAdmin, corsHeaders }: any) {
   try {
-    // Create Supabase client
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') || '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
-
     // Get authentication context
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -51,7 +20,7 @@ serve(async (req) => {
       });
     }
 
-    // Fetch the user's stripe customer ID
+    // Get user's Stripe customer ID
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('stripe_customer_id')
@@ -61,8 +30,8 @@ serve(async (req) => {
     if (profileError || !profile?.stripe_customer_id) {
       return new Response(
         JSON.stringify({ 
-          error: 'No Stripe customer found for this user',
-          details: profileError || 'Missing stripe_customer_id'
+          error: 'No Stripe customer ID found for this user',
+          details: profileError || 'Missing customer data'
         }), 
         {
           status: 400,
@@ -71,20 +40,19 @@ serve(async (req) => {
       );
     }
 
-    // Create the billing portal session
-    const portalSession = await stripe.billingPortal.sessions.create({
+    // Create billing portal session
+    const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       return_url: `${Deno.env.get('CLIENT_URL')}/dashboard/subscription`,
     });
 
     return new Response(
-      JSON.stringify({ url: portalSession.url }),
+      JSON.stringify({ url: session.url }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
-
   } catch (error) {
     console.error('Error creating portal session:', error);
     return new Response(
@@ -95,4 +63,4 @@ serve(async (req) => {
       }
     );
   }
-}); 
+} 

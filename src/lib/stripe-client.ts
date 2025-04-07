@@ -16,8 +16,8 @@ export const stripeClient = {
    */
   async createCheckoutSession(planId: string, isBillingAnnual: boolean) {
     try {
-      // Call the create-checkout function
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
+      // Call the create-checkout endpoint
+      const { data, error } = await supabase.functions.invoke('stripe-api/create-checkout', {
         body: {
           planId,
           billingCycle: isBillingAnnual ? 'annual' : 'monthly',
@@ -40,7 +40,7 @@ export const stripeClient = {
    */
   async createPortalSession() {
     try {
-      const { data, error } = await supabase.functions.invoke('create-portal', {
+      const { data, error } = await supabase.functions.invoke('stripe-api/create-portal', {
         body: {},
       });
 
@@ -62,7 +62,7 @@ export const stripeClient = {
    */
   async updateSubscription(planId: string, isBillingAnnual: boolean) {
     try {
-      const { data, error } = await supabase.functions.invoke('update-subscription', {
+      const { data, error } = await supabase.functions.invoke('stripe-api/update-subscription', {
         body: {
           planId,
           billingCycle: isBillingAnnual ? 'annual' : 'monthly',
@@ -84,7 +84,7 @@ export const stripeClient = {
    */
   async cancelSubscription(atPeriodEnd = true) {
     try {
-      const { data, error } = await supabase.functions.invoke('cancel-subscription', {
+      const { data, error } = await supabase.functions.invoke('stripe-api/cancel-subscription', {
         body: {
           atPeriodEnd,
         },
@@ -174,6 +174,38 @@ export const stripeClient = {
       return data;
     } catch (error) {
       console.error('Error fetching invoice:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get current subscription details
+   * @returns Subscription details with plan information
+   */
+  async getCurrentSubscription() {
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select(`
+          *,
+          plan:plan_id (
+            id,
+            name,
+            description,
+            price_monthly,
+            price_yearly,
+            message_limit,
+            agent_limit,
+            features
+          )
+        `)
+        .eq('status', 'active')
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned"
+      return data;
+    } catch (error) {
+      console.error('Error fetching current subscription:', error);
       throw error;
     }
   }
