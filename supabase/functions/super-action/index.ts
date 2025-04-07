@@ -216,22 +216,25 @@ serve(async (req) => {
       
       // Return comprehensive test results
       result = {
-        timestamp: new Date().toISOString(),
-        credentials: {
-          success: credentialsResult.success,
-          message: credentialsResult.message,
-          region: region,
-          hasAccessKey: !!accessKeyId,
-          hasSecretAccessKey: !!secretAccessKey
-        },
-        permissions: permissionsResult,
-        diagnostics: {
-          environment: {
-            runtime: "Deno Edge Function",
-            region: Deno.env.get("REGION") || "unknown",
-            function_name: "super-action"
+        test_results: {
+          timestamp: new Date().toISOString(),
+          credentials: {
+            success: credentialsResult.success,
+            message: credentialsResult.message,
+            region: region,
+            hasAccessKey: !!accessKeyId,
+            hasSecretAccessKey: !!secretAccessKey
+          },
+          permissions: permissionsResult.permissions || {},
+          diagnostics: {
+            environment: {
+              runtime: "Deno Edge Function",
+              region: Deno.env.get("REGION") || "unknown",
+              function_name: "super-action"
+            }
           }
-        }
+        },
+        success: true
       };
     } else if (action === "ListProvisionedModelThroughputs") {
       console.log("Fetching provisioned model throughputs");
