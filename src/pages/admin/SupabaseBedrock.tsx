@@ -1012,6 +1012,7 @@ const BedrockDashboardContent = ({
                       ) : (
                         <div className="text-center p-8 text-muted-foreground">
                           <p className="mb-4">No models available. Click below to load available AWS Bedrock models.</p>
+                          <p className="mb-4 text-xs">Internal state: {availableModels.length} models, Loading: {loadingModels ? 'true' : 'false'}</p>
                           <Button 
                             onClick={() => fetchAvailableModels(activeFilters)} 
                             disabled={loadingModels || authStatus !== 'authenticated'}
@@ -1138,6 +1139,20 @@ const BedrockDashboardContent = ({
       />
     </div>
   );
+};
+
+// Add this debugging component before the SupabaseBedrock component
+const RenderDebug = ({ models, selectedId, loading }: { models: any[], selectedId: string, loading: boolean }) => {
+  React.useEffect(() => {
+    console.log("[RENDER DEBUG] Models when rendering:", { 
+      count: models?.length, 
+      selectedModelId: selectedId,
+      firstModelId: models?.[0]?.modelId,
+      loadingState: loading 
+    });
+  }, [models, selectedId, loading]);
+  
+  return null;
 };
 
 // Main component with simplified render method
@@ -1484,17 +1499,21 @@ const SupabaseBedrock = () => {
         return;
       }
 
-      console.log("Starting fetchAvailableModels with filters:", filters);
+      console.log("[MODEL FETCH] Starting fetchAvailableModels with filters:", filters);
       setLoadingModels(true);
       setError(null); // Clear the main error
       
       // Call the API to fetch models with any active filters
       const { data, error } = await BedrockClient.listFoundationModels(filters);
-      console.log("API response:", { data, error });
+      console.log("[MODEL FETCH] API response received:", { 
+        hasData: !!data, 
+        hasError: !!error,
+        dataLength: data?.models?.length
+      });
 
       // Handle error but still process data if available (for fallbacks)
       if (error) {
-        console.error("Error fetching foundation models:", error);
+        console.error("[MODEL FETCH] Error fetching foundation models:", error);
         setError(error); // Set the main error state
         
         // Only show toast for real errors, not for fallbacks
@@ -1517,11 +1536,39 @@ const SupabaseBedrock = () => {
       // Process data if available, even if there was an error (fallback data)
       if (data && data.models) {
         const models = data.models || [];
-        console.log(`Fetched ${models.length} models from AWS Bedrock${data.note ? ` (${data.note})` : ''}`);
-        console.log("First few models:", models.slice(0, 3));
+        console.log(`[MODEL FETCH] Fetched ${models.length} models from AWS Bedrock${data.note ? ` (${data.note})` : ''}`);
+        
+        if (models.length > 0) {
+          console.log("[MODEL FETCH] First model structure:", JSON.stringify(models[0], null, 2));
+          console.log("[MODEL FETCH] Sample modelId value:", models[0]?.modelId);
+        }
+
+        if (models.length === 0) {
+          console.warn("[MODEL FETCH] Received empty models array");
+          setAvailableModels([]);
+          return;
+        }
+
+        // Validate models have required fields
+        const validModels = models.filter(model => {
+          const hasModelId = !!model.modelId;
+          if (!hasModelId) {
+            console.error("[MODEL FETCH] Found model without modelId:", model);
+          }
+          return hasModelId;
+        });
+
+        if (validModels.length === 0) {
+          console.error("[MODEL FETCH] No valid models with modelId found!");
+          setError("The API returned models, but none had a valid model ID");
+          setAvailableModels([]);
+          return;
+        }
+
+        console.log(`[MODEL FETCH] Found ${validModels.length} valid models out of ${models.length} total`);
 
         // Sort models by provider and name for better usability
-        const sortedModels = [...models].sort((a, b) => {
+        const sortedModels = [...validModels].sort((a, b) => {
           // Sort by provider first
           const providerA = a.providerName || '';
           const providerB = b.providerName || '';
@@ -1533,17 +1580,36 @@ const SupabaseBedrock = () => {
           return (a.modelName || a.modelId || '').localeCompare(b.modelName || b.modelId || '');
         });
 
+        console.log("[MODEL FETCH] Setting available models array with length:", sortedModels.length);
+        
+        // Set state with the sorted models
         setAvailableModels(sortedModels);
+        
+        // Only set selected model if none is already selected
         if (sortedModels.length > 0 && !selectedModelId) {
-          console.log("Setting initial selected model:", sortedModels[0].modelId);
-          setSelectedModelId(sortedModels[0].modelId);
+          const firstModelId = sortedModels[0]?.modelId;
+          console.log("[MODEL FETCH] Setting initial selected model:", firstModelId);
+          
+          if (firstModelId) {
+            // Use a timeout to ensure this happens in a new render cycle
+            setTimeout(() => {
+              console.log("[MODEL FETCH] Actually setting selected model ID:", firstModelId);
+              setSelectedModelId(firstModelId);
+            }, 0);
+          } else {
+            console.error("[MODEL FETCH] First model has no modelId! Full model:", sortedModels[0]);
+          }
+        } else {
+          console.log("[MODEL FETCH] Not setting initial model: already selected or no models", 
+            { hasSelectedModel: !!selectedModelId, modelsLength: sortedModels.length }
+          );
         }
       } else {
-        console.warn("No models returned from API");
+        console.warn("[MODEL FETCH] No models returned from API");
         setAvailableModels([]);
       }
     } catch (err) {
-      console.error("Error in fetchAvailableModels:", err);
+      console.error("[MODEL FETCH] Error in fetchAvailableModels:", err);
       setError(err instanceof Error ? err.message : String(err));
       setAvailableModels([]);
       
@@ -1553,6 +1619,7 @@ const SupabaseBedrock = () => {
         variant: "destructive"
       });
     } finally {
+      console.log("[MODEL FETCH] Finished loading models");
       setLoadingModels(false);
     }
   };
@@ -1633,6 +1700,18 @@ const SupabaseBedrock = () => {
     const initializeComponent = async () => {
       try {
         await initialize();
+        
+        // Force immediate model fetch after initialization
+        if (isMounted) {
+          console.log("[POST-INIT] Initialization complete, forcing model fetch");
+          // Small delay to ensure auth state is fully propagated
+          setTimeout(() => {
+            if (isMounted) {
+              console.log("[POST-INIT] Executing delayed model fetch");
+              fetchAvailableModels({});
+            }
+          }, 500);
+        }
       } catch (error) {
         console.error('Error during initialization:', error);
         if (isMounted) {
@@ -1798,6 +1877,15 @@ const SupabaseBedrock = () => {
 
   // Add this line to define serverErrorDetails
   const serverErrorDetails = envDiagnostics?.error || null;
+
+  // Make this debug logging more visible
+  useEffect(() => {
+    console.log("[MODELS DEBUG] Current models state:", {
+      availableModels: availableModels.length,
+      selectedModelId,
+      loadingModels
+    });
+  }, [availableModels, selectedModelId, loadingModels]);
 
   return (
     <ErrorBoundary>
@@ -1967,72 +2055,131 @@ const SupabaseBedrock = () => {
                     </div>
                   ) : (
                     <div className="border rounded-md overflow-hidden">
+                      <RenderDebug 
+                        models={availableModels} 
+                        selectedId={selectedModelId} 
+                        loading={loadingModels} 
+                      />
                       <div className="max-h-[350px] overflow-y-auto">
-                        {availableModels.length > 0 ? (
-                          availableModels.filter(model => model && model.modelId).map((model) => (
-                            <div 
-                              key={model.modelId}
-                              onClick={() => setSelectedModelId(model.modelId)}
-                              className={`p-4 border-b last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors ${
-                                selectedModelId === model.modelId ? 'bg-primary/10 border-l-4 border-l-primary' : ''
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="font-medium text-base">
-                                  {model.providerName || model.modelId?.split('.')[0] || 'Unknown'} - {model.modelName || (model.modelId?.split('.')[1] || model.modelId)}
-                                </div>
-                                <Badge variant={selectedModelId === model.modelId ? "default" : "outline"}>
-                                  {selectedModelId === model.modelId ? "Selected" : "Select"}
-                                </Badge>
-                              </div>
-                              
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                <span className="inline-flex text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded font-mono">
-                                  {model.modelId}
-                                </span>
-                                
-                                {model.inferenceTypesSupported?.length > 0 && (
-                                  <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-2 py-1 rounded">
-                                    {model.inferenceTypesSupported.join(', ')}
-                                  </span>
-                                )}
-                                
-                                {model.customizationsSupported?.includes('FINE_TUNING') && (
-                                  <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-2 py-1 rounded">
-                                    Fine-tunable
-                                  </span>
-                                )}
-                              </div>
-                              
-                              {(model.inputModalities?.length > 0 || model.outputModalities?.length > 0) && (
-                                <div className="mt-2 text-xs text-muted-foreground">
-                                  {model.inputModalities?.length > 0 && (
-                                    <span className="mr-3">
-                                      <span className="font-medium">Input:</span> {model.inputModalities.join(', ')}
-                                    </span>
-                                  )}
-                                  
-                                  {model.outputModalities?.length > 0 && (
-                                    <span>
-                                      <span className="font-medium">Output:</span> {model.outputModalities.join(', ')}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+                        {availableModels && availableModels.length > 0 ? (
+                          <>
+                            {/* Debug info at top */}
+                            <div className="p-2 text-xs bg-gray-100 dark:bg-gray-800 border-b">
+                              Models loaded: {availableModels.length} | Selected: {selectedModelId || 'none'}
                             </div>
-                          ))
+                            
+                            {/* Models list */}
+                            {availableModels
+                              .filter(model => model && model.modelId)
+                              .map((model, index) => (
+                                <div 
+                                  key={model.modelId || `model-${index}`}
+                                  onClick={() => {
+                                    console.log("[SELECTION] Selected model:", model.modelId);
+                                    setSelectedModelId(model.modelId);
+                                  }}
+                                  className={`p-4 border-b last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors ${
+                                    selectedModelId === model.modelId ? 'bg-primary/10 border-l-4 border-l-primary' : ''
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="font-medium text-base">
+                                      {model.providerName || model.modelId?.split('.')[0] || 'Unknown'} - {model.modelName || (model.modelId?.split('.')[1] || model.modelId)}
+                                    </div>
+                                    <Badge variant={selectedModelId === model.modelId ? "default" : "outline"}>
+                                      {selectedModelId === model.modelId ? "Selected" : "Select"}
+                                    </Badge>
+                                  </div>
+                                  
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <span className="inline-flex text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded font-mono">
+                                      {model.modelId}
+                                    </span>
+                                    
+                                    {model.inferenceTypesSupported?.length > 0 && (
+                                      <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-2 py-1 rounded">
+                                        {model.inferenceTypesSupported.join(', ')}
+                                      </span>
+                                    )}
+                                    
+                                    {model.customizationsSupported?.includes('FINE_TUNING') && (
+                                      <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-2 py-1 rounded">
+                                        Fine-tunable
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  {(model.inputModalities?.length > 0 || model.outputModalities?.length > 0) && (
+                                    <div className="mt-2 text-xs text-muted-foreground">
+                                      {model.inputModalities?.length > 0 && (
+                                        <span className="mr-3">
+                                          <span className="font-medium">Input:</span> {model.inputModalities.join(', ')}
+                                        </span>
+                                      )}
+                                      
+                                      {model.outputModalities?.length > 0 && (
+                                        <span>
+                                          <span className="font-medium">Output:</span> {model.outputModalities.join(', ')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ))
+                            }
+                          </>
                         ) : (
                           <div className="text-center p-8 text-muted-foreground">
-                            <p className="mb-4">No models available. Click below to load available AWS Bedrock models.</p>
-                            <Button 
-                              onClick={() => fetchAvailableModels(activeFilters)} 
-                              disabled={loadingModels || authStatus !== 'authenticated'}
-                              size="lg"
-                              className="bg-green-600 hover:bg-green-700 text-white font-medium"
-                            >
-                              <RefreshCw className="mr-2 h-5 w-5" />
-                              Load AWS Bedrock Models
-                            </Button>
+                            <div className="bg-amber-50 dark:bg-amber-950 p-4 rounded-lg border border-amber-200 dark:border-amber-800 mb-6">
+                              <h3 className="text-amber-800 dark:text-amber-200 font-medium text-lg mb-2">No Models Available</h3>
+                              <p className="mb-2 text-amber-700 dark:text-amber-300">
+                                AWS Bedrock models could not be loaded. Click the button below to try fetching available models.
+                              </p>
+                              <div className="text-left text-xs bg-amber-100 dark:bg-amber-900 p-3 rounded mt-3 text-amber-800 dark:text-amber-200">
+                                Debug info: 
+                                <br/>Models array: {availableModels ? `Array(${availableModels.length})` : 'null'} 
+                                <br/>Loading status: {loadingModels ? 'Loading' : 'Not loading'}
+                                <br/>Selected model ID: {selectedModelId || 'None'}
+                                <br/>Auth status: {authStatus}
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-3 items-center">
+                              <Button 
+                                onClick={() => fetchAvailableModels(activeFilters)} 
+                                disabled={loadingModels || authStatus !== 'authenticated'}
+                                size="lg"
+                                className="bg-green-600 hover:bg-green-700 text-white font-medium"
+                              >
+                                <RefreshCw className="mr-2 h-5 w-5" />
+                                Load AWS Bedrock Models
+                              </Button>
+                              
+                              <Button 
+                                onClick={() => {
+                                  console.log("[FORCE RENDER] Current available models:", availableModels);
+                                  // Force re-render by creating a new array reference
+                                  if (availableModels && availableModels.length > 0) {
+                                    setAvailableModels([...availableModels]);
+                                    toast({
+                                      title: "Models Refreshed",
+                                      description: `Manually refreshed ${availableModels.length} models in the UI`
+                                    });
+                                  } else {
+                                    toast({
+                                      title: "No Models to Refresh",
+                                      description: "There are no models in memory to display",
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className="mt-2"
+                              >
+                                Force UI Refresh
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
