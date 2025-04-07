@@ -1011,14 +1011,14 @@ export async function listFoundationModels(filters = {}) {
  */
 export async function listAccessibleModels() {
   console.log("[BEDROCK] Calling listAccessibleModels");
-  const endpoint = `${BedrockConfig.edgeFunctionUrl}/ListAccessibleModels`;
   
   try {
-    const result = await callEdgeFunction(
-      BedrockConfig.edgeFunctionName, {
-        action: "ListAccessibleModels"
-      }
-    );
+    // Use the proper callEdgeFunction format with action property
+    const result = await callEdgeFunction({
+      action: "ListAccessibleModels",
+      data: {},
+      requireAuth: true
+    });
     
     console.log(`[BEDROCK] Retrieved ${result?.models?.length || 0} accessible models`);
     return result;
