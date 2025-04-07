@@ -1,5 +1,5 @@
 // Regular import for Deno versions used in Supabase Edge Functions
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import serve from "https://deno.land/std@0.168.0/http/server.ts";
 
 import {
   BedrockClient,
