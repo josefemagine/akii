@@ -913,54 +913,31 @@ const BedrockDashboardContent = ({
               }
               
               <div className="grid w-full gap-2">
-                <Label htmlFor="plan">Model</Label>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <Select 
-                      value={selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId} 
-                      onValueChange={setSelectedModelId}
+                <div className="flex justify-between items-center">
+                  <Label>Available Models</Label>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => fetchAvailableModels(activeFilters)} 
+                      disabled={loadingModels || authStatus !== 'authenticated'}
                     >
-                      <SelectTrigger id="model">
-                        <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model"} />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-80 overflow-auto">
-                        {loadingModels ? (
-                          <SelectItem value="loading" disabled>Loading available models...</SelectItem>
-                        ) : availableModels.length > 0 ? (
-                          availableModels.map((model) => (
-                            model && model.modelId ? (
-                              <SelectItem key={model.modelId} value={model.modelId}>
-                                {model.providerName || (model.modelId ? model.modelId.split('.')[0] : 'Unknown')} - {model.modelName || (model.modelId ? model.modelId.split('.')[1] || model.modelId : 'Unknown')}
-                                {model.customizationsSupported?.includes('FINE_TUNING') && " (Fine-tunable)"}
-                                {model.inferenceTypesSupported?.length > 0 && ` [${model.inferenceTypesSupported.join(', ')}]`}
-                              </SelectItem>
-                            ) : null
-                          )).filter(Boolean)
-                        ) : (
-                          <>
-                            <SelectItem value="amazon.titan-text-lite-v1">Amazon - Titan Text Lite</SelectItem>
-                            <SelectItem value="amazon.titan-text-express-v1">Amazon - Titan Text Express</SelectItem>
-                            <SelectItem value="anthropic.claude-instant-v1">Anthropic - Claude Instant</SelectItem>
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
+                      {loadingModels ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Refresh Models
+                        </>
+                      )}
+                    </Button>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => fetchAvailableModels(activeFilters)} 
-                    disabled={loadingModels || authStatus !== 'authenticated'}
-                    title="Refresh model list"
-                  >
-                    {loadingModels ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                  </Button>
                 </div>
-                <div className="text-sm text-muted-foreground flex justify-between">
+                
+                <div className="text-sm text-muted-foreground flex justify-between mb-2">
                   <span>Select the AI model you want to provision.</span>
                   <span>
                     {availableModels.length > 0 ? (
@@ -970,6 +947,76 @@ const BedrockDashboardContent = ({
                     ) : null}
                   </span>
                 </div>
+                
+                {loadingModels ? (
+                  <div className="py-8 text-center">
+                    <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin text-primary" />
+                    <p className="text-muted-foreground">Loading available models...</p>
+                  </div>
+                ) : (
+                  <div className="border rounded-md overflow-hidden">
+                    <div className="max-h-[350px] overflow-y-auto">
+                      {availableModels.length > 0 ? (
+                        availableModels.filter(model => model && model.modelId).map((model) => (
+                          <div 
+                            key={model.modelId}
+                            onClick={() => setSelectedModelId(model.modelId)}
+                            className={`p-4 border-b last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors ${
+                              selectedModelId === model.modelId ? 'bg-primary/10 border-l-4 border-l-primary' : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="font-medium text-base">
+                                {model.providerName || model.modelId?.split('.')[0] || 'Unknown'} - {model.modelName || (model.modelId?.split('.')[1] || model.modelId)}
+                              </div>
+                              <Badge variant={selectedModelId === model.modelId ? "default" : "outline"}>
+                                {selectedModelId === model.modelId ? "Selected" : "Select"}
+                              </Badge>
+                            </div>
+                            
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className="inline-flex text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded font-mono">
+                                {model.modelId}
+                              </span>
+                              
+                              {model.inferenceTypesSupported?.length > 0 && (
+                                <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-2 py-1 rounded">
+                                  {model.inferenceTypesSupported.join(', ')}
+                                </span>
+                              )}
+                              
+                              {model.customizationsSupported?.includes('FINE_TUNING') && (
+                                <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-2 py-1 rounded">
+                                  Fine-tunable
+                                </span>
+                              )}
+                            </div>
+                            
+                            {(model.inputModalities?.length > 0 || model.outputModalities?.length > 0) && (
+                              <div className="mt-2 text-xs text-muted-foreground">
+                                {model.inputModalities?.length > 0 && (
+                                  <span className="mr-3">
+                                    <span className="font-medium">Input:</span> {model.inputModalities.join(', ')}
+                                  </span>
+                                )}
+                                
+                                {model.outputModalities?.length > 0 && (
+                                  <span>
+                                    <span className="font-medium">Output:</span> {model.outputModalities.join(', ')}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center p-8 text-muted-foreground">
+                          No models available. Click Refresh to load models.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div className="grid w-full gap-2">
@@ -1853,54 +1900,31 @@ const SupabaseBedrock = () => {
                 }
                 
                 <div className="grid w-full gap-2">
-                  <Label htmlFor="plan">Model</Label>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <Select 
-                        value={selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId} 
-                        onValueChange={setSelectedModelId}
+                  <div className="flex justify-between items-center">
+                    <Label>Available Models</Label>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => fetchAvailableModels(activeFilters)} 
+                        disabled={loadingModels || authStatus !== 'authenticated'}
                       >
-                        <SelectTrigger id="model">
-                          <SelectValue placeholder={loadingModels ? "Loading models..." : "Select a model"} />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-80 overflow-auto">
-                          {loadingModels ? (
-                            <SelectItem value="loading" disabled>Loading available models...</SelectItem>
-                          ) : availableModels.length > 0 ? (
-                            availableModels.map((model) => (
-                              model && model.modelId ? (
-                                <SelectItem key={model.modelId} value={model.modelId}>
-                                  {model.providerName || (model.modelId ? model.modelId.split('.')[0] : 'Unknown')} - {model.modelName || (model.modelId ? model.modelId.split('.')[1] || model.modelId : 'Unknown')}
-                                  {model.customizationsSupported?.includes('FINE_TUNING') && " (Fine-tunable)"}
-                                  {model.inferenceTypesSupported?.length > 0 && ` [${model.inferenceTypesSupported.join(', ')}]`}
-                                </SelectItem>
-                              ) : null
-                            )).filter(Boolean)
-                          ) : (
-                            <>
-                              <SelectItem value="amazon.titan-text-lite-v1">Amazon - Titan Text Lite</SelectItem>
-                              <SelectItem value="amazon.titan-text-express-v1">Amazon - Titan Text Express</SelectItem>
-                              <SelectItem value="anthropic.claude-instant-v1">Anthropic - Claude Instant</SelectItem>
-                            </>
-                          )}
-                        </SelectContent>
-                      </Select>
+                        {loadingModels ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Loading...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Refresh Models
+                          </>
+                        )}
+                      </Button>
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={() => fetchAvailableModels(activeFilters)} 
-                      disabled={loadingModels || authStatus !== 'authenticated'}
-                      title="Refresh model list"
-                    >
-                      {loadingModels ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                    </Button>
                   </div>
-                  <div className="text-sm text-muted-foreground flex justify-between">
+                  
+                  <div className="text-sm text-muted-foreground flex justify-between mb-2">
                     <span>Select the AI model you want to provision.</span>
                     <span>
                       {availableModels.length > 0 ? (
@@ -1910,6 +1934,76 @@ const SupabaseBedrock = () => {
                       ) : null}
                     </span>
                   </div>
+                  
+                  {loadingModels ? (
+                    <div className="py-8 text-center">
+                      <Loader2 className="h-8 w-8 mx-auto mb-4 animate-spin text-primary" />
+                      <p className="text-muted-foreground">Loading available models...</p>
+                    </div>
+                  ) : (
+                    <div className="border rounded-md overflow-hidden">
+                      <div className="max-h-[350px] overflow-y-auto">
+                        {availableModels.length > 0 ? (
+                          availableModels.filter(model => model && model.modelId).map((model) => (
+                            <div 
+                              key={model.modelId}
+                              onClick={() => setSelectedModelId(model.modelId)}
+                              className={`p-4 border-b last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors ${
+                                selectedModelId === model.modelId ? 'bg-primary/10 border-l-4 border-l-primary' : ''
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="font-medium text-base">
+                                  {model.providerName || model.modelId?.split('.')[0] || 'Unknown'} - {model.modelName || (model.modelId?.split('.')[1] || model.modelId)}
+                                </div>
+                                <Badge variant={selectedModelId === model.modelId ? "default" : "outline"}>
+                                  {selectedModelId === model.modelId ? "Selected" : "Select"}
+                                </Badge>
+                              </div>
+                              
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <span className="inline-flex text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded font-mono">
+                                  {model.modelId}
+                                </span>
+                                
+                                {model.inferenceTypesSupported?.length > 0 && (
+                                  <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-2 py-1 rounded">
+                                    {model.inferenceTypesSupported.join(', ')}
+                                  </span>
+                                )}
+                                
+                                {model.customizationsSupported?.includes('FINE_TUNING') && (
+                                  <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-2 py-1 rounded">
+                                    Fine-tunable
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {(model.inputModalities?.length > 0 || model.outputModalities?.length > 0) && (
+                                <div className="mt-2 text-xs text-muted-foreground">
+                                  {model.inputModalities?.length > 0 && (
+                                    <span className="mr-3">
+                                      <span className="font-medium">Input:</span> {model.inputModalities.join(', ')}
+                                    </span>
+                                  )}
+                                  
+                                  {model.outputModalities?.length > 0 && (
+                                    <span>
+                                      <span className="font-medium">Output:</span> {model.outputModalities.join(', ')}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center p-8 text-muted-foreground">
+                            No models available. Click Refresh to load models.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="grid w-full gap-2">
