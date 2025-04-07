@@ -928,12 +928,14 @@ const BedrockDashboardContent = ({
                           <SelectItem value="loading" disabled>Loading available models...</SelectItem>
                         ) : availableModels.length > 0 ? (
                           availableModels.map((model) => (
-                            <SelectItem key={model.modelId} value={model.modelId}>
-                              {model.providerName || model.modelId.split('.')[0]} - {model.modelName || model.modelId.split('.')[1]} 
-                              {model.customizationsSupported?.includes('FINE_TUNING') && " (Fine-tunable)"}
-                              {model.inferenceTypesSupported?.length > 0 && ` [${model.inferenceTypesSupported.join(', ')}]`}
-                            </SelectItem>
-                          ))
+                            model && model.modelId ? (
+                              <SelectItem key={model.modelId} value={model.modelId}>
+                                {model.providerName || (model.modelId ? model.modelId.split('.')[0] : 'Unknown')} - {model.modelName || (model.modelId ? model.modelId.split('.')[1] || model.modelId : 'Unknown')}
+                                {model.customizationsSupported?.includes('FINE_TUNING') && " (Fine-tunable)"}
+                                {model.inferenceTypesSupported?.length > 0 && ` [${model.inferenceTypesSupported.join(', ')}]`}
+                              </SelectItem>
+                            ) : null
+                          )).filter(Boolean)
                         ) : (
                           <>
                             <SelectItem value="amazon.titan-text-lite-v1">Amazon - Titan Text Lite</SelectItem>
@@ -1866,12 +1868,14 @@ const SupabaseBedrock = () => {
                             <SelectItem value="loading" disabled>Loading available models...</SelectItem>
                           ) : availableModels.length > 0 ? (
                             availableModels.map((model) => (
-                              <SelectItem key={model.modelId} value={model.modelId}>
-                                {model.providerName || model.modelId.split('.')[0]} - {model.modelName || model.modelId.split('.')[1]} 
-                                {model.customizationsSupported?.includes('FINE_TUNING') && " (Fine-tunable)"}
-                                {model.inferenceTypesSupported?.length > 0 && ` [${model.inferenceTypesSupported.join(', ')}]`}
-                              </SelectItem>
-                            ))
+                              model && model.modelId ? (
+                                <SelectItem key={model.modelId} value={model.modelId}>
+                                  {model.providerName || (model.modelId ? model.modelId.split('.')[0] : 'Unknown')} - {model.modelName || (model.modelId ? model.modelId.split('.')[1] || model.modelId : 'Unknown')}
+                                  {model.customizationsSupported?.includes('FINE_TUNING') && " (Fine-tunable)"}
+                                  {model.inferenceTypesSupported?.length > 0 && ` [${model.inferenceTypesSupported.join(', ')}]`}
+                                </SelectItem>
+                              ) : null
+                            )).filter(Boolean)
                           ) : (
                             <>
                               <SelectItem value="amazon.titan-text-lite-v1">Amazon - Titan Text Lite</SelectItem>
