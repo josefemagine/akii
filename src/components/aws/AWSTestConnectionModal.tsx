@@ -67,13 +67,32 @@ const AWSTestConnectionModal: React.FC<AWSTestConnectionModalProps> = ({
     setTestResults(null);
     
     try {
-      const results = await BedrockClient.testAwsPermissions();
+      const response = await BedrockClient.testAwsPermissions();
+      console.log("AWS test response:", response);
       
-      if (results.success && results.test_results) {
-        setTestResults(results.test_results as TestResult);
+      // Handle different response formats
+      if (response.success && response.test_results) {
+        // Format from our updated Edge Function
+        setTestResults(response.test_results as TestResult);
+      } else if (response.data && !response.error) {
+        // Handle the format seen in the error logs: {data: {...}, error: null}
+        console.log("Using data property from response:", response.data);
+        
+        // Try to extract test results from the data property
+        if (response.data.test_results) {
+          setTestResults(response.data.test_results as TestResult);
+        } else if (response.data.credentials) {
+          // If test_results is not there but credentials is, it's probably a flattened structure
+          setTestResults(response.data as unknown as TestResult);
+        } else {
+          // No recognizable test data structure
+          setError("Response format not recognized. See console for details.");
+        }
       } else {
-        setError(results.error || "Unknown error occurred during testing");
-        console.error("AWS test error:", results);
+        // No success or data property found
+        const errorMessage = response.error || "Unknown error occurred during testing";
+        console.error("AWS test error:", errorMessage, response);
+        setError(errorMessage);
       }
     } catch (err) {
       console.error("Error running AWS tests:", err);

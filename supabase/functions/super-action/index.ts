@@ -102,10 +102,10 @@ async function runAwsPermissionsTest() {
     return {
       success: true,
       permissions: {
-        listModels: listModelsSuccess,
-        listProvisioned: listProvisionedSuccess,
-        invokeModels: true, // Assume true, can't easily test without creating a model
-        createProvisionedThroughput: true // Assume true, can't easily test without creating a model
+        listModels: { success: listModelsSuccess, message: listModelsSuccess ? `Found ${modelsFound} models` : "Failed to list models" },
+        listProvisioned: { success: listProvisionedSuccess, message: listProvisionedSuccess ? "Successfully listed provisioned throughputs" : "Failed to list provisioned throughputs" },
+        invokeModels: { success: true, message: "Invoke models permission assumed" },
+        createProvisionedThroughput: { success: true, message: "Create provisioned throughput permission assumed" }
       },
       modelsFound: modelsFound
     };
@@ -115,10 +115,10 @@ async function runAwsPermissionsTest() {
       success: false,
       error: error instanceof Error ? error.message : String(error),
       permissions: {
-        listModels: false,
-        listProvisioned: false,
-        invokeModels: false,
-        createProvisionedThroughput: false
+        listModels: { success: false, error: "Test failed" },
+        listProvisioned: { success: false, error: "Test failed" },
+        invokeModels: { success: false, error: "Test failed" },
+        createProvisionedThroughput: { success: false, error: "Test failed" }
       }
     };
   }
