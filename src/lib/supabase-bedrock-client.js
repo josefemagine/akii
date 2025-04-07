@@ -645,57 +645,32 @@ const callEdgeFunction = async ({ action, data = {}, requireAuth }) => {
 /**
  * Get all Bedrock instances for the authenticated user
  * Aligns with AWS Bedrock API operation: ListProvisionedModelThroughputs
- * @returns {Promise<{data: Array, error: string|null}>} Bedrock instances or error
+ * @returns {Promise<Array<Object>|null>} Array of Bedrock instances or null on error
  */
-const listInstances = async () => {
-  console.log('[Bedrock] Fetching Bedrock instances');
-  
+export async function listInstances() {
+  console.log("[Bedrock] Fetching AWS Bedrock instances");
   try {
-    // Try with the AWS Bedrock API naming convention
-    const result = await callEdgeFunction({
-      action: 'ListProvisionedModelThroughputs',
+    const { data, error } = await callEdgeFunction({
+      action: "ListProvisionedModelThroughputs",
+      data: {},
       requireAuth: true
     });
     
-    if (!result.error) {
-      console.log('[Bedrock] Successfully fetched instances with standard API name');
-      return result;
+    if (error) {
+      console.error("[Bedrock] Error fetching instances:", error);
+      throw new Error(error.message || "Error fetching Bedrock instances");
     }
     
-    console.log('[Bedrock] Standard API name failed, trying legacy endpoint');
+    // Extract and normalize the instances data
+    const instances = data?.models || [];
+    console.log(`[Bedrock] Retrieved ${instances.length} instances`);
     
-    // If the standard name fails, try the legacy name for backward compatibility
-    const legacyResult = await callEdgeFunction({
-      action: 'listInstances',
-      requireAuth: true
-    });
-    
-    if (!legacyResult.error) {
-      console.log('[Bedrock] Successfully fetched instances from legacy endpoint');
-      return legacyResult;
-    }
-    
-    // If both attempts fail, return empty instances as fallback
-    console.error('[Bedrock] Both API calls failed:', result.error, legacyResult?.error);
-    return { 
-      data: { 
-        instances: [],
-        note: "Failed to load instances due to API error"
-      }, 
-      error: result.error 
-    };
+    return instances;
   } catch (error) {
-    console.error('[Bedrock] Exception fetching instances:', error);
-    // Return empty instances as fallback with the error
-    return { 
-      data: { 
-        instances: [],
-        note: "Failed to load instances due to exception"
-      }, 
-      error: error instanceof Error ? error.message : String(error) 
-    };
+    console.error("[Bedrock] Exception fetching instances:", error);
+    return [];
   }
-};
+}
 
 /**
  * Create a new Bedrock instance (provisioned model throughput)
@@ -709,7 +684,7 @@ const listInstances = async () => {
  * @param {Object} [modelInfo.tags] - Optional tags to apply to the instance
  * @returns {Promise<{data: Object, error: string|null}>} New instance or error
  */
-const createInstance = async (modelInfo) => {
+export async function createInstance(modelInfo) {
   console.log('[Bedrock] Creating instance with parameters:', JSON.stringify(modelInfo));
   
   // Validate required fields
@@ -812,7 +787,7 @@ const createInstance = async (modelInfo) => {
     data: null, 
     error: lastError || 'Failed to create instance after multiple attempts' 
   };
-};
+}
 
 /**
  * Delete a Bedrock instance (provisioned model throughput)
@@ -821,7 +796,7 @@ const createInstance = async (modelInfo) => {
  * @param {string} instanceId - ID of the instance to delete
  * @returns {Promise<{data: Object, error: string|null}>} Success status or error
  */
-const deleteInstance = async (instanceId) => {
+export async function deleteInstance(instanceId) {
   // Try first with the AWS Bedrock API naming convention
   const result = await callEdgeFunction({
     action: 'DeleteProvisionedModelThroughput',
@@ -840,7 +815,7 @@ const deleteInstance = async (instanceId) => {
   }
   
   return result;
-};
+}
 
 /**
  * Test the environment (PRODUCTION MODE - DISABLED)
@@ -849,7 +824,7 @@ const deleteInstance = async (instanceId) => {
  * @param {Object} options - Test options
  * @returns {Promise<Object>} Environment information for production
  */
-const testEnvironment = async (options = {}) => {
+export async function testEnvironment(options = {}) {
   console.log('[ENV TEST] testEnvironment is disabled in production mode');
   
   // Return a simplified production-only response
@@ -865,7 +840,7 @@ const testEnvironment = async (options = {}) => {
     },
     source: 'production'
   };
-};
+}
 
 /**
  * Send a message to a Bedrock AI model
@@ -876,7 +851,7 @@ const testEnvironment = async (options = {}) => {
  * @param {number} options.max_tokens - Maximum tokens to generate
  * @returns {Promise<{data: Object, error: string|null}>} AI response or error
  */
-const invokeModel = async ({ instance_id, prompt, max_tokens = 500 }) => {
+export async function invokeModel({ instance_id, prompt, max_tokens = 500 }) {
   return callEdgeFunction({
     action: 'invokeModel',
     data: { 
@@ -886,7 +861,7 @@ const invokeModel = async ({ instance_id, prompt, max_tokens = 500 }) => {
     },
     requireAuth: true
   });
-};
+}
 
 /**
  * Get usage statistics for Bedrock instances
@@ -896,13 +871,13 @@ const invokeModel = async ({ instance_id, prompt, max_tokens = 500 }) => {
  * @param {string} options.timeframe - Optional timeframe (day, week, month, year)
  * @returns {Promise<{data: Object, error: string|null}>} Usage statistics or error
  */
-const getUsageStats = async (options = {}) => {
+export async function getUsageStats(options = {}) {
   return callEdgeFunction({
     action: 'getUsageStats',
     data: options,
     requireAuth: true
   });
-};
+}
 
 /**
  * Test AWS permissions for different Bedrock operations
@@ -1037,6 +1012,60 @@ export async function listAccessibleModels() {
   }
 }
 
+/**
+ * Check the authentication and connection status with AWS Bedrock
+ * Makes a test call to AWS Bedrock to verify credentials and permissions
+ * @returns {Promise<{connected: boolean, status: string, message: string}>} Auth status
+ */
+export async function checkAuth() {
+  console.log("[Bedrock] Checking AWS auth status");
+  try {
+    // First, check if user is authenticated with Supabase
+    const isAuthValid = await isAuthenticated();
+    if (!isAuthValid) {
+      console.log("[Bedrock] User is not authenticated with Supabase");
+      return { 
+        connected: false, 
+        status: "unauthenticated", 
+        message: "Not authenticated with Supabase" 
+      };
+    }
+    
+    // Test AWS connection by calling the TestAuth action
+    const { data, error } = await callEdgeFunction({
+      action: "TestAuth", 
+      data: {},
+      requireAuth: true
+    });
+    
+    if (error) {
+      console.error("[Bedrock] AWS auth check failed:", error);
+      return { 
+        connected: false, 
+        status: "error", 
+        message: error.message || "Failed to connect to AWS Bedrock",
+        error
+      };
+    }
+    
+    console.log("[Bedrock] AWS auth check success:", data);
+    return { 
+      connected: true, 
+      status: "connected", 
+      message: "Successfully connected to AWS Bedrock",
+      data
+    };
+  } catch (error) {
+    console.error("[Bedrock] Error in checkAuth:", error);
+    return { 
+      connected: false, 
+      status: "error", 
+      message: error.message || "Error checking AWS Bedrock auth status",
+      error
+    };
+  }
+}
+
 // Expose client functions
 export const BedrockClient = {
   // Authentication
@@ -1044,6 +1073,7 @@ export const BedrockClient = {
   getAuthToken,
   isAuthenticated,
   validateApiConfiguration,
+  checkAuth,
   
   // API operations
   callEdgeFunction,

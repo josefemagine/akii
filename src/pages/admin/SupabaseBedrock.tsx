@@ -1263,17 +1263,235 @@ const SupabaseBedrock = () => {
   const [testData, setTestData] = useState<any>(null);
   const [testingConnection, setTestingConnection] = useState(false);
   
-  // Placeholder functions to satisfy props
-  const checkAuthStatus = async () => { return true; };
-  const handleLogin = () => {};
-  const refreshInstances = async () => {};
-  const fetchEnvironmentDiagnostics = async () => {};
-  const fetchDetailedTestData = async () => {};
-  const fetchAvailableModels = async () => {};
-  const handleProvisionInstance = async () => {};
-  const handleDeleteInstance = async () => {};
-  const testConnection = async () => {};
-  const openTestModal = () => {};
+  // Actual implementation of functions
+  const checkAuthStatus = async () => {
+    console.log("[Bedrock] Checking auth status...");
+    try {
+      setAuthStatus('checking');
+      const result = await BedrockClient.checkAuth();
+      console.log("[Bedrock] Auth check result:", result);
+      
+      if (result && result.connected) {
+        setAuthStatus('authenticated');
+        setConnectionStatus('connected');
+      } else {
+        setAuthStatus('unauthenticated');
+        setConnectionStatus('error');
+      }
+      
+      return result;
+    } catch (err) {
+      console.error("[Bedrock] Auth check error:", err);
+      setAuthStatus('error');
+      setConnectionStatus('error');
+      setError(err.message || "Authentication check failed");
+      return null;
+    }
+  };
+  
+  const handleLogin = () => {
+    // Redirect to login page if needed
+    navigate('/login');
+  };
+  
+  const refreshInstances = async () => {
+    console.log("[Bedrock] Refreshing instances...");
+    try {
+      setRefreshing(true);
+      const result = await BedrockClient.listInstances();
+      console.log("[Bedrock] Instances:", result);
+      setInstances(result || []);
+      return result;
+    } catch (err) {
+      console.error("[Bedrock] Error refreshing instances:", err);
+      toast({
+        title: "Error",
+        description: `Could not refresh instances: ${err.message}`,
+        variant: "destructive"
+      });
+      return [];
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  
+  const fetchAvailableModels = async (filters = {}) => {
+    console.log("[Bedrock] Fetching available models with filters:", filters);
+    try {
+      setLoadingModels(true);
+      const result = await BedrockClient.listFoundationModels(filters);
+      console.log("[Bedrock] Available models:", result);
+      setAvailableModels(result || []);
+      return result;
+    } catch (err) {
+      console.error("[Bedrock] Error fetching models:", err);
+      toast({
+        title: "Error",
+        description: `Could not fetch models: ${err.message}`,
+        variant: "destructive"
+      });
+      return [];
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+  
+  const handleProvisionInstance = async () => {
+    console.log("[Bedrock] Provisioning instance...");
+    if (!selectedModelId) {
+      toast({
+        title: "Error",
+        description: "Please select a model first",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      setSubmitting(true);
+      const instanceName = customInstanceName || `akii-${selectedModelId.split('/').pop()}-${new Date().toISOString().split('T')[0]}`;
+      
+      const result = await BedrockClient.createInstance({
+        modelId: selectedModelId,
+        commitmentDuration: "ONE_MONTH",
+        modelUnits: 1,
+        provisionedModelName: instanceName
+      });
+      
+      console.log("[Bedrock] Instance provisioned:", result);
+      
+      toast({
+        title: "Success",
+        description: "Instance provisioned successfully"
+      });
+      
+      // Refresh instances list
+      await refreshInstances();
+    } catch (err) {
+      console.error("[Bedrock] Error provisioning instance:", err);
+      toast({
+        title: "Error",
+        description: `Could not provision instance: ${err.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
+  const handleDeleteInstance = async (instanceId: string) => {
+    console.log("[Bedrock] Deleting instance:", instanceId);
+    if (!instanceId) return;
+    
+    try {
+      setRefreshing(true);
+      await BedrockClient.deleteInstance(instanceId);
+      
+      toast({
+        title: "Success",
+        description: "Instance deleted successfully"
+      });
+      
+      // Refresh instances list
+      await refreshInstances();
+    } catch (err) {
+      console.error("[Bedrock] Error deleting instance:", err);
+      toast({
+        title: "Error",
+        description: `Could not delete instance: ${err.message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  
+  const testConnection = async () => {
+    console.log("[Bedrock] Testing connection...");
+    try {
+      setTestingConnection(true);
+      const result = await BedrockClient.testEnvironment();
+      setTestData(result);
+      return result;
+    } catch (err) {
+      console.error("[Bedrock] Connection test error:", err);
+      toast({
+        title: "Error",
+        description: `Connection test failed: ${err.message}`,
+        variant: "destructive"
+      });
+      return null;
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+  
+  const openTestModal = () => {
+    testConnection().then(() => {
+      setTestModalOpen(true);
+    });
+  };
+  
+  const fetchEnvironmentDiagnostics = async () => {
+    try {
+      const result = await BedrockClient.testEnvironment();
+      setEnvDiagnostics(result || {});
+      return result;
+    } catch (err) {
+      console.error("[Bedrock] Error fetching diagnostics:", err);
+      return {};
+    }
+  };
+  
+  const fetchDetailedTestData = async () => {
+    try {
+      const result = await BedrockClient.testEnvironment();
+      setTestData(result);
+      return result;
+    } catch (err) {
+      console.error("[Bedrock] Error fetching test data:", err);
+      return null;
+    }
+  };
+  
+  // Initialize the component
+  useEffect(() => {
+    console.log("[Bedrock] Initializing component with user:", user?.id);
+    
+    const initialize = async () => {
+      try {
+        setLoading(true);
+        
+        // Check auth status first
+        const authResult = await checkAuthStatus();
+        console.log("[Bedrock] Auth result:", authResult);
+        
+        if (authResult && authResult.connected) {
+          // Fetch instances and models in parallel
+          await Promise.all([
+            refreshInstances(),
+            fetchAvailableModels()
+          ]);
+          
+          // Fetch environment diagnostics
+          await fetchEnvironmentDiagnostics();
+        }
+      } catch (err) {
+        console.error("[Bedrock] Initialization error:", err);
+        setError(err.message || "Initialization failed");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (user && isAdmin) {
+      console.log("[Bedrock] User is authenticated and admin, initializing...");
+      initialize();
+    } else {
+      console.log("[Bedrock] User is not authenticated or not admin, skipping initialization");
+      setLoading(false);
+    }
+  }, [user, isAdmin]);
   
   return (
     <BedrockDashboardContent
