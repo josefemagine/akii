@@ -1,6 +1,5 @@
 // Minimal Edge Function
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"; // Use named import
-// Import AWS SDK
+import serve from "https://deno.land/std@0.168.0/http/server.ts";
 import { BedrockClient, ListFoundationModelsCommand } from "npm:@aws-sdk/client-bedrock@3.462.0";
 
 // CORS headers
