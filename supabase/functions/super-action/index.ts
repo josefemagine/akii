@@ -1,5 +1,12 @@
+// deno-lint-ignore-file no-explicit-any
+/// <reference lib="deno.ns" />
+
 // Regular import for Deno versions used in Supabase Edge Functions
-import serve from "https://deno.land/std@0.168.0/http/server.ts";
+// Use Deno.serve directly (built-in since Deno 1.25)
+// Remove the import for serve
+
+// @ts-ignore - Deno imports
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 import {
   BedrockClient,
@@ -12,9 +19,7 @@ import {
 // Define valid origins list at the top level
 const VALID_ORIGINS = [
   "https://www.akii.com",
-  "https://akii.com",
-  "http://localhost:3000",
-  "http://localhost:5173"
+  "https://akii.com"
 ];
 
 // Define which models support provisioned throughput
