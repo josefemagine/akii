@@ -1805,9 +1805,12 @@ const SupabaseBedrock = () => {
     setError(null);
     
     try {
+      console.log("[PROVISION] Starting to provision Bedrock instance");
+      
       // First authenticate if needed
       const isAuth = await checkAuthStatus();
       if (!isAuth) {
+        console.warn("[PROVISION] Authentication check failed");
         toast({
           title: "Authentication Required",
           description: "Please log in to provision a Bedrock instance.",
@@ -1817,49 +1820,113 @@ const SupabaseBedrock = () => {
         return;
       }
       
+      console.log("[PROVISION] Authentication verified, proceeding");
+      
       // Get the model information
       const modelId = selectedModelId || planConfig[selectedPlan as keyof typeof planConfig]?.modelId;
       
       if (!modelId) {
+        console.error("[PROVISION] No model selected");
         setError(`No model selected. Please select a model before provisioning.`);
         setSubmitting(false);
         return;
       }
       
+      console.log(`[PROVISION] Creating instance for model: ${modelId}`);
+      
       // Set default commitment duration and model units
       const commitmentDuration = "1m"; // 1 month commitment
       const modelUnits = 1; // Default to 1 unit
       
-      // Create instance request
-      const { data, error } = await BedrockClient.createInstance({
+      // Add more detailed logs
+      console.log("[PROVISION] API request parameters:", {
         modelId,
         commitmentDuration,
-        modelUnits
+        modelUnits,
+        timestamp: new Date().toISOString()
       });
       
-      if (error) {
-        setError(`Exception provisioning instance: ${error instanceof Error ? error.message : String(error)}`);
+      try {
+        // Create instance request with error handling and retry
+        const response = await BedrockClient.createInstance({
+          modelId,
+          commitmentDuration,
+          modelUnits
+        });
+        
+        console.log("[PROVISION] API response received:", response);
+        
+        // Handle different response formats
+        if (response.error) {
+          console.error(`[PROVISION] Error from API: ${response.error}`);
+          
+          // Display a clearer error message
+          setError(`Error provisioning instance: ${response.error}`);
+          toast({
+            title: "Provisioning Failed",
+            description: `The API returned an error: ${response.error}`,
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Handle success - check different possible response formats
+        const instance = response.data?.instance || response.instance || response.data;
+        
+        if (!instance) {
+          console.error("[PROVISION] API response didn't contain instance data:", response);
+          setError("API response format error: No instance data found in response");
+          toast({
+            title: "Provisioning Issue",
+            description: "The instance was possibly created, but the response format was unexpected. Please refresh to check.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        console.log("[PROVISION] Instance provisioned successfully:", instance);
+        
+        // Add the new instance to the state immediately for better UX
+        setInstances(prevInstances => [
+          ...prevInstances,
+          {
+            id: instance.id || Date.now(),
+            instance_id: instance.instance_id || `unknown-${Date.now()}`,
+            model_id: instance.model_id || modelId,
+            commitment_duration: instance.commitment_duration || commitmentDuration,
+            model_units: instance.model_units || modelUnits,
+            status: instance.status || "CREATING",
+            created_at: instance.created_at || new Date().toISOString(),
+            deleted_at: null
+          }
+        ]);
+        
         toast({
-          title: "Provisioning Failed",
-          description: `Failed to provision Bedrock instance: ${error}`,
+          title: "Instance Provisioned",
+          description: "Your Bedrock instance is being provisioned. This may take a few minutes to complete.",
+        });
+        
+        // Refresh the instances list after a delay
+        setTimeout(() => {
+          console.log("[PROVISION] Refreshing instances list after successful provisioning");
+          fetchInstances();
+        }, 2000);
+        
+      } catch (apiError) {
+        console.error("[PROVISION] Exception during API call:", apiError);
+        setError(`API Error: ${apiError instanceof Error ? apiError.message : String(apiError)}`);
+        toast({
+          title: "API Communication Error",
+          description: "There was a problem communicating with the API. Please try again later.",
           variant: "destructive",
         });
-        return;
       }
-      
-      toast({
-        title: "Instance Provisioned",
-        description: "Your Bedrock instance is being provisioned. This may take a few minutes to complete.",
-      });
-      
-      // Refresh the instances list
-      fetchInstances();
     } catch (error) {
-      console.error("Provision error:", error);
+      console.error("[PROVISION] Unexpected error:", error);
       setError(`Exception provisioning instance: ${error instanceof Error ? error.message : String(error)}`);
       toast({
         title: "Provisioning Failed",
-        description: `Failed to provision Bedrock instance: ${error}`,
+        description: `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive",
       });
     } finally {

@@ -1,19 +1,40 @@
-// Import serve as a named export - this is the pattern used across all Supabase Edge Functions
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// Import serve as the default export from Deno standard library
+import serve from "https://deno.land/std@0.168.0/http/server.ts";
 
 import {
   BedrockClient,
   ListFoundationModelsCommand,
-  ListProvisionedModelThroughputsCommand
+  ListProvisionedModelThroughputsCommand,
+  CreateProvisionedModelThroughputCommand,
+  DeleteProvisionedModelThroughputCommand
 } from "npm:@aws-sdk/client-bedrock";
 
 // CORS headers
 const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*", // Will be replaced dynamically based on request origin
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, x-client-info, apikey, X-Client-Info",
   "Access-Control-Allow-Credentials": "true",
   "Content-Type": "application/json"
 };
+
+// Define interface for request data to fix property access errors
+interface RequestData {
+  action: string;
+  data: {
+    modelId?: string;
+    commitmentDuration?: string;
+    modelUnits?: number;
+    provisionedModelId?: string;
+    instanceId?: string;
+    byProvider?: string;
+    byOutputModality?: string;
+    byInputModality?: string;
+    byInferenceType?: string;
+    byCustomizationType?: string;
+    [key: string]: any;
+  };
+}
 
 // Implement AWS test functions directly instead of importing them
 // Verify AWS credentials and connectivity
@@ -127,12 +148,22 @@ async function runAwsPermissionsTest() {
 // Set CORS headers function
 function setCorsHeaders(req: Request, response: Response): Response {
   const origin = req.headers.get("origin");
-  const validOrigins = ["https://www.akii.com", "http://localhost:3000", "http://localhost:5173"];
+  // Add all production domains including www.akii.com 
+  const validOrigins = [
+    "https://www.akii.com",
+    "https://akii.com",
+    "http://localhost:3000",
+    "http://localhost:5173"
+  ];
+  
+  // Use the requested origin if it's in our allowed list, otherwise use the first one
+  const corsOrigin = validOrigins.includes(origin || "") ? origin! : validOrigins[0];
   
   const corsHeaders = {
-    "Access-Control-Allow-Origin": validOrigins.includes(origin || "") ? origin! : validOrigins[0],
+    "Access-Control-Allow-Origin": corsOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Credentials": "true",
     "Access-Control-Max-Age": "86400",
   };
   
@@ -157,18 +188,52 @@ function setCorsHeaders(req: Request, response: Response): Response {
   return responseWithCors;
 }
 
+// Function to convert the modelId to a model ARN if needed
+function getModelArn(modelId: string, region: string): string {
+  // If the modelId is already an ARN, return it as is
+  if (modelId.startsWith('arn:aws:')) {
+    return modelId;
+  }
+  
+  // Otherwise construct the ARN based on the region and modelId
+  return `arn:aws:bedrock:${region}::foundation-model/${modelId}`;
+}
+
+// Function to convert commitment duration from "1m" or "6m" format to AWS SDK enum value
+function getCommitmentDuration(duration: string): string {
+  if (!duration) return "ONE_MONTH";
+  
+  const normalizedDuration = duration.toLowerCase();
+  if (normalizedDuration === "6m" || normalizedDuration === "six_months") {
+    return "SIX_MONTHS";
+  }
+  
+  // Default to one month
+  return "ONE_MONTH";
+}
+
 // Main serve function
 serve(async (req) => {
   // Handle preflight request
   if (req.method === "OPTIONS") {
     console.log("Handling OPTIONS preflight request");
-    return setCorsHeaders(req, new Response(null, { status: 204 }));
+    return new Response(null, { 
+      status: 204,
+      headers: new Headers({
+        "Access-Control-Allow-Origin": req.headers.get("origin") || "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Max-Age": "86400"
+      })
+    });
   }
 
   try {
-    // Log request origin
+    // Log request origin and details for debugging
     const origin = req.headers.get("origin");
-    console.log(`Origin: ${origin}`);
+    console.log(`Request from Origin: ${origin}, Method: ${req.method}, URL: ${req.url}`);
+    console.log("Request headers:", Object.fromEntries([...req.headers.entries()]));
 
     // Get AWS configuration from environment
     const region = Deno.env.get("AWS_REGION") || "us-east-1";
@@ -183,7 +248,7 @@ serve(async (req) => {
       hasSecretKey: !!secretAccessKey
     });
 
-    // Create AWS client with custom timeout
+    // Create AWS client with custom timeout - increase timeout for long operations
     const client = new BedrockClient({
       region,
       credentials: {
@@ -191,12 +256,35 @@ serve(async (req) => {
         secretAccessKey,
       },
       requestHandler: {
-        timeout: 15000 // 15 seconds timeout
+        timeout: 30000 // 30 seconds timeout (increased from 15s)
       }
     });
 
-    // Parse request data
-    const requestData = await req.json();
+    // Parse request data - handle empty bodies and format errors gracefully
+    let requestData: RequestData = { action: '', data: {} };
+    try {
+      if (req.method === "POST") {
+        const contentType = req.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const body = await req.text();
+          if (body && body.trim()) {
+            requestData = JSON.parse(body) as RequestData;
+          } else {
+            throw new Error("Empty request body");
+          }
+        } else {
+          throw new Error(`Unsupported content type: ${contentType}`);
+        }
+      }
+    } catch (parseError) {
+      console.error("Error parsing request data:", parseError);
+      const errorResponse = JSON.stringify({
+        error: `Invalid request data: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+        timestamp: new Date().toISOString()
+      });
+      return setCorsHeaders(req, new Response(errorResponse, { status: 400 }));
+    }
+    
     const { action, data } = requestData;
     
     console.log(`Processing action: ${action}`);
@@ -385,6 +473,87 @@ serve(async (req) => {
         };
         throw error;
       }
+    } else if (action === "CreateProvisionedModelThroughput" || action === "createInstance") {
+      console.log("Creating provisioned model throughput", data);
+      
+      // Ensure modelId is properly set in the request
+      if (!data.modelId) {
+        const errorResponse = JSON.stringify({
+          error: "modelId is required for creating provisioned model throughput",
+          timestamp: new Date().toISOString()
+        });
+        return setCorsHeaders(req, new Response(errorResponse, { status: 400 }));
+      }
+      
+      try {
+        // Prepare the model ARN and other parameters
+        const modelArn = getModelArn(data.modelId, region);
+        const commitmentDuration = getCommitmentDuration(data.commitmentDuration);
+        const modelUnits = Number(data.modelUnits) || 1;
+        
+        // Log the full request parameters
+        console.log("Create instance parameters:", JSON.stringify({
+          modelId: data.modelId,
+          modelArn: modelArn,
+          commitmentDuration: commitmentDuration,
+          modelUnits: modelUnits,
+          timestamp: new Date().toISOString()
+        }));
+        
+        try {
+          // Create the actual AWS Bedrock provisioned model throughput
+          const command = new CreateProvisionedModelThroughputCommand({
+            modelId: modelArn,
+            provisionedModelName: `pmt-${Date.now()}`,
+            commitmentDuration: commitmentDuration,
+            modelUnits: modelUnits
+          });
+          
+          const awsResponse = await client.send(command);
+          
+          console.log("AWS Bedrock API response:", awsResponse);
+          
+          // Format the response to match the expected format
+          result = {
+            success: true,
+            instance: {
+              id: Date.now(),
+              instance_id: awsResponse.provisionedModelId || `pmt-${Date.now()}`,
+              model_id: data.modelId,
+              commitment_duration: commitmentDuration,
+              model_units: modelUnits,
+              status: awsResponse.provisionedModelLifecycle?.status || "CREATING",
+              created_at: new Date().toISOString(),
+              deleted_at: null
+            }
+          };
+        } catch (awsError) {
+          console.error("AWS API error creating provisioned model throughput:", awsError);
+          
+          // Fallback to providing a simulated instance with error info
+          // This helps frontend testing without failing completely
+          result = {
+            success: false,
+            error: `AWS Bedrock API error: ${awsError instanceof Error ? awsError.message : String(awsError)}`,
+            errorDetails: {
+              name: awsError instanceof Error ? awsError.name : 'UnknownError',
+              requestId: awsError.requestId || 'unknown',
+              time: new Date().toISOString()
+            }
+          };
+          
+          // Return a proper error response
+          const errorResponse = JSON.stringify(result);
+          return setCorsHeaders(req, new Response(errorResponse, { status: 500 }));
+        }
+      } catch (error) {
+        console.error("Error creating provisioned model throughput:", error);
+        const errorResponse = JSON.stringify({
+          error: `Failed to create provisioned model: ${error instanceof Error ? error.message : String(error)}`,
+          timestamp: new Date().toISOString()
+        });
+        return setCorsHeaders(req, new Response(errorResponse, { status: 500 }));
+      }
     } else {
       console.log(`Unsupported action: ${action}`);
       return setCorsHeaders(req, new Response(
@@ -393,36 +562,18 @@ serve(async (req) => {
       ));
     }
 
-    // Return response with result
-    return setCorsHeaders(req, new Response(
-      JSON.stringify({
-        data: result,
-        success: true
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    ));
+    // Return the result with CORS headers
+    const responseBody = JSON.stringify(result || { error: "No action matched" });
+    return setCorsHeaders(req, new Response(responseBody, { 
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    }));
   } catch (error) {
-    // Log the error
-    console.error("Error processing request:", error);
-    
-    // Create detailed error response
-    const errorResponse = {
-      error: error.message || "Unknown error",
-      code: error.code || error.name || "ERROR",
-      success: false,
-      diagnosticInfo: error.diagnosticInfo || {
-        errorType: error.name === 'TimeoutError' ? 'TIMEOUT' : 
-                  (error.name === 'AccessDeniedException' ? 'ACCESS_DENIED' : 
-                  (error.name === 'ServiceUnavailableException' ? 'SERVICE_UNAVAILABLE' : 'UNKNOWN')),
-        errorName: error.name,
-        errorStack: Deno.env.get("ENVIRONMENT") === "development" ? error.stack : undefined
-      }
-    };
-    
-    // Return error response with CORS headers
-    return setCorsHeaders(req, new Response(
-      JSON.stringify(errorResponse),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    ));
+    console.error("Unhandled server error:", error);
+    const errorResponse = JSON.stringify({
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`,
+      timestamp: new Date().toISOString()
+    });
+    return setCorsHeaders(req, new Response(errorResponse, { status: 500 }));
   }
 });

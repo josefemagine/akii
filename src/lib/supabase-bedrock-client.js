@@ -255,14 +255,22 @@ async function callEdgeFunctionDirect(payload, options = {}) {
   const finalPayload = {
     ...payload,
     clientVersion: '1.0.0',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    clientInfo: {
+      userAgent: navigator.userAgent,
+      origin: window.location.origin,
+      connectionType: (navigator.connection?.effectiveType) || 'unknown',
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    }
   };
   
   // Setup headers with correctly formatted authorization if needed
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'Connection': 'keep-alive'
+    'Connection': 'keep-alive',
+    'X-Client-Info': navigator.userAgent || 'Unknown Client',
+    'Origin': window.location.origin
   };
   
   // Get auth token if we need it and it's not already provided
@@ -281,146 +289,99 @@ async function callEdgeFunctionDirect(payload, options = {}) {
     headers['Authorization'] = formatAuthHeader(authToken);
   }
   
+  // Setup fetch controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeout);
+  
   try {
-    console.log(`[API] Calling edge function with action: ${payload.action}`);
+    console.log(`[API] Sending request to ${url} with action "${payload.action}"`);
+    console.log('[API] Request headers:', JSON.stringify(headers, null, 2));
     
-    // Use AbortController for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.warn(`[API] Request timeout (${timeout}ms) for action: ${payload.action}`);
-      controller.abort();
-    }, timeout);
-    
-    // Make the request with proper error handling
+    // Make the request with fetch
     const response = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(finalPayload),
       signal: controller.signal,
-      // Add additional fetch options to improve reliability
-      credentials: 'omit',    // Don't send cookies
-      cache: 'no-store',      // Don't use cache
-      mode: 'cors',           // Allow CORS
-      redirect: 'follow',     // Follow redirects
-      keepalive: true,        // Keep connection alive
-      referrerPolicy: 'no-referrer'
-    }).catch(fetchError => {
-      // Clear the timeout if fetch itself throws
-      clearTimeout(timeoutId);
-      
-      // Handle network errors specifically
-      if (fetchError.name === 'AbortError') {
-        console.error('[API] Request aborted:', fetchError.message);
-        const timeoutError = new Error(`Request aborted after ${timeout}ms`);
-        timeoutError.code = 'REQUEST_TIMEOUT';
-        timeoutError.originalError = fetchError;
-        throw timeoutError;
-      }
-      
-      // Handle other network errors
-      console.error('[API] Network error:', fetchError.message);
-      const networkError = new Error(`Network error: ${fetchError.message}`);
-      networkError.code = 'NETWORK_ERROR';
-      networkError.originalError = fetchError;
-      throw networkError;
+      credentials: 'include', // Include cookies for cross-origin requests
+      mode: 'cors' // Explicitly request CORS mode
     });
     
     // Clear the timeout
     clearTimeout(timeoutId);
     
-    // Handle non-2xx responses
+    // Check if response is ok
     if (!response.ok) {
-      const errorText = await response.text();
-      let errorObject;
+      console.error('[API] HTTP response error:', response.status, response.statusText);
       
+      // Try to get more details from the response if possible
       try {
-        // Try to parse error as JSON
-        errorObject = JSON.parse(errorText);
-      } catch (e) {
-        // If not JSON, create a basic error object
-        errorObject = { 
-          message: errorText || `HTTP Error ${response.status}`,
+        const errorData = await response.json();
+        console.error('[API] Error response data:', errorData);
+        return { 
+          error: `HTTP Error ${response.status}: ${response.statusText}`,
+          errorDetails: errorData,
+          status: response.status
+        };
+      } catch (parseError) {
+        // If we can't parse the response as JSON, return the raw text
+        const errorText = await response.text();
+        return { 
+          error: `HTTP Error ${response.status}: ${response.statusText}`,
+          errorText,
           status: response.status
         };
       }
-      
-      // Enhance error with HTTP status information
-      const error = new Error(errorObject.message || `HTTP Error ${response.status}`);
-      error.status = response.status;
-      error.details = errorObject;
-      
-      // Special error handling for specific status codes
-      if (response.status === 401) {
-        error.code = 'UNAUTHORIZED';
-        error.message = 'Authentication failed. Check your authentication token.';
-      } else if (response.status === 404) {
-        error.code = 'NOT_FOUND';
-        error.message = 'The requested resource or action was not found.';
-      } else if (response.status === 503) {
-        error.code = 'SERVICE_UNAVAILABLE';
-        error.message = 'The Edge Function service is temporarily unavailable.';
-      } else if (response.status === 504) {
-        error.code = 'FUNCTION_INVOCATION_TIMEOUT';
-        error.message = 'The Edge Function timed out during invocation.';
-      }
-      
-      throw error;
     }
     
-    // Parse the response body based on content type
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      const data = await response.json();
-      return data;
-    } else {
-      return await response.text();
+    // Parse the response as JSON
+    const data = await response.json();
+    
+    // Check if the response contains an error
+    if (data.error) {
+      console.error('[API] Error in response:', data.error);
+      return { error: data.error };
     }
+    
+    // Return the data
+    return { data };
   } catch (error) {
-    // Handle abort/timeout errors
-    if (error.name === 'AbortError' || error.code === 'REQUEST_TIMEOUT') {
-      const timeoutError = new Error(`Request timed out after ${timeout}ms`);
-      timeoutError.code = 'REQUEST_TIMEOUT';
-      timeoutError.originalError = error;
+    // Clear the timeout
+    clearTimeout(timeoutId);
+    
+    // Handle specific error types
+    if (error.name === 'AbortError') {
+      console.error(`[API] Request timed out after ${timeout}ms:`, error);
+      return { error: `Request timed out after ${timeout}ms` };
+    }
+    
+    // Handle CORS errors specifically
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      console.error('[API] Possible CORS error or network failure:', error);
       
-      // Retry logic for network errors and timeouts
-      if (retryCount < 2) {
-        console.log(`[API] Retrying after timeout (attempt ${retryCount + 1}/3)...`);
-        // Wait for increasing amounts of time before retrying
-        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-        return callEdgeFunctionDirect(payload, {
-          ...options, 
-          retryCount: retryCount + 1,
-          timeout: timeout * 1.5 // Increase timeout for retries
-        });
-      }
+      // Add detailed debugging information
+      const corsInfo = {
+        origin: window.location.origin,
+        targetUrl: url,
+        hasCredentials: !!authToken,
+        browserInfo: navigator.userAgent,
+        timeStamp: new Date().toISOString()
+      };
       
-      throw timeoutError;
+      console.log('[API] CORS debug info:', corsInfo);
+      
+      return { 
+        error: 'Network or CORS error: Could not connect to API. This may be due to cross-origin restrictions.',
+        corsInfo,
+        originalError: error.message
+      };
     }
     
-    // Handle network errors with retry
-    if (error.code === 'NETWORK_ERROR' && retryCount < 2) {
-      console.log(`[API] Retrying after network error (attempt ${retryCount + 1}/3)...`);
-      // Wait for increasing amounts of time before retrying
-      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-      return callEdgeFunctionDirect(payload, {
-        ...options, 
-        retryCount: retryCount + 1
-      });
-    }
-    
-    // If we have a special error code already, just re-throw
-    if (error.code) {
-      throw error;
-    }
-    
-    // Handle other fetch errors
-    console.error(`[API] Error calling edge function:`, error);
-    
-    // Create a descriptive error
-    const fetchError = new Error(`API request failed: ${error.message}`);
-    fetchError.code = 'API_REQUEST_FAILED';
-    fetchError.originalError = error;
-    throw fetchError;
+    // Generic error handling
+    console.error('[API] Error in callEdgeFunctionDirect:', error);
+    return { error: error.message || 'Unknown error in API call' };
   }
 }
 
@@ -723,6 +684,11 @@ const createInstance = async (modelInfo) => {
     console.error('[Bedrock] Missing required modelId parameter');
     return { data: null, error: 'modelId is required' };
   }
+
+  // Track retries
+  let attempts = 0;
+  const maxAttempts = 3;
+  let lastError = null;
   
   // Convert 1m/6m commitment duration format to match what the API expects
   const modelData = {
@@ -735,24 +701,80 @@ const createInstance = async (modelInfo) => {
   
   console.log('[Bedrock] Structured model data for API call:', JSON.stringify(modelData));
   
-  // Try with the AWS Bedrock API naming convention
-  const result = await callEdgeFunction({
-    action: 'CreateProvisionedModelThroughput',
-    data: modelData,
-    requireAuth: true
-  });
-  
-  // If the standard name fails, try the legacy name for backward compatibility
-  if (result.error) {
-    console.log('[Bedrock] Standard API name failed, trying legacy endpoint');
-    return callEdgeFunction({
-      action: 'createInstance',
-      data: modelData,
-      requireAuth: true
-    });
+  while (attempts < maxAttempts) {
+    attempts++;
+    console.log(`[Bedrock] Create instance attempt ${attempts}/${maxAttempts}`);
+    
+    try {
+      // Try with the AWS Bedrock API naming convention
+      const result = await callEdgeFunction({
+        action: 'CreateProvisionedModelThroughput',
+        data: modelData,
+        requireAuth: true
+      });
+      
+      // If successful, return the result
+      if (!result.error) {
+        console.log('[Bedrock] Successfully created instance with standard API name');
+        return result;
+      }
+      
+      // Log the error but continue to try legacy endpoint
+      console.warn(`[Bedrock] Standard API name failed (attempt ${attempts}): ${result.error}`);
+      lastError = result.error;
+      
+      // Try the legacy name for backward compatibility
+      console.log('[Bedrock] Trying legacy endpoint');
+      const legacyResult = await callEdgeFunction({
+        action: 'createInstance',
+        data: modelData,
+        requireAuth: true
+      });
+      
+      // If legacy endpoint is successful, return the result
+      if (!legacyResult.error) {
+        console.log('[Bedrock] Successfully created instance with legacy endpoint');
+        return legacyResult;
+      }
+      
+      // Log the error from the legacy endpoint
+      console.warn(`[Bedrock] Legacy endpoint failed (attempt ${attempts}): ${legacyResult.error}`);
+      lastError = legacyResult.error;
+      
+      // If we're on the last attempt, return the error
+      if (attempts >= maxAttempts) {
+        console.error(`[Bedrock] All ${maxAttempts} attempts failed. Last error: ${lastError}`);
+        return { data: null, error: lastError || 'Failed to create instance after multiple attempts' };
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delayMs = Math.min(1000 * Math.pow(2, attempts - 1), 8000);
+      console.log(`[Bedrock] Waiting ${delayMs}ms before next attempt...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      
+    } catch (error) {
+      console.error(`[Bedrock] Exception on attempt ${attempts}:`, error);
+      lastError = error instanceof Error ? error.message : String(error);
+      
+      // If we're on the last attempt, return the error
+      if (attempts >= maxAttempts) {
+        console.error(`[Bedrock] All ${maxAttempts} attempts failed due to exceptions. Last error: ${lastError}`);
+        return { data: null, error: lastError };
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delayMs = Math.min(1000 * Math.pow(2, attempts - 1), 8000);
+      console.log(`[Bedrock] Waiting ${delayMs}ms before next attempt after exception...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
   }
   
-  return result;
+  // Fallback if all attempts fail (though this should be unreachable)
+  console.error(`[Bedrock] Failed to create instance after ${maxAttempts} attempts`);
+  return { 
+    data: null, 
+    error: lastError || 'Failed to create instance after multiple attempts' 
+  };
 };
 
 /**
