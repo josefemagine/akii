@@ -1,5 +1,5 @@
 // Regular import for Deno versions used in Supabase Edge Functions
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import serve from "https://deno.land/std@0.177.0/http/server.ts";
 
 import {
   BedrockClient,
@@ -298,6 +298,72 @@ async function checkAwsAccountPrerequisites(client: BedrockClient) {
       message: "Failed to check AWS account prerequisites",
       error: error instanceof Error ? error.message : String(error)
     };
+  }
+}
+
+// Extract user ID from JWT token
+async function extractUserIdFromJwt(req: Request): Promise<string | null> {
+  try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.log("No valid authorization header found");
+      return null;
+    }
+    
+    // Extract JWT token
+    const token = authHeader.split(" ")[1];
+    
+    try {
+      // Create a Supabase client using the configured service role
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+      
+      if (!supabaseUrl || !supabaseServiceKey) {
+        console.log("Missing Supabase configuration for JWT validation");
+        
+        // Try to parse token directly as fallback if we can't validate
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          console.log("Extracted user ID from JWT payload without validation:", payload.sub);
+          return payload.sub || null;
+        } catch (e) {
+          console.error("Failed to parse JWT payload:", e);
+          return null;
+        }
+      }
+      
+      // Dynamically import the Supabase client
+      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+      
+      // Create Supabase client
+      const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // Verify the token
+      const { data: { user }, error } = await supabaseClient.auth.getUser(token);
+      
+      if (error || !user) {
+        console.error("JWT validation failed:", error?.message);
+        return null;
+      }
+      
+      console.log("JWT validation successful for user:", user.id);
+      return user.id;
+    } catch (error) {
+      console.error("Error validating JWT:", error);
+      
+      // Try to parse token directly as fallback if validation fails
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        console.log("Extracted user ID from JWT payload as fallback:", payload.sub);
+        return payload.sub || null;
+      } catch (e) {
+        console.error("Failed to parse JWT payload:", e);
+        return null;
+      }
+    }
+  } catch (error) {
+    console.error("Error extracting user ID from JWT:", error);
+    return null;
   }
 }
 
@@ -831,6 +897,16 @@ serve(async (req) => {
           });
         }
         
+        // Extract user ID from JWT token if available
+        const userId = await extractUserIdFromJwt(req);
+        if (userId) {
+          console.log("Extracted user ID from JWT:", userId);
+          // Add userId to data for tagging
+          data.userId = userId;
+        } else {
+          console.log("No user ID extracted from JWT, will create instance without user tag");
+        }
+        
         // If prerequisites check passed, continue with the provisioned throughput creation
         // Prepare the model ARN and other parameters
         const modelArn = getModelArn(data.modelId, region);
@@ -843,6 +919,8 @@ serve(async (req) => {
           modelArn: modelArn,
           commitmentDuration: commitmentDuration,
           modelUnits: modelUnits,
+          provisionedModelName: data.provisionedModelName,
+          userId: data.userId,
           timestamp: new Date().toISOString(),
           region: region
         };
@@ -850,17 +928,26 @@ serve(async (req) => {
         console.log("Create instance parameters:", JSON.stringify(requestParams));
         
         try {
-          // Create a unique, identifiable provisioned model name
-          const dateStr = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
-          const provisionedModelName = `akii-pmt-${dateStr}`;
-          console.log(`Attempting to create provisioned model with name: ${provisionedModelName}`);
+          // Create a unique, identifiable provisioned model name if not provided
+          if (!data.provisionedModelName) {
+            const dateStr = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+            data.provisionedModelName = `akii-pmt-${dateStr}`;
+          }
+          console.log(`Attempting to create provisioned model with name: ${data.provisionedModelName}`);
           
           // Create the actual AWS Bedrock provisioned model throughput
           const command = new CreateProvisionedModelThroughputCommand({
             modelId: modelArn,
-            provisionedModelName: provisionedModelName,
+            provisionedModelName: data.provisionedModelName,
             commitmentDuration: commitmentDuration,
-            modelUnits: modelUnits
+            modelUnits: modelUnits,
+            tags: {
+              CreatedBy: "AkiiApp",
+              CreatedAt: new Date().toISOString(),
+              Source: "akii-super-action",
+              ...(data.userId && { userId: data.userId }),
+              ...(data.tags && typeof data.tags === 'object' ? data.tags : {})
+            }
           });
           
           // Add a longer timeout for this specific operation
@@ -878,13 +965,22 @@ serve(async (req) => {
             success: true,
             instance: {
               id: Date.now(),
-              instance_id: awsResponse.provisionedModelId || provisionedModelName,
+              instance_id: awsResponse.provisionedModelId || data.provisionedModelName,
               model_id: data.modelId,
               commitment_duration: commitmentDuration,
               model_units: modelUnits,
               status: awsResponse.provisionedModelLifecycle?.status || "CREATING",
               created_at: new Date().toISOString(),
-              deleted_at: null
+              deleted_at: null,
+              userId: data.userId || null,
+              name: data.provisionedModelName,
+              tags: {
+                CreatedBy: "AkiiApp",
+                CreatedAt: new Date().toISOString(),
+                Source: "akii-super-action",
+                ...(data.userId && { userId: data.userId }),
+                ...(data.tags && typeof data.tags === 'object' ? data.tags : {})
+              }
             }
           };
         } catch (awsError) {

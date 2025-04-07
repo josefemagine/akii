@@ -154,13 +154,41 @@ export async function createProvisionedModelThroughput(params: any) {
     console.log(`[AWS] Creating provisioned model throughput for ${params.modelId}`);
     const client = getBedrockClient();
     
+    // Generate a default name if none provided
+    const provisionedModelName = params.provisionedModelName || `${params.modelId}-${Date.now()}`;
+    
+    // Prepare tags - will always include creation timestamp and source
+    const tags: Record<string, string> = {
+      CreatedBy: "AkiiApp",
+      CreatedAt: new Date().toISOString(),
+      Source: "akii-super-action"
+    };
+    
+    // Add userID tag if provided
+    if (params.userId) {
+      tags.userId = params.userId;
+      console.log(`[AWS] Adding userID tag: ${params.userId}`);
+    }
+    
+    // Add any additional custom tags if provided
+    if (params.tags && typeof params.tags === 'object') {
+      Object.entries(params.tags).forEach(([key, value]) => {
+        if (typeof value === 'string') {
+          tags[key] = value;
+        }
+      });
+    }
+    
+    console.log(`[AWS] Creating provisioned model with name: ${provisionedModelName} and tags:`, tags);
+    
     const input = {
       modelId: params.modelId,
-      provisionedModelName: `${params.modelId}-${Date.now()}`,
+      provisionedModelName: provisionedModelName,
       provisionedThroughput: {
         commitmentDuration: params.commitmentDuration,
         provisionedModelThroughput: params.modelUnits
-      }
+      },
+      tags: tags
     };
     
     const command = new CreateProvisionedModelThroughputCommand(input);
@@ -177,7 +205,8 @@ export async function createProvisionedModelThroughput(params: any) {
           commitmentDuration: params.commitmentDuration,
           provisionedModelThroughput: params.modelUnits
         },
-        creationTime: response.creationTime || new Date().toISOString()
+        creationTime: response.creationTime || new Date().toISOString(),
+        tags: tags
       }
     };
   } catch (error) {

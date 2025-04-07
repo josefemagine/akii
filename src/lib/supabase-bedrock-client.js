@@ -700,6 +700,8 @@ const listInstances = async () => {
  * @param {string} modelInfo.modelId - The model ID
  * @param {string} modelInfo.commitmentDuration - Commitment duration
  * @param {number} modelInfo.modelUnits - Number of model units
+ * @param {string} [modelInfo.provisionedModelName] - Optional custom name for the instance
+ * @param {Object} [modelInfo.tags] - Optional tags to apply to the instance
  * @returns {Promise<{data: Object, error: string|null}>} New instance or error
  */
 const createInstance = async (modelInfo) => {
@@ -722,7 +724,11 @@ const createInstance = async (modelInfo) => {
     // Ensure modelId is explicitly set (with debugging output)
     modelId: modelInfo.modelId,
     // Convert from "1m" or "6m" to the format the API expects
-    commitmentDuration: modelInfo.commitmentDuration || "1m"
+    commitmentDuration: modelInfo.commitmentDuration || "1m",
+    // Pass through the custom name if provided
+    provisionedModelName: modelInfo.provisionedModelName || undefined,
+    // Pass through tags if provided
+    tags: modelInfo.tags && typeof modelInfo.tags === 'object' ? modelInfo.tags : undefined
   };
   
   console.log('[Bedrock] Structured model data for API call:', JSON.stringify(modelData));

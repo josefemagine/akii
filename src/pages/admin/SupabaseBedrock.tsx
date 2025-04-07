@@ -821,7 +821,7 @@ const BedrockDashboardContent = ({
         credentials={{}} // Provide empty object if needed
         clientStatus={{}} // Provide empty object if needed
         testConnection={testConnection}
-        openTestModal={openTestModal}
+        openTestModal={openTestModal} // Pass the AWS test modal opener
       />
       
       <MockDataNotice />
@@ -1098,6 +1098,18 @@ const BedrockDashboardContent = ({
                     <div>
                       <span className="text-sm">1</span>
                     </div>
+                    
+                    <div>
+                      <span className="text-sm font-medium">Instance Name:</span>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        placeholder="Custom instance name (optional)"
+                        className="h-8 text-sm"
+                        value={customInstanceName}
+                        onChange={(e) => setCustomInstanceName(e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -1192,11 +1204,17 @@ const SupabaseBedrock = () => {
   const [selectedModelId, setSelectedModelId] = useState('');
   
   // Filter state
-  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [activeFilters, setActiveFilters] = useState<{
+    byProvider?: string;
+    byOutputModality?: string;
+    byInputModality?: string;
+    byInferenceType?: string;
+    byCustomizationType?: string;
+  }>({});
   const [showFilters, setShowFilters] = useState(false);
   
   // Environment diagnostics
-  const [envDiagnostics, setEnvDiagnostics] = useState<EnvironmentDiagnostics | null>(null);
+  const [envDiagnostics, setEnvDiagnostics] = useState<EnvironmentDiagnostics>({});
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   
   // Test modal state
@@ -1918,11 +1936,16 @@ const SupabaseBedrock = () => {
       const commitmentDuration = "1m"; // 1 month commitment
       const modelUnits = 1; // Default to 1 unit
       
+      // Get the custom name or generate a default one
+      const instanceName = customInstanceName || `akii-${modelId.split('/').pop()}-${new Date().toISOString().split('T')[0]}`;
+      
       // Add more detailed logs
       console.log("[PROVISION] API request parameters:", {
         modelId,
         commitmentDuration,
         modelUnits,
+        provisionedModelName: instanceName,
+        tags: { project: 'akii', environment: 'production' },
         timestamp: new Date().toISOString()
       });
       
@@ -1931,7 +1954,12 @@ const SupabaseBedrock = () => {
         const response = await BedrockClient.createInstance({
           modelId,
           commitmentDuration,
-          modelUnits
+          modelUnits,
+          provisionedModelName: instanceName,
+          tags: {
+            project: 'akii',
+            environment: 'production'
+          }
         });
         
         console.log("[PROVISION] API response received:", response);
@@ -2250,80 +2278,60 @@ const SupabaseBedrock = () => {
                     </div>
                   ) : (
                     <div className="border rounded-md overflow-hidden">
-                      <RenderDebug 
-                        models={availableModels} 
-                        selectedId={selectedModelId} 
-                        loading={loadingModels} 
-                      />
                       <div className="max-h-[350px] overflow-y-auto">
-                        {availableModels && availableModels.length > 0 ? (
-                          <>
-                            {/* Debug info at top */}
-                            <div className="p-2 text-xs bg-gray-100 dark:bg-gray-800 border-b">
-                              Models loaded: {availableModels.length} | Selected: {selectedModelId || 'none'}
-                            </div>
-                            
-                            {/* Models list */}
-                            {availableModels
-                              .filter(model => model && (model.modelId || model.id))
-                              .map((model, index) => (
-                                <div 
-                                  key={model.modelId || model.id || `model-${index}`}
-                                  onClick={() => {
-                                    console.log("[SELECTION] Selected model:", model.modelId || model.id);
-                                    setSelectedModelId(model.modelId || model.id);
-                                  }}
-                                  className={`p-4 border-b last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors ${
-                                    selectedModelId === (model.modelId || model.id) ? 'bg-primary/10 border-l-4 border-l-primary' : ''
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="font-medium text-base">
-                                      {model.providerName || model.provider || (model.modelId || model.id)?.split('.')[0] || 'Unknown'} - {model.modelName || model.name || ((model.modelId || model.id)?.split('.')[1] || (model.modelId || model.id))}
-                                    </div>
-                                    <Badge variant={selectedModelId === (model.modelId || model.id) ? "default" : "outline"}>
-                                      {selectedModelId === (model.modelId || model.id) ? "Selected" : "Select"}
-                                    </Badge>
-                                  </div>
-                                  
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    <span className="inline-flex text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded font-mono">
-                                      {model.modelId || model.id}
+                        {availableModels.length > 0 ? (
+                          availableModels.filter(model => model && model.modelId).map((model) => (
+                            <div 
+                              key={model.modelId}
+                              onClick={() => setSelectedModelId(model.modelId)}
+                              className={`p-4 border-b last:border-b-0 cursor-pointer hover:bg-muted/50 transition-colors ${
+                                selectedModelId === model.modelId ? 'bg-primary/10 border-l-4 border-l-primary' : ''
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="font-medium text-base">
+                                  {model.providerName || model.modelId?.split('.')[0] || 'Unknown'} - {model.modelName || (model.modelId?.split('.')[1] || model.modelId)}
+                                </div>
+                                <Badge variant={selectedModelId === model.modelId ? "default" : "outline"}>
+                                  {selectedModelId === model.modelId ? "Selected" : "Select"}
+                                </Badge>
+                              </div>
+                              
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <span className="inline-flex text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded font-mono">
+                                  {model.modelId}
+                                </span>
+                                
+                                {model.inferenceTypesSupported?.length > 0 && (
+                                  <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-2 py-1 rounded">
+                                    {model.inferenceTypesSupported.join(', ')}
+                                  </span>
+                                )}
+                                
+                                {model.customizationsSupported?.includes('FINE_TUNING') && (
+                                  <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-2 py-1 rounded">
+                                    Fine-tunable
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {(model.inputModalities?.length > 0 || model.outputModalities?.length > 0) && (
+                                <div className="mt-2 text-xs text-muted-foreground">
+                                  {(model.inputModalities?.length > 0 || model.inputs?.length > 0) && (
+                                    <span className="mr-3">
+                                      <span className="font-medium">Input:</span> {(model.inputModalities || model.inputs || []).join(', ')}
                                     </span>
-                                    
-                                    {(model.inferenceTypesSupported?.length > 0 || model.inferenceTypes?.length > 0) && (
-                                      <span className="inline-flex text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 px-2 py-1 rounded">
-                                        {(model.inferenceTypesSupported || model.inferenceTypes || []).join(', ')}
-                                      </span>
-                                    )}
-                                    
-                                    {((model.customizationsSupported || model.customizations || [])?.includes('FINE_TUNING')) && (
-                                      <span className="inline-flex text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-2 py-1 rounded">
-                                        Fine-tunable
-                                      </span>
-                                    )}
-                                  </div>
+                                  )}
                                   
-                                  {((model.inputModalities?.length > 0 || model.inputs?.length > 0) || 
-                                     (model.outputModalities?.length > 0 || model.outputs?.length > 0)) && (
-                                    <div className="mt-2 text-xs text-muted-foreground">
-                                      {(model.inputModalities?.length > 0 || model.inputs?.length > 0) && (
-                                        <span className="mr-3">
-                                          <span className="font-medium">Input:</span> {(model.inputModalities || model.inputs || []).join(', ')}
-                                        </span>
-                                      )}
-                                      
-                                      {(model.outputModalities?.length > 0 || model.outputs?.length > 0) && (
-                                        <span>
-                                          <span className="font-medium">Output:</span> {(model.outputModalities || model.outputs || []).join(', ')}
-                                        </span>
-                                      )}
-                                    </div>
+                                  {(model.outputModalities?.length > 0 || model.outputs?.length > 0) && (
+                                    <span>
+                                      <span className="font-medium">Output:</span> {(model.outputModalities || model.outputs || []).join(', ')}
+                                    </span>
                                   )}
                                 </div>
-                              ))
-                            }
-                          </>
+                              )}
+                            </div>
+                          ))
                         ) : (
                           <div className="text-center p-8 text-muted-foreground">
                             <div className="bg-amber-50 dark:bg-amber-950 p-4 rounded-lg border border-amber-200 dark:border-amber-800 mb-6">
@@ -2412,9 +2420,7 @@ const SupabaseBedrock = () => {
                           </div>
                           <div>
                             <span className="text-sm">
-                              {availableModels.find(m => (m.modelId || m.id) === selectedModelId)?.inputModalities?.join(', ') || 
-                               availableModels.find(m => (m.modelId || m.id) === selectedModelId)?.inputs?.join(', ') || 
-                               'Not specified'}
+                              {availableModels.find(m => m.modelId === selectedModelId)?.inputModalities?.join(', ') || 'Not specified'}
                             </span>
                           </div>
                           
@@ -2423,9 +2429,7 @@ const SupabaseBedrock = () => {
                           </div>
                           <div>
                             <span className="text-sm">
-                              {availableModels.find(m => (m.modelId || m.id) === selectedModelId)?.outputModalities?.join(', ') || 
-                               availableModels.find(m => (m.modelId || m.id) === selectedModelId)?.outputs?.join(', ') || 
-                               'Not specified'}
+                              {availableModels.find(m => m.modelId === selectedModelId)?.outputModalities?.join(', ') || 'Not specified'}
                             </span>
                           </div>
                         </>
@@ -2443,6 +2447,18 @@ const SupabaseBedrock = () => {
                       </div>
                       <div>
                         <span className="text-sm">1</span>
+                      </div>
+                      
+                      <div>
+                        <span className="text-sm font-medium">Instance Name:</span>
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          placeholder="Custom instance name (optional)"
+                          className="h-8 text-sm"
+                          value={customInstanceName}
+                          onChange={(e) => setCustomInstanceName(e.target.value)}
+                        />
                       </div>
                     </div>
                   </div>
