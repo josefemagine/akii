@@ -134,7 +134,7 @@ const DataFlowAnimation = () => {
       initial="initial"
       animate={controls}
       variants={containerVariants}
-      style={{ minHeight: "570px", height: "100%" }}
+      style={{ height: "100%", width: "100%" }}
     >
       {/* Background grid pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
