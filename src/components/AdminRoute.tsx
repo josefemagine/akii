@@ -22,7 +22,7 @@ const AdminRoute = ({ children }: AdminRouteProps) => {
 
   // First check if user is logged in
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   // Then check if user is admin

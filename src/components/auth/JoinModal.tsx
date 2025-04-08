@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/contexts/auth-compatibility";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,7 @@ import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
 import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from './AuthStateManager';
-import supabase from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 const joinSchema = z
   .object({
@@ -58,7 +58,7 @@ export default function JoinModal({
   const [error, setError] = useState<string | null>(null);
   const [verificationStep, setVerificationStep] = useState(false);
   const [email, setEmail] = useState("");
-  const { signUp, signInWithGoogle, user } = useAuth();
+  const { signUp, user } = useAuth();
 
   const {
     register,
@@ -128,7 +128,13 @@ export default function JoinModal({
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      await signInWithGoogle();
+      // Use Supabase directly for Google sign-in
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
     } catch (error) {
       console.error("Error signing in with Google:", error);
       toast({

@@ -12,8 +12,7 @@ import { initializeProductionRecovery } from "./lib/production-recovery";
 
 // Import providers
 import { SearchProvider } from "./contexts/SearchContext";
-import { DirectAuthProvider } from "./contexts/direct-auth-context";
-import { AuthProvider } from "./contexts/auth-compatibility";
+import { UnifiedAuthProvider } from "./contexts/UnifiedAuthContext";
 import { SupabaseAuthProvider } from "./contexts/SupabaseAuthContext";
 import { UserProvider } from "./contexts/UserContext";
 
@@ -41,7 +40,6 @@ import LandingPage from "./pages/LandingPage";
 import { UserDetailPage } from "./pages/admin/UserDetail";
 
 // Lazy load pages
-const Login = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/dashboard/Dashboard"));
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
 const Agents = lazy(() => import("./pages/dashboard/Agents"));
@@ -90,7 +88,6 @@ const WordPressChatAgent = lazy(() => import("./pages/products/WordPressChatAgen
 const PrivateAIAPI = lazy(() => import("./pages/products/PrivateAIAPI"));
 const ZapierIntegration = lazy(() => import("./pages/products/ZapierIntegration"));
 const N8nIntegration = lazy(() => import("./pages/products/N8nIntegration"));
-const AdminSupabaseBedrock = lazy(() => import("./pages/admin/SupabaseBedrock"));
 import ManagePlans from "./pages/admin/ManagePlans";
 
 // Loading fallback component
@@ -214,107 +211,88 @@ export default function App() {
 
   return (
     <Suspense fallback={<LoadingScreen />}>
-      <UserProvider>
-        <SupabaseAuthProvider>
-          <DirectAuthProvider>
-            <AuthProvider>
-              <SearchProvider>
-                <ScrollToTop />
-                <EnvWarning />
-                <GlobalErrorHandler />
-                {/* Include AuthDebugger only in development */}
-                {import.meta.env.DEV && <AuthDebugger />}
-                <Routes>
-                  {/* Public home routes */}
-                  <Route path="/" element={<MainLayout><Outlet /></MainLayout>}>
-                    <Route index element={<LandingPage />} />
-                  </Route>
-                  
-                  {/* Login route */}
-                  <Route path="/login" element={<Login />} />
-                  
-                  {/* Public pages */}
-                  <Route path="/pricing" element={<Suspense fallback={<LoadingFallback />}><Pricing /></Suspense>} />
-                  <Route path="/plans" element={<Suspense fallback={<LoadingFallback />}><Plans /></Suspense>} />
-                  <Route path="/blog" element={<Suspense fallback={<LoadingFallback />}><Blog /></Suspense>} />
-                  <Route path="/contact" element={<Suspense fallback={<LoadingFallback />}><Contact /></Suspense>} />
-                  <Route path="/privacy-policy" element={<Suspense fallback={<LoadingFallback />}><PrivacyPolicy /></Suspense>} />
-                  <Route path="/terms-of-service" element={<Suspense fallback={<LoadingFallback />}><TermsOfService /></Suspense>} />
-                  
-                  {/* Auth routes */}
-                  <Route path="/auth">
-                    <Route path="callback" element={<Suspense fallback={<LoadingFallback />}><AuthCallback /></Suspense>} />
-                    <Route path="reset-password" element={<Suspense fallback={<LoadingFallback />}><ResetPassword /></Suspense>} />
-                  </Route>
-                  <Route path="/token/*" element={<Suspense fallback={<LoadingFallback />}><TokenHandler /></Suspense>} />
-                  
-                  {/* Product pages */}
-                  <Route path="/products/web-chat" element={<Suspense fallback={<LoadingFallback />}><WebChatAgent /></Suspense>} />
-                  <Route path="/products/mobile-chat" element={<Suspense fallback={<LoadingFallback />}><MobileChatAgent /></Suspense>} />
-                  <Route path="/products/whatsapp-chat" element={<Suspense fallback={<LoadingFallback />}><WhatsAppChatAgent /></Suspense>} />
-                  <Route path="/products/telegram-chat" element={<Suspense fallback={<LoadingFallback />}><TelegramChatAgent /></Suspense>} />
-                  <Route path="/products/shopify-chat" element={<Suspense fallback={<LoadingFallback />}><ShopifyChatAgent /></Suspense>} />
-                  <Route path="/products/wordpress-chat" element={<Suspense fallback={<LoadingFallback />}><WordPressChatAgent /></Suspense>} />
-                  <Route path="/products/private-ai-api" element={<Suspense fallback={<LoadingFallback />}><PrivateAIAPI /></Suspense>} />
-                  <Route path="/products/integrations/zapier" element={<Suspense fallback={<LoadingFallback />}><ZapierIntegration /></Suspense>} />
-                  <Route path="/products/integrations/n8n" element={<Suspense fallback={<LoadingFallback />}><N8nIntegration /></Suspense>} />
-                  
-                  {/* Dashboard routes - protected */}
-                  <Route path="/dashboard" element={<PrivateRoute><DashboardLayout /></PrivateRoute>}>
-                    <Route index element={<Dashboard />} />
-                    <Route path="ai-instances" element={<Agents />} />
-                    <Route path="settings" element={<Settings />} />
-                    <Route path="web-chat" element={<WebChat />} />
-                    <Route path="mobile-chat" element={<MobileChat />} />
-                    <Route path="whatsapp-chat" element={<WhatsAppChat />} />
-                    <Route path="telegram-chat" element={<TelegramChat />} />
-                    <Route path="shopify-chat" element={<ShopifyChat />} />
-                    <Route path="wordpress-chat" element={<WordPressChat />} />
-                    <Route path="private-ai" element={<PrivateAI />} />
-                    <Route path="billing" element={<Billing />} />
-                    <Route path="api-keys" element={<APIKeys />} />
-                  </Route>
-                  
-                  {/* Admin routes */}
-                  <Route path="/admin" element={
-                    <PrivateRoute adminOnly={true}>
-                      <DashboardLayout isAdmin={true}>
-                        <Outlet />
-                      </DashboardLayout>
-                    </PrivateRoute>
-                  }>
-                    <Route path="dashboard" element={<AdminDashboard />} />
-                    <Route path="users" element={<AdminUsers />} />
-                    <Route path="settings" element={<AdminSettings />} />
-                    <Route path="packages" element={<AdminPackages />} />
-                    <Route path="email-templates" element={<AdminEmailTemplates />} />
-                    <Route path="lead-magnets" element={<AdminLeadMagnets />} />
-                    <Route path="landing-pages" element={<AdminLandingPages />} />
-                    <Route path="blog" element={<AdminBlog />} />
-                    <Route path="affiliates" element={<AdminAffiliates />} />
-                    <Route path="compliance" element={<AdminCompliance />} />
-                    <Route path="bedrock" element={<AdminSupabaseBedrock />} />
-                    <Route path="run-migration" element={<RunMigration />} />
-                    <Route path="n8n-workflows" element={<AdminN8nWorkflows />} />
-                    <Route path="moderation" element={<Moderation />} />
-                    <Route path="database-schema" element={<DatabaseSchemaPage />} />
-                    <Route path="user-status-migration" element={<UserStatusMigration />} />
-                    <Route path="user-profile-migration" element={<UserProfileMigration />} />
-                    <Route path="workflows" element={<Workflows />} />
-                    <Route path="user-detail/:userId" element={<UserDetailPage />} />
-                    <Route path="manage-instances" element={<ManageInstances />} />
-                    <Route path="plans" element={<ManagePlans />} />
-                  </Route>
-                  
-                  {/* Fallback route */}
-                  <Route path="*" element={<Navigate to="/" />} />
-                </Routes>
-                <Toaster />
-              </SearchProvider>
-            </AuthProvider>
-          </DirectAuthProvider>
-        </SupabaseAuthProvider>
-      </UserProvider>
+      <UnifiedAuthProvider>
+        <SearchProvider>
+          <ScrollToTop />
+          <EnvWarning />
+          <GlobalErrorHandler />
+          <Routes>
+            {/* Public home routes */}
+            <Route path="/" element={<MainLayout><Outlet /></MainLayout>}>
+              <Route index element={<LandingPage />} />
+            </Route>
+            
+            {/* Redirect login to homepage */}
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            
+            {/* Public pages */}
+            <Route path="/pricing" element={<Suspense fallback={<LoadingFallback />}><Pricing /></Suspense>} />
+            <Route path="/blog" element={<Suspense fallback={<LoadingFallback />}><Blog /></Suspense>} />
+            <Route path="/contact" element={<Suspense fallback={<LoadingFallback />}><Contact /></Suspense>} />
+            <Route path="/privacy-policy" element={<Suspense fallback={<LoadingFallback />}><PrivacyPolicy /></Suspense>} />
+            <Route path="/terms-of-service" element={<Suspense fallback={<LoadingFallback />}><TermsOfService /></Suspense>} />
+            
+            {/* Auth routes */}
+            <Route path="/auth">
+              <Route path="callback" element={<Suspense fallback={<LoadingFallback />}><AuthCallback /></Suspense>} />
+              <Route path="reset-password" element={<Suspense fallback={<LoadingFallback />}><ResetPassword /></Suspense>} />
+            </Route>
+            <Route path="/token/*" element={<Suspense fallback={<LoadingFallback />}><TokenHandler /></Suspense>} />
+            
+            {/* Product pages */}
+            <Route path="/products/web-chat" element={<Suspense fallback={<LoadingFallback />}><WebChatAgent /></Suspense>} />
+            <Route path="/products/mobile-chat" element={<Suspense fallback={<LoadingFallback />}><MobileChatAgent /></Suspense>} />
+            <Route path="/products/whatsapp-chat" element={<Suspense fallback={<LoadingFallback />}><WhatsAppChatAgent /></Suspense>} />
+            <Route path="/products/telegram-chat" element={<Suspense fallback={<LoadingFallback />}><TelegramChatAgent /></Suspense>} />
+            <Route path="/products/shopify-chat" element={<Suspense fallback={<LoadingFallback />}><ShopifyChatAgent /></Suspense>} />
+            <Route path="/products/wordpress-chat" element={<Suspense fallback={<LoadingFallback />}><WordPressChatAgent /></Suspense>} />
+            <Route path="/products/private-ai-api" element={<Suspense fallback={<LoadingFallback />}><PrivateAIAPI /></Suspense>} />
+            <Route path="/products/integrations/zapier" element={<Suspense fallback={<LoadingFallback />}><ZapierIntegration /></Suspense>} />
+            <Route path="/products/integrations/n8n" element={<Suspense fallback={<LoadingFallback />}><N8nIntegration /></Suspense>} />
+            
+            {/* Dashboard routes - protected */}
+            <Route path="/dashboard" element={<PrivateRoute><DashboardLayout><Outlet /></DashboardLayout></PrivateRoute>}>
+              <Route index element={<Dashboard />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="agents" element={<Agents />} />
+              <Route path="web-chat" element={<WebChat />} />
+              <Route path="mobile-chat" element={<MobileChat />} />
+              <Route path="whatsapp-chat" element={<WhatsAppChat />} />
+              <Route path="telegram-chat" element={<TelegramChat />} />
+              <Route path="shopify-chat" element={<ShopifyChat />} />
+              <Route path="wordpress-chat" element={<WordPressChat />} />
+              <Route path="private-ai" element={<PrivateAI />} />
+              <Route path="billing" element={<Billing />} />
+              <Route path="api-keys" element={<APIKeys />} />
+              
+              {/* Admin routes - only accessible to admin users */}
+              <Route path="admin" element={<PrivateRoute adminOnly={true}><Outlet /></PrivateRoute>}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="user-detail/:userId" element={<UserDetailPage />} />
+                <Route path="settings" element={<AdminSettings />} />
+                <Route path="packages" element={<AdminPackages />} />
+                <Route path="email-templates" element={<AdminEmailTemplates />} />
+                <Route path="lead-magnets" element={<AdminLeadMagnets />} />
+                <Route path="landing-pages" element={<AdminLandingPages />} />
+                <Route path="blog" element={<AdminBlog />} />
+                <Route path="affiliates" element={<AdminAffiliates />} />
+                <Route path="compliance" element={<AdminCompliance />} />
+                <Route path="run-migration" element={<RunMigration />} />
+                <Route path="n8n-workflows" element={<AdminN8nWorkflows />} />
+                <Route path="moderation" element={<Moderation />} />
+                <Route path="database-schema" element={<DatabaseSchemaPage />} />
+                <Route path="user-status-migration" element={<UserStatusMigration />} />
+                <Route path="user-profile-migration" element={<UserProfileMigration />} />
+                <Route path="workflows" element={<Workflows />} />
+                <Route path="manage-instances" element={<ManageInstances />} />
+                <Route path="manage-plans" element={<ManagePlans />} />
+              </Route>
+            </Route>
+          </Routes>
+          <Toaster />
+        </SearchProvider>
+      </UnifiedAuthProvider>
     </Suspense>
   );
 }

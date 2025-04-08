@@ -172,7 +172,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           sessionStorage.setItem('dashboard-redirect-time', currentTime.toString());
           
           // Use replace to avoid growing history stack
-          navigate('/login', { replace: true });
+          navigate('/', { replace: true });
         } else if (isAuthenticated && !profile) {
           // We're authenticated but don't have a profile yet - force a refresh
           logDebug('Authenticated but missing profile, refreshing auth state');

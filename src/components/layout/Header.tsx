@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import MobileNavigation from "./MobileNavigation";
-import { useAuth } from "@/contexts/auth-compatibility";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import LoginModal from "@/components/auth/LoginModal";
 import JoinModal from "@/components/auth/JoinModal";
 import PasswordReset from "@/components/auth/PasswordReset";
@@ -324,7 +324,6 @@ const Header = ({}: HeaderProps) => {
             </DropdownMenuContent>
           </DropdownMenu>
           <NavLink href="/plans">Plans</NavLink>
-          <NavLink href="/blog">Blog</NavLink>
         </nav>
 
         <div className="flex items-center gap-2">

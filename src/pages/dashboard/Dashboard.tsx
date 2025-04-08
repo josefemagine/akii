@@ -11,8 +11,7 @@ import type { AnalyticsData } from "@/lib/api";
 import { dashboardStyles, DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DashboardSection } from "@/components/layout/DashboardSection";
-import { useAuth } from "@/contexts/auth-compatibility";
-import { useDirectAuth } from "@/contexts/direct-auth-context";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { isProduction, ensureDashboardAccess } from "@/lib/production-recovery";
 
 // Helper function to get time-appropriate greeting
@@ -54,7 +53,7 @@ const useTimeBasedGreeting = () => {
 
 // Custom hook to get user's first name
 const useUserFirstName = () => {
-  const { profile } = useDirectAuth();
+  const { profile } = useAuth();
   
   return useMemo(() => {
     if (profile?.first_name) return profile.first_name;
@@ -300,25 +299,57 @@ const ErrorState = React.memo(({ error, analyticsData }: { error: string, analyt
   );
 });
 
-// Loading state component
-const LoadingState = React.memo(() => (
-  <div className="flex items-center justify-center h-[calc(100vh-16rem)]">
-    <div className="flex flex-col items-center space-y-4">
-      <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-primary rounded-full"></div>
-      <p>Loading dashboard data...</p>
+// Loading state component with safety timeout
+const LoadingState = React.memo(() => {
+  const [showForceExit, setShowForceExit] = useState(false);
+  
+  // Show force exit button after 10 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowForceExit(true);
+    }, 10000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  return (
+    <div className="flex items-center justify-center h-[calc(100vh-16rem)]">
+      <div className="flex flex-col items-center space-y-4">
+        <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-primary rounded-full"></div>
+        <p>Loading dashboard data...</p>
+        
+        {showForceExit && (
+          <button 
+            onClick={() => window.location.href = '/dashboard'} 
+            className="mt-4 px-4 py-2 bg-muted hover:bg-muted/90 rounded-md text-sm"
+          >
+            Click to force refresh
+          </button>
+        )}
+      </div>
     </div>
-  </div>
-));
+  );
+});
 
 // Empty state component
 const EmptyState = React.memo(() => {
-  const personalizedGreeting = usePersonalizedGreeting();
+  const { profile } = useAuth();
+  
+  // Get user's first name for the welcome message
+  const firstName = useMemo(() => {
+    if (profile?.first_name) return profile.first_name;
+    if (profile?.name) {
+      // Split name and return first part
+      return profile.name.split(' ')[0];
+    }
+    return "there"; // Default if no name found
+  }, [profile]);
   
   return (
     <div>
       <Card>
         <CardHeader>
-          <CardTitle>{personalizedGreeting}</CardTitle>
+          <CardTitle>{`Welcome, ${firstName}`}</CardTitle>
           <CardDescription>Overview of your private AI Instances and performance</CardDescription>
         </CardHeader>
         <CardContent>
@@ -329,23 +360,16 @@ const EmptyState = React.memo(() => {
   );
 });
 
-// Main Dashboard component with optimized rendering
+// Main Dashboard component with simplified rendering
 const Dashboard = () => {
-  // Only log on initial render, not on re-renders
-  const isFirstRender = React.useRef(true);
-  if (isFirstRender.current) {
-    console.log("Dashboard component initial render");
-    isFirstRender.current = false;
-  }
+  console.log("Dashboard component rendering");
   
   const [timePeriod, setTimePeriod] = useState("Last 7 days");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start with loading false
   const [error, setError] = useState<string | null>(null);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
-  const [renderAttempt, setRenderAttempt] = useState(0);
-  const dataFetchedRef = React.useRef(false);
-
-  // Default data for fallback
+  
+  // Default data - always available immediately
   const defaultData = useMemo(() => ({
     totalMessages: 0,
     activeAgents: 0,
@@ -353,121 +377,66 @@ const Dashboard = () => {
     averageRating: 0,
   }), []);
 
-  // Handle production environment special case
+  // Auth
+  const { isAdmin, profile } = useAuth();
+  console.log("Dashboard - Auth state:", { isAdmin, hasProfile: !!profile });
+  
+  // Always render with at least default data
   useEffect(() => {
-    if (isProduction()) {
-      console.log("Dashboard - Production environment detected");
-      
-      // Ensure dashboard access in production
-      ensureDashboardAccess();
-      
-      // Set default data immediately to improve loading experience
-      if (!analyticsData) {
-        setAnalyticsData(defaultData);
-      }
-      
-      // If still loading after 3 seconds, force complete in production
-      const timer = setTimeout(() => {
-        if (loading) {
-          console.log("Dashboard - Forcing completion in production");
-          setLoading(false);
-        }
-      }, 3000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [loading, analyticsData, defaultData]);
-
-  // Handle data fetching logic with production resilience
-  const fetchData = useCallback(async () => {
-    if (dataFetchedRef.current) return;
-    
-    console.log("Dashboard - Fetching analytics data for period:", timePeriod);
-    setLoading(true);
-    setError(null);
-    dataFetchedRef.current = true;
-
-    try {
-      // Set default data immediately to ensure we have something to render
+    if (!analyticsData) {
+      console.log("Dashboard - Setting default data immediately");
       setAnalyticsData(defaultData);
-
-      const data = await fetchAnalyticsData(timePeriod);
-      setAnalyticsData(data);
-    } catch (error) {
-      console.error("Error loading analytics data:", error);
-      
-      // Less alarming error message in production
-      if (isProduction()) {
-        setError("Unable to load live analytics. Showing default data.");
-      } else {
-        setError("Failed to load analytics data.");
-      }
-      
-      // Ensure we always have data in production
-      if (isProduction()) {
-        console.log("Dashboard - Using default data in production due to error");
-        setAnalyticsData(defaultData);
-      }
-    } finally {
-      setLoading(false);
     }
-  }, [timePeriod, defaultData]);
-
-  // Add a safety timeout to ensure we always render something
+  }, [defaultData, analyticsData]);
+  
+  // Fetch real data in the background
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (loading && renderAttempt < 2) {
-        console.log("Dashboard - Safety timeout triggered, forcing data load");
-        setRenderAttempt((prev) => prev + 1);
-        setLoading(false);
-
-        // Set default data if none exists
-        if (!analyticsData) {
-          setAnalyticsData(defaultData);
-        }
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [loading, renderAttempt, analyticsData, defaultData]);
-
-  // Fetch data once on mount or when time period changes
-  useEffect(() => {
-    let isMounted = true;
-    dataFetchedRef.current = false;
+    console.log("Dashboard - Starting background data fetch");
     
-    // Reset state when time period changes
-    if (timePeriod) {
-      fetchData();
+    // Immediately use default data
+    if (!analyticsData) {
+      setAnalyticsData(defaultData);
     }
-
-    return () => {
-      isMounted = false;
+    
+    const fetchDataInBackground = async () => {
+      try {
+        console.log("Dashboard - Background fetch started");
+        const data = await fetchAnalyticsData(timePeriod);
+        console.log("Dashboard - Background fetch completed successfully");
+        setAnalyticsData(data);
+      } catch (err) {
+        console.error("Error in background fetch:", err);
+        // Keep using default data on error
+      }
     };
-  }, [timePeriod, fetchData]);
-
-  // Determine which component to render based on current state
-  // Use conditional rendering instead of multiple returns for better performance
+    
+    fetchDataInBackground();
+  }, [timePeriod, defaultData, analyticsData]);
+  
+  // Get user's first name for the welcome message
+  const firstName = profile?.first_name || profile?.name?.split(' ')[0] || 'there';
+  
+  // Determine which component to render - but ALWAYS render something
   const content = useMemo(() => {
+    console.log("Dashboard - Determining content to render:", { 
+      hasData: !!analyticsData, 
+      hasError: !!error 
+    });
+    
     // Show error state but with data
     if (error && analyticsData) {
       return <ErrorState error={error} analyticsData={analyticsData} />;
     }
     
-    // Show loading state
-    if (loading && renderAttempt < 2) {
-      return <LoadingState />;
-    }
+    // If we somehow still don't have data, use default data
+    const dataToRender = analyticsData || defaultData;
     
-    // If no data after loading, show empty state
-    if (!analyticsData) {
-      return <EmptyState />;
-    }
-    
-    // Show main content
-    return <DashboardContent analyticsData={analyticsData} />;
-  }, [error, analyticsData, loading, renderAttempt]);
+    // Always render main content
+    return <DashboardContent analyticsData={dataToRender} />;
+  }, [error, analyticsData, defaultData]);
 
+  console.log("Dashboard - Rendering content");
+  
   // Wrap all rendered content in the DashboardPageContainer for consistent width and styling
   return (
     <DashboardPageContainer>

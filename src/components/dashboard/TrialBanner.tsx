@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { useAuth } from '@/contexts/auth-compatibility';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
 import { safeLocalStorage } from '@/lib/browser-check';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface TrialBannerProps {
   className?: string;

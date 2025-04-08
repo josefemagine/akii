@@ -8,8 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AnimatedText from "@/components/animations/AnimatedText";
 import DataFlowAnimation from "@/components/animations/DataFlowAnimation";
 import IntegrationSection from "@/components/marketing/IntegrationSection";
-import { useAuth } from "@/contexts/auth-compatibility";
-import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import LoginModal from "@/components/auth/LoginModal";
 import {
   Zap,
@@ -606,7 +605,7 @@ interface LandingPageProps {
 }
 
 const LandingPage = ({ searchValue }: LandingPageProps) => {
-  const { user, isLoading } = useSupabaseAuth();
+  const { user, isLoading } = useAuth();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   
   // Memoize user state to prevent unnecessary re-renders

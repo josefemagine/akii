@@ -19,9 +19,8 @@ import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
 import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from './AuthStateManager';
-import supabase from "@/lib/supabase";
-import { useAuth } from "@/contexts/auth-compatibility";
-import { useSupabaseAuth } from "@/contexts/SupabaseAuthContext";
+import { supabase } from "@/lib/supabase";
+import { useAuth, useSupabaseAuth } from "@/contexts/UnifiedAuthContext";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailPasswordRetry } from "@/lib/supabase-singleton";
 

@@ -6,8 +6,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useDirectAuth } from '@/contexts/direct-auth-context';
-import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
+import { supabase } from '@/lib/supabase';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { useUser } from '@/contexts/UserContext';
+import { useAuth, useDirectAuth, useSupabaseAuth } from '@/contexts/UnifiedAuthContext';
+import type { Session } from '@supabase/supabase-js';
 
 export const AuthDebugger: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);

@@ -564,19 +564,19 @@ export const DirectAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
         
         // If we're already logged in but got redirected to login, go to dashboard
-        if (window.location.pathname === '/login' && isLoggedInState) {
+        if (window.location.pathname === '/' && isLoggedInState) {
           // Check for potential redirect loops first
           const loginPageVisits = parseInt(sessionStorage.getItem('login-page-visits') || '0') + 1;
           sessionStorage.setItem('login-page-visits', loginPageVisits.toString());
           
           // If we've been to login page too many times, don't auto-redirect
           if (loginPageVisits >= 3) {
-            console.warn('DirectAuth: Multiple login page visits detected, stopping auto-redirect to prevent loops');
+            console.warn('DirectAuth: Multiple homepage visits detected, stopping auto-redirect to prevent loops');
             setIsLoading(false);
             return;
           }
           
-          console.log('DirectAuth: Already logged in but on login page, redirecting to dashboard');
+          console.log('DirectAuth: Already logged in but on homepage, redirecting to dashboard');
           navigate('/dashboard', { replace: true });
           return;
         }

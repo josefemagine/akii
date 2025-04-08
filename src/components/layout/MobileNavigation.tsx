@@ -130,13 +130,6 @@ const MobileNavigation = ({
           Plans
         </Link>
         <Link
-          to="/blog"
-          className="block py-2 text-base font-medium"
-          onClick={onClose}
-        >
-          Blog
-        </Link>
-        <Link
           to="/contact"
           className="block py-2 text-base font-medium"
           onClick={onClose}

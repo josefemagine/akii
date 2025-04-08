@@ -8,6 +8,7 @@ import BillingSection from '@/components/billing/BillingSection';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 // Define the Plan interface
 interface Plan {
@@ -19,7 +20,8 @@ interface Plan {
   priceAnnual: number;
 }
 
-export default function BillingPage() {
+// Internal component that uses the hooks
+function BillingPageContent() {
   const navigate = useNavigate();
   const { loading, error, billingData } = useBilling();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -190,5 +192,14 @@ export default function BillingPage() {
         </Tabs>
       )}
     </div>
+  );
+}
+
+// Main wrapper component that includes the AuthProvider
+export default function BillingPage() {
+  return (
+    <AuthProvider>
+      <BillingPageContent />
+    </AuthProvider>
   );
 }

@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useUser } from '@/contexts/UserContext';
-import { useDirectAuth } from '@/contexts/direct-auth-context';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
+
+// Add global interface declaration for circuitBroken property
+declare global {
+  interface Window {
+    circuitBroken?: boolean;
+  }
+}
 
 interface PrivateRouteProps {
   children: React.ReactNode;
@@ -78,10 +85,10 @@ const checkCircuitBreaker = (path: string): boolean => {
 export const PrivateRoute: React.FC<PrivateRouteProps> = ({
   children,
   adminOnly = false,
-  redirectTo = '/login',
+  redirectTo = '/',
 }) => {
   const { user, sessionLoaded } = useUser();
-  const { isAdmin: directIsAdmin, user: directUser } = useDirectAuth();
+  const { isAdmin: directIsAdmin, user: directUser } = useAuth();
   const location = useLocation();
   const [circuitOpen, setCircuitOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -199,7 +206,7 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
                 }
                 
                 // Force full page reload to start fresh
-                window.location.href = '/login';
+                window.location.href = '/';
               }}
             >
               Reset Authentication & Start Fresh

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useAuth } from '@/contexts/auth-compatibility';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { authRecoveryMiddleware, tryRepairAuthIssues } from '@/lib/supabase-auth-recovery';
 import { supabase } from '@/lib/supabase';
