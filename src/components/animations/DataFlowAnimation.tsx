@@ -28,7 +28,7 @@ const DataFlowAnimation = () => {
     { 
       icon: (
         <div className="flex items-center justify-center text-blue-400">
-          <svg width="18" height="16" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg width="22" height="20" viewBox="0 0 18 16" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M5.82353 1.76471L2.47059 8.47059H8.47059L11.8235 1.76471H5.82353Z" fill="#4285F4"/>
             <path d="M12.1765 1.76471L8.82353 8.47059H14.8235L18.1765 1.76471H12.1765Z" fill="#1FBCFD"/>
             <path d="M0 10.5882L3.35294 3.88235L6.70588 10.5882L3.35294 17.2941L0 10.5882Z" fill="#27A85F"/>
@@ -38,21 +38,21 @@ const DataFlowAnimation = () => {
       ), 
       label: "Google Drive" 
     },
-    { icon: <Upload className="text-blue-400" />, label: "File Upload" },
-    { icon: <Database className="text-purple-400" />, label: "CRM Data" },
-    { icon: <Zap className="text-yellow-400" />, label: "Zapier" },
-    { icon: <ShoppingCart className="text-green-400" />, label: "Ecommerce" },
+    { icon: <Upload className="text-blue-400" size={20} />, label: "File Upload" },
+    { icon: <Database className="text-purple-400" size={20} />, label: "CRM Data" },
+    { icon: <Zap className="text-yellow-400" size={20} />, label: "Zapier" },
+    { icon: <ShoppingCart className="text-green-400" size={20} />, label: "Ecommerce" },
   ];
 
   // Deployment platform icons
   const platforms = [
-    { icon: <Monitor className="text-gray-100" />, label: "Website" },
-    { icon: <Smartphone className="text-gray-100" />, label: "Mobile" },
-    { icon: <MessageCircle className="text-gray-100" />, label: "WhatsApp" },
-    { icon: <Send className="text-gray-100" />, label: "Telegram" },
-    { icon: <ShoppingBag className="text-gray-100" />, label: "Shopify" },
-    { icon: <Globe className="text-gray-100" />, label: "WordPress" },
-    { icon: <Code className="text-gray-100" />, label: "API" },
+    { icon: <Monitor className="text-gray-100" size={20} />, label: "Website" },
+    { icon: <Smartphone className="text-gray-100" size={20} />, label: "Mobile" },
+    { icon: <MessageCircle className="text-gray-100" size={20} />, label: "WhatsApp" },
+    { icon: <Send className="text-gray-100" size={20} />, label: "Telegram" },
+    { icon: <ShoppingBag className="text-gray-100" size={20} />, label: "Shopify" },
+    { icon: <Globe className="text-gray-100" size={20} />, label: "WordPress" },
+    { icon: <Code className="text-gray-100" size={20} />, label: "API" },
   ];
   
   // Animation variants
@@ -134,7 +134,7 @@ const DataFlowAnimation = () => {
       initial="initial"
       animate={controls}
       variants={containerVariants}
-      style={{ minHeight: "530px" }}
+      style={{ minHeight: "570px", height: "100%" }}
     >
       {/* Background grid pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
@@ -175,10 +175,10 @@ const DataFlowAnimation = () => {
                 custom={index}
                 className="flex flex-col items-center"
               >
-                <div className="h-10 w-10 rounded-lg bg-gray-800 flex items-center justify-center mb-1">
+                <div className="h-12 w-12 rounded-lg bg-gray-800 flex items-center justify-center mb-1">
                   {source.icon}
                 </div>
-                <span className="text-gray-400 text-[9px]">{source.label}</span>
+                <span className="text-gray-400 text-[11px]">{source.label}</span>
               </motion.div>
             ))}
           </div>
@@ -252,7 +252,7 @@ const DataFlowAnimation = () => {
             Akii plug-and-play apps & integrations
           </motion.div>
 
-          <div className="flex justify-center flex-wrap gap-x-5 gap-y-2 max-w-lg mt-0">
+          <div className="flex justify-center flex-wrap gap-x-4 sm:gap-x-5 gap-y-2 max-w-lg mt-0">
             {platforms.map((platform, index) => (
               <motion.div
                 key={index}
@@ -260,10 +260,10 @@ const DataFlowAnimation = () => {
                 custom={index}
                 className="flex flex-col items-center"
               >
-                <div className="h-9 w-9 rounded-lg bg-gray-800 flex items-center justify-center mb-1">
+                <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-lg bg-gray-800 flex items-center justify-center mb-1">
                   {platform.icon}
                 </div>
-                <span className="text-gray-400 text-[9px]">{platform.label}</span>
+                <span className="text-gray-400 text-[9px] sm:text-[11px]">{platform.label}</span>
               </motion.div>
             ))}
           </div>
