@@ -35,7 +35,7 @@ const HeroSection = () => {
               Akii.com + n8n
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              Full Control. <span className="text-primary">Infinite Automation.</span>
+              Connect <span className="text-primary">Akii AI</span> with n8n
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
               Connect Akii.com to your data stack using n8n — the open-source, self-hosted workflow engine made for devs, ops teams, and privacy-first platforms.
@@ -127,7 +127,7 @@ const BenefitsSection = () => {
     <section className="py-20 px-4 bg-muted/30">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">Key Benefits</h2>
+          <h2 className="text-3xl font-bold mb-4">Key benefits</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Powerful workflow automation and total control over your AI processes
           </p>
@@ -144,7 +144,7 @@ const BenefitsSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Workflow className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Multi-Step AI Workflows</h3>
+            <h3 className="text-xl font-semibold mb-2">Multi-step AI workflows</h3>
             <p className="text-muted-foreground">
               Create complex multi-step workflows that call your Akii AI Instance at exactly the right moment in your business processes.
             </p>
@@ -160,7 +160,7 @@ const BenefitsSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Code className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Custom AI Chaining</h3>
+            <h3 className="text-xl font-semibold mb-2">Custom AI chaining</h3>
             <p className="text-muted-foreground">
               Chain Akii outputs with internal systems, webhooks, and databases. Process AI results with custom code nodes for maximum flexibility.
             </p>
@@ -176,7 +176,7 @@ const BenefitsSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Server className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Self-Hosted Security</h3>
+            <h3 className="text-xl font-semibold mb-2">Self-hosted option</h3>
             <p className="text-muted-foreground">
               Run n8n on your own infrastructure for maximum security and compliance. Ideal for sensitive data and regulated industries.
             </p>
@@ -192,7 +192,7 @@ const BenefitsSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Shield className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Enterprise Compliance</h3>
+            <h3 className="text-xl font-semibold mb-2">Complete data control</h3>
             <p className="text-muted-foreground">
               Supports self-hosted, secure environments — fully GDPR and SOC2-aligned. Keep all your data and AI processes within your security perimeter.
             </p>
@@ -207,22 +207,22 @@ const UseCasesSection = () => {
   const useCases = [
     {
       icon: <MessageSquare className="h-6 w-6 text-primary" />,
-      title: "Chat Command Automation",
+      title: "Chat command automation",
       description: "When users issue a Slack command, trigger Akii to summarize a Notion document and return insights directly in the thread."
     },
     {
       icon: <Clock className="h-6 w-6 text-primary" />,
-      title: "Scheduled Analysis",
+      title: "Scheduled analysis",
       description: "Automatically run periodic reports where Akii analyzes business data, writes summary insights, and sends to email or Google Sheets."
     },
     {
       icon: <Webhook className="h-6 w-6 text-primary" />,
-      title: "Event-Driven Support",
+      title: "Event-driven support",
       description: "Capture inbound webhooks, use Akii to generate contextual support responses, and route to your CRM with customer details."
     },
     {
       icon: <Cog className="h-6 w-6 text-primary" />,
-      title: "Internal Tool Automation",
+      title: "Internal tool automation",
       description: "Create complex workflows where Akii processes data and triggers custom actions in your internal systems with full data transformation."
     }
   ];
@@ -232,7 +232,7 @@ const UseCasesSection = () => {
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold mb-4">
-            Popular Use Cases
+            Popular use cases
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             How organizations leverage Akii + n8n for powerful AI workflows
@@ -268,7 +268,7 @@ const UseCasesSection = () => {
               <Database className="h-10 w-10 text-primary" />
             </div>
             <div className="flex-1">
-              <h3 className="text-xl font-bold mb-2">Data Isolation by Design</h3>
+              <h3 className="text-xl font-bold mb-2">Data isolation by design</h3>
               <p className="text-muted-foreground">
                 With n8n's self-hosted approach and Akii's privacy-first design, your data and AI processing remain entirely under your control. Data never leaves your environment unless you explicitly configure it to, making this integration ideal for organizations with strict security requirements.
               </p>
@@ -285,7 +285,7 @@ const TechnicalDiagramSection = () => {
     <section className="py-20 px-4 bg-muted/30">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">Technical Architecture</h2>
+          <h2 className="text-3xl font-bold mb-4">Technical architecture</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             How the Akii + n8n integration works under the hood
           </p>
@@ -305,7 +305,7 @@ const TechnicalDiagramSection = () => {
                   <div className="bg-blue-500/10 p-2 rounded-full">
                     <Webhook className="h-5 w-5 text-blue-500" />
                   </div>
-                  <h3 className="font-semibold">1. Trigger Node</h3>
+                  <h3 className="font-semibold">1. Trigger node</h3>
                 </div>
                 <p className="text-muted-foreground text-sm">
                   Start workflows with events from webhooks, schedules, or any of 200+ integrated apps and services.
@@ -317,7 +317,7 @@ const TechnicalDiagramSection = () => {
                   <div className="bg-primary/10 p-2 rounded-full">
                     <MessageSquare className="h-5 w-5 text-primary" />
                   </div>
-                  <h3 className="font-semibold">2. Akii AI Node</h3>
+                  <h3 className="font-semibold">2. Akii AI node</h3>
                 </div>
                 <p className="text-muted-foreground text-sm">
                   The dedicated Akii node processes your data with custom AI instructions, accessing your private knowledge base.
@@ -329,7 +329,7 @@ const TechnicalDiagramSection = () => {
                   <div className="bg-purple-500/10 p-2 rounded-full">
                     <Code className="h-5 w-5 text-purple-500" />
                   </div>
-                  <h3 className="font-semibold">3. Processing Nodes</h3>
+                  <h3 className="font-semibold">3. Processing nodes</h3>
                 </div>
                 <p className="text-muted-foreground text-sm">
                   Transform AI outputs with code, filters, or conditional logic before sending to destination systems.
@@ -341,7 +341,7 @@ const TechnicalDiagramSection = () => {
                   <div className="bg-orange-500/10 p-2 rounded-full">
                     <Terminal className="h-5 w-5 text-orange-500" />
                   </div>
-                  <h3 className="font-semibold">4. Output Nodes</h3>
+                  <h3 className="font-semibold">4. Output nodes</h3>
                 </div>
                 <p className="text-muted-foreground text-sm">
                   Send processed AI data to databases, email, messaging platforms, or any other system in your stack.
@@ -412,7 +412,7 @@ const CTASection = () => {
       <div className="container mx-auto max-w-6xl">
         <div className="bg-card border border-border rounded-2xl p-8 md:p-12 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Build Your Workflow with Akii.com
+            Start automating with Akii and n8n today
           </h2>
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
             Get started with Akii.com and n8n today to create powerful, automated AI workflows for your organization.

@@ -35,7 +35,7 @@ const HeroSection = () => {
               Shopify Integration
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              <span className="text-primary">AI Chat That Knows Your Store</span> Inside & Out
+              AI-powered <span className="text-primary">Shopify chat</span> for your store
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
               Easily train your own AI assistant that understands your products, policies, and brand voice - providing personalized support that boosts sales by up to 35%.
@@ -169,37 +169,37 @@ const FeaturesSection = () => {
   const features = [
     {
       icon: <Bot className="h-6 w-6 text-primary" />,
-      title: "Trained On Your Store",
+      title: "Trained on your store",
       description:
         "Akii automatically learns your entire product catalog, pricing, policies, and FAQs to provide accurate, store-specific information.",
     },
     {
       icon: <MessageSquare className="h-6 w-6 text-primary" />,
-      title: "Speaks Your Brand Voice",
+      title: "Speaks your brand voice",
       description:
         "Customize your AI's personality to match your brand's tone and style, creating consistent customer experiences.",
     },
     {
       icon: <ShoppingCart className="h-6 w-6 text-primary" />,
-      title: "Boosts Conversion Rates",
+      title: "Boosts conversion rates",
       description:
         "Instantly answers product questions and objections that typically cause customers to abandon their purchase.",
     },
     {
       icon: <Users className="h-6 w-6 text-primary" />,
-      title: "Remembers Customer Preferences",
+      title: "Remembers customer preferences",
       description:
         "Maintains context across conversations to deliver personalized recommendations based on preferences and history.",
     },
     {
       icon: <Zap className="h-6 w-6 text-primary" />,
-      title: "Updates Automatically",
+      title: "Updates automatically",
       description:
         "Stays in sync with your inventory, pricing changes, and new products without requiring manual updates.",
     },
     {
       icon: <Shield className="h-6 w-6 text-primary" />,
-      title: "Human-Like Understanding",
+      title: "Human-like understanding",
       description:
         "Comprehends complex customer queries, nuanced questions, and even responds to multiple questions at once.",
     },
@@ -209,7 +209,7 @@ const FeaturesSection = () => {
     <section className="py-20 px-4 bg-muted/30">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">AI That Truly Understands Your Business</h2>
+          <h2 className="text-3xl font-bold mb-4">Key features</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Unlike generic chatbots, Akii learns everything about your specific Shopify store to create 
             meaningful conversations that convert browsers into buyers.
@@ -245,8 +245,8 @@ const HowItWorksSection = () => {
       <div className="container px-4 md:px-6 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              How It Works
-            </h2>
+            How it works
+          </h2>
           <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
             Getting started with Akii Shopify Chat is incredibly simple. Just three easy steps and you're ready to go!
           </p>
@@ -263,13 +263,13 @@ const HowItWorksSection = () => {
             <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mb-6">
               <div className="text-primary font-bold text-2xl">1</div>
             </div>
-            <h3 className="text-xl font-semibold mb-3">Install the App</h3>
+            <h3 className="text-xl font-semibold mb-3">Install the app</h3>
             <p className="text-muted-foreground">
               Simply add the Akii Chat app from the Shopify App Store with one click. No technical knowledge needed!
             </p>
             <div className="mt-6 rounded-lg h-36 w-full bg-primary/5 flex items-center justify-center border border-primary/10">
               <ShoppingCart className="h-12 w-12 text-primary/40" />
-          </div>
+            </div>
           </motion.div>
 
           <motion.div
@@ -281,14 +281,14 @@ const HowItWorksSection = () => {
           >
             <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mb-6">
               <div className="text-primary font-bold text-2xl">2</div>
-        </div>
-            <h3 className="text-xl font-semibold mb-3">Connect Your Store</h3>
+            </div>
+            <h3 className="text-xl font-semibold mb-3">Connect your store</h3>
             <p className="text-muted-foreground">
               Authorize access to your store data. Akii automatically learns about your products, pricing, and policies.
             </p>
             <div className="mt-6 rounded-lg h-36 w-full bg-secondary/5 flex items-center justify-center border border-secondary/10">
               <Settings className="h-12 w-12 text-secondary/40" />
-                </div>
+            </div>
           </motion.div>
 
           <motion.div
@@ -300,8 +300,8 @@ const HowItWorksSection = () => {
           >
             <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mb-6">
               <div className="text-primary font-bold text-2xl">3</div>
-              </div>
-            <h3 className="text-xl font-semibold mb-3">Select AI Instance</h3>
+            </div>
+            <h3 className="text-xl font-semibold mb-3">Select AI instance</h3>
             <p className="text-muted-foreground">
               Choose your AI instance and go live! Your AI assistant is immediately ready to help customers and boost sales.
             </p>
@@ -333,11 +333,11 @@ const BenefitsSection = () => {
     <section className="py-20 px-4 bg-background">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">The Impact of AI That Knows Your Store</h2>
+          <h2 className="text-3xl font-bold mb-4">The impact of AI that knows your store</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             When your AI chat assistant understands your specific products and policies, it creates measurable improvements in key business metrics.
-              </p>
-            </div>
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
           <motion.div
@@ -348,7 +348,7 @@ const BenefitsSection = () => {
             className="bg-card rounded-xl p-6 border border-border"
           >
             <div className="font-bold text-4xl text-primary mb-2">35%</div>
-            <h3 className="text-xl font-semibold mb-2">Increased Conversion Rate</h3>
+            <h3 className="text-xl font-semibold mb-2">Increased conversion rate</h3>
             <p className="text-muted-foreground">
               When customers get immediate, accurate answers about products, they're more likely to complete their purchase.
             </p>
@@ -362,7 +362,7 @@ const BenefitsSection = () => {
             className="bg-card rounded-xl p-6 border border-border"
           >
             <div className="font-bold text-4xl text-primary mb-2">28%</div>
-            <h3 className="text-xl font-semibold mb-2">Cart Recovery Rate</h3>
+            <h3 className="text-xl font-semibold mb-2">Cart recovery rate</h3>
             <p className="text-muted-foreground">
               Your trained AI proactively addresses concerns that lead to cart abandonment, recovering lost sales.
             </p>
@@ -376,16 +376,16 @@ const BenefitsSection = () => {
             className="bg-card rounded-xl p-6 border border-border"
           >
             <div className="font-bold text-4xl text-primary mb-2">42%</div>
-            <h3 className="text-xl font-semibold mb-2">Reduction in Support Tickets</h3>
+            <h3 className="text-xl font-semibold mb-2">Reduction in support tickets</h3>
             <p className="text-muted-foreground">
               When your AI knows your return policies, shipping details, and product specifications, customers get answers without waiting.
             </p>
           </motion.div>
-                </div>
+        </div>
 
         <div className="bg-muted/30 rounded-xl p-8 border border-border">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-                <div>
+            <div>
               <h3 className="text-2xl font-bold mb-4">What Our Customers Are Saying</h3>
               <div className="space-y-4">
                 <motion.div
@@ -413,8 +413,8 @@ const BenefitsSection = () => {
                   </p>
                   <div className="font-medium">Michael Chen, Electronics Store Owner</div>
                 </motion.div>
-                </div>
-                </div>
+              </div>
+            </div>
 
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -426,7 +426,7 @@ const BenefitsSection = () => {
               <div className="aspect-video bg-gradient-to-br from-primary/10 to-secondary/10 rounded-md flex items-center justify-center relative">
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
                   <h4 className="text-xl font-bold mb-2">
-                    See Akii Chat in Action
+                    See Akii chat in action
                   </h4>
                   <p className="text-muted-foreground mb-4">
                     Watch how easily Akii learns your store's products and policies
@@ -437,7 +437,7 @@ const BenefitsSection = () => {
                     </Link>
                   </Button>
                 </div>
-            </div>
+              </div>
             </motion.div>
           </div>
         </div>
@@ -451,11 +451,9 @@ const FAQSection = () => {
     <section className="py-20 px-4 bg-muted/30">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">
-            Common Questions About Your AI Assistant
-            </h2>
+          <h2 className="text-3xl font-bold mb-4">Frequently asked questions</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Discover how Akii learns about your specific Shopify store and helps drive sales
+            Everything you need to know about Akii Shopify chat
           </p>
         </div>
 
@@ -569,8 +567,8 @@ const CTASection = () => {
         >
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
             <div>
-              <h2 className="text-3xl font-bold mb-4">
-                Get Your Store's Own AI Assistant Today
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Transform your Shopify store today
               </h2>
               <p className="text-lg text-muted-foreground mb-6">
                 Transform your Shopify store with an AI assistant that truly understands your products, policies, and customers. Set up in minutes, see results immediately.
@@ -594,14 +592,14 @@ const CTASection = () => {
                 </li>
               </ul>
               <div className="flex flex-col sm:flex-row gap-4">
-              <Button size="lg" className="gap-2" asChild>
-                <Link to="/signup">
+                <Button size="lg" className="gap-2" asChild>
+                  <Link to="/signup">
                     Start 14-Day Free Trial <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button size="lg" variant="outline" asChild>
+                  </Link>
+                </Button>
+                <Button size="lg" variant="outline" asChild>
                   <Link to="/demo">Schedule Live Demo</Link>
-              </Button>
+                </Button>
               </div>
               <p className="text-sm text-muted-foreground mt-4">
                 No credit card required. Cancel anytime.

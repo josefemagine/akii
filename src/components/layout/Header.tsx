@@ -15,6 +15,7 @@ import LoginModal from "@/components/auth/LoginModal";
 import JoinModal from "@/components/auth/JoinModal";
 import PasswordReset from "@/components/auth/PasswordReset";
 import { supabase } from "@/lib/supabase";
+import AkiiLogo from "@/components/shared/AkiiLogo";
 
 interface NavLinkProps {
   href: string;
@@ -261,10 +262,7 @@ const Header = ({}: HeaderProps) => {
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between py-4">
         <div className="flex items-center gap-2">
-          <Link to="/" className="flex items-center gap-2">
-            <Circle className="h-6 w-6 fill-green-500 text-green-500" />
-            <span className="text-xl font-bold">Akii</span>
-          </Link>
+          <AkiiLogo />
         </div>
 
         {/* Desktop Navigation */}

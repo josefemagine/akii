@@ -32,7 +32,7 @@ const HeroSection = () => {
               Your Company's AI Assistant
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              Add <span className="text-primary">Your Company's Own AI</span> To Your Mobile App
+              AI-powered <span className="text-primary">mobile chat</span> for your brand
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
               Launch an AI assistant trained on your company data in your mobile app in minutes, not months. No coding expertise required.
@@ -203,10 +203,10 @@ const FeaturesSection = () => {
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-16">
           <div>
             <div className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-3">
-              Company-Specific AI
+              Company-specific AI
             </div>
             <h2 className="text-3xl font-bold">
-              Your Data, Your AI Assistant
+              Your data, your AI assistant
             </h2>
           </div>
           <p className="text-lg text-muted-foreground mt-3 md:mt-0 max-w-xl">
@@ -241,7 +241,7 @@ const FeaturesSection = () => {
           
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
             <div className="flex-1">
-              <h3 className="text-2xl font-bold mb-4">Sample Company Data We Can Train On:</h3>
+              <h3 className="text-2xl font-bold mb-4">Sample company data we can train on:</h3>
               <ul className="space-y-4">
                 <li className="flex gap-3">
                   <div className="h-6 w-6 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center">
@@ -338,7 +338,7 @@ const HowItWorksSection = () => {
       <div className="container px-4 md:px-6 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Three Simple Steps to Launch
+            Three simple steps to launch
           </h2>
           <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
             Add your company's AI assistant to your mobile app in minutes without any coding knowledge required.
@@ -355,7 +355,7 @@ const HowItWorksSection = () => {
           >
             <div className="absolute top-0 right-0 w-20 h-20 bg-primary/10 rounded-full -translate-x-6 -translate-y-6 blur-xl"></div>
             <div className="bg-primary/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-primary text-xl mx-auto mb-6">1</div>
-            <h3 className="text-xl font-semibold mb-4">Connect Your Mobile App</h3>
+            <h3 className="text-xl font-semibold mb-4">Connect your mobile app</h3>
             <p className="text-muted-foreground">
               Simply register your app with our platform by providing your app's name and selecting iOS, Android, or both. No developer account or technical details needed.
             </p>
@@ -373,7 +373,7 @@ const HowItWorksSection = () => {
           >
             <div className="absolute bottom-0 left-0 w-20 h-20 bg-purple-500/10 rounded-full translate-x-6 translate-y-6 blur-xl"></div>
             <div className="bg-primary/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-primary text-xl mx-auto mb-6">2</div>
-            <h3 className="text-xl font-semibold mb-4">Upload Your Company Data</h3>
+            <h3 className="text-xl font-semibold mb-4">Upload your company data</h3>
             <p className="text-muted-foreground">
               Use our user-friendly interface to upload your product catalogs, FAQs, customer support documents, and more. Our AI will automatically learn from your data.
             </p>
@@ -391,7 +391,7 @@ const HowItWorksSection = () => {
           >
             <div className="absolute top-0 left-0 w-20 h-20 bg-primary/10 rounded-full translate-x-6 -translate-y-6 blur-xl"></div>
             <div className="bg-primary/20 w-12 h-12 rounded-full flex items-center justify-center font-semibold text-primary text-xl mx-auto mb-6">3</div>
-            <h3 className="text-xl font-semibold mb-4">Add to Your App</h3>
+            <h3 className="text-xl font-semibold mb-4">Add to your app</h3>
             <p className="text-muted-foreground">
               We'll provide a simple activation code for your developer to add to your app - a 2-minute task. Or use our no-code plugin if you're on a platform like Shopify or WordPress.
             </p>
@@ -454,7 +454,7 @@ const BenefitsSection = () => {
           <div className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-3">
             Business Impact
           </div>
-          <h2 className="text-3xl font-bold mb-4">Real Results from Company-Trained AI</h2>
+          <h2 className="text-3xl font-bold mb-4">Real results from company-trained AI</h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Companies using AI assistants trained on their specific data see measurable improvements
           </p>
@@ -471,7 +471,7 @@ const BenefitsSection = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="bg-card rounded-lg border border-border p-6">
                 <div className="text-3xl font-bold text-primary mb-2">42%</div>
-                <h3 className="text-xl font-semibold mb-2">Increased Engagement</h3>
+                <h3 className="text-xl font-semibold mb-2">Increased engagement</h3>
                 <p className="text-muted-foreground">
                   Mobile app users interact 42% more with apps that have company-specific AI assistance.
                 </p>
@@ -479,7 +479,7 @@ const BenefitsSection = () => {
               
               <div className="bg-card rounded-lg border border-border p-6">
                 <div className="text-3xl font-bold text-primary mb-2">68%</div>
-                <h3 className="text-xl font-semibold mb-2">Fewer Support Tickets</h3>
+                <h3 className="text-xl font-semibold mb-2">Fewer support tickets</h3>
                 <p className="text-muted-foreground">
                   Customers find answers through the AI, reducing the need for human support intervention.
                 </p>
@@ -487,7 +487,7 @@ const BenefitsSection = () => {
               
               <div className="bg-card rounded-lg border border-border p-6">
                 <div className="text-3xl font-bold text-primary mb-2">3 min</div>
-                <h3 className="text-xl font-semibold mb-2">Implementation Time</h3>
+                <h3 className="text-xl font-semibold mb-2">Implementation time</h3>
                 <p className="text-muted-foreground">
                   From signup to live in your app in minutes, not the weeks or months of traditional AI solutions.
                 </p>
@@ -495,7 +495,7 @@ const BenefitsSection = () => {
               
               <div className="bg-card rounded-lg border border-border p-6">
                 <div className="text-3xl font-bold text-primary mb-2">27%</div>
-                <h3 className="text-xl font-semibold mb-2">Increased Conversions</h3>
+                <h3 className="text-xl font-semibold mb-2">Increased conversions</h3>
                 <p className="text-muted-foreground">
                   Customers are 27% more likely to make a purchase when assisted by company-trained AI.
                 </p>
@@ -503,7 +503,7 @@ const BenefitsSection = () => {
             </div>
             
             <div className="bg-muted/30 rounded-lg border border-border p-6">
-              <h3 className="text-xl font-semibold mb-3">No Technical Complexity</h3>
+              <h3 className="text-xl font-semibold mb-3">No technical complexity</h3>
               <p className="text-muted-foreground mb-4">
                 Unlike traditional AI implementations that require data scientists, engineers, and months of work, our solution requires:
               </p>
@@ -532,7 +532,7 @@ const BenefitsSection = () => {
             className="md:col-span-5 relative"
           >
             <div className="relative z-10 rounded-lg overflow-hidden border bg-card p-6">
-              <div className="text-xl font-bold mb-6">What Our Customers Say</div>
+              <div className="text-xl font-bold mb-6">What our customers say</div>
               
               <div className="space-y-6">
                 <div>
@@ -595,7 +595,7 @@ const FAQSection = () => {
           <div className="inline-flex items-center rounded-full bg-secondary/10 px-3 py-1 text-sm font-medium text-secondary mb-3">
             Common Questions
           </div>
-          <h2 className="text-3xl font-bold mb-4">Frequently Asked Questions</h2>
+          <h2 className="text-3xl font-bold mb-4">Frequently asked questions</h2>
           <p className="text-lg text-muted-foreground">
             Everything you need to know about adding your company's AI to your mobile app
           </p>

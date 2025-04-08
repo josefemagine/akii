@@ -38,7 +38,7 @@ const HeroSection = () => {
               2-Minute WordPress Setup
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              <span className="text-primary">Add Your Company's AI</span> To WordPress In Minutes
+              AI-powered <span className="text-primary">WordPress chat</span> for your website
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
               Connect your WordPress site in just minutes with a simple API key. No coding or developer skills required to train AI on your website content.

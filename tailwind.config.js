@@ -17,6 +17,13 @@ module.exports = {
       },
     },
     extend: {
+      fontFamily: {
+        'source-code': ['"Source Code Pro"', 'monospace'],
+        'kanit': ['"Kanit"', 'sans-serif'],
+        'kdam': ['"Kdam Thmor Pro"', 'sans-serif'],
+        'coda': ['"Coda"', 'cursive'],
+        'inter': ['"Inter"', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

@@ -37,7 +37,7 @@ const TelegramChatAgent = () => {
                   3-Minute Telegram Setup
                 </div>
                 <h1 className="text-4xl md:text-5xl font-bold mb-6">
-                  Add <span className="text-primary">Your Company's AI</span> To Telegram
+                  AI-powered <span className="text-primary">Telegram chat</span> for your business
                 </h1>
                 <p className="text-xl text-muted-foreground mb-8">
                   Connect your Telegram bot in minutes with just a BotFather token. No coding or technical expertise required to train AI on your data.
@@ -162,9 +162,7 @@ const TelegramChatAgent = () => {
         <section className="py-20 bg-muted/30">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold mb-4">
-                Powerful Telegram Features
-              </h2>
+              <h2 className="text-3xl font-bold mb-4">Key features</h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                 Everything you need to build powerful AI conversations on
                 Telegram for your business.
@@ -182,9 +180,7 @@ const TelegramChatAgent = () => {
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <Zap className="h-6 w-6 text-primary" />
                   </div>
-                <h3 className="text-xl font-semibold mb-2">
-                  Easy Setup
-                </h3>
+                <h3 className="text-xl font-semibold mb-2">Seamless Telegram integration</h3>
                   <p className="text-muted-foreground">
                     Get your Telegram bot up and running in minutes with our
                     simple setup process.
@@ -201,9 +197,7 @@ const TelegramChatAgent = () => {
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <MessageSquare className="h-6 w-6 text-primary" />
                   </div>
-                <h3 className="text-xl font-semibold mb-2">
-                  Custom Commands
-                </h3>
+                <h3 className="text-xl font-semibold mb-2">Intelligent responses</h3>
                   <p className="text-muted-foreground">
                     Create custom commands to provide specific information or
                     trigger actions.
@@ -220,9 +214,7 @@ const TelegramChatAgent = () => {
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <Users className="h-6 w-6 text-primary" />
                   </div>
-                <h3 className="text-xl font-semibold mb-2">
-                  Group Chat Support
-                </h3>
+                <h3 className="text-xl font-semibold mb-2">Conversation history</h3>
                   <p className="text-muted-foreground">
                     Deploy your AI agent in Telegram groups to assist multiple
                     users simultaneously.
@@ -239,9 +231,7 @@ const TelegramChatAgent = () => {
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <Send className="h-6 w-6 text-primary" />
                   </div>
-                <h3 className="text-xl font-semibold mb-2">
-                  Inline Queries
-                </h3>
+                <h3 className="text-xl font-semibold mb-2">Rich media support</h3>
                   <p className="text-muted-foreground">
                     Allow users to query your bot directly from any chat using
                     inline mode.
@@ -258,9 +248,7 @@ const TelegramChatAgent = () => {
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <Settings className="h-6 w-6 text-primary" />
                   </div>
-                <h3 className="text-xl font-semibold mb-2">
-                  Interactive Buttons
-                </h3>
+                <h3 className="text-xl font-semibold mb-2">Bot commands</h3>
                   <p className="text-muted-foreground">
                     Create rich interactive experiences with buttons and menus.
                   </p>
@@ -276,9 +264,7 @@ const TelegramChatAgent = () => {
                 <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                   <Globe className="h-6 w-6 text-primary" />
                   </div>
-                <h3 className="text-xl font-semibold mb-2">
-                  Detailed Analytics
-                </h3>
+                <h3 className="text-xl font-semibold mb-2">Performance analytics</h3>
                   <p className="text-muted-foreground">
                     Track user engagement and bot performance with comprehensive
                     analytics.
@@ -783,11 +769,11 @@ const TelegramChatAgent = () => {
               <div className="inline-flex items-center rounded-full bg-secondary/10 px-3 py-1 text-sm font-medium text-secondary mb-3">
                 Common Questions
               </div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Frequently Asked Questions
+              <h2 className="text-3xl font-bold mb-4">
+                Frequently asked questions
               </h2>
-              <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                Everything you need to know about setting up your Telegram bot with BotFather
+              <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+                Everything you need to know about Akii Telegram chat
               </p>
             </motion.div>
 

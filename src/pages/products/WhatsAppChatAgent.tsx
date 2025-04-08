@@ -38,7 +38,7 @@ const WhatsAppChatAgent = () => {
                 3-Minute WhatsApp Setup
               </div>
               <h1 className="text-4xl md:text-5xl font-bold mb-6">
-                Add <span className="text-primary">Your Company's AI</span> To WhatsApp Business
+                AI-powered <span className="text-primary">WhatsApp chat</span> for your business
               </h1>
               <p className="text-xl text-muted-foreground mb-8">
                 Connect your WhatsApp Business account in minutes with just your Meta API keys. No coding or technical expertise required.
@@ -157,9 +157,7 @@ const WhatsAppChatAgent = () => {
       <section className="py-20 px-4 bg-muted/30">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">
-              Powerful WhatsApp Features
-            </h2>
+            <h2 className="text-3xl font-bold mb-4">Key features</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Everything you need to build powerful AI conversations on
               WhatsApp for your business.
@@ -177,9 +175,7 @@ const WhatsAppChatAgent = () => {
               <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                 <MessageSquare className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">
-                Official WhatsApp API
-              </h3>
+              <h3 className="text-xl font-semibold mb-2">Instant WhatsApp integration</h3>
               <p className="text-muted-foreground">
                 Seamlessly integrate with the official WhatsApp Business API
                 for reliable and compliant messaging.
@@ -196,9 +192,7 @@ const WhatsAppChatAgent = () => {
               <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                 <Globe className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">
-                Multi-language Support
-              </h3>
+              <h3 className="text-xl font-semibold mb-2">Multilingual support</h3>
               <p className="text-muted-foreground">
                 Communicate with your customers in their preferred language
                 with automatic translation capabilities.
@@ -215,9 +209,7 @@ const WhatsAppChatAgent = () => {
               <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                 <Users className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">
-                Customer Segmentation
-              </h3>
+              <h3 className="text-xl font-semibold mb-2">Customer segmentation</h3>
               <p className="text-muted-foreground">
                 Target specific customer segments with personalized messaging
                 based on their preferences and behavior.
@@ -234,9 +226,7 @@ const WhatsAppChatAgent = () => {
               <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                 <Clock className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">
-                24/7 Availability
-              </h3>
+              <h3 className="text-xl font-semibold mb-2">24/7 Availability</h3>
               <p className="text-muted-foreground">
                 Provide round-the-clock support to your WhatsApp customers
                 without increasing staffing costs.
@@ -253,9 +243,7 @@ const WhatsAppChatAgent = () => {
               <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                 <Zap className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">
-                Rich Media Support
-              </h3>
+              <h3 className="text-xl font-semibold mb-2">Rich media handling</h3>
               <p className="text-muted-foreground">
                 Send and receive images, documents, and other media types to
                 enhance the customer experience.
@@ -272,7 +260,7 @@ const WhatsAppChatAgent = () => {
               <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
                 <Shield className="h-6 w-6 text-primary" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Compliance Ready</h3>
+              <h3 className="text-xl font-semibold mb-2">Full conversation history</h3>
               <p className="text-muted-foreground">
                 Built with WhatsApp's messaging policies in mind to ensure
                 your business stays compliant.
@@ -747,9 +735,7 @@ const WhatsAppChatAgent = () => {
             transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Why Choose Akii WhatsApp Chat
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Why choose Akii for WhatsApp?</h2>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
               Transform your customer interactions with powerful AI-driven WhatsApp messaging that delivers real results for your business.
             </p>
@@ -931,11 +917,9 @@ const WhatsAppChatAgent = () => {
             <div className="inline-flex items-center rounded-full bg-secondary/10 px-3 py-1 text-sm font-medium text-secondary mb-3">
               Common Questions
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Frequently Asked Questions
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Frequently asked questions</h2>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              Everything you need to know about connecting your WhatsApp Business account
+              Everything you need to know about Akii WhatsApp chat
             </p>
           </motion.div>
 
@@ -1014,7 +998,7 @@ const WhatsAppChatAgent = () => {
               className="w-full lg:w-1/2"
             >
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Connect WhatsApp in Minutes <br /> Not Days or Weeks
+                Transform your WhatsApp customer experience today
               </h2>
               <p className="text-lg text-muted-foreground mb-6">
                 Stop struggling with complex WhatsApp integrations. Our simple Meta API setup gets your company's AI on WhatsApp today - with just a few clicks.

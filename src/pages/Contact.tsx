@@ -81,7 +81,7 @@ const Contact = () => {
                 Contact Us
               </h1>
               <p className="max-w-[700px] text-muted-foreground md:text-xl">
-                Have questions about our AI agents? Get in touch with our team.
+                Have questions about Akii? Get in touch with our team.
               </p>
             </div>
           </div>
@@ -227,78 +227,7 @@ const Contact = () => {
               </Card>
             </div>
             <div className="space-y-6">
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold">Contact Information</h2>
-                <p className="text-muted-foreground">
-                  Our team is here to help you with any questions you may have
-                  about our AI agent solutions.
-                </p>
-              </div>
-              <div className="grid gap-6">
-                <div className="flex items-start space-x-4">
-                  <Mail className="h-6 w-6 text-primary mt-0.5" />
-                  <div>
-                    <h3 className="font-medium">Email</h3>
-                    <p className="text-muted-foreground">info@akii.ai</p>
-                    <p className="text-muted-foreground">support@akii.ai</p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-4">
-                  <Phone className="h-6 w-6 text-primary mt-0.5" />
-                  <div>
-                    <h3 className="font-medium">Phone</h3>
-                    <p className="text-muted-foreground">+1 (555) 123-4567</p>
-                    <p className="text-muted-foreground">
-                      Mon-Fri, 9am-6pm EST
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-4">
-                  <MapPin className="h-6 w-6 text-primary mt-0.5" />
-                  <div>
-                    <h3 className="font-medium">Office</h3>
-                    <p className="text-muted-foreground">123 AI Boulevard</p>
-                    <p className="text-muted-foreground">
-                      San Francisco, CA 94103
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4 pt-6">
-                <h2 className="text-2xl font-bold">How We Can Help</h2>
-                <div className="grid gap-4">
-                  <div className="flex items-start space-x-4">
-                    <MessageSquare className="h-6 w-6 text-primary mt-0.5" />
-                    <div>
-                      <h3 className="font-medium">Sales Inquiries</h3>
-                      <p className="text-muted-foreground">
-                        Interested in our AI agents? Our sales team can help you
-                        find the right solution.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start space-x-4">
-                    <Users className="h-6 w-6 text-primary mt-0.5" />
-                    <div>
-                      <h3 className="font-medium">Support</h3>
-                      <p className="text-muted-foreground">
-                        Need help with your AI agents? Our support team is ready
-                        to assist.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start space-x-4">
-                    <Building className="h-6 w-6 text-primary mt-0.5" />
-                    <div>
-                      <h3 className="font-medium">Partnerships</h3>
-                      <p className="text-muted-foreground">
-                        Looking to partner with us? Let's explore opportunities
-                        together.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* Content for the right column has been removed */}
             </div>
           </div>
         </div>

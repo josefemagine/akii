@@ -32,7 +32,7 @@ const HeroSection = () => {
               Akii.com + Zapier
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              Automate Anything. <span className="text-primary">No Code Needed.</span>
+              Connect <span className="text-primary">Akii AI</span> with Zapier
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
               Connect your AI Instance to thousands of apps using Zapier's no-code workflow builder — from CRMs and helpdesks to forms and spreadsheets.
@@ -114,7 +114,7 @@ const BenefitsSection = () => {
     <section className="py-20 px-4 bg-muted/30">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">Key Benefits</h2>
+          <h2 className="text-3xl font-bold mb-4">Key benefits</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Automate your AI workflows and connect Akii to your entire tech stack
           </p>
@@ -131,7 +131,7 @@ const BenefitsSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Zap className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Event-Triggered AI</h3>
+            <h3 className="text-xl font-semibold mb-2">Automate AI workflows</h3>
             <p className="text-muted-foreground">
               Trigger Akii prompts when events happen in apps like Gmail, Typeform, Salesforce, or Slack. Let your AI respond to real-world events automatically.
             </p>
@@ -147,7 +147,7 @@ const BenefitsSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Share2 className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Two-Way Data Flow</h3>
+            <h3 className="text-xl font-semibold mb-2">Two-way data flow</h3>
             <p className="text-muted-foreground">
               Send AI-generated responses back into tools like Notion, Google Sheets, HubSpot, or Intercom. Complete the automation loop between all your tools.
             </p>
@@ -163,7 +163,7 @@ const BenefitsSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Database className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Real-Time Sync</h3>
+            <h3 className="text-xl font-semibold mb-2">Real-time sync</h3>
             <p className="text-muted-foreground">
               Keep your AI Instance in sync with real-time business data. Ensure your AI always has the latest information when responding to queries.
             </p>
@@ -179,7 +179,7 @@ const BenefitsSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Clock className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">No-Code Simplicity</h3>
+            <h3 className="text-xl font-semibold mb-2">No-code solution</h3>
             <p className="text-muted-foreground">
               Build no-code AI workflows in minutes. Connect to 6,000+ apps without writing a single line of code. Save time and resources on integration.
             </p>
@@ -194,22 +194,22 @@ const UseCasesSection = () => {
   const useCases = [
     {
       icon: <MailOpen className="h-6 w-6 text-primary" />,
-      title: "Support Ticket Automation",
+      title: "Support ticket automation",
       description: "When a new support ticket arrives in Zendesk, trigger Akii to auto-draft a personalized reply based on ticket history and docs."
     },
     {
       icon: <Share2 className="h-6 w-6 text-primary" />,
-      title: "Lead Nurturing",
+      title: "Lead nurturing",
       description: "When a new lead enters HubSpot, use Akii to generate a personalized introduction email tailored to their industry."
     },
     {
       icon: <ListChecks className="h-6 w-6 text-primary" />,
-      title: "Form Submission Processing",
+      title: "Form submission processing",
       description: "Summarize Typeform submissions with Akii and automatically store the structured data in Notion databases."
     },
     {
       icon: <Clock className="h-6 w-6 text-primary" />,
-      title: "Meeting Intelligence",
+      title: "Meeting intelligence",
       description: "Before calendar events, have Akii auto-generate meeting briefs with relevant background info on attendees from your CRM."
     }
   ];
@@ -219,7 +219,7 @@ const UseCasesSection = () => {
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold mb-4">
-            Popular Use Cases
+            Popular use cases
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             How businesses use Akii + Zapier to automate AI workflows
@@ -255,7 +255,7 @@ const UseCasesSection = () => {
               <FileText className="h-10 w-10 text-primary" />
             </div>
             <div className="flex-1">
-              <h3 className="text-xl font-bold mb-2">Privacy You Can Trust</h3>
+              <h3 className="text-xl font-bold mb-2">Privacy you can trust</h3>
               <p className="text-muted-foreground">
                 Akii's Zapier integration follows our strict privacy-first approach. Only the data you explicitly configure in workflows is processed, with no data retention beyond what's needed for your automated tasks. Your AI Instance remains completely isolated.
               </p>
@@ -272,7 +272,7 @@ const IntegrationDiagramSection = () => {
     <section className="py-20 px-4 bg-muted/30">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">How It Works</h2>
+          <h2 className="text-3xl font-bold mb-4">How it works</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Connect your Akii instance with Zapier in three simple steps
           </p>
@@ -375,7 +375,7 @@ const CTASection = () => {
       <div className="container mx-auto max-w-6xl">
         <div className="bg-card border border-border rounded-2xl p-8 md:p-12 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to Automate Your AI Workflows?
+            Start automating with Akii and Zapier today
           </h2>
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
             Start connecting Akii.com with your favorite apps today and build powerful automation workflows in minutes.

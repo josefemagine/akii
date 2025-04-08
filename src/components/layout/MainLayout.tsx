@@ -1,9 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Circle, Github, Twitter, Linkedin, Facebook } from "lucide-react";
+import { Github, Twitter, Linkedin, Facebook } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EnvWarning } from "@/components/ui/env-warning";
 import Header from "./Header";
+import AkiiLogo from "@/components/shared/AkiiLogo";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -25,10 +26,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
         <div className="container py-12">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Circle className="h-6 w-6" fill="#23c55f" stroke="#23c55f" />
-                <span className="text-xl font-bold">Akii</span>
-              </div>
+              <AkiiLogo showLink={false} />
               <p className="text-sm text-muted-foreground">
                 Your AI. Your Data. No Leaks.
               </p>
@@ -220,7 +218,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
           </div>
 
           <div className="mt-12 pt-8 border-t text-center text-sm text-muted-foreground">
-            <p>© {new Date().getFullYear()} Akii. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Akii Technologies, LLC. All rights reserved.</p>
             <div className="flex justify-center space-x-4 mt-2">
               <Link to="/terms-of-service" className="hover:text-foreground">
                 Terms

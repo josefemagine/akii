@@ -38,7 +38,7 @@ const HeroSection = () => {
               Website Integration
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              AI-Powered <span className="text-primary">Web Chat</span> For Your Website
+              AI-powered <span className="text-primary">web chat</span> for your website
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
               Turn website visitors into customers with an intelligent chat solution that delivers personalized experiences, automates support, and drives conversions.
@@ -152,7 +152,7 @@ const FeaturesSection = () => {
     <section className="py-20 px-4 bg-muted/30">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">Key Features</h2>
+          <h2 className="text-3xl font-bold mb-4">Key features</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Everything you need to engage visitors and provide exceptional support
           </p>
@@ -169,7 +169,7 @@ const FeaturesSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Palette className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">White-Label Customization</h3>
+            <h3 className="text-xl font-semibold mb-2">White-label customization</h3>
             <p className="text-muted-foreground">
               Completely customize the chat interface to match your brand with custom colors, logos, and chat styles.
             </p>
@@ -185,7 +185,7 @@ const FeaturesSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Code className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">One-Line Installation</h3>
+            <h3 className="text-xl font-semibold mb-2">One-line installation</h3>
             <p className="text-muted-foreground">
               Add our chat widget to your website with a single line of code. No complex configuration required.
             </p>
@@ -201,7 +201,7 @@ const FeaturesSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Rocket className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Instant Deployment</h3>
+            <h3 className="text-xl font-semibold mb-2">Instant deployment</h3>
             <p className="text-muted-foreground">
               From signup to live implementation in under 5 minutes. Get up and running with minimal setup.
             </p>
@@ -217,7 +217,7 @@ const FeaturesSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <PieChart className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Comprehensive Analytics</h3>
+            <h3 className="text-xl font-semibold mb-2">Comprehensive analytics</h3>
             <p className="text-muted-foreground">
               Track engagement, conversation quality, conversion rates, and customer satisfaction with detailed insights.
             </p>
@@ -233,7 +233,7 @@ const FeaturesSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <ShieldCheck className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Moderation Controls</h3>
+            <h3 className="text-xl font-semibold mb-2">Moderation controls</h3>
             <p className="text-muted-foreground">
               Our dual-AI moderation ensures all responses are accurate, appropriate and compliant with your guidelines.
             </p>
@@ -249,7 +249,7 @@ const FeaturesSection = () => {
             <div className="bg-primary/10 p-3 rounded-full w-fit mb-4">
               <Workflow className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">Integration Ecosystem</h3>
+            <h3 className="text-xl font-semibold mb-2">Integration ecosystem</h3>
             <p className="text-muted-foreground">
               Connect with your CRM, help desk, and marketing tools to streamline workflows and data sharing.
             </p>
@@ -265,7 +265,7 @@ const BenefitsSection = () => {
     <section className="py-20 px-4">
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">Why Choose Akii Web Chat?</h2>
+          <h2 className="text-3xl font-bold mb-4">Why choose Akii web chat?</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             The smart choice for businesses looking to enhance customer engagement
           </p>
@@ -284,7 +284,7 @@ const BenefitsSection = () => {
                 <Users className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">24/7 Customer Support</h3>
+                <h3 className="text-xl font-semibold mb-2">24/7 customer support</h3>
                 <p className="text-muted-foreground">
                   Provide round-the-clock support without increasing headcount. Your AI assistant never sleeps, ensuring customers get immediate help whenever they need it.
                 </p>
@@ -296,7 +296,7 @@ const BenefitsSection = () => {
                 <Globe className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">Multilingual Support</h3>
+                <h3 className="text-xl font-semibold mb-2">Multilingual support</h3>
                 <p className="text-muted-foreground">
                   Speak your customers' language with support for over 95 languages. Break down language barriers and expand your global reach without additional resources.
                 </p>
@@ -308,7 +308,7 @@ const BenefitsSection = () => {
                 <Lock className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">Enterprise-Grade Security</h3>
+                <h3 className="text-xl font-semibold mb-2">Enterprise-grade security</h3>
                 <p className="text-muted-foreground">
                   Protect sensitive customer information with end-to-end encryption, SOC 2 compliance, and GDPR-ready data handling processes.
                 </p>
@@ -370,10 +370,10 @@ const HowItWorksSection = () => {
       <div className="container px-4 md:px-6 relative z-10">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            How It Works
+            How it works
           </h2>
           <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-            Get up and running with Akii Web Chat in minutes. Our simple installation process requires just a few lines of code.
+            Get up and running with Akii web chat in minutes. Our simple installation process requires just a few lines of code.
           </p>
         </div>
 
@@ -464,9 +464,9 @@ const FAQSection = () => {
     <section className="py-20 px-4 bg-muted/30">
       <div className="container mx-auto max-w-4xl">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">Frequently Asked Questions</h2>
+          <h2 className="text-3xl font-bold mb-4">Frequently asked questions</h2>
           <p className="text-xl text-muted-foreground">
-            Everything you need to know about Akii Web Chat
+            Everything you need to know about Akii web chat
           </p>
         </div>
 
@@ -547,10 +547,10 @@ const CTASection = () => {
       <div className="container mx-auto max-w-6xl">
         <div className="bg-card border border-border rounded-2xl p-8 md:p-12 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Transform Your Customer Experience Today
+            Transform your customer experience today
           </h2>
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Join thousands of businesses using Akii.com to provide exceptional AI-powered customer service and support 24/7/365.
+            Join thousands of businesses using Akii to provide exceptional AI-powered customer service and support 24/7/365.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Button size="lg" className="gap-2" asChild>
