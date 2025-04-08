@@ -175,7 +175,7 @@ const DataFlowAnimation = () => {
                 custom={index}
                 className="flex flex-col items-center"
               >
-                <div className="h-12 w-12 rounded-lg bg-gray-800 flex items-center justify-center mb-1">
+                <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-gray-800 flex items-center justify-center mb-1">
                   {source.icon}
                 </div>
                 <span className="text-gray-400 text-[11px]">{source.label}</span>
