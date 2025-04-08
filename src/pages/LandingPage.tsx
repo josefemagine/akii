@@ -258,7 +258,7 @@ const HeroSection = ({ user }: SectionWithUserProps) => {
             </motion.div>
           </div>
           <div className="flex items-center justify-center">
-            <div className="relative w-full max-w-[510px] h-[570px] sm:h-[620px] md:h-[650px] rounded-lg shadow-xl overflow-hidden bg-transparent">
+            <div className="relative w-full h-[100vw] sm:h-[620px] md:h-[650px] rounded-lg shadow-xl overflow-hidden bg-transparent">
               <DataFlowAnimation />
             </div>
           </div>
