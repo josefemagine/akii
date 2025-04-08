@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth, useIsAuthenticated, useProfile } from '@/contexts/ConsolidatedAuthContext';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -8,18 +8,17 @@ export default function AuthExample() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
-  // Use our new auth hooks
-  const { signIn, signOut, updateProfile, isLoading } = useAuth();
-  const isAuthenticated = useIsAuthenticated();
-  const profile = useProfile();
+  // Use our auth hooks
+  const { signIn, signOut, user, profile, isLoading } = useAuth();
+  const isAuthenticated = !!user;
 
   // Handle sign in
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
     
-    const { error } = await signIn(email, password);
-    if (!error) {
+    const { success, error } = await signIn(email, password);
+    if (success) {
       // Clear form on success
       setEmail('');
       setPassword('');
@@ -31,17 +30,9 @@ export default function AuthExample() {
     await signOut();
   };
   
-  // Handle profile update
+  // We can't update profile directly with UnifiedAuthContext, so this has been modified
   const handleUpdateName = async () => {
-    const firstName = prompt('Enter your first name:');
-    const lastName = prompt('Enter your last name:');
-    
-    if (firstName || lastName) {
-      await updateProfile({
-        first_name: firstName || undefined,
-        last_name: lastName || undefined,
-      });
-    }
+    alert('Profile updates are not available in this example');
   };
 
   return (
@@ -49,7 +40,7 @@ export default function AuthExample() {
       <CardHeader>
         <CardTitle>Authentication Example</CardTitle>
         <CardDescription>
-          Using the consolidated Auth Context
+          Using the Unified Auth Context
         </CardDescription>
       </CardHeader>
       
@@ -58,7 +49,7 @@ export default function AuthExample() {
           <div className="space-y-4">
             <div className="text-center">
               <h3 className="text-lg font-medium">
-                Welcome, {profile?.first_name || profile?.email || 'User'}!
+                Welcome, {profile?.first_name || user?.email || 'User'}!
               </h3>
               {profile?.role && (
                 <p className="text-sm text-muted-foreground">

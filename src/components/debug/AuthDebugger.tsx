@@ -11,17 +11,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useUser } from '@/contexts/UserContext';
-import { useAuth, useDirectAuth, useSupabaseAuth } from '@/contexts/UnifiedAuthContext';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
 import type { Session } from '@supabase/supabase-js';
 
 export const AuthDebugger: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [authState, setAuthState] = useState<Record<string, any>>({});
 
-  // Get auth contexts
-  const directAuth = useDirectAuth();
-  const supabaseAuth = useSupabaseAuth();
+  // Get auth context
+  const auth = useAuth();
 
   // Collect debug data
   useEffect(() => {
@@ -70,33 +68,18 @@ export const AuthDebugger: React.FC = () => {
       const debugData = {
         timestamp: new Date().toISOString(),
         location: window.location.href,
-        directAuth: {
-          user: directAuth.user ? {
-            id: directAuth.user.id,
-            email: directAuth.user.email,
-            role: directAuth.user.role
+        auth: {
+          user: auth.user ? {
+            id: auth.user.id,
+            email: auth.user.email,
           } : null,
-          profile: directAuth.profile ? {
-            id: directAuth.profile.id,
-            email: directAuth.profile.email,
-            role: directAuth.profile.role
+          profile: auth.profile ? {
+            id: auth.profile.id,
+            email: auth.profile.email,
+            role: auth.profile.role
           } : null,
-          isAdmin: directAuth.isAdmin,
-          isLoading: directAuth.isLoading
-        },
-        supabaseAuth: {
-          user: supabaseAuth.user ? {
-            id: supabaseAuth.user.id,
-            email: supabaseAuth.user.email,
-            role: supabaseAuth.user.role
-          } : null,
-          session: supabaseAuth.session ? {
-            accessToken: supabaseAuth.session.access_token ? '[PRESENT]' : '[MISSING]',
-            refreshToken: supabaseAuth.session.refresh_token ? '[PRESENT]' : '[MISSING]',
-            expiresAt: supabaseAuth.session.expires_at
-          } : null,
-          isAdmin: supabaseAuth.isAdmin,
-          isLoading: supabaseAuth.isLoading
+          isAdmin: auth.isAdmin,
+          isLoading: auth.isLoading
         },
         storage: {
           localStorage: localStorageData,
@@ -120,7 +103,7 @@ export const AuthDebugger: React.FC = () => {
       const intervalId = setInterval(collectDebugData, 2000);
       return () => clearInterval(intervalId);
     }
-  }, [isVisible, directAuth, supabaseAuth]);
+  }, [isVisible, auth]);
 
   // Set up keyboard shortcut to toggle the debug panel
   useEffect(() => {
@@ -186,7 +169,7 @@ export const AuthDebugger: React.FC = () => {
 
   // Force a fresh authentication check
   const forceAuthRefresh = () => {
-    directAuth.refreshAuthState();
+    auth.refreshAuthState();
   };
 
   // Render the debug panel
@@ -234,19 +217,12 @@ export const AuthDebugger: React.FC = () => {
         <div className="p-4 grid grid-cols-2 gap-4">
           <div className="space-y-4">
             <div className="border rounded p-3">
-              <h3 className="font-bold mb-2">DirectAuth State</h3>
+              <h3 className="font-bold mb-2">Auth State</h3>
               <pre className="text-xs overflow-auto bg-gray-100 dark:bg-gray-900 p-2 rounded max-h-40">
-                {JSON.stringify(authState.directAuth, null, 2)}
+                {JSON.stringify(authState.auth, null, 2)}
               </pre>
             </div>
             
-            <div className="border rounded p-3">
-              <h3 className="font-bold mb-2">SupabaseAuth State</h3>
-              <pre className="text-xs overflow-auto bg-gray-100 dark:bg-gray-900 p-2 rounded max-h-40">
-                {JSON.stringify(authState.supabaseAuth, null, 2)}
-              </pre>
-            </div>
-
             <div className="border rounded p-3">
               <h3 className="font-bold mb-2">Navigation & Redirect State</h3>
               <div className="text-xs font-mono">

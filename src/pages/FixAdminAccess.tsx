@@ -1,11 +1,11 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { Button } from "@/components/ui/button";
 
 const FixAdminAccess: React.FC = () => {
   const navigate = useNavigate();
-  const { user, refreshUser } = useAuth();
+  const { user, refreshAuthState } = useAuth();
 
   useEffect(() => {
     const fixJosefAdmin = async () => {
@@ -49,7 +49,7 @@ const FixAdminAccess: React.FC = () => {
         localStorage.setItem("akii-auth-success", "true");
 
         // Refresh user to update auth context
-        await refreshUser();
+        await refreshAuthState();
 
         console.log("Admin access fixed for Josef");
       } catch (error) {
@@ -60,7 +60,7 @@ const FixAdminAccess: React.FC = () => {
     if (user?.email === "josef@holm.com") {
       fixJosefAdmin();
     }
-  }, [user, refreshUser]);
+  }, [user, refreshAuthState]);
 
   const handleGoToAdmin = () => {
     navigate("/admin");

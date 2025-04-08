@@ -7,7 +7,7 @@ import AgentSetup from "./dashboard/AgentSetup";
 import Settings from "./dashboard/Settings";
 import AuthCallback from "./auth/callback";
 import MainLayout from "@/components/layout/MainLayout";
-import { useAuth } from "@/contexts/auth-compatibility";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { Toaster } from "@/components/ui/toaster";
 import LandingPage from "./LandingPage";
 import { useToast } from "@/components/ui/use-toast";

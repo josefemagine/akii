@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
 
 // Create a custom event for auth state changes
 export const AUTH_STATE_CHANGE_EVENT = 'akii:auth:stateChange';

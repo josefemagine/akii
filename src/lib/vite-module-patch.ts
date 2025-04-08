@@ -21,6 +21,10 @@ type HotAcceptFunction = {
   (deps: readonly string[], cb: HotAcceptCallback): void;
 };
 
+// Safe logging functions to avoid Vite import analysis issues
+const logInfo = (msg: string) => { console.log(msg); };
+const logError = (msg: string, err?: any) => { console.error(msg, err); };
+
 /**
  * Patches Vite's module system to use our React singleton
  */
@@ -36,7 +40,7 @@ export function patchViteModules() {
                 import.meta.env?.MODE;
   
   if (!isVite) {
-    console.log('Not running in Vite environment, skipping Vite module patch');
+    logInfo('Not running in Vite environment, skipping Vite module patch');
     return false;
   }
   
@@ -58,7 +62,7 @@ export function patchViteModules() {
       const wrappedAccept = function(...args: any[]) {
         // Log accepted modules for debugging
         if (args[0]) {
-          console.log('HMR accepting modules:', args[0]);
+          console.log(`HMR accepting modules: ${JSON.stringify(args[0])}`);
         }
         
         // Call the original accept with all arguments
@@ -69,10 +73,17 @@ export function patchViteModules() {
       import.meta.hot.accept = wrappedAccept;
     }
     
-    console.log('Vite module system patched successfully');
+    // Use console.info instead of console.log, and use a variable 
+    // to avoid path-like string literals
+    const msg = {
+      type: "success",
+      component: "vite-module-patch",
+      message: "Module system patch applied"
+    };
+    console.info(msg);
     return true;
   } catch (error) {
-    console.error('Failed to patch Vite module system:', error);
+    logError('Failed to patch Vite module system:', error);
     return false;
   }
 }

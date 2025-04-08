@@ -8,7 +8,6 @@ import BillingSection from '@/components/billing/BillingSection';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
-import { AuthProvider } from '@/contexts/AuthContext';
 
 // Define the Plan interface
 interface Plan {
@@ -197,9 +196,5 @@ function BillingPageContent() {
 
 // Main wrapper component that includes the AuthProvider
 export default function BillingPage() {
-  return (
-    <AuthProvider>
-      <BillingPageContent />
-    </AuthProvider>
-  );
+  return <BillingPageContent />;
 }

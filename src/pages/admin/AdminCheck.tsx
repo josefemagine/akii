@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,7 +19,7 @@ export default function AdminCheck() {
 
   // Wrap everything in a try-catch to debug rendering issues
   try {
-    const { user, userRole, isAdmin } = useAuth();
+    const { user, profile, isAdmin } = useAuth();
     const [email, setEmail] = useState("josef@holm.com");
     const [message, setMessage] = useState<{
       type: "success" | "error";
@@ -112,10 +112,10 @@ export default function AdminCheck() {
     useEffect(() => {
       console.log("AdminCheck mounting with auth:", {
         user: user?.email || "not logged in",
-        role: userRole || "none",
+        role: profile?.role || "none",
         isAdmin,
       });
-    }, [user, userRole, isAdmin]);
+    }, [user, profile, isAdmin]);
 
     return (
       <div className="container mx-auto py-10">
@@ -133,7 +133,7 @@ export default function AdminCheck() {
                     <strong>Email:</strong> {user?.email || "Not logged in"}
                   </p>
                   <p>
-                    <strong>Role:</strong> {userRole || "None"}
+                    <strong>Role:</strong> {profile?.role || "None"}
                   </p>
                   <p>
                     <strong>Admin Access:</strong> {isAdmin ? "Yes" : "No"}

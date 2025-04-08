@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,15 +33,16 @@ export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const auth = useAuth();
-  // Using the updatePassword method from AuthContext
+  
+  // Use Supabase directly for password reset
   const confirmPasswordReset = async (
     email: string,
     token: string,
     password: string,
   ) => {
     try {
-      // Use the updatePassword method from auth context
-      return await auth.updatePassword(password);
+      // Use Supabase directly since we might not have the method in the auth context
+      return await supabase.auth.updateUser({ password });
     } catch (err) {
       return { data: null, error: err as Error };
     }

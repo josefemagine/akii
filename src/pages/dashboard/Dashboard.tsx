@@ -362,7 +362,13 @@ const EmptyState = React.memo(() => {
 
 // Main Dashboard component with simplified rendering
 const Dashboard = () => {
-  console.log("Dashboard component rendering");
+  console.log("🔍 Dashboard component rendering STARTED");
+  
+  // Added dev detection
+  const isDev = import.meta.env.DEV;
+  if (isDev) {
+    console.log("🧪 Running in development mode - logging extra details");
+  }
   
   const [timePeriod, setTimePeriod] = useState("Last 7 days");
   const [loading, setLoading] = useState(false); // Start with loading false
@@ -379,33 +385,40 @@ const Dashboard = () => {
 
   // Auth
   const { isAdmin, profile } = useAuth();
-  console.log("Dashboard - Auth state:", { isAdmin, hasProfile: !!profile });
+  console.log("🔐 Dashboard - Auth state:", { 
+    isAdmin, 
+    hasProfile: !!profile, 
+    userId: profile?.id || 'none',
+    userEmail: profile?.email || 'none',
+  });
   
   // Always render with at least default data
   useEffect(() => {
+    console.log("📊 Dashboard - Default data effect running");
     if (!analyticsData) {
-      console.log("Dashboard - Setting default data immediately");
+      console.log("📊 Dashboard - Setting default data immediately");
       setAnalyticsData(defaultData);
     }
   }, [defaultData, analyticsData]);
   
   // Fetch real data in the background
   useEffect(() => {
-    console.log("Dashboard - Starting background data fetch");
+    console.log("📡 Dashboard - Background fetch effect running");
     
     // Immediately use default data
     if (!analyticsData) {
+      console.log("📊 Dashboard - Setting default data from fetch effect");
       setAnalyticsData(defaultData);
     }
     
     const fetchDataInBackground = async () => {
       try {
-        console.log("Dashboard - Background fetch started");
+        console.log("📡 Dashboard - Background fetch started");
         const data = await fetchAnalyticsData(timePeriod);
-        console.log("Dashboard - Background fetch completed successfully");
+        console.log("📡 Dashboard - Background fetch completed successfully");
         setAnalyticsData(data);
       } catch (err) {
-        console.error("Error in background fetch:", err);
+        console.error("❌ Error in background fetch:", err);
         // Keep using default data on error
       }
     };
@@ -418,13 +431,14 @@ const Dashboard = () => {
   
   // Determine which component to render - but ALWAYS render something
   const content = useMemo(() => {
-    console.log("Dashboard - Determining content to render:", { 
+    console.log("🖥️ Dashboard - Determining content to render:", { 
       hasData: !!analyticsData, 
       hasError: !!error 
     });
     
     // Show error state but with data
     if (error && analyticsData) {
+      console.log("❌ Dashboard - Rendering error state");
       return <ErrorState error={error} analyticsData={analyticsData} />;
     }
     
@@ -432,10 +446,19 @@ const Dashboard = () => {
     const dataToRender = analyticsData || defaultData;
     
     // Always render main content
+    console.log("✅ Dashboard - Rendering main content");
     return <DashboardContent analyticsData={dataToRender} />;
   }, [error, analyticsData, defaultData]);
 
-  console.log("Dashboard - Rendering content");
+  console.log("🏁 Dashboard - Rendering content complete");
+  
+  // Add component mounting detection
+  useEffect(() => {
+    console.log("🔄 Dashboard component mounted");
+    return () => {
+      console.log("🔄 Dashboard component unmounted");
+    };
+  }, []);
   
   // Wrap all rendered content in the DashboardPageContainer for consistent width and styling
   return (

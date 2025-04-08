@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/auth-compatibility";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { cn } from "@/lib/utils";
 import {
   Home,

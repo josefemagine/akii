@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/SuperAuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { supabase } from "@/lib/supabase";
 

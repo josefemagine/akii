@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import TeamMembersList from "@/components/dashboard/team/TeamMembersList";
 import TeamRoles from "@/components/dashboard/team/TeamRoles";
 import PendingInvitations from "@/components/dashboard/team/PendingInvitations";

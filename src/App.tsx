@@ -13,8 +13,6 @@ import { initializeProductionRecovery } from "./lib/production-recovery";
 // Import providers
 import { SearchProvider } from "./contexts/SearchContext";
 import { UnifiedAuthProvider } from "./contexts/UnifiedAuthContext";
-import { SupabaseAuthProvider } from "./contexts/SupabaseAuthContext";
-import { UserProvider } from "./contexts/UserContext";
 
 // Import components
 import { EnvWarning } from "@/components/ui/env-warning";

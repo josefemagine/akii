@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/lib/browser-check";
 import {
@@ -147,7 +147,7 @@ export const ConsolidatedSidebar: React.FC<ConsolidatedSidebarProps> = ({
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, profile, signOut, userRole, isAdmin } = useAuth();
+  const { user, profile, signOut, isAdmin } = useAuth();
   const currentPath = location.pathname;
   
   // State to track expanded sections

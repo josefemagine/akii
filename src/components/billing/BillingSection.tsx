@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { CreditCard, Calendar, BarChart, ExternalLink, ArrowRight } from 'lucide-react';
 import { billingProvider } from '@/lib/billing-providers';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
 import { useToast } from '@/components/ui/use-toast';
 
 // Define props interface for BillingSection component

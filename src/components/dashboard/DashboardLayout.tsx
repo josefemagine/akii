@@ -4,8 +4,7 @@ import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/lib/browser-check";
 import { Sidebar } from "./Sidebar";
 import Header from "./Header";
-import { useDirectAuth } from "@/contexts/direct-auth-context";
-import { useAuth } from "@/contexts/auth-compatibility";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { isProduction, ensureDashboardAccess } from "@/lib/production-recovery";
 
 // Debug flag for controlling logs
@@ -85,9 +84,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const isMounted = useRef(true);
   const lastProfileCheckTime = useRef<number>(0);
   
-  // Use both contexts for a smooth transition
-  const { profile, isLoading, refreshAuthState, user } = useDirectAuth();
-  const compatAuth = useAuth();
+  // Use unified auth context
+  const { profile, isLoading, refreshAuthState, user } = useAuth();
   
   const navigate = useNavigate();
 
@@ -132,7 +130,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         
         // Check both auth contexts - if either has a user, we're good
         const loginStatus = isLoggedIn();
-        const isAuthenticated = !!user || !!compatAuth.user || loginStatus;
+        const isAuthenticated = !!user || loginStatus;
         
         safeSetState(setAuthInitialized, true);
         
@@ -154,7 +152,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         }
         
         // If no user is found AND we're not in a loading state, redirect to login
-        if (!isAuthenticated && !isLoading && !compatAuth.isLoading) {
+        if (!isAuthenticated && !isLoading) {
           logDebug('Not authenticated, preparing redirect to login');
           
           // Set a timestamp for this redirect to detect loops
@@ -184,7 +182,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     };
     
     checkAuthStatus();
-  }, [authInitialized, compatAuth.isLoading, compatAuth.user, navigate, refreshAuthState, user, isLoading, profile]);
+  }, [authInitialized, isLoading, navigate, refreshAuthState, user]);
 
   // Set up network monitoring for offline mode
   useEffect(() => {
@@ -235,7 +233,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     const verifyUserProfile = async () => {
       try {
         // Skip if we don't have auth yet
-        if (!user && !compatAuth.user) {
+        if (!user) {
           return;
         }
         
@@ -244,7 +242,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           return;
         }
         
-        const userId = user?.id || compatAuth.user?.id;
+        const userId = user.id;
         if (!userId) {
           return;
         }
@@ -267,7 +265,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     };
     
     verifyUserProfile();
-  }, [user, compatAuth.user, profile, refreshAuthState]);
+  }, [user, profile, refreshAuthState]);
 
   // Handle theme changes
   useEffect(() => {
@@ -319,11 +317,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         <Sidebar 
           isCollapsed={sidebarCollapsed} 
           onToggle={handleSidebarToggle}
-          isAdmin={isAdmin || compatAuth.isAdmin}
+          isAdmin={isAdmin}
         />
         <div className="flex flex-col flex-1 overflow-hidden">
           <Header 
-            isAdmin={isAdmin || compatAuth.isAdmin}
+            isAdmin={isAdmin}
             theme={theme}
             onThemeChange={handleThemeChange}
           />

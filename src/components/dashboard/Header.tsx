@@ -10,9 +10,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAuth } from "@/contexts/auth-compatibility";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { toast } from "@/components/ui/use-toast";
-import { useDirectAuth } from "@/contexts/direct-auth-context";
 import { supabase } from "@/lib/supabase";
 import { ensureDashboardAccess } from "@/lib/production-recovery";
 
@@ -32,15 +31,12 @@ const Header: React.FC<HeaderProps> = ({
   theme = "dark",
   onThemeChange,
 }) => {
-  // Use both auth contexts for compatibility
-  const compatAuth = useAuth();
-  const { profile, signOut, isAdmin: contextIsAdmin, refreshAuthState } = useDirectAuth();
-  const previousAuthState = useRef<boolean>(false);
+  // Use unified auth context
+  const { user, profile, signOut, isAdmin: contextIsAdmin, refreshAuthState } = useAuth();
+  const navigate = useNavigate();
   const lastCheckTime = useRef<number>(Date.now());
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const authStatusChecked = useRef<boolean>(false);
-  
-  const navigate = useNavigate();
   
   // Log with debug control
   const logDebug = (message: string, ...args: any[]) => {
@@ -49,7 +45,7 @@ const Header: React.FC<HeaderProps> = ({
     }
   };
   
-  // Debounced refresh function to prevent excessive calls - now with better rate limiting
+  // Debounced refresh function to prevent excessive calls
   const debouncedRefresh = useCallback(() => {
     // Clear any pending debounce
     if (debounceTimeout.current) {
@@ -58,13 +54,13 @@ const Header: React.FC<HeaderProps> = ({
     
     // Check if we've refreshed recently
     const now = Date.now();
-    if (now - lastCheckTime.current < 5000) { // Increased to 5 seconds
+    if (now - lastCheckTime.current < 5000) {
       // Schedule a refresh after the debounce period
       debounceTimeout.current = setTimeout(() => {
         logDebug('Executing debounced auth refresh');
         refreshAuthState();
         lastCheckTime.current = Date.now();
-      }, 5000); // Increased debounce time
+      }, 5000);
       return;
     }
     
@@ -133,7 +129,7 @@ const Header: React.FC<HeaderProps> = ({
     checkAuthStatus();
     
     // And set up a periodic check - use a longer interval to reduce load
-    const interval = setInterval(checkAuthStatus, 120000); // Increased to 2 minutes from 30 seconds
+    const interval = setInterval(checkAuthStatus, 120000); // 2 minutes
     
     return () => clearInterval(interval);
   }, [debouncedRefresh]);
@@ -190,9 +186,10 @@ const Header: React.FC<HeaderProps> = ({
     };
   }, [debouncedRefresh]);
 
-  // Listen for auth events and storage changes with reduced frequency
+  // Listen for auth events and storage changes
   useEffect(() => {
-    previousAuthState.current = !!compatAuth.user;
+    // Track previous auth state
+    const previousAuthState = !!user;
     
     // Handle localStorage changes
     const handleAuthChange = (event: StorageEvent) => {
@@ -254,9 +251,9 @@ const Header: React.FC<HeaderProps> = ({
       window.removeEventListener('akii-login-state-changed', handleAuthEvent as EventListener);
       window.removeEventListener('akii-auth-changed', handleAuthEvent as EventListener);
     };
-  }, [compatAuth.user, debouncedRefresh]);
+  }, [user, debouncedRefresh]);
 
-  // Handle sign out using direct auth
+  // Handle sign out
   const handleSignOut = async () => {
     try {
       // First clear any emergency auth data
@@ -266,17 +263,13 @@ const Header: React.FC<HeaderProps> = ({
       localStorage.removeItem('akii-is-logged-in');
       localStorage.removeItem('akii-auth-user-id');
       
-      // Then use the sign out function from context
+      // Use the unified auth context sign out function
       if (signOut) {
         await signOut();
-      } else if (compatAuth.signOut) {
-        // Fallback to compatibility layer if direct auth fails
-        await compatAuth.signOut();
+      } else {
+        // Fallback to Supabase direct call if context method not available
+        await supabase.auth.signOut();
       }
-      
-      // Call sign out from Supabase directly
-      logDebug('Calling Supabase sign out method');
-      await supabase.auth.signOut();
       
       navigate("/");
     } catch (error) {
@@ -298,8 +291,8 @@ const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  // Get profile from direct auth first, fallback to compatibility layer
-  const displayProfile = profile || compatAuth.profile;
+  // Get profile info from unified auth
+  const displayProfile = profile;
   
   const displayName = 
     displayProfile?.first_name || 
@@ -309,12 +302,12 @@ const Header: React.FC<HeaderProps> = ({
   const avatarUrl = displayProfile?.avatar_url;
   const firstInitial = displayName.charAt(0).toUpperCase();
   
-  // Determine if user is admin from props, direct context, or compat layer
-  const userIsAdmin = isAdmin || contextIsAdmin || !!compatAuth.isAdmin;
+  // Determine if user is admin from props or context
+  const userIsAdmin = isAdmin || contextIsAdmin;
 
   // Force-check authentication state when the header renders
   useEffect(() => {
-    if (!compatAuth.user && !profile) {
+    if (!user && !profile) {
       const isLoggedIn = localStorage.getItem('akii-is-logged-in') === 'true';
       const hasEmergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
       
@@ -332,7 +325,7 @@ const Header: React.FC<HeaderProps> = ({
         });
       }
     }
-  }, [compatAuth.user, profile, refreshAuthState]);
+  }, [user, profile, refreshAuthState]);
 
   return (
     <header className="sticky top-0 z-40 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

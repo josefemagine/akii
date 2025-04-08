@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Upload, X, FileText, AlertCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { Database } from "@/types/supabase";
 

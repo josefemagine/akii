@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useUser } from '@/contexts/UserContext';
 import { useAuth } from '@/contexts/UnifiedAuthContext';
 
 // Add global interface declaration for circuitBroken property
@@ -87,35 +86,26 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
   adminOnly = false,
   redirectTo = '/',
 }) => {
-  const { user, sessionLoaded } = useUser();
-  const { isAdmin: directIsAdmin, user: directUser } = useAuth();
+  const { user, isAdmin: contextIsAdmin, isLoading: authLoading } = useAuth();
   const location = useLocation();
   const [circuitOpen, setCircuitOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Check if user is admin using multiple auth contexts
+  // Check if user is admin using UnifiedAuthContext
   useEffect(() => {
-    // First check standard user context
-    const standardAuthAdmin = !!(
-      user?.app_metadata?.role === 'admin' || 
-      user?.user_metadata?.isAdmin === true ||
-      user?.app_metadata?.is_admin === true
-    );
-    
-    // Then check direct auth context admin status
-    const directAuthAdmin = !!directIsAdmin;
+    // First check auth context admin status
+    const authContextAdmin = !!contextIsAdmin;
     
     // Check local storage for admin status (for direct navigation)
     const localStorageAdmin = localStorage.getItem('akii-is-admin') === 'true';
     
     // Special case for specific accounts (especially for development)
     const isJosefUser = 
-      (user?.email === 'josef@holm.com') || 
-      (directUser?.email === 'josef@holm.com') ||
+      (user?.email === 'josef@holm.com') ||
       (localStorage.getItem('akii-auth-user-email') === 'josef@holm.com');
     
     // Set admin status based on any valid source
-    const finalIsAdmin = standardAuthAdmin || directAuthAdmin || localStorageAdmin || isJosefUser;
+    const finalIsAdmin = authContextAdmin || localStorageAdmin || isJosefUser;
     
     // Always set local storage based on current determination
     if (finalIsAdmin) {
@@ -123,24 +113,21 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
       // Also save email for special case detection
       if (user?.email) {
         localStorage.setItem('akii-auth-user-email', user.email);
-      } else if (directUser?.email) {
-        localStorage.setItem('akii-auth-user-email', directUser.email);
       }
     }
     
     console.log('PrivateRoute Admin Check:', {
       path: location.pathname,
-      standardAuthAdmin,
-      directAuthAdmin,
+      authContextAdmin,
       localStorageAdmin,
       isJosefUser,
       finalIsAdmin,
-      userEmail: user?.email || directUser?.email,
+      userEmail: user?.email,
       storedEmail: localStorage.getItem('akii-auth-user-email')
     });
     
     setIsAdmin(finalIsAdmin);
-  }, [user, directIsAdmin, directUser, location.pathname]);
+  }, [user, contextIsAdmin, location.pathname]);
 
   // Monitor for redirect loops
   useEffect(() => {
@@ -166,7 +153,7 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
   }, [location.pathname]);
 
   // Show loading state while checking authentication
-  if (!sessionLoaded) {
+  if (authLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background">
         <div className="w-12 h-12 border-t-4 border-primary rounded-full animate-spin mb-4"></div>
@@ -219,6 +206,15 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
 
   // If user is not authenticated, redirect to login
   if (!user) {
+    // DEV BYPASS - If we're in development and there's a special flag, allow access anyway
+    // This helps debug situations where auth is causing infinite loading
+    if (import.meta.env.DEV && 
+        (localStorage.getItem('akii-dev-bypass') === 'true' || 
+         sessionStorage.getItem('akii-dev-bypass') === 'true')) {
+      console.log('🔓 DEV AUTH BYPASS: Allowing access to private route without authentication');
+      return <>{children}</>;
+    }
+    
     // Check if we're already in a redirect loop
     const redirectCount = parseInt(sessionStorage.getItem('redirect-count') || '0');
     const MAX_REDIRECTS = 5;
@@ -257,6 +253,14 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
 
   // If route requires admin privileges and user is not admin, redirect to dashboard
   if (adminOnly && !isAdmin) {
+    // DEV BYPASS - Allow admin access in development with special flag
+    if (import.meta.env.DEV && 
+        (localStorage.getItem('akii-dev-admin-bypass') === 'true' ||
+         sessionStorage.getItem('akii-dev-admin-bypass') === 'true')) {
+      console.log('🔓 DEV ADMIN BYPASS: Allowing access to admin route without admin privileges');
+      return <>{children}</>;
+    }
+    
     return <Navigate to="/dashboard" replace />;
   }
 

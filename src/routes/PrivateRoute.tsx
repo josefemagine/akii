@@ -1,6 +1,6 @@
 import React, { ReactNode, useState, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/SuperAuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { LoadingScreen } from "@/components/LoadingScreen";
 
 interface PrivateRouteProps {

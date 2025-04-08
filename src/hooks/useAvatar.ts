@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
 import { uploadAvatar, updateUserAvatar } from '@/services/avatar-service';
 
 interface UseAvatarOptions {
@@ -19,7 +19,7 @@ interface UseAvatarReturn {
 const DEFAULT_AVATAR = 'https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png';
 
 export function useAvatar(options?: UseAvatarOptions): UseAvatarReturn {
-  const { user, updateProfile } = useAuth();
+  const { user, refreshAuthState } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -79,10 +79,8 @@ export function useAvatar(options?: UseAvatarOptions): UseAvatarReturn {
         throw profileError || new Error('Failed to update profile with new avatar');
       }
 
-      // Update local app state if needed
-      if (updateProfile) {
-        await updateProfile({ avatar_url: url });
-      }
+      // Refresh auth state to get the updated profile
+      await refreshAuthState();
 
       // Update local state
       setAvatarUrl(url);
@@ -100,7 +98,7 @@ export function useAvatar(options?: UseAvatarOptions): UseAvatarReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [user, updateProfile, options]);
+  }, [user, refreshAuthState, options]);
 
   const resetUploadStatus = useCallback(() => {
     setUploadStatus('idle');

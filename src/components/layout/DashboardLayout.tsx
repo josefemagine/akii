@@ -50,7 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/auth-compatibility";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { useSearch } from "@/contexts/SearchContext";
 import { toast } from "@/components/ui/use-toast";
 import { safeLocalStorage, safeSessionStorage } from "@/lib/browser-check";

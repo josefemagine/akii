@@ -10,7 +10,7 @@ interface LoadingScreenProps {
 export function LoadingScreen({
   message = "Loading...",
   disableAutoHide = false,
-  timeoutMs = 10000 // 10 seconds max loading time by default
+  timeoutMs = 5000 // Reduced from 10000 to 5000 (5 seconds)
 }: LoadingScreenProps) {
   const [visible, setVisible] = useState(true);
   const [longWait, setLongWait] = useState(false);
@@ -43,12 +43,12 @@ export function LoadingScreen({
       // Auto-hide after a short delay as fallback
       const autoHideTimer = window.setTimeout(() => {
         setVisible(false);
-      }, 1500); // 1.5 seconds fallback
+      }, 1000); // Reduced from 1500 to 1000 milliseconds
 
-      // Show "taking longer than expected" message after 3 seconds
+      // Show "taking longer than expected" message after 2 seconds (reduced from 3)
       const longWaitTimer = window.setTimeout(() => {
         setLongWait(true);
-      }, 3000); // 3 seconds for long wait message
+      }, 2000); 
       
       // Show timeout message and refresh button after timeoutMs
       const timeoutTimer = window.setTimeout(() => {
@@ -69,6 +69,10 @@ export function LoadingScreen({
     return null;
   }
 
+  // Calculate how long we've been loading
+  const loadingTime = Date.now() - startTime.current;
+  const showForceRefresh = loadingTime > 3000; // Show refresh button after 3 seconds
+
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-background z-50">
       <div className="flex flex-col items-center justify-center space-y-4">
@@ -82,6 +86,15 @@ export function LoadingScreen({
             </p>
             <Button variant="secondary" onClick={forceRefresh}>
               Refresh Page
+            </Button>
+          </div>
+        ) : showForceRefresh ? (
+          <div className="flex flex-col items-center mt-4 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              {longWait ? "This is taking longer than expected." : "Loading is slow."}
+            </p>
+            <Button variant="outline" size="sm" onClick={forceRefresh}>
+              Force Refresh
             </Button>
           </div>
         ) : longWait ? (

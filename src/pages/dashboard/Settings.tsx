@@ -12,8 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useDirectAuth } from "@/contexts/direct-auth-context";
-import { useAuth } from "@/contexts/auth-compatibility";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import APIKeys from "./APIKeys";
 import Billing from "./Billing";
 
@@ -34,12 +33,8 @@ const Settings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("profile");
   
-  // Use direct auth first, fallback to compatibility layer
-  const { profile: directProfile, refreshAuthState: directRefresh } = useDirectAuth();
-  const { profile: compatProfile, refreshAuthState: compatRefresh } = useAuth();
-  
-  // Get the most reliable profile data
-  const profile = directProfile || compatProfile;
+  // Use the unified auth context
+  const { profile, refreshAuthState } = useAuth();
 
   // Set up form with react-hook-form
   const form = useForm<ProfileFormValues>({
@@ -95,9 +90,8 @@ const Settings = () => {
         return;
       }
       
-      // Refresh both auth contexts to ensure consistency
-      directRefresh?.();
-      compatRefresh?.();
+      // Refresh auth context to ensure consistency
+      refreshAuthState?.();
       
       toast({
         title: "Success",

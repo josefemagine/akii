@@ -22,7 +22,7 @@ import AwsPermissionTester from '../../components/aws-permission-tester';
 import { useUser } from '@/contexts/UserContext';
 import { initBedrockClientWithSupabaseCredentials } from '@/lib/supabase-aws-credentials';
 import { CheckCircle2 } from 'lucide-react';
-import { useDirectAuth } from '@/contexts/direct-auth-context';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
 import AWSTestConnectionModal from "@/components/aws/AWSTestConnectionModal";
 
 // Error boundary component to catch React errors
@@ -1230,7 +1230,7 @@ const SupabaseBedrock = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useUser();
-  const { isAdmin, user: directUser } = useDirectAuth();
+  const { isAdmin, user: directUser } = useAuth();
   
   const [instances, setInstances] = useState<BedrockInstance[]>([]);
   const [loading, setLoading] = useState(true);

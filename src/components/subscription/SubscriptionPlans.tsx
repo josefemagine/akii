@@ -1,5 +1,5 @@
 import React from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import SubscriptionPlanCard from "./SubscriptionPlanCard";
 import { User } from "@/types/custom-types";
 

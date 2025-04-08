@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { AlertCircle, CheckCircle2, BarChart3 } from "lucide-react";
 import { User } from "@/types/custom-types";
 

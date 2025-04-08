@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import DocumentUploader from "./DocumentUploader";
 import DocumentChunkViewer from "./DocumentChunkViewer";
 import {
