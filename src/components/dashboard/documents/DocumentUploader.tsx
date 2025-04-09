@@ -10,14 +10,22 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Upload, X, FileText, AlertCircle } from "lucide-react";
+import { Upload, X, FileText, AlertCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { useToast } from "@/components/ui/use-toast";
-import { Database } from "@/types/supabase";
+import { invokeServerFunction } from "@/utils/supabase/functions";
 
 interface DocumentUploaderProps {
   onUploadComplete?: () => void;
+}
+
+interface DocumentUploadResponse {
+  id: string;
+  title: string;
+  status: string;
+  success: boolean;
+  message?: string;
 }
 
 const DocumentUploader = ({
@@ -27,6 +35,7 @@ const DocumentUploader = ({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -34,7 +43,21 @@ const DocumentUploader = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
-      setFiles([...files, ...newFiles]);
+      
+      // Filter out files larger than 10MB
+      const validFiles = newFiles.filter(file => {
+        if (file.size > 10 * 1024 * 1024) {
+          toast({
+            title: "File too large",
+            description: `${file.name} is larger than 10MB and cannot be uploaded.`,
+            variant: "destructive"
+          });
+          return false;
+        }
+        return true;
+      });
+      
+      setFiles([...files, ...validFiles]);
     }
   };
 
@@ -63,68 +86,68 @@ const DocumentUploader = ({
 
     setIsUploading(true);
     setError(null);
+    setUploadProgress(0);
 
     try {
-      // Create document record first
-      const { data: document, error: documentError } = await supabase
-        .from("training_documents")
-        .insert({
-          user_id: user.id,
-          title,
-          description,
-          status: "pending",
-          file_name: "",
-          file_type: "",
-          file_size: 0,
-          content: "",
-          storage_path: "",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        } as any)
-        .select()
-        .single();
+      // Create document record first using the edge function
+      const createResponse = await invokeServerFunction<DocumentUploadResponse>("create_document", {
+        userId: user.id,
+        title,
+        description,
+      });
 
-      if (!document || "error" in document) {
-        throw new Error("Failed to create document record");
+      if (!createResponse || !createResponse.success) {
+        throw new Error(createResponse?.message || "Failed to create document record");
       }
 
-      if (documentError) throw documentError;
-
+      const documentId = createResponse.id;
+      
       // Upload each file to storage
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const filePath = `${user.id}/${documentId}/${file.name}`;
+        
+        // Calculate progress
+        const progressPerFile = 100 / files.length;
+        const currentFileProgress = (i / files.length) * 100;
+        setUploadProgress(currentFileProgress);
+        
         // Upload file to storage
         const { error: uploadError } = await supabase.storage
           .from("documents")
-          .upload(`${user.id}/${(document as any).id}/${file.name}`, file);
+          .upload(filePath, file);
 
         if (uploadError) throw uploadError;
-
-        // Update document with file info
-        const { error: updateError } = await supabase
-          .from("training_documents")
-          .update({
-            storage_path: `${user.id}/${(document as any).id}/${file.name}`,
-            file_name: file.name,
-            file_type: file.type,
-            file_size: file.size,
-            status: "processing",
-            updated_at: new Date().toISOString(),
-          } as any)
-          .eq("id", (document as any).id);
-
-        if (updateError) throw updateError;
-
-        // Trigger document processing
-        const { error: functionError } = await supabase.functions.invoke(
-          "process-document",
-          {
-            body: { documentId: (document as any).id },
-          },
-        );
-
-        if (functionError) throw functionError;
+        
+        // Update document with file info and initiate processing
+        const updateResponse = await invokeServerFunction<{success: boolean, message?: string}>("update_document_file", {
+          documentId,
+          userId: user.id,
+          filePath,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size
+        });
+        
+        if (!updateResponse || !updateResponse.success) {
+          throw new Error(updateResponse?.message || "Failed to update document with file info");
+        }
+        
+        setUploadProgress(currentFileProgress + progressPerFile * 0.5);
+      }
+      
+      // Trigger document processing
+      const processingResponse = await invokeServerFunction<{success: boolean, message?: string}>("process_document", {
+        documentId,
+        userId: user.id
+      });
+      
+      if (!processingResponse || !processingResponse.success) {
+        throw new Error(processingResponse?.message || "Failed to start document processing");
       }
 
+      setUploadProgress(100);
+      
       toast({
         title: "Document uploaded successfully",
         description: "Your document is now being processed for training.",
@@ -138,6 +161,11 @@ const DocumentUploader = ({
     } catch (err: any) {
       console.error("Error uploading document:", err);
       setError(err.message || "Failed to upload document");
+      toast({
+        title: "Upload failed",
+        description: err.message || "Failed to upload document. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsUploading(false);
     }
@@ -159,6 +187,7 @@ const DocumentUploader = ({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
+                disabled={isUploading}
               />
             </div>
 
@@ -170,14 +199,15 @@ const DocumentUploader = ({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
+                disabled={isUploading}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="file">Upload Files</Label>
               <div
-                className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                onClick={() => document.getElementById("file-upload")?.click()}
+                className={`border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                onClick={() => !isUploading && document.getElementById("file-upload")?.click()}
               >
                 <Upload className="mx-auto h-12 w-12 text-gray-400" />
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -193,6 +223,7 @@ const DocumentUploader = ({
                   onChange={handleFileChange}
                   accept=".pdf,.docx,.txt,.csv"
                   multiple
+                  disabled={isUploading}
                 />
               </div>
             </div>
@@ -215,17 +246,34 @@ const DocumentUploader = ({
                           {(file.size / 1024 / 1024).toFixed(2)} MB
                         </span>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeFile(index)}
-                      >
-                        <X className="h-4 w-4" />
-                        <span className="sr-only">Remove file</span>
-                      </Button>
+                      {!isUploading && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeFile(index)}
+                        >
+                          <X className="h-4 w-4" />
+                          <span className="sr-only">Remove file</span>
+                        </Button>
+                      )}
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {isUploading && (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label>Upload Progress</Label>
+                  <span className="text-xs">{Math.round(uploadProgress)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                  <div 
+                    className="bg-primary h-2.5 rounded-full transition-all duration-300" 
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
                 </div>
               </div>
             )}
@@ -240,7 +288,14 @@ const DocumentUploader = ({
 
           <CardFooter className="flex justify-end px-0 pt-4">
             <Button type="submit" disabled={isUploading}>
-              {isUploading ? "Uploading..." : "Upload Document"}
+              {isUploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                "Upload Document"
+              )}
             </Button>
           </CardFooter>
         </form>

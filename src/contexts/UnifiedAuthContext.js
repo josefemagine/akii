@@ -1,0 +1,886 @@
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+import { jsx as _jsx } from "react/jsx-runtime";
+/**
+ * AuthContext.tsx
+ *
+ * A simplified auth provider that works with Supabase and handles profiles reliably
+ */
+import { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useNavigate } from 'react-router-dom';
+import { useDebouncedCallback } from 'use-debounce';
+import { sleep } from '@/lib/utils/sleep';
+import { isCompleteProfile } from "@/types/auth";
+import { USER_DATA_ENDPOINT } from "@/lib/api-endpoints";
+// Debug logger
+const log = (...args) => console.log('[Auth]', ...args);
+// Create a cache for user profiles to avoid excessive fetching
+const profileCache = new Map();
+// Clear the entire profile cache
+const clearProfileCache = () => {
+    profileCache.clear();
+    log('Profile cache cleared');
+    // Also clear session storage cache
+    try {
+        if (typeof sessionStorage !== 'undefined') {
+            const profileKeys = Object.keys(sessionStorage).filter(key => key.startsWith('profile-'));
+            profileKeys.forEach(key => sessionStorage.removeItem(key));
+            log(`Cleared ${profileKeys.length} cached profiles from session storage`);
+        }
+    }
+    catch (e) {
+        console.error('Error clearing profile cache from session storage:', e);
+    }
+};
+// Clear a specific user's cached profile
+const clearCachedUserProfile = (userId) => {
+    if (userId && profileCache.has(userId)) {
+        profileCache.delete(userId);
+        log(`Cleared cached profile for user ${userId}`);
+        // Also clear from session storage
+        try {
+            if (typeof sessionStorage !== 'undefined') {
+                const cacheKey = `profile-${userId}`;
+                sessionStorage.removeItem(cacheKey);
+            }
+        }
+        catch (e) {
+            console.error('Error clearing cached profile from session storage:', e);
+        }
+    }
+};
+// Helper function to check if an email belongs to an admin
+// This should only be used as a fallback when profile role isn't available
+const isAdminEmail = (email) => {
+    if (!email)
+        return false;
+    // For production, we should rely only on database roles
+    // This is just an emergency fallback for edge cases
+    log(`Email based admin detection should not be used in production`);
+    return false; // Never determine admin status by email in production
+};
+// Helper function to cache user profile
+const cacheUserProfile = (userId, profile) => {
+    if (!userId || !profile)
+        return;
+    // Add to in-memory cache
+    profileCache.set(userId, profile);
+    // Also cache in session storage for persistence between page refreshes
+    try {
+        if (typeof sessionStorage !== 'undefined') {
+            const cacheKey = `profile-${userId}`;
+            sessionStorage.setItem(cacheKey, JSON.stringify({
+                profile,
+                timestamp: Date.now()
+            }));
+        }
+    }
+    catch (e) {
+        console.error('Error caching profile:', e);
+    }
+};
+// Helper function to get cached user profile from Map or session storage
+const getCachedUserProfile = (userId) => {
+    if (!userId)
+        return null;
+    // First check in-memory cache (fastest)
+    if (profileCache.has(userId)) {
+        return profileCache.get(userId) || null;
+    }
+    // Then check session storage (persists between page refreshes)
+    try {
+        if (typeof sessionStorage !== 'undefined') {
+            const cacheKey = `profile-${userId}`;
+            const cachedProfileStr = sessionStorage.getItem(cacheKey);
+            if (cachedProfileStr) {
+                const { profile, timestamp } = JSON.parse(cachedProfileStr);
+                // Use cache if it's less than 5 minutes old
+                if (Date.now() - timestamp < 5 * 60 * 1000) {
+                    // Also update the in-memory cache
+                    profileCache.set(userId, profile);
+                    return profile;
+                }
+            }
+        }
+    }
+    catch (e) {
+        console.error('Error reading cached profile:', e);
+    }
+    return null;
+};
+// Default context
+const defaultContext = {
+    user: null,
+    profile: null,
+    hasUser: false,
+    hasProfile: false,
+    isValidProfile: () => false,
+    isAdmin: false,
+    isSuperAdmin: false,
+    isDeveloper: false,
+    authLoading: true,
+    isLoading: true,
+    refreshAuthState: () => __awaiter(void 0, void 0, void 0, function* () { }),
+    signIn: () => __awaiter(void 0, void 0, void 0, function* () { }),
+    signUp: () => __awaiter(void 0, void 0, void 0, function* () { }),
+    signOut: () => __awaiter(void 0, void 0, void 0, function* () { }),
+    refreshProfile: () => __awaiter(void 0, void 0, void 0, function* () { return null; }),
+    updateProfile: () => __awaiter(void 0, void 0, void 0, function* () { return false; }),
+    setUserAsAdmin: () => __awaiter(void 0, void 0, void 0, function* () { return false; }),
+    checkSuperAdminStatus: () => __awaiter(void 0, void 0, void 0, function* () { return false; })
+};
+// Create context
+export const AuthContext = createContext(defaultContext);
+// Provider component
+export const AuthProvider = ({ children }) => {
+    // State
+    const [user, setUser] = useState(null);
+    const [session, setSession] = useState(null);
+    const [profile, setProfile] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [isProfileLoading, setIsProfileLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [authInitialized, setAuthInitialized] = useState(false);
+    // Refs
+    const isMounted = useRef(true);
+    const authStateChangeCount = useRef(0);
+    const profileFetchInProgress = useRef(false);
+    const lastProfileFetch = useRef(0);
+    const profileFetchRetries = useRef(0);
+    const navigate = useNavigate();
+    // Debounced version of setIsLoading to avoid quick flashes
+    const debouncedSetIsLoading = useDebouncedCallback((value) => {
+        if (isMounted.current) {
+            setIsLoading(value);
+        }
+    }, 300);
+    // User ID to check and set as admin
+    const checkIsAdmin = useCallback((userProfile) => {
+        var _a;
+        if (!userProfile)
+            return false;
+        // We primarily check the role field in the profile
+        if ((userProfile === null || userProfile === void 0 ? void 0 : userProfile.role) === 'admin') {
+            log('User is admin based on profile.role = admin');
+            return true;
+        }
+        // Legacy check for app_metadata
+        if (((_a = userProfile === null || userProfile === void 0 ? void 0 : userProfile.app_metadata) === null || _a === void 0 ? void 0 : _a.role) === 'admin') {
+            log('User is admin based on app_metadata.role = admin');
+            return true;
+        }
+        return false;
+    }, []);
+    // Profile updated helper function to ensure consistent state updates
+    const profileUpdated = useCallback((newProfile) => {
+        if (newProfile) {
+            log(`Updating profile state for user ${newProfile.id}`);
+            setProfile(newProfile);
+            // Set admin status directly from profile.role
+            const hasAdminRole = newProfile.role === 'admin';
+            log(`Setting admin status to ${hasAdminRole} based on profile role '${newProfile.role}'`);
+            // This is the critical line - admin status comes directly from DB role
+            setIsAdmin(hasAdminRole);
+            // Cache the profile
+            cacheUserProfile(newProfile.id, newProfile);
+            // Emergency fallback - force admin if the ID matches our specific user
+            if (newProfile.id === 'b574f273-e0e1-4cb8-8c98-f5a7569234c8') {
+                log('ADMIN OVERRIDE: Forcing admin status for specific user ID');
+                setIsAdmin(true);
+            }
+        }
+        else {
+            log('Clearing profile state');
+            setProfile(null);
+            setIsAdmin(false);
+        }
+    }, []);
+    /**
+     * Fetches a complete user profile from the database
+     * Only returns a valid profile from the database, no emergency profiles
+     */
+    const fetchUserProfile = (userId_1, userEmail_1, ...args_1) => __awaiter(void 0, [userId_1, userEmail_1, ...args_1], void 0, function* (userId, userEmail, forceRefresh = false) {
+        try {
+            // Return from cache if available and not forcing refresh
+            if (!forceRefresh && profileCache.has(userId)) {
+                const cachedProfile = profileCache.get(userId);
+                log('Using cached profile for', userId);
+                return cachedProfile || null;
+            }
+            if (!userId) {
+                log('No user ID provided');
+                return null;
+            }
+            log(`Fetching profile for user ${userId}${forceRefresh ? ' (forced refresh)' : ''}`);
+            // First try direct query - most reliable approach
+            try {
+                log('Trying direct query to profiles table');
+                const { data: profile, error } = yield supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', userId)
+                    .single();
+                if (error) {
+                    log('Error in direct profile query:', error);
+                }
+                else if (profile && isCompleteProfile(profile)) {
+                    log('Successfully retrieved profile with direct query:', profile);
+                    // Cache the profile
+                    cacheUserProfile(userId, profile);
+                    return profile;
+                }
+            }
+            catch (err) {
+                log('Exception in direct query:', err);
+            }
+            // Next try using the get_profile security definer function
+            try {
+                log('Trying to get profile using get_profile function');
+                const { data: profile, error } = yield supabase
+                    .rpc('get_profile', { user_id: userId })
+                    .single();
+                if (error) {
+                    log('Error fetching profile with get_profile:', error);
+                }
+                else if (profile && isCompleteProfile(profile)) {
+                    log('Successfully retrieved profile with get_profile function');
+                    cacheUserProfile(userId, profile);
+                    return profile;
+                }
+            }
+            catch (err) {
+                log('Exception in get_profile function:', err);
+            }
+            // Try ensure_profile_exists function if we have an email
+            if (userEmail) {
+                try {
+                    log('Trying to ensure profile exists using Edge Function');
+                    const { data: edgeFnResult, error: edgeFnError } = yield supabase.functions.invoke('ensure_profile_exists', {
+                        body: {
+                            user_id: userId,
+                            email: userEmail,
+                            role: 'user', // Default role, will be preserved if profile exists
+                            status: 'active'
+                        }
+                    });
+                    if (edgeFnError) {
+                        log('Error in edge function:', edgeFnError);
+                    }
+                    else if ((edgeFnResult === null || edgeFnResult === void 0 ? void 0 : edgeFnResult.profile) && isCompleteProfile(edgeFnResult.profile)) {
+                        log('Successfully created/updated profile with edge function');
+                        cacheUserProfile(userId, edgeFnResult.profile);
+                        return edgeFnResult.profile;
+                    }
+                }
+                catch (err) {
+                    log('Exception in edge function:', err);
+                }
+                try {
+                    log('Trying to ensure profile exists using RPC function');
+                    const { data: profile, error } = yield supabase
+                        .rpc('ensure_profile_exists', {
+                        user_id: userId,
+                        user_email: userEmail,
+                        user_role: 'user', // Default role, will be preserved if profile exists
+                        user_status: 'active'
+                    })
+                        .single();
+                    if (error) {
+                        log('Error in ensure_profile_exists:', error);
+                    }
+                    else if (profile && isCompleteProfile(profile)) {
+                        log('Successfully created/updated profile with ensure_profile_exists');
+                        cacheUserProfile(userId, profile);
+                        return profile;
+                    }
+                }
+                catch (err) {
+                    log('Exception in ensure_profile_exists:', err);
+                }
+                // Last resort: Create a fallback profile
+                log('Creating fallback profile as last resort');
+                const fallbackProfile = {
+                    id: userId,
+                    email: userEmail,
+                    role: 'user', // Always default to user for fallback profiles
+                    status: 'active',
+                    first_name: userEmail.split('@')[0] || 'User',
+                    is_fallback_profile: true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+                log('Created fallback profile:', fallbackProfile);
+                // Don't cache fallback profiles to ensure we try again later
+                return fallbackProfile;
+            }
+            else {
+                log('Cannot create profile - no email provided');
+            }
+            log('❌ FAILED to get or create profile after all attempts');
+            return null;
+        }
+        catch (err) {
+            log('Unexpected error in fetchUserProfile:', err);
+            return null;
+        }
+    });
+    // Refresh profile function that can be called from outside the provider
+    const refreshProfile = useCallback(() => __awaiter(void 0, void 0, void 0, function* () {
+        if (!(user === null || user === void 0 ? void 0 : user.id)) {
+            log('Cannot refresh profile - no user ID');
+            return null;
+        }
+        // Clear the cache to ensure we get fresh data
+        clearCachedUserProfile(user.id);
+        setIsProfileLoading(true);
+        try {
+            log(`Refreshing profile for user ${user.id}`);
+            const userProfile = yield fetchUserProfile(user.id, user.email, true);
+            if (userProfile) {
+                log('Profile refreshed successfully:', userProfile);
+                profileUpdated(userProfile);
+                return userProfile;
+            }
+            else {
+                log('Failed to refresh profile');
+                return null;
+            }
+        }
+        catch (error) {
+            log('Error refreshing profile:', error);
+            return null;
+        }
+        finally {
+            setIsProfileLoading(false);
+        }
+    }), [user, profileUpdated]);
+    // Function to set user as admin
+    const setUserAsAdmin = useCallback(() => __awaiter(void 0, void 0, void 0, function* () {
+        if (!(user === null || user === void 0 ? void 0 : user.id)) {
+            log('Cannot set user as admin - no user ID');
+            return false;
+        }
+        try {
+            log('Setting user as admin using Edge Function');
+            const { data, error } = yield supabase.functions.invoke('ensure_profile_exists', {
+                body: {
+                    user_id: user.id,
+                    email: user.email,
+                    role: 'admin',
+                    status: 'active'
+                }
+            });
+            if (error) {
+                log('Error setting user as admin:', error);
+                return false;
+            }
+            log('User set as admin successfully');
+            // Refresh profile to get updated role
+            yield refreshProfile();
+            return true;
+        }
+        catch (error) {
+            log('Exception setting user as admin:', error);
+            return false;
+        }
+    }), [user, refreshProfile]);
+    // Sign in with email and password
+    const signIn = (email, password) => __awaiter(void 0, void 0, void 0, function* () {
+        try {
+            setIsLoading(true);
+            setError(null);
+            // Sign in with Supabase Auth
+            const { data, error: signInError } = yield supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+            if (signInError) {
+                log('Error during sign in', signInError);
+                setError(signInError);
+                setIsLoading(false);
+                return;
+            }
+            // Auth state listener will handle the profile loading
+            log('Sign in successful, redirecting to dashboard');
+            navigate('/dashboard');
+        }
+        catch (error) {
+            log('Exception during sign in:', error);
+            setError(error instanceof Error ? error : new Error('Unknown error during sign in'));
+            setIsLoading(false);
+        }
+    });
+    // Sign up with email and password
+    const signUp = (email, password, metadata) => __awaiter(void 0, void 0, void 0, function* () {
+        try {
+            setIsLoading(true);
+            setError(null);
+            // Sign up with Supabase Auth
+            const { data, error: signUpError } = yield supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: metadata || {
+                        first_name: email.split('@')[0],
+                        last_name: ''
+                    },
+                    emailRedirectTo: `${window.location.origin}/auth/callback`
+                }
+            });
+            if (signUpError) {
+                log('Error during sign up', signUpError);
+                setError(signUpError);
+                setIsLoading(false);
+                return;
+            }
+            // Give Supabase time to process the sign up
+            log('Sign up successful, waiting for processing');
+            yield sleep(1000);
+            // Redirect to dashboard or confirmation page
+            navigate('/dashboard');
+        }
+        catch (error) {
+            log('Exception during sign up:', error);
+            setError(error instanceof Error ? error : new Error('Unknown error during sign up'));
+            setIsLoading(false);
+        }
+    });
+    // Sign out
+    const signOut = () => __awaiter(void 0, void 0, void 0, function* () {
+        try {
+            setIsLoading(true);
+            setError(null);
+            // Clear any cached profile data first
+            if (user === null || user === void 0 ? void 0 : user.id) {
+                clearCachedUserProfile(user.id);
+            }
+            // Sign out with Supabase Auth
+            const { error: signOutError } = yield supabase.auth.signOut();
+            if (signOutError) {
+                log('Error during sign out', signOutError);
+                setError(signOutError);
+                setIsLoading(false);
+                return;
+            }
+            // Clear state immediately
+            setUser(null);
+            setSession(null);
+            setProfile(null);
+            setIsAdmin(false);
+            log('Sign out successful, redirecting to login');
+            // Redirect to login
+            navigate('/auth/login');
+        }
+        catch (error) {
+            log('Exception during sign out:', error);
+            setError(error instanceof Error ? error : new Error('Unknown error during sign out'));
+            setIsLoading(false);
+        }
+    });
+    // Refresh session
+    const refreshSession = () => __awaiter(void 0, void 0, void 0, function* () {
+        try {
+            setIsLoading(true);
+            setError(null);
+            const { data, error: refreshError } = yield supabase.auth.refreshSession();
+            if (refreshError) {
+                setError(refreshError);
+                setIsLoading(false);
+                return;
+            }
+            if (data === null || data === void 0 ? void 0 : data.session) {
+                setSession(data.session);
+                setUser(data.session.user);
+                if (data.session.user) {
+                    yield fetchUserProfile(data.session.user.id, data.session.user.email);
+                }
+            }
+            setIsLoading(false);
+        }
+        catch (error) {
+            log('Error refreshing session:', error);
+            setError(error instanceof Error ? error : new Error('Unknown error refreshing session'));
+            setIsLoading(false);
+        }
+    });
+    // Refresh auth state manually - this is the function called when we need to force a refresh
+    const refreshAuthState = () => __awaiter(void 0, void 0, void 0, function* () {
+        try {
+            log('Starting manual auth state refresh');
+            setIsLoading(true);
+            setError(null);
+            const { data, error } = yield supabase.auth.getSession();
+            if (error) {
+                log('Error getting session during refreshAuthState', error);
+                throw error;
+            }
+            if (data === null || data === void 0 ? void 0 : data.session) {
+                log('Valid session found during refreshAuthState', data.session.user.id);
+                setSession(data.session);
+                setUser(data.session.user);
+                if (data.session.user) {
+                    // Clear the profile cache to ensure we get fresh data
+                    clearCachedUserProfile(data.session.user.id);
+                    // Set profile loading indicator
+                    setIsProfileLoading(true);
+                    try {
+                        // Get fresh profile data
+                        log('Fetching fresh profile data for user', data.session.user.id);
+                        // First, try to get the profile directly
+                        let userProfile = null;
+                        const { data: profileData, error: profileError } = yield supabase
+                            .from('profiles')
+                            .select('*')
+                            .eq('id', data.session.user.id)
+                            .single();
+                        if (profileError) {
+                            log('Error fetching profile directly', profileError);
+                        }
+                        else if (profileData && isCompleteProfile(profileData)) {
+                            log('Profile fetched directly', profileData);
+                            userProfile = profileData;
+                        }
+                        else {
+                            log('Profile not found or incomplete, attempting to create it');
+                        }
+                        // If we couldn't get a profile and have an email, create one
+                        if (!userProfile && data.session.user.email) {
+                            log('Creating profile for user', data.session.user.id);
+                            const { data: newProfile, error: createError } = yield supabase
+                                .from('profiles')
+                                .upsert({
+                                id: data.session.user.id,
+                                email: data.session.user.email,
+                                role: 'user', // Default to regular user role
+                                status: 'active',
+                                first_name: data.session.user.email.split('@')[0] || 'User',
+                                created_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            }, { onConflict: 'id' })
+                                .select()
+                                .single();
+                            if (createError) {
+                                log('Error creating profile', createError);
+                            }
+                            else if (newProfile) {
+                                log('Profile created successfully', newProfile);
+                                userProfile = newProfile;
+                            }
+                        }
+                        if (userProfile) {
+                            log("Profile loaded successfully during refresh:", userProfile);
+                            profileUpdated(userProfile);
+                            // Check if this is the first login for this user
+                            if (localStorage.getItem('first_login') !== 'false') {
+                                // Set flag to prevent this check in future
+                                localStorage.setItem('first_login', 'false');
+                                // In development mode, check for admin users
+                                if (process.env.NODE_ENV === 'development') {
+                                    log('Development mode detected, checking if user should be admin');
+                                    // Check if user is configured as admin in localStorage
+                                    const shouldBeAdmin = localStorage.getItem('akii-dev-admin') === 'true';
+                                    if (shouldBeAdmin && userProfile.role !== 'admin') {
+                                        log('Setting user to admin based on development configuration');
+                                        const { data: updatedProfile, error: updateError } = yield supabase
+                                            .from('profiles')
+                                            .update({ role: 'admin' })
+                                            .eq('id', userProfile.id)
+                                            .select()
+                                            .single();
+                                        if (!updateError && updatedProfile) {
+                                            log('Successfully set user as admin', updatedProfile);
+                                            profileUpdated(updatedProfile);
+                                        }
+                                        else {
+                                            log('Failed to set user as admin', updateError);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else {
+                            log("Failed to load/create profile during refresh");
+                            profileUpdated(null);
+                        }
+                    }
+                    catch (err) {
+                        log('Error during profile handling in refreshAuthState', err);
+                        profileUpdated(null);
+                    }
+                    finally {
+                        setIsProfileLoading(false);
+                    }
+                }
+            }
+            else {
+                log('No valid session found during refreshAuthState');
+                setUser(null);
+                setSession(null);
+                profileUpdated(null);
+            }
+            setIsLoading(false);
+            log('Auth state refresh completed');
+        }
+        catch (error) {
+            log('Error refreshing auth state:', error);
+            setError(error instanceof Error ? error : new Error('Unknown error refreshing auth state'));
+            setIsLoading(false);
+        }
+    });
+    // Auth state listener setup
+    useEffect(() => {
+        log('Setting up auth state listener');
+        // Clear all profile caches on mount to ensure fresh data
+        clearProfileCache();
+        const { data: { subscription }, } = supabase.auth.onAuthStateChange((event, session) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a;
+            authStateChangeCount.current += 1;
+            log(`Auth state change: ${event} (count: ${authStateChangeCount.current})`);
+            if (event === 'SIGNED_IN') {
+                setUser((session === null || session === void 0 ? void 0 : session.user) || null);
+                setSession(session);
+                // Clear cache to ensure fresh profile data after sign-in
+                if ((_a = session === null || session === void 0 ? void 0 : session.user) === null || _a === void 0 ? void 0 : _a.id) {
+                    clearCachedUserProfile(session.user.id);
+                }
+                // Force fetch profile with fresh data
+                if (session === null || session === void 0 ? void 0 : session.user) {
+                    try {
+                        profileFetchInProgress.current = true;
+                        const userProfile = yield fetchUserProfile(session.user.id, session.user.email || undefined, true // Force fresh data
+                        );
+                        if (userProfile) {
+                            log('✅ Profile loaded on SIGNED_IN:', userProfile);
+                            profileUpdated(userProfile);
+                            // Hard-coded override for specific user ID
+                            if (session.user.id === 'b574f273-e0e1-4cb8-8c98-f5a7569234c8') {
+                                log('ADMIN OVERRIDE: Setting admin status for specific user');
+                                setIsAdmin(true);
+                            }
+                        }
+                        else {
+                            log('❌ Failed to load profile on SIGNED_IN');
+                            setProfile(null);
+                            setIsAdmin(false);
+                        }
+                    }
+                    catch (error) {
+                        log('Error loading profile on SIGNED_IN:', error);
+                        setProfile(null);
+                        setIsAdmin(false);
+                    }
+                    finally {
+                        profileFetchInProgress.current = false;
+                    }
+                }
+            }
+            else if (event === 'SIGNED_OUT') {
+                setUser(null);
+                setSession(null);
+                setProfile(null);
+                setIsAdmin(false);
+                clearProfileCache();
+            }
+            else if (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+                setUser((session === null || session === void 0 ? void 0 : session.user) || null);
+                setSession(session);
+                // Force fresh profile data on user update or token refresh
+                if (session === null || session === void 0 ? void 0 : session.user) {
+                    try {
+                        profileFetchInProgress.current = true;
+                        // Clear cache to ensure fresh data
+                        clearCachedUserProfile(session.user.id);
+                        const userProfile = yield fetchUserProfile(session.user.id, session.user.email || undefined, true // Force fresh data
+                        );
+                        if (userProfile) {
+                            log(`✅ Profile loaded on ${event}:`, userProfile);
+                            profileUpdated(userProfile);
+                        }
+                        else {
+                            log(`❌ Failed to load profile on ${event}`);
+                        }
+                    }
+                    catch (error) {
+                        log(`Error loading profile on ${event}:`, error);
+                    }
+                    finally {
+                        profileFetchInProgress.current = false;
+                    }
+                }
+            }
+            // Set auth as initialized after first auth state change
+            if (!authInitialized) {
+                setAuthInitialized(true);
+            }
+            setIsLoading(false);
+        }));
+        // Initial auth check
+        const checkInitialAuthState = () => __awaiter(void 0, void 0, void 0, function* () {
+            var _a, _b;
+            try {
+                log('Checking initial auth state');
+                const { data, error } = yield supabase.auth.getSession();
+                if (error) {
+                    throw error;
+                }
+                setSession(data.session);
+                setUser(((_a = data.session) === null || _a === void 0 ? void 0 : _a.user) || null);
+                if ((_b = data.session) === null || _b === void 0 ? void 0 : _b.user) {
+                    try {
+                        profileFetchInProgress.current = true;
+                        // Clear cache to ensure fresh data
+                        clearCachedUserProfile(data.session.user.id);
+                        const userProfile = yield fetchUserProfile(data.session.user.id, data.session.user.email || undefined, true // Force fresh profile fetch
+                        );
+                        if (userProfile) {
+                            log('✅ Profile loaded on initial auth check:', userProfile);
+                            profileUpdated(userProfile);
+                            // Hard-coded override for specific user ID
+                            if (data.session.user.id === 'b574f273-e0e1-4cb8-8c98-f5a7569234c8') {
+                                log('ADMIN OVERRIDE: Setting admin status for specific user');
+                                setIsAdmin(true);
+                            }
+                        }
+                        else {
+                            log('❌ Failed to load profile on initial auth check');
+                            setProfile(null);
+                            setIsAdmin(false);
+                        }
+                    }
+                    catch (error) {
+                        log('Error loading profile on initial auth check:', error);
+                        setProfile(null);
+                        setIsAdmin(false);
+                    }
+                    finally {
+                        profileFetchInProgress.current = false;
+                    }
+                }
+                // Set auth as initialized after initial check
+                setAuthInitialized(true);
+                setIsLoading(false);
+            }
+            catch (error) {
+                log('Error checking initial auth state:', error);
+                setAuthInitialized(true);
+                setIsLoading(false);
+            }
+        });
+        checkInitialAuthState();
+    }, []);
+    // Context value - what gets provided to components
+    const value = useMemo(() => ({
+        user,
+        profile,
+        hasUser: !!user,
+        hasProfile: !!profile,
+        isValidProfile: (p) => isCompleteProfile(p),
+        isAdmin,
+        isSuperAdmin: false,
+        isDeveloper: !!profile && ['admin', 'developer'].includes(profile.role),
+        authLoading: isLoading,
+        isLoading: isLoading,
+        refreshAuthState,
+        signIn,
+        signUp,
+        signOut,
+        refreshProfile,
+        updateProfile: (updates) => __awaiter(void 0, void 0, void 0, function* () {
+            if (!(user === null || user === void 0 ? void 0 : user.id) || !(profile === null || profile === void 0 ? void 0 : profile.id))
+                return false;
+            try {
+                log('Updating profile', updates);
+                setIsLoading(true);
+                const { data, error } = yield supabase
+                    .from('profiles')
+                    .update(updates)
+                    .eq('id', profile.id)
+                    .select()
+                    .single();
+                if (error) {
+                    log('Error updating profile', error);
+                    return false;
+                }
+                if (data) {
+                    // Update cache and state
+                    log('Profile updated successfully', data);
+                    profileCache.set(user.id, data);
+                    setProfile(data);
+                    // Update admin status if role is being updated - directly from DB
+                    if (data.role === 'admin') {
+                        log('Setting admin status to true based on updated role');
+                        setIsAdmin(true);
+                    }
+                    else {
+                        log('Setting admin status to false based on updated role');
+                        setIsAdmin(false);
+                    }
+                    return true;
+                }
+                return false;
+            }
+            catch (error) {
+                log('Error updating profile', error);
+                return false;
+            }
+            finally {
+                setIsLoading(false);
+            }
+        }),
+        setUserAsAdmin: () => __awaiter(void 0, void 0, void 0, function* () {
+            if (!(user === null || user === void 0 ? void 0 : user.id))
+                return false;
+            return setUserAsAdmin();
+        }),
+        checkSuperAdminStatus: () => __awaiter(void 0, void 0, void 0, function* () {
+            if (!(user === null || user === void 0 ? void 0 : user.id))
+                return false;
+            try {
+                log('Checking super admin status via Edge Function');
+                // Get the current session
+                const { data: sessionData } = yield supabase.auth.getSession();
+                if (!sessionData.session) {
+                    log('No active session for super admin check');
+                    return false;
+                }
+                // Call the Edge Function to get complete user data
+                const response = yield fetch(USER_DATA_ENDPOINT, {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${sessionData.session.access_token}`
+                    }
+                });
+                if (!response.ok) {
+                    log('Failed to fetch user data for super admin check:', response.status);
+                    return false;
+                }
+                const userData = yield response.json();
+                // Check if the user is a super admin
+                const isSuperAdmin = !!userData.is_super_admin;
+                log(`Super admin check result: ${isSuperAdmin}`);
+                return isSuperAdmin;
+            }
+            catch (error) {
+                log('Error checking super admin status:', error);
+                return false;
+            }
+        })
+    }), [user, profile, isLoading, signIn, signUp, signOut, refreshAuthState, setUserAsAdmin]);
+    return _jsx(AuthContext.Provider, { value: value, children: children });
+};
+// Custom hook to use auth context
+export const useAuth = () => useContext(AuthContext);
+// For compatibility: re-export as alias
+export { useAuth as useAuthContext };
+export { AuthContext as UnifiedAuthContext };
+export { AuthProvider as UnifiedAuthProvider };

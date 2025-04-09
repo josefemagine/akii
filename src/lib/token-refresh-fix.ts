@@ -94,8 +94,8 @@ export function fixTokenRefresh() {
             // Try the original method that we stored initially
             let result;
             try {
-              // Only call the original if we have it
-              if (originalRefreshAccessToken && typeof originalRefreshAccessToken === 'function') {
+              // Call the original method if available
+              if (originalRefreshAccessToken) {
                 result = await originalRefreshAccessToken.apply(this, args);
               } else {
                 // Create a failed result if original is missing
@@ -104,12 +104,12 @@ export function fixTokenRefresh() {
                   error: { message: "Original _refreshAccessToken not available", status: 500 }
                 };
               }
-            } catch (callError) {
+            } catch (callError: unknown) {
               console.error("[TokenRefreshFix] Error calling original _refreshAccessToken:", callError);
               result = { 
                 data: null, 
                 error: { 
-                  message: callError.message || "Error calling _refreshAccessToken", 
+                  message: callError instanceof Error ? callError.message : "Error calling _refreshAccessToken", 
                   status: 500 
                 }
               };

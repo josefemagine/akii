@@ -1,0 +1,26 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.39.3",
+    "supabase": "npm:@supabase/supabase-js@2.39.3",
+    "std/": "https://deno.land/std@0.208.0/",
+    "postgres": "https://deno.land/x/postgres@v0.17.0/mod.ts",
+    "postgres/": "https://deno.land/x/postgres@v0.17.0/",
+    "fireworks/": "https://deno.land/x/fireworks_ai@0.1.0/",
+    "cors": "./_shared/cors.ts"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"],
+    "strict": false
+  },
+  "lint": {
+    "include": ["**/*.ts"],
+    "exclude": ["**/*.test.ts"]
+  },
+  "fmt": {
+    "include": ["**/*.ts"],
+    "exclude": ["**/*.test.ts"],
+    "indentWidth": 2,
+    "semiColons": true
+  }
+} 

@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       } catch (error) {
         console.error("Error in get_team:", error);
         return createErrorResponse(
-          error instanceof Error ? error.message : "An unexpected error occurred",
+          error instanceof Error ? (error instanceof Error ? error.message : String(error)) : "An unexpected error occurred",
           500
         );
       }

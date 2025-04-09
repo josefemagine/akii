@@ -97,7 +97,7 @@ async function listProvisionedModelThroughputs() {
     console.error("[AWS] Error in listProvisionedModelThroughputs:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error),
       instances: []
     };
   }

@@ -1,5 +1,15 @@
-import createClient from "https://esm.sh/@supabase/supabase-js@2";
+// Import with type assertion for Deno environment
+// @ts-ignore - Module will be resolved by Deno's import system
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { corsHeaders } from "./cors.ts";
+
+// Type declarations for Deno runtime APIs
+declare namespace Deno {
+  export interface Env {
+    get(key: string): string | undefined;
+  }
+  export const env: Env;
+}
 
 // Validate required environment variables
 export function validateSecrets(requiredSecrets: string[]): { isValid: boolean; error?: string } {
@@ -45,20 +55,24 @@ export function createAuthClient(req: Request, adminAccess: boolean = false) {
   const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-  return createClient(
-    SUPABASE_URL,
-    adminAccess ? SUPABASE_SERVICE_ROLE_KEY : SUPABASE_ANON_KEY,
-    {
-      auth: adminAccess ? {
-        autoRefreshToken: false,
-        persistSession: false,
-      } : {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      },
-    }
-  );
+  // For admin access, use the service role key with minimal options
+  if (adminAccess) {
+    return createClient(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        }
+      }
+    );
+  }
+
+  // For regular access, create client with the anon key
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  
+  return client;
 }
 
 // Verify authentication and return user
@@ -131,9 +145,9 @@ export async function handleRequest(
     // Call the handler with authenticated user and parsed body
     try {
       return await handler(user, body);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error in request handler:", error);
-      return createErrorResponse(error.message);
+      return createErrorResponse(error?.message || "Unknown error occurred", 500);
     }
   }
 
@@ -141,8 +155,8 @@ export async function handleRequest(
   try {
     const body = requireBody ? await req.json() : undefined;
     return await handler(null, body);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in request handler:", error);
-    return createErrorResponse(error.message);
+    return createErrorResponse(error?.message || "Unknown error occurred", 500);
   }
 } 

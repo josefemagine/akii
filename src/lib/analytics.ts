@@ -116,7 +116,7 @@ export async function fetchAnalyticsData(
     }
 
     // Fetch daily messages for chart
-    const messageData = [];
+    const messageData: { date: string; messages: number }[] = [];
     const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
     for (let i = 0; i < 7; i++) {
@@ -147,8 +147,8 @@ export async function fetchAnalyticsData(
     }
 
     // Fetch daily users and sessions data
-    const dailyUsers = [];
-    const dailySessions = [];
+    const dailyUsers: number[] = [];
+    const dailySessions: number[] = [];
 
     for (let i = 0; i < 7; i++) {
       const date = new Date();

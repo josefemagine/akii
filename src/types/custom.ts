@@ -6,9 +6,9 @@ export type AIInstanceStatus = "active" | "inactive" | "archived";
 // Import the User type from Supabase
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-// Extend the Supabase User type
-export interface User extends SupabaseUser {
-  role?: UserRole;
+// Fix the User interface to properly handle role type
+export interface User extends Omit<SupabaseUser, 'role'> {
+  role: UserRole | undefined;
   status?: UserStatus;
   subscription?: Subscription | null;
   isAdmin?: boolean;

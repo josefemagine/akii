@@ -67,7 +67,7 @@ async function handleTestEnv(user: any): Promise<Response> {
     });
   } catch (error) {
     console.error("Error handling test environment request:", error);
-    return createErrorResponse(error instanceof Error ? error.message : String(error));
+    return createErrorResponse(error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error));
   }
 }
 
@@ -82,7 +82,7 @@ async function handleGetInstances(user: any): Promise<Response> {
     return createSuccessResponse({ instances: instances || [] });
   } catch (error) {
     console.error("Error getting instances:", error);
-    return createErrorResponse(error instanceof Error ? error.message : String(error));
+    return createErrorResponse(error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error));
   }
 }
 
@@ -131,7 +131,7 @@ async function handleCreateInstance(user: any, requestData: CreateInstanceReques
     });
   } catch (error) {
     console.error("Error creating instance:", error);
-    return createErrorResponse(error instanceof Error ? error.message : String(error));
+    return createErrorResponse(error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error));
   }
 }
 
@@ -155,7 +155,7 @@ async function handleDeleteInstance(user: any, instanceId: string): Promise<Resp
     });
   } catch (error) {
     console.error("Error deleting instance:", error);
-    return createErrorResponse(error instanceof Error ? error.message : String(error));
+    return createErrorResponse(error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error));
   }
 }
 

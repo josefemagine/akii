@@ -2,6 +2,15 @@ import serve from "https://deno.land/std@0.208.0/http/server.ts";
 import { handleRequest, createSuccessResponse, createErrorResponse } from "../_shared/auth.ts";
 import { query } from "../_shared/postgres.ts";
 
+// Augment query result with rows property
+declare module "../_shared/postgres" {
+  interface QueryResult<T> {
+    rows: T[];
+    rowCount: number;
+  }
+}
+
+
 interface PrivateAIModel {
   model_id: string;
   instance_type: string;

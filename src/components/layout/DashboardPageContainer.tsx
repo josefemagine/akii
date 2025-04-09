@@ -16,12 +16,14 @@ interface DashboardPageContainerProps {
   children: React.ReactNode;
   className?: string;
   fullWidth?: boolean;
+  requireAuth?: boolean;
 }
 
 export function DashboardPageContainer({
   children,
   className,
   fullWidth = false,
+  requireAuth = true,
 }: DashboardPageContainerProps) {
   return (
     <div className={cn(

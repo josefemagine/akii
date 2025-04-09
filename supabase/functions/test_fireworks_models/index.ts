@@ -91,7 +91,7 @@ async function callFireworksAI(message, tier) {
       tier: tier,
       latency: Date.now() - startTime,
       tokensUsed: 0,
-      response: `Error: ${error.message}`,
+      response: `Error: ${(error instanceof Error ? error.message : String(error))}`,
     };
   }
 }
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
         });
       } catch (error) {
         console.error("Error in test_fireworks_models:", error);
-        return createErrorResponse(error.message);
+        return createErrorResponse((error instanceof Error ? error.message : String(error)));
       }
     },
     {

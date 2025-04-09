@@ -1,6 +1,15 @@
 import { handleRequest, createSuccessResponse, createErrorResponse } from "../_shared/auth.ts"
 import { query } from "../_shared/postgres.ts"
 
+// Augment query result with rows property
+declare module "../_shared/postgres" {
+  interface QueryResult<T> {
+    rows: T[];
+    rowCount: number;
+  }
+}
+
+
 interface Team {
   id: string;
   name: string;

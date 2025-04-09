@@ -155,7 +155,7 @@ export async function handleGetAnalytics(req: Request, { stripe, supabaseAdmin, 
   } catch (error) {
     console.error('Error retrieving subscription analytics:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error instanceof Error ? error.message : String(error)) }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

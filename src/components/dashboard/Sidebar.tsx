@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/UnifiedAuthContext";
+import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { cn } from "@/lib/utils";
 import {
   Home,
@@ -60,6 +61,8 @@ import {
   Magnet,
   Mail,
 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { Profile } from "@/types/auth";
 
 // Common sidebar link component
 interface SidebarLinkProps {
@@ -166,88 +169,63 @@ interface SidebarProps {
   isCollapsed?: boolean;
   onToggle?: () => void;
   isAdmin?: boolean;
+  isSuperAdmin?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed = false,
   onToggle = () => {},
   isAdmin: propIsAdmin,
+  isSuperAdmin: propIsSuperAdmin,
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut, isAdmin: contextIsAdmin } = useAuth();
+  const { isSuperAdmin, isLoading: superAdminLoading } = useSuperAdmin();
+  const { toast } = useToast();
   const currentPath = location.pathname;
   
-  const [directAdminStatus, setDirectAdminStatus] = useState<boolean | null>(null);
+  // Determine admin status from either props or context
+  const isAdmin = propIsAdmin || contextIsAdmin;
   
-  // Perform a direct check to the database to verify admin status
-  useEffect(() => {
-    if (user?.id && !contextIsAdmin) {
-      const checkAdminDirectly = async () => {
-        try {
-          // Import dynamically to avoid circular dependencies
-          const { checkIsAdmin } = await import('@/lib/supabase-auth');
-          const isUserAdmin = await checkIsAdmin(user.id);
-          console.log(`Sidebar - Direct admin check for user ${user.id}: ${isUserAdmin}`);
-          setDirectAdminStatus(isUserAdmin);
-        } catch (e) {
-          console.warn("Error checking admin status directly:", e);
-          setDirectAdminStatus(false);
-        }
-      };
-      
-      checkAdminDirectly();
-    }
-  }, [user?.id, contextIsAdmin]);
-  
-  // Determine admin status: if prop is true OR context says user is admin OR direct check says admin
-  const isAdmin = propIsAdmin === true || contextIsAdmin === true || directAdminStatus === true;
-  
-  // Only log status changes or non-null profiles to reduce console spam
-  const shouldLog = profile !== null || directAdminStatus !== null;
-  
-  useEffect(() => {
-    if (shouldLog) {
-      console.log('Sidebar Component - Admin Status:', { 
-        propIsAdmin, 
-        contextIsAdmin, 
-        directAdminStatus,
-        isAdmin,
-        currentPath,
-        profile: profile ? `${profile.id} (${profile.role})` : null
-      });
-    }
-  }, [propIsAdmin, contextIsAdmin, directAdminStatus, isAdmin, currentPath, profile, shouldLog]);
+  // Use either the prop value (if provided) or the hook value
+  const isSuperAdminUser = propIsSuperAdmin || isSuperAdmin;
 
-  // State to track expanded sections
-  const [expandedSections, setExpandedSections] = useState<{
-    apps: boolean;
-    adminGeneral: boolean;
-    adminContent: boolean;
-    adminCompliance: boolean;
-    adminPartners: boolean;
-    adminMigrations: boolean;
-    adminTechnical: boolean;
-  }>({
-    apps: true,
-    adminGeneral: true,
-    adminContent: false,
-    adminCompliance: false,
-    adminPartners: false,
-    adminMigrations: false,
-    adminTechnical: false,
+  // Track expanded states for collapsible sections
+  const [expandedSections, setExpandedSections] = useState({
+    team: false,
+    ai: false,
+    admin: false,
+    channels: false,
   });
 
-  // Toggle expanded section
+  // Toggle section expansion
   const toggleSection = (section: keyof typeof expandedSections) => {
-    if (!isCollapsed) {
-      setExpandedSections((prev) => ({
-        ...prev,
-        [section]: !prev[section],
-      }));
+    setExpandedSections({
+      ...expandedSections,
+      [section]: !expandedSections[section],
+    });
+  };
+
+  // Handle sign out with proper error handling
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully.",
+      });
+      navigate('/');
+    } catch (error) {
+      console.error("[Sidebar] Sign out error:", error);
+      toast({
+        title: "Sign out failed",
+        description: "There was a problem signing you out. Please try again.",
+        variant: "destructive",
+      });
     }
   };
-  
+
   // Define main navigation links (visible to all users)
   const mainLinks = [
     { to: "/dashboard/ai-instances", icon: <Bot className="h-5 w-5" />, label: "AI Instances" },
@@ -318,21 +296,68 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { to: "/help", icon: <HelpCircle className="h-5 w-5" />, label: "Help & Support" },
   ];
   
-  const handleLogout = async () => {
-    try {
-      if (signOut) {
-        await signOut();
-        navigate("/");
-      }
-    } catch (error) {
-      console.error("Error during logout:", error);
-    }
-  };
-
   // Check if any app link is active
   const isAppSectionActive = appLinks.some(link => 
     currentPath === link.to || currentPath.startsWith(link.to + '/')
   );
+
+  // Admin section rendering
+  const renderAdminSection = () => {
+    // Only show admin section for regular admins or super admins
+    if (!isAdmin && !isSuperAdminUser) return null;
+    
+    return (
+      <div className="px-3 py-2">
+        <h2 className="mb-2 px-4 text-sm font-semibold tracking-tight text-muted-foreground">
+          {!isCollapsed && "Admin Menu"}
+          {isCollapsed && <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />}
+        </h2>
+        <div className="space-y-1">
+          {/* Admin Links - Available to both admin and super admin */}
+          <div className="px-3 py-2">
+            <div className="space-y-1">
+              {/* Core Admin Pages */}
+              <SidebarLink
+                to="/dashboard/admin/dashboard"
+                icon={<LayoutDashboard className="h-5 w-5" />}
+                label="Admin Dashboard"
+                isActive={currentPath.includes("/dashboard/admin/dashboard")}
+                isCollapsed={isCollapsed}
+              />
+              <SidebarLink
+                to="/dashboard/admin/users"
+                icon={<Users className="h-5 w-5" />}
+                label="Users Management"
+                isActive={currentPath.includes("/dashboard/admin/users") && !currentPath.includes("usersync") && !currentPath.includes("userstatus")}
+                isCollapsed={isCollapsed}
+              />
+              <SidebarLink
+                to="/dashboard/admin/database-schema"
+                icon={<Database className="h-5 w-5" />}
+                label="Database Schema"
+                isActive={currentPath.includes("/dashboard/admin/database-schema")}
+                isCollapsed={isCollapsed}
+              />
+              <SidebarLink
+                to="/dashboard/admin/settings"
+                icon={<Settings className="h-5 w-5" />}
+                label="Settings"
+                isActive={currentPath.includes("/dashboard/admin/settings")}
+                isCollapsed={isCollapsed}
+              />
+              <SidebarLink
+                to="/dashboard/admin/billing"
+                icon={<CreditCard className="h-5 w-5" />}
+                label="Billing"
+                isActive={currentPath.includes("/dashboard/admin/billing")}
+                isCollapsed={isCollapsed}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <aside
@@ -366,13 +391,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             label="Apps"
             isActive={isAppSectionActive}
             isCollapsed={isCollapsed}
-            onClick={() => toggleSection('apps')}
+            onClick={() => toggleSection('ai')}
             hasChildren={true}
-            isExpanded={expandedSections.apps}
+            isExpanded={expandedSections.ai}
           />
           
           {/* App sub-links */}
-          {expandedSections.apps && !isCollapsed && (
+          {expandedSections.ai && !isCollapsed && (
             <div className="space-y-1 pl-0">
               {appLinks.map((link) => (
                 <NestedLink
@@ -485,13 +510,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   label="General"
                   isActive={currentPath.includes("/admin/settings")}
                   isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('adminGeneral')}
+                  onClick={() => toggleSection('admin')}
                   hasChildren={true}
-                  isExpanded={expandedSections.adminGeneral}
+                  isExpanded={expandedSections.admin}
                 />
               )}
               
-              {(expandedSections.adminGeneral || isCollapsed) && (
+              {(expandedSections.admin || isCollapsed) && (
                 <>
                   {adminLinks.slice(4, 5).map((link) => (
                     <SidebarLink
@@ -521,13 +546,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             currentPath.includes("/admin/lead-magnets") ||
                             currentPath.includes("/admin/email-templates")}
                   isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('adminContent')}
+                  onClick={() => toggleSection('channels')}
                   hasChildren={true}
-                  isExpanded={expandedSections.adminContent}
+                  isExpanded={expandedSections.channels}
                 />
               )}
               
-              {expandedSections.adminContent && !isCollapsed && (
+              {expandedSections.channels && !isCollapsed && (
                 <>
                   {adminLinks.slice(5, 8).map((link) => (
                     <NestedLink
@@ -555,13 +580,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   isActive={currentPath.includes("/dashboard/admin/compliance") || 
                             currentPath.includes("/dashboard/admin/moderation")}
                   isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('adminCompliance')}
+                  onClick={() => toggleSection('admin')}
                   hasChildren={true}
-                  isExpanded={expandedSections.adminCompliance}
+                  isExpanded={expandedSections.admin}
                 />
               )}
               
-              {expandedSections.adminCompliance && !isCollapsed && (
+              {expandedSections.admin && !isCollapsed && (
                 <>
                   {adminLinks.slice(8, 9).map((link) => (
                     <NestedLink
@@ -590,13 +615,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             currentPath.includes("/dashboard/admin/packages") ||
                             currentPath.includes("/dashboard/admin/billing")}
                   isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('adminPartners')}
+                  onClick={() => toggleSection('admin')}
                   hasChildren={true}
-                  isExpanded={expandedSections.adminPartners}
+                  isExpanded={expandedSections.admin}
                 />
               )}
               
-              {expandedSections.adminPartners && !isCollapsed && (
+              {expandedSections.admin && !isCollapsed && (
                 <>
                   {[adminLinks[10], adminLinks[11], adminLinks[12]].map((link) => (
                     <NestedLink
@@ -626,13 +651,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             currentPath.includes("/dashboard/admin/user-profile-migration") ||
                             currentPath.includes("/dashboard/admin/run-migration")}
                   isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('adminMigrations')}
+                  onClick={() => toggleSection('admin')}
                   hasChildren={true}
-                  isExpanded={expandedSections.adminMigrations}
+                  isExpanded={expandedSections.admin}
                 />
               )}
               
-              {expandedSections.adminMigrations && !isCollapsed && (
+              {expandedSections.admin && !isCollapsed && (
                 <>
                   {adminLinks.slice(13, 17).map((link) => (
                     <NestedLink
@@ -664,13 +689,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             currentPath.includes("/dashboard/admin/supabase-check") || 
                             currentPath.includes("/dashboard/admin/admin-check")}
                   isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('adminTechnical')}
+                  onClick={() => toggleSection('admin')}
                   hasChildren={true}
-                  isExpanded={expandedSections.adminTechnical}
+                  isExpanded={expandedSections.admin}
                 />
               )}
               
-              {expandedSections.adminTechnical && !isCollapsed && (
+              {expandedSections.admin && !isCollapsed && (
                 <>
                   {adminLinks.slice(17).map((link) => (
                     <NestedLink
@@ -711,6 +736,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </nav>
           </div>
         )}
+
+        {/* Admin Section */}
+        {renderAdminSection()}
 
         {/* Bottom Section - Help, Logout */}
         <div className="mt-auto pt-6 space-y-1 pl-3">

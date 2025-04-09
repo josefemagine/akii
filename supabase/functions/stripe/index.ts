@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
       } catch (error) {
         console.error("Error processing request:", error);
         return createErrorResponse(
-          error instanceof Error ? error.message : "Internal server error",
+          error instanceof Error ? (error instanceof Error ? error.message : String(error)) : "Internal server error",
           500
         );
       }

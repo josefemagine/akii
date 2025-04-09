@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
 import {
   Card,
@@ -9,19 +9,100 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { AlertCircle, CheckCircle2, BarChart3 } from "lucide-react";
-import { User } from "@/types/custom-types";
+import { AlertCircle, CheckCircle2, BarChart3, Loader2 } from "lucide-react";
+import { invokeServerFunction } from "@/utils/supabase/functions";
+import { useToast } from "@/components/ui/use-toast";
 
 interface SubscriptionUsageProps {
   className?: string;
 }
 
+interface SubscriptionData {
+  plan: string;
+  status: string;
+  messages_used: number;
+  message_limit: number;
+  renews_at?: string;
+  trial_ends_at?: string;
+  addons?: Record<string, any>;
+  payment_method?: string;
+}
+
 export function SubscriptionUsage({ className }: SubscriptionUsageProps) {
-  const { user: authUser } = useAuth();
-  const user = authUser as User | null;
+  const { user, hasUser } = useAuth();
+  const { toast } = useToast();
+  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Default values if user data is not available
-  const subscription = user?.subscription || null;
+  useEffect(() => {
+    if (hasUser && user) {
+      fetchSubscriptionData();
+    } else {
+      setIsLoading(false);
+    }
+  }, [hasUser, user]);
+  
+  const fetchSubscriptionData = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      const data = await invokeServerFunction<{subscription: SubscriptionData}>("get_user_subscription", {
+        userId: user.id
+      });
+      
+      if (data?.subscription) {
+        setSubscription(data.subscription);
+      } else {
+        // Set default values if no subscription is found
+        setSubscription({
+          plan: "free",
+          status: "active",
+          messages_used: 0,
+          message_limit: 1000
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching subscription data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load subscription data",
+        variant: "destructive"
+      });
+      
+      // Set default values in case of error
+      setSubscription({
+        plan: "free",
+        status: "active",
+        messages_used: 0,
+        message_limit: 1000
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <Card className={className}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xl flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Subscription Usage
+          </CardTitle>
+          <CardDescription>Loading subscription data...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  // Default values if subscription data is not available
   const messagesUsed = subscription?.messages_used || 0;
   const messageLimit = subscription?.message_limit || 1000;
   const plan = subscription?.plan || "free";
@@ -61,7 +142,7 @@ export function SubscriptionUsage({ className }: SubscriptionUsageProps) {
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Message Usage</span>
               <span className="text-sm text-muted-foreground">
-                {messagesUsed} / {messageLimit} messages
+                {messagesUsed.toLocaleString()} / {messageLimit.toLocaleString()} messages
               </span>
             </div>
             <Progress
@@ -105,10 +186,21 @@ export function SubscriptionUsage({ className }: SubscriptionUsageProps) {
           )}
 
           <div className="pt-2 flex justify-between">
-            <Button variant="outline" size="sm">
-              View Details
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => fetchSubscriptionData()}
+            >
+              Refresh
             </Button>
-            {usagePercentage > 80 && <Button size="sm">Upgrade Plan</Button>}
+            {usagePercentage > 80 && (
+              <Button 
+                size="sm"
+                onClick={() => window.location.href = '/dashboard/subscription'}
+              >
+                Upgrade Plan
+              </Button>
+            )}
           </div>
         </div>
       </CardContent>

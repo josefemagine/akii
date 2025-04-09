@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
         }
       } catch (error) {
         console.error("Error in create_team:", error);
-        return createErrorResponse(error.message);
+        return createErrorResponse((error instanceof Error ? error.message : String(error)));
       }
     },
     {

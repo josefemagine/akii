@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
         } catch (error) {
           postgresStatus = { 
             connected: false, 
-            error: error instanceof Error ? error.message : "Unknown error" 
+            error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : "Unknown error" 
           };
         }
 
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
       } catch (error) {
         console.error("Error in health-check:", error);
         return createErrorResponse(
-          error instanceof Error ? error.message : "An unexpected error occurred",
+          error instanceof Error ? (error instanceof Error ? error.message : String(error)) : "An unexpected error occurred",
           500
         );
       }

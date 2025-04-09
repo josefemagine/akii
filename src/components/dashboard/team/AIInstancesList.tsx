@@ -33,9 +33,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Edit, Trash2, Bot } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/use-toast";
 import { AIInstanceStatus } from "@/types/custom";
+import { invokeServerFunction } from "@/utils/supabase/functions";
 
 type AIInstance = {
   id: string;
@@ -75,25 +75,13 @@ const AIInstancesList = ({
     if (!teamId) return;
     fetchAIInstances();
 
-    // Set up realtime subscription
-    const channel = supabase
-      .channel("ai_instances_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "ai_instances",
-          filter: `team_id=eq.${teamId}`,
-        },
-        () => {
-          fetchAIInstances();
-        },
-      )
-      .subscribe();
+    // Setup a polling mechanism instead of realtime subscription
+    const pollingInterval = setInterval(() => {
+      fetchAIInstances();
+    }, 10000); // Poll every 10 seconds
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(pollingInterval);
     };
   }, [teamId]);
 
@@ -102,14 +90,14 @@ const AIInstancesList = ({
 
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from("ai_instances")
-        .select("*")
-        .eq("team_id", teamId)
-        .order("created_at", { ascending: false });
+      
+      const data = await invokeServerFunction<AIInstance[]>("team_get_ai_instances", {
+        teamId
+      });
 
-      if (error) throw error;
-      setInstances(data || []);
+      if (data) {
+        setInstances(data);
+      }
     } catch (error) {
       console.error("Error fetching AI instances:", error);
       toast({
@@ -128,18 +116,13 @@ const AIInstancesList = ({
     try {
       setIsProcessing(true);
 
-      const { data, error } = await supabase
-        .from("ai_instances")
-        .insert({
-          team_id: teamId,
-          name: newInstanceName,
-          description: newInstanceDescription || null,
-          status: "active" as AIInstanceStatus,
-          settings: {},
-        })
-        .select();
-
-      if (error) throw error;
+      await invokeServerFunction("team_create_ai_instance", {
+        teamId,
+        name: newInstanceName,
+        description: newInstanceDescription || null,
+        status: "active" as AIInstanceStatus,
+        settings: {}
+      });
 
       toast({
         title: "AI Instance created",
@@ -149,6 +132,7 @@ const AIInstancesList = ({
       setNewInstanceName("");
       setNewInstanceDescription("");
       setIsCreateDialogOpen(false);
+      fetchAIInstances();
       onInstanceChange();
     } catch (error) {
       console.error("Error creating AI instance:", error);
@@ -175,17 +159,12 @@ const AIInstancesList = ({
     try {
       setIsProcessing(true);
 
-      const { error } = await supabase
-        .from("ai_instances")
-        .update({
-          name: newInstanceName,
-          description: newInstanceDescription || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", selectedInstance.id)
-        .eq("team_id", teamId);
-
-      if (error) throw error;
+      await invokeServerFunction("team_update_ai_instance", {
+        instanceId: selectedInstance.id,
+        teamId,
+        name: newInstanceName,
+        description: newInstanceDescription || null
+      });
 
       toast({
         title: "AI Instance updated",
@@ -196,6 +175,7 @@ const AIInstancesList = ({
       setSelectedInstance(null);
       setNewInstanceName("");
       setNewInstanceDescription("");
+      fetchAIInstances();
       onInstanceChange();
     } catch (error) {
       console.error("Error updating AI instance:", error);
@@ -220,13 +200,10 @@ const AIInstancesList = ({
     try {
       setIsProcessing(true);
 
-      const { error } = await supabase
-        .from("ai_instances")
-        .delete()
-        .eq("id", selectedInstance.id)
-        .eq("team_id", teamId);
-
-      if (error) throw error;
+      await invokeServerFunction("team_delete_ai_instance", {
+        instanceId: selectedInstance.id,
+        teamId
+      });
 
       toast({
         title: "AI Instance deleted",

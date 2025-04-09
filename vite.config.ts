@@ -97,10 +97,7 @@ export default defineConfig({
             '@/lib/supabase-client',
             '@/lib/supabase-singleton',
             '@/lib/supabase-auth',
-          ],
-          'dashboard': [
-            '@/components/dashboard',
-          ],
+          ]
         }
       }
     },

@@ -208,7 +208,7 @@ const Pricing = () => {
     }
   ];
 
-  const calculateAnnualPrice = (monthlyPrice) => {
+  const calculateAnnualPrice = (monthlyPrice: number) => {
     if (!monthlyPrice) return null;
     const annualPrice = monthlyPrice * 12 * (1 - annualDiscount);
     return Math.round(annualPrice);

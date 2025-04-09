@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       return createSuccessResponse(result);
     } catch (error) {
       console.error('Error processing webhook:', error);
-      return createErrorResponse(error.message, 400);
+      return createErrorResponse((error instanceof Error ? error.message : String(error)), 400);
     }
   }
   

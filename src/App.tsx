@@ -14,17 +14,23 @@ import { forceAdminStatus, enableDevAdminMode } from "./lib/admin-utils";
 
 // Import providers
 import { SearchProvider } from "./contexts/SearchContext";
-import { UnifiedAuthProvider } from "./contexts/UnifiedAuthContext";
+import { UnifiedAuthProvider, useAuth } from "./contexts/UnifiedAuthContext";
+
+// Use a direct import from react-query instead of @tanstack/react-query
+import { QueryClient, QueryClientProvider } from "react-query";
 
 // Import components
 import { EnvWarning } from "@/components/ui/env-warning";
-import { LoadingScreen } from "@/components/LoadingScreen";
+import LoadingScreen from "@/components/ui/LoadingScreen";
 import { Toaster } from "./components/ui/toaster";
 import MainLayout from "./components/layout/MainLayout";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
 import { PrivateRoute } from "./components/PrivateRoute";
 import { GlobalErrorHandler } from "./components/GlobalErrorHandler";
 import ScrollToTop from "./components/layout/ScrollToTop";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 // Import development-only components
 // Only import AuthDebugger in development mode
@@ -97,6 +103,7 @@ const AppsPage = lazy(() => import("./pages/Apps"));
 const TeamPage = lazy(() => import("./pages/dashboard/Team"));
 const SupabaseBedrock = lazy(() => import("./pages/admin/SupabaseBedrock"));
 const SupabaseCheck = lazy(() => import("./pages/admin/SupabaseCheck"));
+const AdminCheck = lazy(() => import("./pages/admin/AdminCheck"));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -172,10 +179,10 @@ export default function App() {
     
     if (isProd || import.meta.env.PROD) {
       console.log('App: Initializing production recovery module for auth persistence');
-      const { cleanup } = initializeProductionRecovery();
+      const result = initializeProductionRecovery();
       
-      // Return cleanup function
-      return cleanup;
+      // Check if cleanup function exists before returning it
+      return result?.cleanup;
     }
   }, []);
 

@@ -371,9 +371,9 @@ async function directSessionCheck() {
         try {
           const result = await Promise.race([sessionPromise, timeoutPromise]);
           return result;
-        } catch (raceError) {
+        } catch (raceError: unknown) {
           // If timeout won the race and we found a token earlier, use it as fallback
-          if (raceError.message?.includes('timed out') && tokenKey) {
+          if (raceError instanceof Error && raceError.message?.includes('timed out') && tokenKey) {
             try {
               const tokenData = JSON.parse(localStorage.getItem(tokenKey) || '{}');
               if (tokenData?.access_token) {

@@ -1,14 +1,7 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-env index.ts",
+    "dev": "deno run --allow-net --allow-read --allow-env index.ts",
     "deploy": "supabase functions deploy process_document"
   },
-  "imports": {
-    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
-    "std/": "https://deno.land/std@0.208.0/"
-  },
-  "compilerOptions": {
-    "allowJs": true,
-    "strict": true
-  }
-} 
+  "imports": "../deno.json"
+}

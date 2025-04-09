@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, ChangeEvent } from 'react';
 import { useAuth } from '@/contexts/UnifiedAuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { toast } from '@/components/ui/use-toast';
 
 export default function AuthExample() {
   const [email, setEmail] = useState('');
@@ -15,15 +16,18 @@ export default function AuthExample() {
   // Handle sign in
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
-    
     try {
       await signIn(email, password);
+      
       // Clear form on success
       setEmail('');
       setPassword('');
-    } catch (error) {
-      console.error('Sign in error:', error);
+    } catch (err) {
+      console.error('Error signing in:', err);
+      toast({
+        title: "Authentication Error",
+        description: "Failed to sign in. Please check your credentials and try again."
+      });
     }
   };
   
@@ -88,7 +92,7 @@ export default function AuthExample() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
               />
@@ -102,7 +106,7 @@ export default function AuthExample() {
                 id="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
               />

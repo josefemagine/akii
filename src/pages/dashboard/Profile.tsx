@@ -15,67 +15,100 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, Loader2 } from "lucide-react";
 import { useRef } from "react";
 import { useAuth } from "@/contexts/UnifiedAuthContext";
-import type { Profile } from "@/types/auth";
+import type { Profile as ProfileType } from "@/types/auth";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabase";
 
 // Default avatar URL
 const DEFAULT_AVATAR_URL = "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/avatars/b574f273-e0e1-4cb8-8c98-f5a7569234c8/green-robot-icon.png";
 
-// Extended profile interface
-interface ExtendedProfile extends Profile {
-  display_name?: string;
-  avatar_url?: string;
-  company?: string;
+// Edge Function endpoint
+const USER_DATA_ENDPOINT = "https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/user-data";
+
+interface UserProfileData extends ProfileType {
+  is_super_admin?: boolean;
 }
 
-interface ProfileProps {
-  profile: ExtendedProfile | null;
-}
-
-const Profile = ({ profile }: ProfileProps) => {
+const Profile = () => {
+  const { user } = useAuth();
+  const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { refreshProfile, updateProfile } = useAuth();
   const { toast } = useToast();
 
-  // Verify session before operations
-  useEffect(() => {
-    // Check if we have a valid session
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      const currentSession = data.session;
-      
-      if (!currentSession) {
-        console.warn('No active session found. User may need to re-authenticate.');
-      } else {
-        console.log('Valid session found, profile updates should work');
-      }
-    };
-    
-    checkSession();
-  }, []);
-  
   // Form setup
   const form = useForm({
     defaultValues: {
-      first_name: profile?.first_name || "",
-      last_name: profile?.last_name || "",
-      email: profile?.email || "",
-      company: profile?.company || "",
+      first_name: "",
+      last_name: "",
+      email: "",
+      company: "",
     },
   });
-  
-  // Submit handler
-  const onSubmit = async (data: any) => {
-    console.log('Profile form submitted with data:', data);
+
+  // Fetch user data from Edge Function with direct database query
+  const fetchUserData = async () => {
+    if (!user) return;
     
-    if (!profile?.id) {
-      console.error('Profile ID not found. Cannot update profile.');
+    setIsFetching(true);
+    
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (!sessionData.session) {
+        throw new Error("No active session");
+      }
+      
+      const response = await fetch(USER_DATA_ENDPOINT, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${sessionData.session.access_token}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch user data");
+      }
+      
+      const userData = await response.json();
+      console.log("User data fetched directly from database:", userData);
+      setProfileData(userData);
+      
+      // Update form values
+      form.reset({
+        first_name: userData.first_name || "",
+        last_name: userData.last_name || "",
+        email: userData.email || "",
+        company: userData.company || "",
+      });
+      
+    } catch (error) {
+      console.error("Error fetching user data:", error);
       toast({
         title: "Error",
-        description: "Profile ID not found. Cannot update profile.",
+        description: error instanceof Error ? error.message : "Failed to fetch user data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
+  // Fetch user data on component mount
+  useEffect(() => {
+    fetchUserData();
+  }, [user]);
+  
+  // Submit handler - uses the direct database approach via Edge Function
+  const onSubmit = async (data: any) => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to update your profile",
         variant: "destructive",
       });
       return;
@@ -89,33 +122,35 @@ const Profile = ({ profile }: ProfileProps) => {
         first_name: data.first_name,
         last_name: data.last_name,
         company: data.company,
-        updated_at: new Date().toISOString()
       };
       
-      // Make the simplest possible update request
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', profile.id);
+      // Get current session for the token
+      const { data: sessionData } = await supabase.auth.getSession();
       
-      if (error) {
-        throw error;
+      if (!sessionData.session) {
+        throw new Error("No active session");
       }
       
-      // Update the UI immediately
-      form.reset({
-        ...data,
-        email: profile.email
+      // Send update to the Edge Function that uses direct database queries
+      const response = await fetch(USER_DATA_ENDPOINT, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${sessionData.session.access_token}`
+        },
+        body: JSON.stringify(updates)
       });
       
-      // Try to refresh the profile if available
-      if (refreshProfile) {
-        try {
-          await refreshProfile();
-        } catch (e) {
-          // Continue if refresh fails
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update profile");
       }
+      
+      const result = await response.json();
+      console.log("Profile updated directly in database:", result);
+      
+      // Update the local state with the new profile data
+      setProfileData(result.profile);
       
       toast({
         title: "Profile updated",
@@ -134,7 +169,7 @@ const Profile = ({ profile }: ProfileProps) => {
     }
   };
   
-  // Avatar upload
+  // Avatar upload - still uses Storage API but updates profile through Edge Function
   const triggerFileUpload = () => {
     fileInputRef.current?.click();
   };
@@ -142,16 +177,16 @@ const Profile = ({ profile }: ProfileProps) => {
   // Handle avatar upload
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !profile?.id) return;
+    if (!file || !user?.id) return;
     
     setIsUploading(true);
     
     try {
       // Upload to Supabase Storage
       const fileExt = file.name.split('.').pop();
-      const filePath = `${profile.id}/${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${user.id}/${Math.random().toString(36).substring(2)}.${fileExt}`;
       
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError, data } = await supabase.storage
         .from('avatars')
         .upload(filePath, file);
       
@@ -160,23 +195,37 @@ const Profile = ({ profile }: ProfileProps) => {
       }
       
       // Get public URL
-      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
       
-      // Update profile with new avatar URL
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          avatar_url: data.publicUrl,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', profile.id);
+      // Get current session for the token
+      const { data: sessionData } = await supabase.auth.getSession();
       
-      if (updateError) {
-        throw updateError;
+      if (!sessionData.session) {
+        throw new Error("No active session");
       }
       
-      // Refresh auth context to show new avatar
-      refreshProfile?.();
+      // Update profile with new avatar URL via Edge Function
+      const response = await fetch(USER_DATA_ENDPOINT, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${sessionData.session.access_token}`
+        },
+        body: JSON.stringify({
+          avatar_url: urlData.publicUrl
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update avatar");
+      }
+      
+      const result = await response.json();
+      console.log("Avatar updated via direct database approach:", result);
+      
+      // Update the local state with the new profile data
+      setProfileData(result.profile);
       
       toast({
         title: "Avatar updated",
@@ -194,10 +243,35 @@ const Profile = ({ profile }: ProfileProps) => {
     }
   };
 
+  // Show if super admin badge when applicable
+  const SuperAdminBadge = () => {
+    if (!profileData?.is_super_admin) return null;
+    
+    return (
+      <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 ml-2">
+        Super Admin
+      </div>
+    );
+  };
+
+  if (isFetching) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading profile...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Profile</CardTitle>
+        <CardTitle>
+          Profile
+          <SuperAdminBadge />
+        </CardTitle>
         <CardDescription>
           Manage your personal information
         </CardDescription>
@@ -209,9 +283,9 @@ const Profile = ({ profile }: ProfileProps) => {
             <div className="flex items-center space-x-4">
               <div className="relative group">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={profile?.avatar_url || DEFAULT_AVATAR_URL} />
+                  <AvatarImage src={profileData?.avatar_url || DEFAULT_AVATAR_URL} />
                   <AvatarFallback className="text-xl bg-primary/10">
-                    {profile?.first_name?.[0]?.toUpperCase() || ''}{profile?.last_name?.[0]?.toUpperCase() || ''}
+                    {profileData?.first_name?.[0]?.toUpperCase() || ''}{profileData?.last_name?.[0]?.toUpperCase() || ''}
                   </AvatarFallback>
                 </Avatar>
                 <div 
@@ -234,8 +308,8 @@ const Profile = ({ profile }: ProfileProps) => {
                 />
               </div>
               <div>
-                <h3 className="text-xl font-semibold">{profile?.first_name} {profile?.last_name}</h3>
-                <p className="text-gray-500 dark:text-gray-400">{profile?.email}</p>
+                <h3 className="text-xl font-semibold">{profileData?.first_name} {profileData?.last_name}</h3>
+                <p className="text-gray-500 dark:text-gray-400">{profileData?.email}</p>
                 <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                   Hover over image to change avatar
                 </p>

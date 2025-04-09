@@ -192,7 +192,7 @@ async function verifyAwsCredentials(): Promise<{ success: boolean, message: stri
       } else if (error.name === "UnrecognizedClientException") {
         errorMessage = "Invalid AWS credentials. Check access key and secret.";
       } else {
-        errorMessage = error.message;
+        errorMessage = (error instanceof Error ? error.message : String(error));
       }
     }
     
@@ -259,7 +259,7 @@ async function runAwsPermissionsTest() {
     console.error("[AWS] Error running permissions test:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error),
       permissions: {
         listModels: { success: false, error: "Test failed" },
         listProvisioned: { success: false, error: "Test failed" },
@@ -321,12 +321,12 @@ async function checkAwsAccountPrerequisites(client: BedrockClient) {
         message: "Account appears to be set up for provisioned throughput"
       };
     } catch (error) {
-      if (error.name === "ValidationException" && error.message === "Operation not allowed") {
+      if (error.name === "ValidationException" && (error instanceof Error ? error.message : String(error)) === "Operation not allowed") {
         return {
           success: false,
           message: "Your AWS account may not be approved for provisioned throughput",
           details: {
-            error: error.message,
+            error: (error instanceof Error ? error.message : String(error)),
             recommendation: "You need to request access to Bedrock provisioned throughput via AWS console"
           }
         };
@@ -337,7 +337,7 @@ async function checkAwsAccountPrerequisites(client: BedrockClient) {
           success: false,
           message: "Your AWS credentials do not have permission to use provisioned throughput",
           details: {
-            error: error.message,
+            error: (error instanceof Error ? error.message : String(error)),
             recommendation: "Check your IAM permissions"
           }
         };
@@ -348,7 +348,7 @@ async function checkAwsAccountPrerequisites(client: BedrockClient) {
         success: false,
         message: "Error checking provisioned throughput prerequisites",
         details: {
-          error: error.message,
+          error: (error instanceof Error ? error.message : String(error)),
           errorType: error.name
         }
       };
@@ -358,7 +358,7 @@ async function checkAwsAccountPrerequisites(client: BedrockClient) {
     return {
       success: false,
       message: "Failed to check AWS account prerequisites",
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)
     };
   }
 }
@@ -544,7 +544,7 @@ async function handleListFoundationModels(req: Request): Promise<Response> {
     console.error("[API] Unexpected error in handleListFoundationModels:", error);
     return createResponse({
       error: "Error listing foundation models",
-      details: error instanceof Error ? error.message : String(error)
+    details: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)
     }, 500);
   }
 }
@@ -646,7 +646,7 @@ async function getSystemStatus() {
   return {
     total_users: totalUsers.count,
     active_subscriptions: activeSubscriptions.count,
-    timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString(),
   };
 }
 

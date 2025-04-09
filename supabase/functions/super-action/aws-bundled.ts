@@ -78,7 +78,7 @@ export async function listFoundationModels(filters?: any) {
     console.error("[AWS] Error listing foundation models:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error),
       models: [],
       count: 0
     };
@@ -122,7 +122,7 @@ export async function listProvisionedModelThroughputs() {
     console.error("[AWS] Error in listProvisionedModelThroughputs:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error),
       instances: []
     };
   }
@@ -164,7 +164,7 @@ export async function createProvisionedModelThroughput(params: any) {
     console.error("[AWS] Error creating provisioned model throughput:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)
     };
   }
 }
@@ -198,7 +198,7 @@ export async function getProvisionedModelThroughput(instanceId: string) {
     console.error("[AWS] Error getting provisioned model throughput:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)
     };
   }
 }
@@ -223,7 +223,7 @@ export async function deleteProvisionedModelThroughput(instanceId: string) {
     console.error("[AWS] Error deleting provisioned model throughput:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)
     };
   }
 }
@@ -250,7 +250,7 @@ export async function invokeBedrockModel(params: any) {
     console.error("[AWS] Error invoking model:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)
     };
   }
 }
@@ -277,7 +277,7 @@ export async function getBedrockUsageStats(params: any) {
     console.error("[AWS] Error getting usage stats:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)
     };
   }
 }
@@ -318,7 +318,7 @@ export async function verifyAwsCredentials() {
     return {
       success: false,
       message: "Failed to verify AWS credentials",
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)
     };
   }
 }
@@ -341,7 +341,7 @@ export async function runAwsPermissionsTest() {
     console.error("[AWS] Error running permission tests:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error)
     };
   }
 } 

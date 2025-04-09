@@ -82,32 +82,23 @@ export function applyTokenRefreshHandler() {
         // Replace with our wrapped version that handles errors properly
         (supabase.auth as any)._refreshAccessToken = async function(...args: any[]) {
           try {
-            // Call the original method
             const result = await originalRefreshAccessToken.apply(this, args);
             
-            // If successful, return the result
-            if (result && !result.error) {
-              return result;
+            if (result.error) {
+              console.warn("[TokenRefreshHandler] Token refresh failed:", result.error);
+              
+              // If refresh token fails, clean up and redirect to login
+              if (result.error.status === 401 || 
+                  (result.error.message && result.error.message.toLowerCase().includes('invalid token'))) {
+                console.log("[TokenRefreshHandler] Token invalid or expired, clearing auth data");
+                
+                clearStoredTokens();
+                redirectToLogin();
+              }
             }
             
-            // If we got a 400 error, handle it according to best practices
-            if (result?.error?.status === 400) {
-              console.log("[TokenRefreshHandler] Received 400 error during token refresh:", result.error);
-              console.error("Refresh token is invalid. Logging out and redirecting to login.");
-              
-              // Clear invalid tokens
-              clearStoredTokens();
-              
-              // Redirect to login if we're on a protected page
-              redirectToLogin();
-              
-              // Return the error to let the application know
-              return result;
-            }
-            
-            // Return the original result for other errors
             return result;
-          } catch (error) {
+          } catch (error: unknown) {
             console.error("[TokenRefreshHandler] Error in refreshAccessToken:", error);
             
             // For uncaught errors, also clear tokens and redirect
@@ -118,7 +109,7 @@ export function applyTokenRefreshHandler() {
             return { 
               data: null, 
               error: {
-                message: error.message || "Error during token refresh",
+                message: error instanceof Error ? error.message : "Error during token refresh",
                 status: 500
               }
             };

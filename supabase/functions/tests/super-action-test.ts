@@ -55,7 +55,7 @@ const testSuperAction = async () => {
 
   // Check for errors
   if (error) {
-    throw new Error('Super-action function error: ' + error.message)
+    throw new Error('Super-action function error: ' + (error instanceof Error ? error.message : String(error)))
   }
 
   // Assert that we got a response
@@ -120,7 +120,7 @@ const testAwsPermissionTest = async () => {
 
   // Check for errors
   if (error) {
-    throw new Error('Super-action function error: ' + error.message)
+    throw new Error('Super-action function error: ' + (error instanceof Error ? error.message : String(error)))
   }
 
   // Assert that we got a response
@@ -143,7 +143,7 @@ const testListFoundationModels = async () => {
   })
 
   if (error) {
-    throw new Error('ListFoundationModels error: ' + error.message)
+    throw new Error('ListFoundationModels error: ' + (error instanceof Error ? error.message : String(error)))
   }
 
   assertDeno(data, 'Response data should exist')

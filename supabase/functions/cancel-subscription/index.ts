@@ -2,6 +2,15 @@ import { handleRequest, createSuccessResponse, createErrorResponse, createAuthCl
 import { query } from "../_shared/postgres.ts";
 import Stripe from "stripe";
 
+// Augment query result with rows property
+declare module "../_shared/postgres" {
+  interface QueryResult<T> {
+    rows: T[];
+    rowCount: number;
+  }
+}
+
+
 // Initialize Stripe
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
   apiVersion: "2025-03-31.basil",
@@ -66,7 +75,7 @@ Deno.serve(async (req) => {
       } catch (error) {
         console.error("Error in cancel-subscription:", error);
         return createErrorResponse(
-          error instanceof Error ? error.message : "An unexpected error occurred",
+          error instanceof Error ? (error instanceof Error ? error.message : String(error)) : "An unexpected error occurred",
           500
         );
       }

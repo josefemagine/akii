@@ -182,7 +182,7 @@ function App() {
           }
           
           // Check for auth tokens directly - second priority
-          let foundTokens = [];
+          let foundTokens: string[] = [];
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             if (key && (

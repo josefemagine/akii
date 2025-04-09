@@ -251,8 +251,8 @@ export async function createSubscription(
     }
     
     // Set up trial if needed
-    let trialStart = null;
-    let trialEnd = null;
+    let trialStart: string | null = null;
+    let trialEnd: string | null = null;
     
     if (trialDays > 0) {
       trialStart = now.toISOString();

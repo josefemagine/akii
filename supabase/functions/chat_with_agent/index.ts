@@ -95,7 +95,7 @@ async function callFireworksAI(message: string, userTier: UserTier = "pro"): Pro
       tier: userTier,
       latency: Date.now() - startTime,
       tokensUsed: 0,
-      response: `Error: ${error.message}`,
+      response: `Error: ${(error instanceof Error ? error.message : String(error))}`,
     };
   }
 }

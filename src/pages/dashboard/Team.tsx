@@ -11,9 +11,10 @@ import { Users, ShieldCheck, Mail, Bot, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
+import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
 
 const Team = () => {
-  const { user } = useAuth();
+  const { user, hasUser, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [teamId, setTeamId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -22,12 +23,12 @@ const Team = () => {
 
   useEffect(() => {
     const fetchTeam = async () => {
-      if (!user) return;
+      if (!hasUser || authLoading) return;
 
       try {
         setIsLoading(true);
         setError(null);
-        console.log("Fetching team for user:", user.id);
+        console.log("Fetching team for user:", user?.id);
 
         // First, ensure the teams table exists and create it if it doesn't
         try {
@@ -68,7 +69,7 @@ const Team = () => {
                   .from("teams")
                   .insert({
                     name: "Initial Team",
-                    created_by: user.id
+                    created_by: user?.id
                   });
                 
                 if (insertError && !insertError.message.includes('already exists')) {
@@ -98,7 +99,7 @@ const Team = () => {
           // Create a default team for the user
           const { data: teamData, error: createTeamError } = await supabase
             .from("teams")
-            .insert([{ name: `${user.email}'s Team`, created_by: user.id }])
+            .insert([{ name: `${user?.email}'s Team`, created_by: user?.id }])
             .select()
             .single();
 
@@ -129,7 +130,7 @@ const Team = () => {
                   .from("team_members")
                   .insert({
                     team_id: teamData.id,
-                    user_id: user.id,
+                    user_id: user?.id,
                     role: "owner"
                   });
                 
@@ -151,7 +152,7 @@ const Team = () => {
         const { data, error } = await supabase
           .from("team_members")
           .select("team_id")
-          .eq("user_id", user.id)
+          .eq("user_id", user?.id)
           .single();
 
         if (error) {
@@ -162,7 +163,7 @@ const Team = () => {
             console.log("No team found, creating default team");
             const { data: teamData, error: createTeamError } = await supabase
               .from("teams")
-              .insert([{ name: `${user.email}'s Team`, created_by: user.id }])
+              .insert([{ name: `${user?.email}'s Team`, created_by: user?.id }])
               .select()
               .single();
 
@@ -181,7 +182,7 @@ const Team = () => {
                 .insert([
                   {
                     team_id: teamData.id,
-                    user_id: user.id,
+                    user_id: user?.id,
                     role: "owner",
                   },
                 ]);
@@ -218,111 +219,119 @@ const Team = () => {
     };
 
     fetchTeam();
-  }, [user, refreshKey, toast]);
+  }, [user, hasUser, authLoading, refreshKey, toast]);
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-        <div className="flex flex-col items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-          <span className="text-lg">Loading team information...</span>
+      <DashboardPageContainer>
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+          <div className="flex flex-col items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+            <span className="text-lg">Loading team information...</span>
+          </div>
         </div>
-      </div>
+      </DashboardPageContainer>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-        <div className="text-center max-w-md">
-          <h2 className="text-2xl font-bold mb-4">Error Loading Team</h2>
-          <p className="mt-2 text-muted-foreground mb-6">{error}</p>
-          <Button
-            onClick={handleRefresh}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            Retry
-          </Button>
+      <DashboardPageContainer>
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+          <div className="text-center max-w-md">
+            <h2 className="text-2xl font-bold mb-4">Error Loading Team</h2>
+            <p className="mt-2 text-muted-foreground mb-6">{error}</p>
+            <Button
+              onClick={handleRefresh}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              Retry
+            </Button>
+          </div>
         </div>
-      </div>
+      </DashboardPageContainer>
     );
   }
 
   if (!teamId) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-        <div className="text-center max-w-md">
-          <h2 className="text-2xl font-bold mb-4">No Team Found</h2>
-          <p className="mt-2 text-muted-foreground mb-6">
-            You don't seem to be part of any team. Please refresh the page or
-            contact support.
-          </p>
-          <Button
-            onClick={handleRefresh}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            Retry
-          </Button>
+      <DashboardPageContainer>
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+          <div className="text-center max-w-md">
+            <h2 className="text-2xl font-bold mb-4">No Team Found</h2>
+            <p className="mt-2 text-muted-foreground mb-6">
+              You don't seem to be part of any team. Please refresh the page or
+              contact support.
+            </p>
+            <Button
+              onClick={handleRefresh}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              Retry
+            </Button>
+          </div>
         </div>
-      </div>
+      </DashboardPageContainer>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Team Management</h1>
-        <p className="text-muted-foreground mt-2">
-          Manage your team members and their permissions.
-        </p>
+    <DashboardPageContainer>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Team Management</h1>
+          <p className="text-muted-foreground mt-2">
+            Manage your team members and their permissions.
+          </p>
+        </div>
+
+        <Tabs defaultValue="members" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="members" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              <span>Members</span>
+            </TabsTrigger>
+            <TabsTrigger value="invitations" className="flex items-center gap-2">
+              <Mail className="h-4 w-4" />
+              <span>Invitations</span>
+            </TabsTrigger>
+            <TabsTrigger value="ai-access" className="flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              <span>AI Access</span>
+            </TabsTrigger>
+            <TabsTrigger value="roles" className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              <span>Roles & Permissions</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="members" className="space-y-4">
+            <TeamMembersList />
+            <TeamInviteForm teamId={teamId} onInviteSent={handleRefresh} />
+          </TabsContent>
+
+          <TabsContent value="invitations" className="space-y-4">
+            <PendingInvitations
+              teamId={teamId}
+              onInvitationCancelled={handleRefresh}
+            />
+          </TabsContent>
+
+          <TabsContent value="ai-access" className="space-y-8">
+            <AIInstancesList teamId={teamId} onInstanceChange={handleRefresh} />
+            <AIInstanceAccess teamId={teamId} />
+          </TabsContent>
+
+          <TabsContent value="roles" className="space-y-4">
+            <TeamRoles />
+          </TabsContent>
+        </Tabs>
       </div>
-
-      <Tabs defaultValue="members" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="members" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            <span>Members</span>
-          </TabsTrigger>
-          <TabsTrigger value="invitations" className="flex items-center gap-2">
-            <Mail className="h-4 w-4" />
-            <span>Invitations</span>
-          </TabsTrigger>
-          <TabsTrigger value="ai-access" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            <span>AI Access</span>
-          </TabsTrigger>
-          <TabsTrigger value="roles" className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" />
-            <span>Roles & Permissions</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="members" className="space-y-4">
-          <TeamMembersList />
-          <TeamInviteForm teamId={teamId} onInviteSent={handleRefresh} />
-        </TabsContent>
-
-        <TabsContent value="invitations" className="space-y-4">
-          <PendingInvitations
-            teamId={teamId}
-            onInvitationCancelled={handleRefresh}
-          />
-        </TabsContent>
-
-        <TabsContent value="ai-access" className="space-y-8">
-          <AIInstancesList teamId={teamId} onInstanceChange={handleRefresh} />
-          <AIInstanceAccess teamId={teamId} />
-        </TabsContent>
-
-        <TabsContent value="roles" className="space-y-4">
-          <TeamRoles />
-        </TabsContent>
-      </Tabs>
-    </div>
+    </DashboardPageContainer>
   );
 };
 

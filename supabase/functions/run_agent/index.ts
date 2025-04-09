@@ -1,24 +1,20 @@
-// This edge function handles running interactions with AI agents
+// This edge function handles interactions with AI agents
 
 import { handleRequest, createSuccessResponse, createErrorResponse } from "../_shared/auth.ts";
 import { query, queryOne, execute } from "../_shared/postgres.ts";
 
 interface RunAgentRequest {
-  agentId: string;
   message: string;
-  sessionId?: string;
+  agentId: string;
+  sessionId?: string; // Optional - if not provided, a new session will be created
 }
 
 interface Agent {
   id: string;
-  created_by: string;
   name: string;
-  description: string;
   system_prompt: string;
+  created_by: string;
   is_public: boolean;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 interface AgentSession {
@@ -26,7 +22,6 @@ interface AgentSession {
   agent_id: string;
   user_id: string;
   created_at: string;
-  updated_at: string;
 }
 
 interface AgentMessage {
@@ -35,6 +30,15 @@ interface AgentMessage {
   content: string;
   role: 'user' | 'assistant' | 'system';
   created_at: string;
+}
+
+interface ModelResponse {
+  success: boolean;
+  modelId: string;
+  tier: string;
+  latency: number;
+  tokensUsed: number;
+  response: string;
 }
 
 // Fireworks AI model configuration by subscription tier
@@ -89,13 +93,20 @@ async function getUserTier(userId: string): Promise<UserTier> {
 }
 
 // Function to call Fireworks AI API
-async function callFireworksAI(messages: { role: string; content: string }[], systemPrompt: string, userTier: UserTier = "pro") {
+async function callFireworksAI(
+  messages: { role: string; content: string }[], 
+  systemPrompt: string,
+  userTier: UserTier = "pro"
+): Promise<ModelResponse> {
   const startTime = Date.now();
   const modelConfig = FIREWORKS_MODELS[userTier];
 
   try {
-    const apiMessages = [
-      { role: "system", content: systemPrompt },
+    const allMessages = [
+      {
+        role: "system",
+        content: systemPrompt,
+      },
       ...messages
     ];
 
@@ -109,7 +120,7 @@ async function callFireworksAI(messages: { role: string; content: string }[], sy
         },
         body: JSON.stringify({
           model: modelConfig.modelId,
-          messages: apiMessages,
+          messages: allMessages,
           temperature: 0.7,
           max_tokens: 800,
         }),
@@ -132,7 +143,7 @@ async function callFireworksAI(messages: { role: string; content: string }[], sy
       tokensUsed: result.usage?.total_tokens || 0,
       response: result.choices?.[0]?.message?.content || "No response generated",
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error calling Fireworks AI (${modelConfig.name}):`, error);
     return {
       success: false,
@@ -140,41 +151,48 @@ async function callFireworksAI(messages: { role: string; content: string }[], sy
       tier: userTier,
       latency: Date.now() - startTime,
       tokensUsed: 0,
-      response: `Error: ${error.message}`,
+      response: `Error: ${error?.message || "Unknown error"}`,
     };
   }
 }
 
 // Function to create a new session
 async function createSession(agentId: string, userId: string): Promise<string> {
-  const session = await queryOne<{ id: string }>(
-    `INSERT INTO agent_sessions (agent_id, user_id, created_at, updated_at)
-     VALUES ($1, $2, $3, $3)
+  const result = await queryOne<{ id: string }>(
+    `INSERT INTO agent_sessions (agent_id, user_id) 
+     VALUES ($1, $2) 
      RETURNING id`,
-    [agentId, userId, new Date().toISOString()]
+    [agentId, userId]
   );
   
-  return session?.id;
+  if (!result?.id) {
+    throw new Error("Failed to create session");
+  }
+  
+  return result.id;
 }
 
-// Function to retrieve session history
+// Function to get all messages from a session
 async function getSessionMessages(sessionId: string): Promise<AgentMessage[]> {
-  const result = await query<AgentMessage>(
-    `SELECT id, session_id, content, role, created_at
-     FROM agent_messages
-     WHERE session_id = $1
+  return await query<AgentMessage>(
+    `SELECT id, session_id, content, role, created_at 
+     FROM agent_messages 
+     WHERE session_id = $1 
      ORDER BY created_at ASC`,
     [sessionId]
   );
-  return result.rows;
 }
 
 // Function to save a message
-async function saveMessage(sessionId: string, content: string, role: 'user' | 'assistant' | 'system'): Promise<void> {
+async function saveMessage(
+  sessionId: string, 
+  content: string, 
+  role: 'user' | 'assistant' | 'system'
+): Promise<void> {
   await execute(
-    `INSERT INTO agent_messages (session_id, content, role, created_at)
-     VALUES ($1, $2, $3, $4)`,
-    [sessionId, content, role, new Date().toISOString()]
+    `INSERT INTO agent_messages (session_id, content, role) 
+     VALUES ($1, $2, $3)`,
+    [sessionId, content, role]
   );
 }
 
@@ -182,9 +200,9 @@ async function saveMessage(sessionId: string, content: string, role: 'user' | 'a
 Deno.serve(async (req) => {
   return handleRequest(
     req,
-    async (user, body: RunAgentRequest) => {
+    async (user, body) => {
       try {
-        const { agentId, message, sessionId } = body;
+        const { message, agentId, sessionId } = body as RunAgentRequest;
 
         // Validate required fields
         if (!message?.trim()) {
@@ -194,54 +212,70 @@ Deno.serve(async (req) => {
           return createErrorResponse("Agent ID is required", 400);
         }
 
-        // Get agent details
+        // Get the agent
         const agent = await queryOne<Agent>(
-          "SELECT * FROM agents WHERE id = $1 AND (is_public = true OR created_by = $2)",
-          [agentId, user.id]
+          `SELECT id, name, system_prompt, created_by, is_public 
+           FROM agents 
+           WHERE id = $1`,
+          [agentId]
         );
 
         if (!agent) {
-          return createErrorResponse("Agent not found or you don't have access to it", 404);
+          return createErrorResponse("Agent not found", 404);
         }
 
-        if (!agent.is_active) {
-          return createErrorResponse("This agent is currently inactive", 403);
+        // Check if the agent is accessible by the user
+        if (!agent.is_public && agent.created_by !== user.id) {
+          return createErrorResponse("You don't have access to this agent", 403);
         }
 
         // Get user's subscription tier
         const userTier = await getUserTier(user.id);
 
-        // Handle session management
-        let currentSessionId = sessionId;
-        
-        if (!currentSessionId) {
-          // Create new session if none provided
-          currentSessionId = await createSession(agentId, user.id);
-        } else {
-          // Verify session exists and belongs to this user and agent
-          const session = await queryOne<AgentSession>(
-            `SELECT * FROM agent_sessions 
-             WHERE id = $1 AND agent_id = $2 AND user_id = $3`,
-            [currentSessionId, agentId, user.id]
+        // Handle session creation or retrieval
+        let currentSessionId: string;
+
+        if (sessionId) {
+          // Verify that the session belongs to this user and agent
+          const existingSession = await queryOne<AgentSession>(
+            `SELECT id FROM agent_sessions WHERE id = $1 AND user_id = $2 AND agent_id = $3`,
+            [sessionId, user.id, agentId]
           );
-          
-          if (!session) {
-            return createErrorResponse("Invalid session ID", 403);
+
+          if (!existingSession) {
+            return createErrorResponse("Session not found or not accessible", 404);
           }
+
+          currentSessionId = sessionId;
+        } else {
+          // Create a new session
+          currentSessionId = await createSession(agentId, user.id);
         }
 
-        // Save user message
-        await saveMessage(currentSessionId, message, 'user');
-
-        // Get conversation history
-        const messages = await getSessionMessages(currentSessionId);
-        const formattedMessages = messages.map(msg => ({
+        // Get previous messages in this session
+        const previousMessages = await getSessionMessages(currentSessionId);
+        
+        // Format messages for the AI
+        const formattedMessages = previousMessages.map(msg => ({
           role: msg.role,
           content: msg.content
         }));
 
-        // Call AI model with agent's system prompt and conversation history
-        const modelResponse = await callFireworksAI(formattedMessages, agent.system_prompt, userTier);
+        // Add the new user message
+        formattedMessages.push({
+          role: 'user',
+          content: message
+        });
+
+        // Save user message
+        await saveMessage(currentSessionId, message, 'user');
+
+        // Get AI response
+        const modelResponse = await callFireworksAI(
+          formattedMessages,
+          agent.system_prompt,
+          userTier
+        );
 
         if (!modelResponse.success) {
           return createErrorResponse(modelResponse.response, 500);

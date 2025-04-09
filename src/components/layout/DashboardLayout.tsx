@@ -838,7 +838,7 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
     console.log("Running aggressive auth token check in localStorage");
     try {
       // Check all localStorage keys for any possible auth tokens
-      let foundTokens = [];
+      let foundTokens: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         // Look for ANY possible auth token
@@ -893,8 +893,17 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
 
   // Add a new effect to handle profile data properly and ensure we always have user data
   useEffect(() => {
-    let userData = null;
-    let userProfileData = null;
+    let userData: {
+      id: string;
+      email: string | undefined;
+      user_metadata: Record<string, any>;
+    } | null = null;
+    
+    let userProfileData: {
+      first_name?: string;
+      last_name?: string;
+      [key: string]: any;
+    } | null = null;
     
     if (typedUser) {
       userData = {
@@ -908,7 +917,7 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
       
       // If we have a user but missing profile data, try to populate with metadata
       if (!userProfileData || 
-          (!userProfileData.first_name && !userProfileData.last_name)) {
+          (userProfileData && !userProfileData.first_name && !userProfileData.last_name)) {
         console.log("Missing or incomplete profile data, attempting to use metadata");
         
         // Check for user metadata in different possible locations
@@ -1275,88 +1284,87 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
     }
   };
 
-  // Add this new function to get user data more robustly
+  // Function to get user data from various sources
   const getData = () => {
-    const userData = {
-      firstName: null,
-      lastName: null,
-      email: null,
-      avatarUrl: null,
-      isAuthenticated: false,
-      forceUpdateCounter // Include this to trigger re-renders
+    type UserDisplayData = {
+      email?: string;
+      firstName?: string;
+      lastName?: string;
+      avatarUrl?: string;
+      isAuthenticated?: boolean;
     };
     
-    // First check if we have a profile
-    if (profile) {
-      userData.firstName = profile.first_name || null;
-      userData.lastName = profile.last_name || null;
-      userData.email = profile.email || (typedUser?.email) || null;
-      userData.avatarUrl = profile.avatar_url || null;
-      userData.isAuthenticated = true;
-      return userData;
-    }
+    const defaultData: UserDisplayData = {
+      isAuthenticated: false
+    };
     
-    // If no profile but we have a user
-    if (typedUser) {
-      // Try to get data from all possible locations in user object
-      const userMeta = typedUser.user_metadata || {};
-      const rawMeta: Record<string, any> = typedUser._rawData?.raw_user_meta_data || 
-                      typedUser._rawData?.user_metadata || 
-                      typedUser.raw_user_meta_data || 
-                      {};
+    // First check if we have user or profile data from auth context
+    if (typedUser || profile) {
+      console.log("Getting data from authenticated user");
       
-      // OAuth providers often store name in different places
-      const identities = typedUser.identities || [];
-      let identityData: Record<string, any> = {};
-      
-      if (identities.length > 0) {
-        identityData = identities[0]?.identity_data || {};
-      }
-      
-      userData.firstName = userMeta.first_name || 
-                          rawMeta.first_name || 
-                          identityData?.given_name ||
-                          (identityData?.name ? identityData.name.split(' ')[0] : null) ||
-                          (identityData?.full_name ? identityData.full_name.split(' ')[0] : null) ||
-                          null;
-                          
-      userData.lastName = userMeta.last_name || 
-                         rawMeta.last_name || 
-                         identityData?.family_name ||
-                         (identityData?.name ? identityData.name.split(' ').slice(1).join(' ') : null) ||
-                         (identityData?.full_name ? identityData.full_name.split(' ').slice(1).join(' ') : null) ||
-                         null;
-                         
-      userData.email = typedUser.email || userMeta.email || rawMeta.email || null;
-      userData.avatarUrl = userMeta.avatar_url || userMeta.picture || rawMeta.avatar_url || identityData?.avatar_url || null;
-      userData.isAuthenticated = true;
+      // Construct user data from profile and user objects
+      const userData: UserDisplayData = {
+        email: typedUser?.email || profile?.email,
+        firstName: profile?.first_name || 
+                  typedUser?.user_metadata?.first_name || 
+                  typedUser?.raw_user_meta_data?.first_name,
+        lastName: profile?.last_name || 
+                 typedUser?.user_metadata?.last_name || 
+                 typedUser?.raw_user_meta_data?.last_name,
+        avatarUrl: profile?.avatar_url || typedUser?.user_metadata?.avatar_url,
+        isAuthenticated: true
+      };
       
       return userData;
     }
     
-    // Try to get data from localStorage
+    // If no authenticated user, try to get data from localStorage
     if (hasStorageAuth) {
+      console.log("Looking for user data in localStorage");
+      
       try {
-        // Look for various places where user data might be stored
-        const possibleKeys = [
-          "akii-auth-fallback-user",
-          "akii-user-profile",
-          "akii-auth-user-data", 
-          "sb-user-data"
-        ];
+        // First check for fallback user data
+        const fallbackUserStr = localStorage.getItem('akii-auth-fallback-user');
+        if (fallbackUserStr) {
+          try {
+            const fallbackUser = JSON.parse(fallbackUserStr);
+            console.log("Found fallback user data:", fallbackUser);
+            
+            if (fallbackUser) {
+              return {
+                email: fallbackUser.email,
+                firstName: fallbackUser.first_name,
+                lastName: fallbackUser.last_name,
+                avatarUrl: fallbackUser.avatar_url,
+                isAuthenticated: true
+              };
+            }
+          } catch (e) {
+            console.error("Error parsing fallback user data:", e);
+          }
+        }
         
-        for (const key of possibleKeys) {
-          const dataStr = localStorage.getItem(key);
-          if (dataStr) {
+        // Try to find other user data in localStorage
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key) continue;
+          
+          if (key.includes('user_data') || key.includes('user-data') || key.includes('akii-user')) {
             try {
-              const data = JSON.parse(dataStr);
-              if (data) {
-                userData.firstName = data.first_name || data.firstName || data.given_name || null;
-                userData.lastName = data.last_name || data.lastName || data.family_name || null;
-                userData.email = data.email || null;
-                userData.avatarUrl = data.avatar_url || data.avatarUrl || data.picture || null;
-                userData.isAuthenticated = true;
-                return userData;
+              const userDataStr = localStorage.getItem(key);
+              if (!userDataStr) continue;
+              
+              const localUserData = JSON.parse(userDataStr);
+              console.log(`Found user data in localStorage key ${key}:`, localUserData);
+              
+              if (localUserData) {
+                return {
+                  email: localUserData.email,
+                  firstName: localUserData.first_name || localUserData.firstName,
+                  lastName: localUserData.last_name || localUserData.lastName,
+                  avatarUrl: localUserData.avatar_url || localUserData.avatarUrl,
+                  isAuthenticated: true
+                };
               }
             } catch (e) {
               console.error(`Error parsing ${key}:`, e);
@@ -1376,8 +1384,11 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
           const email = localStorage.getItem(key);
           if (email) {
             console.log(`Found email in localStorage key ${key}: ${email}`);
-            userData.email = email;
-            userData.isAuthenticated = true;
+            
+            const userData: UserDisplayData = {
+              email: email,
+              isAuthenticated: true
+            };
             
             // Extract a name from the email if possible
             if (email.includes('@')) {
@@ -1403,17 +1414,18 @@ const DashboardLayout = ({ children, isAdmin = false }: DashboardLayoutProps) =>
           key.includes('sb-')
         )) {
           console.log("Found auth tokens but no user data - creating placeholder");
-          userData.firstName = "Account";
-          userData.email = "authenticated_user@akii.ai";
-          userData.isAuthenticated = true;
-          return userData;
+          return {
+            firstName: "Account",
+            email: "authenticated_user@akii.ai",
+            isAuthenticated: true
+          };
         }
       } catch (e) {
         console.error("Error looking for user data in localStorage:", e);
       }
     }
     
-    return userData;
+    return defaultData;
   };
   
   // Get user data before rendering

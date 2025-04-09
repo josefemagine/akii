@@ -44,6 +44,7 @@ export interface AuthContextType {
   hasProfile: boolean;
   isValidProfile: (p: Profile | null) => boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   isDeveloper: boolean;
   authLoading: boolean;
   isLoading: boolean;
@@ -54,6 +55,7 @@ export interface AuthContextType {
   refreshProfile: () => Promise<Profile | null>;
   updateProfile: (updates: Partial<Profile>) => Promise<boolean>;
   setUserAsAdmin: () => Promise<boolean>;
+  checkSuperAdminStatus: () => Promise<boolean>;
 }
 
 // Auth-related event names

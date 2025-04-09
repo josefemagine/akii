@@ -32,6 +32,7 @@ import {
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/UnifiedAuthContext";
+import { useToast } from "@/components/ui/use-toast";
 import DocumentUploader from "./DocumentUploader";
 import DocumentChunkViewer from "./DocumentChunkViewer";
 import {
@@ -53,11 +54,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Database } from "@/types/supabase";
 import { DocumentChunk } from "@/types/custom";
+import { invokeServerFunction } from "@/utils/supabase/functions";
 
 type Document = Database["public"]["Tables"]["training_documents"]["Row"];
 
 const DocumentsList = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -74,16 +77,23 @@ const DocumentsList = () => {
 
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from("training_documents")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setDocuments(data as any || []);
+      
+      const data = await invokeServerFunction<{documents: Document[]}>("get_user_documents", {
+        userId: user.id
+      });
+      
+      if (data?.documents) {
+        setDocuments(data.documents);
+      } else {
+        setDocuments([]);
+      }
     } catch (error) {
       console.error("Error fetching documents:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load documents",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -92,20 +102,23 @@ const DocumentsList = () => {
   const fetchDocumentChunks = async (documentId: string) => {
     try {
       setIsLoadingChunks(true);
-      const { data: chunks, error: chunksError } = await supabase
-        .from("document_chunks")
-        .select("*")
-        .eq("document_id", documentId);
-
-      if (chunksError) throw chunksError;
-      const processedChunks = ((chunks || []) as any[]).map((chunk) => ({
-        ...chunk,
-        metadata: chunk.metadata as { chunk_index: number; total_chunks: number }
-      }));
       
-      setDocumentChunks(processedChunks);
+      const data = await invokeServerFunction<{chunks: DocumentChunk[]}>("get_document_chunks", {
+        documentId
+      });
+      
+      if (data?.chunks) {
+        setDocumentChunks(data.chunks);
+      } else {
+        setDocumentChunks([]);
+      }
     } catch (error) {
       console.error("Error fetching document chunks:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load document chunks",
+        variant: "destructive"
+      });
     } finally {
       setIsLoadingChunks(false);
     }
@@ -119,45 +132,29 @@ const DocumentsList = () => {
 
   const handleDeleteDocument = async (id: string) => {
     try {
-      // Delete document chunks
-      const { error: chunksError } = await supabase
-        .from("document_chunks")
-        .delete()
-        .eq("document_id", id);
-
-      if (chunksError) throw chunksError;
-
-      // Get document to find file path
-      const { data: documentData, error: docError } = await supabase
-        .from("training_documents")
-        .select("storage_path")
-        .eq("id", id)
-        .single();
-
-      if (docError) throw docError;
-
-      // Delete file from storage
-      const filePath = (documentData as any)?.storage_path;
-      if (filePath) {
-        const { error: storageError } = await supabase.storage
-          .from("documents")
-          .remove([filePath]);
-
-        if (storageError) throw storageError;
+      const response = await invokeServerFunction<{success: boolean, message?: string}>("delete_document", {
+        documentId: id,
+        userId: user?.id
+      });
+      
+      if (!response || !response.success) {
+        throw new Error(response?.message || "Failed to delete document");
       }
-
-      // Delete document record
-      const { error: deleteError } = await supabase
-        .from("training_documents")
-        .delete()
-        .eq("id", id);
-
-      if (deleteError) throw deleteError;
-
+      
+      toast({
+        title: "Document deleted",
+        description: "Document and associated chunks have been deleted successfully"
+      });
+      
       // Refresh documents list
       fetchDocuments();
     } catch (error) {
       console.error("Error deleting document:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete document",
+        variant: "destructive"
+      });
     }
   };
 
@@ -175,13 +172,23 @@ const DocumentsList = () => {
       const url = URL.createObjectURL(data);
       const a = window.document.createElement("a");
       a.href = url;
-      a.download = document.storage_path.split("/").pop() || "document";
+      a.download = document.file_name || document.storage_path.split("/").pop() || "document";
       window.document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
       window.document.body.removeChild(a);
+      
+      toast({
+        title: "Download started",
+        description: `Downloading ${document.file_name || 'document'}`
+      });
     } catch (error) {
       console.error("Error downloading document:", error);
+      toast({
+        title: "Download failed",
+        description: "Failed to download the document",
+        variant: "destructive"
+      });
     }
   };
 
@@ -250,7 +257,9 @@ const DocumentsList = () => {
   );
 
   useEffect(() => {
-    fetchDocuments();
+    if (user) {
+      fetchDocuments();
+    }
   }, [user]);
 
   return (
@@ -277,7 +286,14 @@ const DocumentsList = () => {
               variant="outline"
               disabled={isLoading}
             >
-              {isLoading ? "Refreshing..." : "Refresh"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                "Refresh"
+              )}
             </Button>
           </div>
         </CardHeader>

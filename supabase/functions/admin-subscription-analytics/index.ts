@@ -128,7 +128,7 @@ serve((req) => handleRequest(req, async (user) => {
 
   } catch (error) {
     console.error('Error fetching subscription analytics:', error);
-    return createErrorResponse(error.message);
+    return createErrorResponse((error instanceof Error ? error.message : String(error)));
   }
 }, {
   requireAuth: true,

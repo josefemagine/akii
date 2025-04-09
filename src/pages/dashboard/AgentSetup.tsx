@@ -20,11 +20,17 @@ interface AgentData {
   configSettings?: Record<string, any>;
   trainingData?: Array<any>;
   platforms?: Array<string>;
-  testResults?: {
+  testResults: {
     conversations: Array<any>;
     feedback: Array<any>;
   };
 }
+
+// Default empty test results
+const DEFAULT_TEST_RESULTS = {
+  conversations: [],
+  feedback: []
+};
 
 const AgentSetup = () => {
   const navigate = useNavigate();
@@ -38,10 +44,7 @@ const AgentSetup = () => {
     configSettings: {},
     trainingData: [],
     platforms: [],
-    testResults: {
-      conversations: [],
-      feedback: [],
-    },
+    testResults: DEFAULT_TEST_RESULTS
   });
 
   const handleStepChange = (stepIndex: number) => {

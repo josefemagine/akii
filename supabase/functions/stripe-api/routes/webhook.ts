@@ -59,7 +59,7 @@ export async function handleWebhook(req: Request, { stripe, supabaseAdmin, corsH
     });
   } catch (error) {
     console.error('Error handling webhook:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: (error instanceof Error ? error.message : String(error)) }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' }
     });

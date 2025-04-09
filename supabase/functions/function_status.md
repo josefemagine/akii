@@ -150,6 +150,7 @@
 - admin_get_teams ✅
 - admin_get_user ✅
 - user_get_stripe_products ✅
+- is_super_admin - Created with Postgres utilities
 
 ## Notes
 - Functions marked with ✅ are fully updated and using shared auth utilities

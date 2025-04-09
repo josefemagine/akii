@@ -7,13 +7,15 @@ interface DashboardSectionProps {
   className?: string;
   title?: string;
   description?: string;
+  requireAuth?: boolean;
 }
 
 export function DashboardSection({
   children,
   className,
   title,
-  description
+  description,
+  requireAuth = true
 }: DashboardSectionProps) {
   return (
     <div className={cn(dashboardStyles.sectionSpacing, className)}>

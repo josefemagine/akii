@@ -35,21 +35,44 @@ export default {
 
 The authentication system has been refactored to consolidate and simplify the implementation. The new structure features:
 
-1. **Centralized Supabase Client** - A single source of truth for Supabase client instances, preventing multiple initializations.
-2. **Core Authentication Module** - Comprehensive auth functions with robust error handling and consistent return types.
-3. **Unified Auth Context** - A React context that provides authentication state and methods throughout the application.
+1. **Centralized Type System** - A unified set of authentication-related types in a single file for consistency.
+2. **Shared Auth Utilities** - Common auth functions extracted into reusable utilities.
+3. **Consolidated Auth Components** - A set of standardized, reusable authentication UI components.
+4. **Unified Auth Context** - A React context that provides authentication state and methods throughout the application.
 
 ### Key Files
 
-- **`src/lib/supabase-client.ts`** - Singleton pattern for Supabase client instances.
-- **`src/lib/auth-core.ts`** - Core authentication functions and types.
+- **`src/types/auth.ts`** - Centralized type definitions for auth-related interfaces and constants.
+- **`src/lib/auth-utils.ts`** - Reusable utility functions for auth operations.
+- **`src/components/auth/AuthLogin.tsx`** - Unified login component that handles both display and form submission.
+- **`src/components/auth/AuthStateManager.tsx`** - Manages and broadcasts auth state changes to the application.
 - **`src/contexts/UnifiedAuthContext.tsx`** - React context provider for auth state.
+
+### Architecture Improvements
+
+The refactored authentication system follows these best practices:
+
+1. **Separation of Concerns**:
+   - Types are defined separately from implementation
+   - UI components are decoupled from business logic
+   - Event handling is centralized in dedicated components
+
+2. **Type Safety**:
+   - Consistent interfaces across the application
+   - Improved type checking and autocompletion
+   - Reduced use of `any` types
+
+3. **Code Reusability**:
+   - Shared utility functions prevent code duplication
+   - Standardized components ensure consistent UI/UX
+   - Common event handlers reduce redundant code
 
 ### Usage
 
 ```tsx
 // Import the auth hook
 import { useAuth } from '@/contexts/UnifiedAuthContext';
+import { AuthLogin } from '@/components/auth/AuthLogin';
 
 function MyComponent() {
   // Access auth state and methods
@@ -57,44 +80,89 @@ function MyComponent() {
     user, 
     profile, 
     isAdmin, 
-    isAuthenticated, 
+    hasUser,
+    hasProfile, 
     signIn, 
     signOut,
     updateProfile 
   } = useAuth();
 
-  // Use auth methods
+  // For custom sign-in handling
   const handleLogin = async (email, password) => {
-    const { data, error } = await signIn(email, password);
-    if (error) {
-      // Handle error
+    try {
+      await signIn(email, password);
+      // Success handling
+    } catch (error) {
+      // Error handling
     }
   };
 
+  // Or use the unified component for a complete solution
   return (
     <div>
-      {isAuthenticated ? (
+      {hasUser ? (
         <div>
           <h1>Welcome, {profile?.first_name || user?.email}</h1>
           <button onClick={() => signOut()}>Sign Out</button>
         </div>
       ) : (
-        <button onClick={() => handleLogin('test@example.com', 'password')}>
-          Sign In
-        </button>
+        <AuthLogin 
+          redirectPath="/dashboard" 
+          showGoogleSignIn={true}
+        />
       )}
     </div>
   );
 }
 ```
 
+### Implementation Details
+
+#### Profile Type Standardization
+
+The `Profile` interface is now defined in a single location (`types/auth.ts`) and imported throughout the application:
+
+```typescript
+export interface Profile {
+  id: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  role: string;
+  status: string;
+  created_at?: string;
+  updated_at?: string;
+  // Additional fields...
+}
+```
+
+#### Event Broadcasting
+
+Auth state changes are broadcast using standardized custom events:
+
+```typescript
+// Event constants
+export const AUTH_STATE_CHANGE_EVENT = 'akii:auth:stateChange';
+export const AUTH_ERROR_EVENT = 'akii:auth:error';
+export const AUTH_RECOVERY_EVENT = 'akii:auth:recovery';
+```
+
+#### Unified Components
+
+The `AuthLogin` component provides a complete authentication solution that handles:
+- Login form display and validation
+- User authentication status
+- Google sign-in integration
+- Success/error messaging
+- Redirection after authentication
+
 ### Migration Plan
 
 The authentication system is currently in a transition phase. The following roadmap is planned:
 
-1. **Phase 1** - Introduce consolidated implementation alongside existing code (CURRENT)
-2. **Phase 2** - Migrate components to use the new auth context
-3. **Phase 3** - Remove deprecated auth implementations
+1. **Phase 1** - Define centralized types and utilities (COMPLETED)
+2. **Phase 2** - Create standardized authentication components (COMPLETED)
+3. **Phase 3** - Update remaining components to use the new system (IN PROGRESS)
 
 Developers should use the new authentication system for new components and gradually update existing components during regular maintenance.
 
@@ -285,3 +353,166 @@ If you encounter issues:
 ## Additional Information
 
 This fix uses the SECURITY DEFINER attribute on key functions, which means they run with the permissions of the function owner (usually postgres) rather than the calling user. This allows these functions to bypass RLS restrictions and prevent the circular dependency.
+
+# Database Access Guidelines
+
+### Direct PostgreSQL Access (REQUIRED)
+
+This project uses direct PostgreSQL queries for all database interactions. This is now the standard approach for all new development and refactoring of existing code.
+
+### Implementation Details
+
+1. **Edge Functions**:
+   - Use the shared Postgres utilities in `supabase/functions/_shared/postgres.ts`
+   - Direct SQL queries provide better performance and more granular control
+   - Join tables directly in SQL rather than making multiple queries
+
+```typescript
+// Example of direct PostgreSQL query in Edge Function
+import { query, queryOne, execute } from "../_shared/postgres.ts";
+
+// Get user data with joined table
+const userData = await queryOne(`
+  SELECT 
+    p.id, 
+    p.email, 
+    p.first_name, 
+    p.last_name, 
+    p.role,
+    u.is_super_admin
+  FROM 
+    public.profiles p
+  JOIN 
+    auth.users u ON p.id = u.id
+  WHERE 
+    p.id = $1
+`, [userId]);
+
+// Update with parameterized query
+const updatedProfile = await queryOne(`
+  UPDATE public.profiles
+  SET 
+    first_name = $1,
+    last_name = $2,
+    updated_at = $3
+  WHERE 
+    id = $4
+  RETURNING *
+`, [firstName, lastName, new Date().toISOString(), userId]);
+```
+
+2. **Frontend API Calls**:
+   - Use Edge Functions that implement direct PostgreSQL queries
+   - Pass JWT tokens for authentication
+   - Process database results directly in the component
+
+```typescript
+// Example of frontend calling an Edge Function with direct DB access
+const response = await fetch("https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/user-data", {
+  method: "GET",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${session.access_token}`
+  }
+});
+
+const userData = await response.json();
+```
+
+### Why Direct PostgreSQL?
+
+1. **Performance**: Direct SQL queries are significantly faster than using the Supabase client
+2. **Control**: Complete control over query optimization, joins, and indexes
+3. **Security**: Better control over data access with parameterized queries
+4. **JOINs**: Ability to join across schemas (auth and public) in single queries
+5. **Complexity**: Support for complex queries that aren't possible with the client library
+
+### Deprecated Approaches
+
+The following approaches are deprecated and should not be used in new code:
+
+- ❌ `supabase.from('table').select()` - Use direct SQL queries instead
+- ❌ Multiple sequential queries - Join tables in SQL instead
+- ❌ Client-side joins - Perform joins in the database
+- ❌ RPC calls without direct SQL - Use the postgres utilities instead
+
+### Migration Plan
+
+1. All new features must use direct PostgreSQL queries
+2. Existing features should be migrated during regular maintenance
+3. High-traffic or performance-critical features should be prioritized for migration
+
+### Best Practices
+
+1. **Always use parameterized queries** to prevent SQL injection
+2. Use the correct utility function:
+   - `query()` - Returns multiple rows
+   - `queryOne()` - Returns a single row or null
+   - `execute()` - For operations that don't return data
+   - `transaction()` - For multi-step operations that need atomicity
+3. Include proper error handling with specific error messages
+4. Add proper type annotations for returned data
+5. Keep SQL queries readable with proper formatting and comments
+
+For questions about this approach, contact the team lead.
+
+# Deno Edge Functions
+
+## Import Map Consolidation
+
+Edge Functions in this project now use a centralized import map system to ensure consistency across all functions. The imports are defined in a single `deno.json` file at the root of the functions directory.
+
+### Structure
+
+- **`supabase/functions/deno.json`** - Central import map defining all shared imports
+- **Individual function `deno.json`** files - Reference the root import map
+
+### Key Imports
+
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+    "std/": "https://deno.land/std@0.208.0/",
+    "postgres/": "https://deno.land/x/postgres@v0.17.0/",
+    "fireworks/": "https://deno.land/x/fireworks_ai@0.1.0/",
+    "cors": "./_shared/cors.ts"
+  }
+}
+```
+
+### Usage in Functions
+
+Each function's `deno.json` file simply references the root import map:
+
+```json
+{
+  "tasks": {
+    "dev": "deno run --allow-net --allow-read --allow-env index.ts",
+    "deploy": "supabase functions deploy function_name"
+  },
+  "imports": "../deno.json"
+}
+```
+
+### Migration Scripts
+
+The `scripts` directory contains utilities for migrating to the centralized import system:
+
+- **`update_deno_configs.sh`** - Updates all function configurations
+- **`update_imports.sh`** - Updates import statements in TypeScript files
+- **`check_import_usage.sh`** - Analyzes current import patterns
+
+## Best Practices
+
+1. **Shared Utilities** - Place reusable code in the `_shared` directory
+2. **Consistent Imports** - Use the centralized import map for all new functions
+3. **Versioning** - When updating dependencies, update only the root import map
+
+## Adding New Dependencies
+
+To add a new dependency to all functions:
+
+1. Add the import mapping to `supabase/functions/deno.json`
+2. Update the TypeScript files to use the new import
+3. Test the functions to ensure the dependency works as expected

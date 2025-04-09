@@ -871,7 +871,7 @@ export default function SupabaseCheck() {
           )
         ]) as Response;
         
-        const responseTime = Math.round(performance.now() - startTime);
+      const responseTime = Math.round(performance.now() - startTime);
         
         if (response.status === 404) {
           addLog(`Function '${functionName}' does not exist. This is normal if you haven't created this function.`, "warning");
@@ -881,15 +881,15 @@ export default function SupabaseCheck() {
             status: "success",
             message: `Edge Functions endpoint is reachable, but '${functionName}' not found`,
           });
-          
-          updateServiceResult({
-            name,
-            status: "success",
+      
+      updateServiceResult({
+        name,
+        status: "success",
             message: `Edge Functions service is reachable`,
             details: `The Edge Functions service is reachable, but the test function '${functionName}' was not found. This is normal if you haven't specifically created this function.`,
-            responseTime,
-            timestamp: new Date().toISOString()
-          });
+        responseTime,
+        timestamp: new Date().toISOString()
+      });
         } else {
           addLog(`✅ Successfully connected to function in ${responseTime}ms with status ${response.status}`, "success");
           
@@ -1185,7 +1185,7 @@ export default function SupabaseCheck() {
             const data = await response.json();
             return {
               name: func.name,
-              status: "success",
+        status: "success",
               message: "Function is operational",
               details: JSON.stringify(data, null, 2)
             };
@@ -1293,9 +1293,9 @@ export default function SupabaseCheck() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Supabase Configuration Diagnostics</CardTitle>
-              <CardDescription>
+          <CardDescription>
                 Check the status of your Supabase services and troubleshoot issues
-              </CardDescription>
+          </CardDescription>
             </div>
             <Badge variant="outline" className="ml-2">
               {user?.id ? `User: ${user.id.slice(0, 8)}...` : 'Not logged in'}
@@ -1333,7 +1333,7 @@ export default function SupabaseCheck() {
                 <p className="text-sm text-muted-foreground mt-1">
                   {Math.round(progress)}% complete
                 </p>
-              </div>
+            </div>
             )}
           </div>
           
@@ -1348,7 +1348,7 @@ export default function SupabaseCheck() {
             
             <TabsContent value="dashboard">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {serviceResults.map((result) => (
+            {serviceResults.map((result) => (
                   <Card key={result.name} className={cn(
                     "transition-shadow hover:shadow-md",
                     result.status === "error" && "border-red-200",
@@ -1365,8 +1365,8 @@ export default function SupabaseCheck() {
                           {result.name}
                         </CardTitle>
                         <Badge variant={
-                          result.status === "success" ? "default" : 
-                          result.status === "error" ? "destructive" : 
+                        result.status === "success" ? "default" : 
+                        result.status === "error" ? "destructive" : 
                           result.status === "warning" ? "outline" :
                           "secondary"
                         }>
@@ -1374,14 +1374,14 @@ export default function SupabaseCheck() {
                            result.status === "success" ? "Operational" : 
                            result.status === "warning" ? "Warning" :
                            "Error"}
-                        </Badge>
-                      </div>
-                    </CardHeader>
+                    </Badge>
+                  </div>
+                </CardHeader>
                     <CardContent className="py-2">
                       <p className="text-sm mb-2">{result.message}</p>
-                      {result.responseTime && (
+                  {result.responseTime && (
                         <p className="text-xs text-muted-foreground">
-                          Response time: {result.responseTime}ms
+                      Response time: {result.responseTime}ms
                         </p>
                       )}
                       {result.details && (
@@ -1394,7 +1394,7 @@ export default function SupabaseCheck() {
                     </CardContent>
                   </Card>
                 ))}
-              </div>
+                    </div>
             </TabsContent>
             
             <TabsContent value="logs">
@@ -1464,16 +1464,16 @@ export default function SupabaseCheck() {
                           'Refresh Logs'
                         )}
                       </Button>
-                    </div>
-
+          </div>
+          
                     <Tabs defaultValue="logs" className="w-full">
                       <TabsList>
                         <TabsTrigger value="logs">Function Logs</TabsTrigger>
                         <TabsTrigger value="invocations">Invocations</TabsTrigger>
-                      </TabsList>
-                      
+            </TabsList>
+            
                       <TabsContent value="logs">
-                        <Card>
+              <Card>
                           <CardHeader>
                             <CardTitle className="text-sm">Log Events</CardTitle>
                           </CardHeader>
@@ -1494,7 +1494,7 @@ export default function SupabaseCheck() {
                                       <div className="flex items-center gap-2">
                                         <span className="text-xs opacity-75">
                                           {new Date(log.timestamp).toLocaleString()}
-                                        </span>
+                              </span>
                                         <Badge variant={
                                           log.level === "error" ? "destructive" :
                                           log.level === "warn" ? "outline" :
@@ -1502,14 +1502,14 @@ export default function SupabaseCheck() {
                                         }>
                                           {log.level}
                                         </Badge>
-                                      </div>
+                            </div>
                                       <div className="mt-1">{log.message}</div>
                                       {log.execution_time && (
                                         <div className="text-xs opacity-75 mt-1">
                                           Execution time: {log.execution_time}ms
                                         </div>
-                                      )}
-                                    </div>
+                            )}
+                          </div>
                                   ))
                                 ) : (
                                   <div className="text-center text-muted-foreground py-8">
@@ -1517,20 +1517,20 @@ export default function SupabaseCheck() {
                                       <div className="flex items-center justify-center gap-2">
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Loading logs...
-                                      </div>
-                                    ) : (
+                    </div>
+                  ) : (
                                       selectedFunction ? 'No logs found' : 'Select a function to view logs'
                                     )}
-                                  </div>
-                                )}
+                    </div>
+                  )}
                               </div>
                             </ScrollArea>
-                          </CardContent>
-                        </Card>
-                      </TabsContent>
-                      
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
                       <TabsContent value="invocations">
-                        <Card>
+              <Card>
                           <CardHeader>
                             <CardTitle className="text-sm">Recent Invocations</CardTitle>
                           </CardHeader>
@@ -1565,7 +1565,7 @@ export default function SupabaseCheck() {
                                             <h4 className="text-sm font-medium mb-1">Request Headers</h4>
                                             <pre className="text-xs bg-muted p-2 rounded-md">
                                               {JSON.stringify(invocation.request.headers, null, 2)}
-                                            </pre>
+                      </pre>
                                           </div>
                                           {invocation.request.body && (
                                             <div>
@@ -1602,36 +1602,36 @@ export default function SupabaseCheck() {
                                       <div className="flex items-center justify-center gap-2">
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Loading invocations...
-                                      </div>
+                      </div>
                                     ) : (
                                       selectedFunction ? 'No invocations found' : 'Select a function to view invocations'
-                                    )}
-                                  </div>
+                    )}
+                  </div>
                                 )}
                               </div>
                             </ScrollArea>
-                          </CardContent>
-                        </Card>
-                      </TabsContent>
-                    </Tabs>
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
-            
+          </Tabs>
+                  </div>
+        </CardContent>
+      </Card>
+            </TabsContent>
+      
             <TabsContent value="history">
-              <Card>
-                <CardHeader>
+      <Card>
+        <CardHeader>
                   <CardTitle>Test History</CardTitle>
                   <CardDescription>
                     Recent diagnostic test results
                   </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
                     {testHistory.map((test, i) => (
                       <div key={i} className="flex items-center justify-between p-4 rounded-lg bg-muted">
-                        <div>
+            <div>
                           <p className="text-sm font-medium">
                             {new Date(test.timestamp).toLocaleString()}
                           </p>
@@ -1640,7 +1640,7 @@ export default function SupabaseCheck() {
                               Failed services: {test.failedServices.join(", ")}
                             </p>
                           )}
-                        </div>
+            </div>
                         <Badge variant={test.success ? "default" : "destructive"}>
                           {test.success ? "All Passed" : `${test.failedServices.length} Failed`}
                         </Badge>
@@ -1665,7 +1665,7 @@ export default function SupabaseCheck() {
                       <h3 className="text-sm font-medium mb-2">API Configuration</h3>
                       <div className="space-y-2">
                         <div className="grid grid-cols-2 gap-4">
-                          <div>
+            <div>
                             <p className="text-sm font-medium">Supabase URL</p>
                             <p className="text-sm font-mono text-muted-foreground break-all">
                               {maskSecret(environmentVars.VITE_SUPABASE_URL || '')}
@@ -1679,14 +1679,14 @@ export default function SupabaseCheck() {
                           </div>
                         </div>
                       </div>
-                    </div>
-                    
+            </div>
+            
                     <div className="rounded-lg border p-4">
                       <h3 className="text-sm font-medium mb-2">Edge Functions</h3>
                       <div className="space-y-2">
                         {EDGE_FUNCTIONS.map((func) => (
                           <div key={func.name} className="flex items-center justify-between py-2">
-                            <div>
+            <div>
                               <p className="text-sm font-medium">{func.name}</p>
                               <p className="text-sm text-muted-foreground">{func.description}</p>
                             </div>

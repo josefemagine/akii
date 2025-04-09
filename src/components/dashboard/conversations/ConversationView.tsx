@@ -18,10 +18,11 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { format } from "date-fns";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { Message } from "@/types/custom";
-import { Database } from "@/types/supabase";
+import { invokeServerFunction } from "@/utils/supabase/functions";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/lib/supabase";
 
 type Agent = {
   id: string;
@@ -30,13 +31,16 @@ type Agent = {
   avatar_url: string | null;
 };
 
-type ConversationWithAgent =
-  Database["public"]["Tables"]["conversations"]["Row"] & {
-    agent: Agent | null;
-    title?: string;
-    status?: string;
-    updated_at?: string;
-  };
+type Conversation = {
+  id: string;
+  user_id: string;
+  agent_id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  agent: Agent | null;
+};
 
 interface ConversationViewProps {
   conversationId: string;
@@ -47,92 +51,53 @@ const ConversationView = ({
   conversationId,
   onBack = () => {},
 }: ConversationViewProps) => {
-  const [conversation, setConversation] =
-    useState<ConversationWithAgent | null>(null);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const fetchConversation = async () => {
     if (!user || !conversationId) return;
 
     setIsLoading(true);
     try {
-      // Fetch conversation details
-      const { data: convData, error: convError } = await supabase
-        .from("conversations")
-        .select(
-          `
-          *,
-          agent:agents(
-            id,
-            name,
-            description,
-            avatar_url
-          )
-        `,
-        )
-        .eq("id", conversationId)
-        .eq("user_id", user.id)
-        .single();
+      // Fetch conversation details using edge function
+      const conversationData = await invokeServerFunction<{conversation: Conversation}>("get_conversation", {
+        conversationId,
+        userId: user.id
+      });
 
-      if (convError) throw convError;
+      if (conversationData?.conversation) {
+        setConversation(conversationData.conversation);
+      } else {
+        toast({
+          title: "Error",
+          description: "Conversation not found",
+          variant: "destructive"
+        });
+        return;
+      }
 
-      const isValidAgent = (obj: any): obj is Agent => {
-        return (
-          obj &&
-          typeof obj === "object" &&
-          "id" in obj &&
-          typeof obj.id === "string" &&
-          "name" in obj &&
-          typeof obj.name === "string" &&
-          "description" in obj &&
-          "avatar_url" in obj
-        );
-      };
+      // Fetch messages using edge function
+      const messagesData = await invokeServerFunction<{messages: Message[]}>("get_conversation_messages", {
+        conversationId,
+        userId: user.id
+      });
 
-      // Process the conversation data to match our type
-      const processedConversation = {
-        ...(convData as any),
-        agent: Array.isArray((convData as any).agent)
-          ? (convData as any).agent[0] &&
-            isValidAgent((convData as any).agent[0])
-            ? (convData as any).agent[0]
-            : null
-          : isValidAgent((convData as any).agent)
-            ? (convData as any).agent
-            : null,
-      } as ConversationWithAgent;
-
-      setConversation(processedConversation);
-
-      // Fetch messages
-      const { data: msgData, error: msgError } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
-
-      if (msgError) throw msgError;
-      const processedMessages = (msgData || []).map((msg) => {
-        const processedMessage = {
-          role: msg.role,
-          id: msg.id,
-          conversation_id: msg.conversation_id,
-          content: msg.content,
-          created_at: msg.created_at,
-          user_id: msg.user_id,
-          sender_type: msg.sender_type,
-          metadata: msg.metadata
-        } as Message;
-        return processedMessage;
-      }) as Message[];
-      setMessages(processedMessages);
+      if (messagesData?.messages) {
+        setMessages(messagesData.messages);
+      }
     } catch (error) {
       console.error("Error fetching conversation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load conversation",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -153,8 +118,8 @@ const ConversationView = ({
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          const newMsg =
-            payload.new as Database["public"]["Tables"]["messages"]["Row"];
+          // Process the new message
+          const newMsg = payload.new as any;
           const processedMessage = {
             role: newMsg.role,
             id: newMsg.id,
@@ -165,6 +130,7 @@ const ConversationView = ({
             sender_type: newMsg.sender_type,
             metadata: newMsg.metadata
           } as Message;
+          
           setMessages((prev) => [...prev, processedMessage]);
         },
       )
@@ -186,47 +152,31 @@ const ConversationView = ({
 
     setIsSending(true);
     try {
-      // Insert user message
-      const { error: messageError } = await supabase.from("messages").insert({
-        conversation_id: conversationId,
-        sender_type: "user",
-        role: "user",
-        user_id: user?.id || "",
+      // Send message using edge function
+      const response = await invokeServerFunction<{message: Message, success: boolean}>("send_message", {
+        conversationId,
+        userId: user.id,
         content: newMessage,
-        metadata: {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      } as any);
+        role: "user"
+      });
 
-      if (messageError) throw messageError;
+      if (!response || !response.success) {
+        throw new Error("Failed to send message");
+      }
 
       // Clear input
       setNewMessage("");
 
-      // In a real implementation, you would call the AI service here
-      // For demo purposes, we'll simulate an AI response after a delay
-      setTimeout(async () => {
-        try {
-          const aiMessageData = {
-            conversation_id: conversationId,
-            sender_type: "assistant",
-            role: "assistant",
-            user_id: user?.id || "",
-            content: `This is a simulated response to: "${newMessage}". In a real implementation, this would be generated by the AI agent.`,
-            metadata: {},
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          } as any;
-
-          await supabase.from("messages").insert(aiMessageData as any);
-        } catch (error) {
-          console.error("Error sending AI response:", error);
-        } finally {
-          setIsSending(false);
-        }
-      }, 1000);
+      // The AI response will be added via the realtime subscription
+      // We don't need to manually add the user message either, as it will come through the subscription
     } catch (error) {
       console.error("Error sending message:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
       setIsSending(false);
     }
   };

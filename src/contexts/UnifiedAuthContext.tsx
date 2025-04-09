@@ -19,7 +19,8 @@ import {
   AUTH_STATE_CHANGE_EVENT,
   AUTH_ERROR_EVENT,
   AUTH_RECOVERY_EVENT
-} from '@/types/auth';
+} from "@/types/auth";
+import { USER_DATA_ENDPOINT } from "@/lib/api-endpoints";
 
 // Debug logger
 const log = (...args: any[]) => console.log('[Auth]', ...args);
@@ -131,6 +132,11 @@ const getCachedUserProfile = (userId: string): Profile | null => {
   return null;
 };
 
+// Add this interface with the EdgeFunctionUserData before the AuthProvider
+interface EdgeFunctionUserData extends Profile {
+  is_super_admin?: boolean;
+}
+
 // Default context
 const defaultContext: AuthContextType = {
   user: null,
@@ -139,6 +145,7 @@ const defaultContext: AuthContextType = {
   hasProfile: false,
   isValidProfile: () => false,
   isAdmin: false,
+  isSuperAdmin: false,
   isDeveloper: false,
   authLoading: true,
   isLoading: true,
@@ -148,7 +155,8 @@ const defaultContext: AuthContextType = {
   signOut: async () => {},
   refreshProfile: async () => null,
   updateProfile: async () => false,
-  setUserAsAdmin: async () => false
+  setUserAsAdmin: async () => false,
+  checkSuperAdminStatus: async () => false
 };
 
 // Create context
@@ -603,7 +611,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             log('Fetching fresh profile data for user', data.session.user.id);
             
             // First, try to get the profile directly
-            let userProfile = null;
+            let userProfile: Profile | null = null;
             const { data: profileData, error: profileError } = await supabase
               .from('profiles')
               .select('*')
@@ -872,19 +880,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Context value - what gets provided to components
   const value = useMemo(
     () => ({
-      user,
-      profile,
+    user,
+    profile,
       hasUser: !!user,
       hasProfile: !!profile,
       isValidProfile: (p: Profile | null) => isCompleteProfile(p),
-      isAdmin: !!profile && profile.role === 'admin',
+    isAdmin,
+      isSuperAdmin: false,
       isDeveloper: !!profile && ['admin', 'developer'].includes(profile.role),
       authLoading: isLoading,
       isLoading: isLoading,
       refreshAuthState,
-      signIn,
-      signUp,
-      signOut,
+    signIn,
+    signUp,
+    signOut,
       refreshProfile,
       updateProfile: async (updates: Partial<Profile>) => {
         if (!user?.id || !profile?.id) return false;
@@ -934,6 +943,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUserAsAdmin: async () => {
         if (!user?.id) return false;
         return setUserAsAdmin();
+      },
+      checkSuperAdminStatus: async (): Promise<boolean> => {
+        if (!user?.id) return false;
+        
+        try {
+          log('Checking super admin status via Edge Function');
+          
+          // Get the current session
+          const { data: sessionData } = await supabase.auth.getSession();
+          
+          if (!sessionData.session) {
+            log('No active session for super admin check');
+            return false;
+          }
+          
+          // Call the Edge Function to get complete user data
+          const response = await fetch(USER_DATA_ENDPOINT, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${sessionData.session.access_token}`
+            }
+          });
+          
+          if (!response.ok) {
+            log('Failed to fetch user data for super admin check:', response.status);
+            return false;
+          }
+          
+          const userData = await response.json();
+          
+          // Check if the user is a super admin
+          const isSuperAdmin = !!userData.is_super_admin;
+          log(`Super admin check result: ${isSuperAdmin}`);
+          return isSuperAdmin;
+        } catch (error) {
+          log('Error checking super admin status:', error);
+          return false;
+        }
       }
     }),
     [user, profile, isLoading, signIn, signUp, signOut, refreshAuthState, setUserAsAdmin]

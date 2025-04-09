@@ -306,11 +306,12 @@ function getOrCreateSupabaseClient(): SupabaseClient<Database> {
       try {
         // Try the normal method first
         return await originalSignIn.call(this, credentials);
-      } catch (error) {
+      } catch (error: unknown) {
         // If we hit a CORS error, try the direct method
-        if (error.message?.includes('CORS') || 
+        if (error instanceof Error && (
+            error.message?.includes('CORS') || 
             error.message?.includes('Failed to fetch') ||
-            error.name === 'TypeError') {
+            error.name === 'TypeError')) {
             
           console.log('[Auth] Caught CORS error in signInWithPassword, using direct approach');
           
@@ -461,7 +462,7 @@ export async function refreshSession() {
 // Helper to clear all auth data from localStorage
 export function clearAllAuthData() {
   try {
-    const authRelatedKeys = [];
+    const authRelatedKeys: string[] = [];
     
     // Find all auth-related keys with more comprehensive pattern matching
     for (let i = 0; i < localStorage.length; i++) {
@@ -634,7 +635,7 @@ export function getSupabaseInitStatus() {
 // Export a specialized authentication function with retry logic
 export async function signInWithEmailPasswordRetry(email: string, password: string, maxRetries = 2) {
   let retries = 0;
-  let lastError = null;
+  let lastError: Error | null = null;
   
   // First make sure we have a valid client
   const client = getSupabaseClient();
@@ -734,21 +735,31 @@ export async function signInWithEmailPasswordRetry(email: string, password: stri
       
       console.log(`[Auth] Signin successful for ${email}`);
       return result;
-    } catch (error) {
-      lastError = error;
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        lastError = error;
+      } else {
+        lastError = new Error(String(error));
+      }
+      
       console.warn(`[Auth] Signin error (attempt ${retries + 1}/${maxRetries + 1}):`, error);
       
       // Check for CORS errors - if we detect one, immediately try the direct approach
-      if (error.message?.includes('CORS') || 
+      if (error instanceof Error && (
+          error.message?.includes('CORS') || 
           error.message?.includes('Failed to fetch') ||
-          error.name === 'TypeError') {
+          error.name === 'TypeError')) {
         console.log('[Auth] Detected CORS or fetch error, trying direct API approach');
         try {
           return await tryDirectApiLogin();
         } catch (directError) {
           // If direct approach also fails, continue with regular retry logic
           console.error('[Auth] Direct API approach also failed:', directError);
-          lastError = directError;
+          if (directError instanceof Error) {
+            lastError = directError;
+          } else {
+            lastError = new Error(String(directError));
+          }
         }
       }
       

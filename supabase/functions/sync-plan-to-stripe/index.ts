@@ -227,7 +227,7 @@ Deno.serve(async (req) => {
         return createSuccessResponse(result);
       } catch (error) {
         console.error('Error in sync-plan-to-stripe:', error);
-        return createErrorResponse(`An unexpected error occurred: ${error.message}`, 500);
+        return createErrorResponse(`An unexpected error occurred: ${(error instanceof Error ? error.message : String(error))}`, 500);
       }
     },
     {

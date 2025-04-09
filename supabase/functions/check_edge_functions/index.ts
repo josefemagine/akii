@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
               name: functionName,
               status: "unhealthy",
               lastChecked: timestamp,
-              error: error.message,
+              error: (error instanceof Error ? error.message : String(error)),
             });
           }
         }

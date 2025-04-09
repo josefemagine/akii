@@ -1,56 +1,86 @@
-import { Pool } from 'https://deno.land/x/postgres@v0.17.0/mod.ts'
+// Import with type assertion for Deno environment
+// @ts-ignore - Module will be resolved by Deno's import system
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+// @ts-ignore - Module will be resolved by Deno's import system
+import { Pool, PoolClient } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
-// Create a database pool with one connection
-const pool = new Pool(
-  {
-    tls: { enabled: false },
-    database: 'postgres',
-    hostname: Deno.env.get('DB_HOSTNAME'),
-    user: Deno.env.get('DB_USER'),
-    port: 6543,
-    password: Deno.env.get('DB_PASSWORD'),
-  },
-  1
-)
+// Type declarations for Deno runtime APIs
+declare namespace Deno {
+  export interface Env {
+    get(key: string): string | undefined;
+  }
+  export const env: Env;
+}
 
-export async function withConnection<T>(
-  callback: (connection: any) => Promise<T>
-): Promise<T> {
-  const connection = await pool.connect()
+// Database connection configuration
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://injxxchotrvgvvzelhvj.supabase.co";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const SUPABASE_DB_URL = Deno.env.get("DATABASE_URL") || "";
+
+// Postgres connection pool
+let pool: Pool | null = null;
+
+// Initialize the Postgres connection pool
+const getPool = () => {
+  if (!pool) {
+    if (!SUPABASE_DB_URL) {
+      throw new Error("DATABASE_URL environment variable not set");
+    }
+    
+    pool = new Pool(SUPABASE_DB_URL, 3, true);
+  }
+  
+  return pool;
+};
+
+// Execute a SQL query with parameters and return all rows
+export async function query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+  const client = await getPool().connect();
   try {
-    return await callback(connection)
+    const result = await client.queryObject<T>(sql, params);
+    return result.rows;
   } finally {
-    connection.release()
+    client.release();
   }
 }
 
-export async function query<T>(
-  sql: string,
-  params?: any[]
-): Promise<{ rows: T[] }> {
-  return withConnection(async (connection) => {
-    return await connection.queryObject(sql, params)
-  })
+// Execute a SQL query with parameters and return a single row
+export async function queryOne<T = any>(sql: string, params: any[] = []): Promise<T | null> {
+  const rows = await query<T>(sql, params);
+  return rows.length > 0 ? rows[0] : null;
 }
 
-export async function queryOne<T>(
-  sql: string,
-  params?: any[]
-): Promise<T | null> {
-  const result = await query<T>(sql, params)
-  return result.rows[0] || null
+// Execute a SQL query for operations that don't return data (INSERT, UPDATE, DELETE)
+export async function execute(sql: string, params: any[] = []): Promise<number> {
+  const client = await getPool().connect();
+  try {
+    const result = await client.queryObject(sql, params);
+    return result.rowCount || 0;
+  } finally {
+    client.release();
+  }
 }
 
-export async function execute(
-  sql: string,
-  params?: any[]
-): Promise<{ rowCount: number }> {
-  return withConnection(async (connection) => {
-    return await connection.queryObject(sql, params)
-  })
+// Begin a transaction and execute a callback with the client
+export async function transaction<T>(
+  callback: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.queryObject("BEGIN");
+    const result = await callback(client);
+    await client.queryObject("COMMIT");
+    return result;
+  } catch (error) {
+    await client.queryObject("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
-// Helper to safely close the pool when the application is shutting down
-export async function closePool() {
-  await pool.end()
-} 
+// Create a Supabase client with the service role key
+export const supabaseAdmin = createClient(
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY
+); 

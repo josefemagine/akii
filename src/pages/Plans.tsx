@@ -208,10 +208,8 @@ const Plans = () => {
     }
   ];
 
-  const calculateAnnualPrice = (monthlyPrice) => {
-    if (!monthlyPrice) return null;
-    const annualPrice = monthlyPrice * 12 * (1 - annualDiscount);
-    return Math.round(annualPrice);
+  const calculateAnnualPrice = (monthlyPrice: number) => {
+    return Math.floor(monthlyPrice * 12 * 0.8);  // 20% discount for annual
   };
 
   return (

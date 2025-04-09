@@ -5,31 +5,17 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/UnifiedAuthContext';
 import { safeLocalStorage } from '@/lib/browser-check';
 import { Card, CardContent } from '@/components/ui/card';
+import { Profile } from '@/types/auth';
 
 interface TrialBannerProps {
   className?: string;
-}
-
-// Extended profile type to include subscription fields
-interface ExtendedUserProfile {
-  id: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  email?: string | null;
-  avatar_url?: string | null;
-  role?: string;
-  status?: string;
-  created_at?: string;
-  updated_at?: string;
-  subscription_status?: string;
-  trial_end_date?: string;
 }
 
 const TrialBanner: React.FC<TrialBannerProps> = ({ className }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, hasProfile } = useAuth();
 
   useEffect(() => {
     // Check if the banner has been dismissed in this session
@@ -40,14 +26,16 @@ const TrialBanner: React.FC<TrialBannerProps> = ({ className }) => {
     }
 
     // Check if the user is on a trial plan and calculate days left
-    if (profile) {
-      // Cast profile to extended type to access subscription fields
-      const extendedProfile = profile as unknown as ExtendedUserProfile;
-      const hasPaidPlan = extendedProfile.subscription_status === 'active' || 
-                          extendedProfile.subscription_status === 'paid';
+    if (hasProfile && profile) {
+      const hasPaidPlan = profile.subscription_status === 'active' || 
+                          profile.subscription_status === 'paid';
       
-      if (!hasPaidPlan && extendedProfile.trial_end_date) {
-        const trialEnd = new Date(extendedProfile.trial_end_date);
+      // Use type assertion to access potentially non-standard properties
+      const extendedProfile = profile as any;
+      const trialEndDate = extendedProfile.trial_end_date || null;
+      
+      if (!hasPaidPlan && trialEndDate) {
+        const trialEnd = new Date(trialEndDate);
         const today = new Date();
         const diffTime = trialEnd.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -58,7 +46,7 @@ const TrialBanner: React.FC<TrialBannerProps> = ({ className }) => {
         setIsVisible(false);
       }
     }
-  }, [profile]);
+  }, [profile, hasProfile]);
 
   const dismissBanner = () => {
     setIsVisible(false);

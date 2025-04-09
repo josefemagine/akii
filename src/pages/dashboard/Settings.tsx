@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
 import Profile from "./Profile";
@@ -12,15 +11,12 @@ import { AdminSetter } from '@/components/debug/AdminSetter';
 import { useAuth } from "@/contexts/UnifiedAuthContext";
 import type { Profile as ProfileType } from "@/types/auth";
 
-// Custom profile type that extends the basic Profile from AuthContext
-interface ExtendedProfile extends ProfileType {
-  display_name?: string;
-  avatar_url?: string;
-  company?: string;
-}
+// Custom profile type that extends the basic Profile from auth types
+// All properties are already included in the Profile type from @/types/auth
+type ExtendedProfile = ProfileType;
 
 export default function Settings() {
-  const { user, profile: authProfile, refreshProfile } = useAuth();
+  const { user, profile: authProfile, refreshProfile, hasUser, authLoading } = useAuth();
   const [localProfile, setLocalProfile] = useState<ExtendedProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -45,7 +41,7 @@ export default function Settings() {
       setIsLoading(false);
     } else if (authProfile) {
       console.log('[Settings] Using profile from context:', authProfile);
-      setLocalProfile(authProfile as ExtendedProfile);
+      setLocalProfile(authProfile);
       setIsLoading(false);
     } else if (!user) {
       console.log('[Settings] No user found');
@@ -54,7 +50,7 @@ export default function Settings() {
   }, [user, authProfile]);
 
   // Handle loading state
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <DashboardPageContainer className="pb-12">
         <h1 className="text-3xl font-bold mb-6">Settings</h1>
@@ -69,7 +65,7 @@ export default function Settings() {
   }
 
   // If we have a user but no profile (from context or local fallback)
-  if (user && !authProfile && !localProfile) {
+  if (hasUser && !authProfile && !localProfile) {
     return (
       <DashboardPageContainer className="pb-12">
         <h1 className="text-3xl font-bold mb-6">Settings</h1>
@@ -91,7 +87,7 @@ export default function Settings() {
   }
 
   // Use either the context profile or our local fallback
-  const displayProfile = authProfile as ExtendedProfile || localProfile;
+  const displayProfile = authProfile || localProfile;
 
   return (
     <DashboardPageContainer className="pb-12">
@@ -107,7 +103,7 @@ export default function Settings() {
         </TabsList>
         
         <TabsContent value="profile">
-          <Profile profile={displayProfile} />
+          <Profile />
         </TabsContent>
         
         <TabsContent value="appearance">

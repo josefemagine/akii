@@ -68,7 +68,7 @@ serve(async (req) => {
       results.tests.push({
         name: 'Test Suite',
         status: 'failed',
-        logs: [`Test failed: ${error.message}`],
+        logs: [`Test failed: ${(error instanceof Error ? error.message : String(error))}`],
       });
     }
 
@@ -86,7 +86,7 @@ serve(async (req) => {
     // Return error with CORS headers
     return new Response(JSON.stringify({
       error: 'Internal Server Error',
-      message: error.message,
+      message: (error instanceof Error ? error.message : String(error)),
     }), {
       status: 500,
       headers: {

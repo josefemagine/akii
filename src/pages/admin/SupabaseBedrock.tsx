@@ -1268,23 +1268,28 @@ const SupabaseBedrock = () => {
     console.log("[Bedrock] Checking auth status...");
     try {
       setAuthStatus('checking');
+      setConnectionStatus('checking');
       const result = await BedrockClient.checkAuth();
+      
       console.log("[Bedrock] Auth check result:", result);
       
       if (result && result.connected) {
         setAuthStatus('authenticated');
         setConnectionStatus('connected');
-      } else {
+      } else if (result && !result.connected) {
         setAuthStatus('unauthenticated');
         setConnectionStatus('error');
+        if (result.message) {
+          setError(result.message);
+        }
       }
       
       return result;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[Bedrock] Auth check error:", err);
       setAuthStatus('error');
       setConnectionStatus('error');
-      setError(err.message || "Authentication check failed");
+      setError(err instanceof Error ? err.message : "Authentication check failed");
       return null;
     }
   };
@@ -1302,11 +1307,11 @@ const SupabaseBedrock = () => {
       console.log("[Bedrock] Instances:", result);
       setInstances(result || []);
       return result;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[Bedrock] Error refreshing instances:", err);
       toast({
         title: "Error",
-        description: `Could not refresh instances: ${err.message}`,
+        description: `Could not refresh instances: ${err instanceof Error ? err.message : "Unknown error"}`,
         variant: "destructive"
       });
       return [];
@@ -1323,11 +1328,11 @@ const SupabaseBedrock = () => {
       console.log("[Bedrock] Available models:", result);
       setAvailableModels(result || []);
       return result;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[Bedrock] Error fetching models:", err);
       toast({
         title: "Error",
-        description: `Could not fetch models: ${err.message}`,
+        description: `Could not fetch models: ${err instanceof Error ? err.message : "Unknown error"}`,
         variant: "destructive"
       });
       return [];
@@ -1367,11 +1372,11 @@ const SupabaseBedrock = () => {
       
       // Refresh instances list
       await refreshInstances();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[Bedrock] Error provisioning instance:", err);
       toast({
         title: "Error",
-        description: `Could not provision instance: ${err.message}`,
+        description: `Could not provision instance: ${err instanceof Error ? err.message : "Unknown error"}`,
         variant: "destructive"
       });
     } finally {
@@ -1394,11 +1399,11 @@ const SupabaseBedrock = () => {
       
       // Refresh instances list
       await refreshInstances();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[Bedrock] Error deleting instance:", err);
       toast({
         title: "Error",
-        description: `Could not delete instance: ${err.message}`,
+        description: `Could not delete instance: ${err instanceof Error ? err.message : "Unknown error"}`,
         variant: "destructive"
       });
     } finally {
@@ -1413,11 +1418,11 @@ const SupabaseBedrock = () => {
       const result = await BedrockClient.testEnvironment();
       setTestData(result);
       return result;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[Bedrock] Connection test error:", err);
       toast({
         title: "Error",
-        description: `Connection test failed: ${err.message}`,
+        description: `Connection test failed: ${err instanceof Error ? err.message : "Unknown error"}`,
         variant: "destructive"
       });
       return null;
@@ -1437,7 +1442,7 @@ const SupabaseBedrock = () => {
       const result = await BedrockClient.testEnvironment();
       setEnvDiagnostics(result || {});
       return result;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[Bedrock] Error fetching diagnostics:", err);
       return {};
     }
@@ -1448,7 +1453,7 @@ const SupabaseBedrock = () => {
       const result = await BedrockClient.testEnvironment();
       setTestData(result);
       return result;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[Bedrock] Error fetching test data:", err);
       return null;
     }
@@ -1476,9 +1481,9 @@ const SupabaseBedrock = () => {
           // Fetch environment diagnostics
           await fetchEnvironmentDiagnostics();
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("[Bedrock] Initialization error:", err);
-        setError(err.message || "Initialization failed");
+        setError(err instanceof Error ? err.message : "Initialization failed");
       } finally {
         setLoading(false);
       }

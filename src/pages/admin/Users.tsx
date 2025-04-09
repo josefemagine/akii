@@ -163,9 +163,19 @@ const UsersPage = () => {
       try {
         console.log("Fetching all users from profiles table...");
         
+        // Define an interface for auth users
+        interface AuthUser {
+          id: string;
+          email?: string;
+          confirmed_at?: string;
+          email_confirmed_at?: string;
+          created_at?: string;
+          last_sign_in_at?: string;
+        }
+        
         // First, try to get auth users using admin client
         const adminClient = getAdminClient();
-        let authUsers = [];
+        let authUsers: AuthUser[] = [];
         
         if (adminClient) {
           try {
@@ -207,7 +217,7 @@ const UsersPage = () => {
         }
         
         // Create profiles for auth users that don't have profiles
-        const profilesToCreate = [];
+        const profilesToCreate: AuthUser[] = [];
         for (const authUser of authUsers) {
           if (!profilesMap.has(authUser.id)) {
             profilesToCreate.push(authUser);
@@ -578,7 +588,9 @@ const UsersPage = () => {
               if (error || !success) {
                 toast({
                   title: "Error adding admin",
-                  description: error && typeof error === 'object' && 'message' in error ? error.message : "Failed to set user as admin",
+                  description: error && typeof error === 'object' && 'message' in error 
+                    ? String(error.message) 
+                    : "Failed to set user as admin",
                   variant: "destructive",
                 });
                 return;

@@ -47,16 +47,16 @@ export function setupNetworkInterceptors() {
         } catch (error) {
           // Only retry on resource errors
           if (
-            error.message?.includes('ERR_INSUFFICIENT_RESOURCES') || 
-            error.code === 429 ||
-            error.name === 'AbortError'
+            (error instanceof Error && error.message?.includes('ERR_INSUFFICIENT_RESOURCES')) || 
+            (error && typeof error === 'object' && 'code' in error && error.code === 429) ||
+            (error instanceof Error && error.name === 'AbortError')
           ) {
             // Increment retry count
             retryMap.set(requestKey, currentRetryCount + 1);
             
             // Calculate exponential backoff delay
             const delay = Math.min(2 ** currentRetryCount * 500, 5000);
-            console.log(`[Network] Resource error (${error.message}). Retrying ${url.split('?')[0]} in ${delay}ms (${currentRetryCount + 1}/${maxRetries})`);
+            console.log(`[Network] Resource error (${error instanceof Error ? error.message : String(error)}). Retrying ${url.split('?')[0]} in ${delay}ms (${currentRetryCount + 1}/${maxRetries})`);
             
             // Wait and retry
             await new Promise(resolve => setTimeout(resolve, delay));
@@ -72,7 +72,7 @@ export function setupNetworkInterceptors() {
       return await originalFetch(input, init);
     } catch (error) {
       // Standard error handling
-      console.log(`[Network] Error in fetch to ${url.split('?')[0]}:`, error.message || error);
+      console.log(`[Network] Error in fetch to ${url.split('?')[0]}:`, error instanceof Error ? error.message : String(error));
       throw error;
     }
   };

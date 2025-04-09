@@ -29,8 +29,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Settings, Bot } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/use-toast";
+import { invokeServerFunction } from "@/utils/supabase/functions";
 
 type AIInstance = {
   id: string;
@@ -75,42 +75,23 @@ const AIInstanceAccess = ({ teamId }: AIInstanceAccessProps) => {
     try {
       setIsLoading(true);
 
-      // Fetch team members
-      const { data: membersData, error: membersError } = await supabase
-        .from("team_members")
-        .select("*, ai_instance_access")
-        .eq("team_id", teamId);
-
-      if (membersError) throw membersError;
-
-      // Fetch user details for each member
-      const membersWithDetails = await Promise.all(
-        (membersData || []).map(async (member: any) => {
-          const { data: userData } = await supabase
-            .from("profiles")
-            .select("email")
-            .eq("id", member.user_id)
-            .single();
-
-          return {
-            ...member,
-            user_email: (userData as any)?.email || "Unknown",
-            user_name:
-              (userData as any)?.email?.split("@")[0] || "Unknown User",
-          } as TeamMember;
+      // Fetch team members and AI instances
+      const [membersData, instancesData] = await Promise.all([
+        invokeServerFunction<TeamMember[]>("team_get_members_with_ai_access", {
+          teamId,
         }),
-      );
+        invokeServerFunction<AIInstance[]>("team_get_ai_instances", {
+          teamId,
+        })
+      ]);
 
-      setMembers(membersWithDetails);
+      if (membersData) {
+        setMembers(membersData);
+      }
 
-      // Fetch AI instances
-      const { data: instancesData, error: instancesError } = await supabase
-        .from("ai_instances")
-        .select("*")
-        .eq("team_id", teamId);
-
-      if (instancesError) throw instancesError;
-      setAiInstances(instancesData || []);
+      if (instancesData) {
+        setAiInstances(instancesData);
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
       toast({
@@ -135,13 +116,11 @@ const AIInstanceAccess = ({ teamId }: AIInstanceAccessProps) => {
     try {
       setIsSaving(true);
 
-      const { error } = await supabase
-        .from("team_members")
-        .update({ ai_instance_access: selectedInstances })
-        .eq("id", selectedMember.id)
-        .eq("team_id", teamId);
-
-      if (error) throw error;
+      await invokeServerFunction("team_update_ai_access", {
+        teamId,
+        memberId: selectedMember.id,
+        aiInstanceAccess: selectedInstances
+      });
 
       // Update local state
       setMembers((prev) =>

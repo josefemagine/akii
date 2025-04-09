@@ -1,191 +1,119 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import withAdminInit from "@/components/admin/withAdminInit";
+import React from 'react';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
+import { useSuperAdmin } from '@/hooks/useSuperAdmin';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import AdminCheckComponent from '@/components/dashboard/AdminCheck';
+import withAdminInit from '@/components/admin/withAdminInit';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { diagnoseSuperAdminIssues, enableDevAdminMode } from '@/utils/admin-utils';
+import { Button } from '@/components/ui/button';
 
-function AdminCheck() {
-  const { user, profile, isAdmin } = useAuth();
-  const [email, setEmail] = useState("josef@holm.com");
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [profileData, setProfileData] = useState<any>(null);
+const AdminCheck: React.FC = () => {
+  const { user, isAdmin } = useAuth();
+  const { isSuperAdmin, checkSuperAdminStatus } = useSuperAdmin();
+  const [diagnosticData, setDiagnosticData] = React.useState<any>(null);
+  const [isRunningDiagnostic, setIsRunningDiagnostic] = React.useState(false);
 
-  const checkUserRole = async () => {
-    if (!email) return;
-    setLoading(true);
-    setMessage(null);
-
+  const runDiagnostic = async () => {
+    setIsRunningDiagnostic(true);
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("email", email as string)
-        .single();
-
-      if (error) {
-        setMessage({ type: "error", text: `Error: ${error.message}` });
-        return;
-      }
-
-      setProfileData(data);
-      setMessage({
-        type: "success",
-        text: `User found: ${data?.email || email} with role: ${data?.role || "none"}`,
-      });
-    } catch (err) {
-      setMessage({
-        type: "error",
-        text: `Error: ${err instanceof Error ? err.message : String(err)}`,
-      });
+      const data = await diagnoseSuperAdminIssues();
+      setDiagnosticData(data);
+    } catch (error) {
+      console.error('Error running diagnostic:', error);
     } finally {
-      setLoading(false);
+      setIsRunningDiagnostic(false);
     }
   };
 
-  const grantAdminRole = async () => {
-    if (!profileData) {
-      await checkUserRole();
-      if (!profileData) return;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ role: "admin", status: "active" } as any)
-        .eq("id", profileData.id);
-
-      if (error) {
-        setMessage({
-          type: "error",
-          text: `Error updating role: ${error.message}`,
-        });
-        return;
-      }
-
-      setMessage({
-        type: "success",
-        text: `Role updated to admin for ${email}. Please log out and log back in.`,
-      });
-
-      // Update the profile data
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("email", email as string)
-        .single();
-
-      if (data) {
-        setProfileData(data);
-      }
-    } catch (err) {
-      setMessage({
-        type: "error",
-        text: `Error: ${err instanceof Error ? err.message : String(err)}`,
-      });
-    } finally {
-      setLoading(false);
-    }
+  const toggleAdminStatus = () => {
+    const currentStatus = localStorage.getItem('akii-is-admin') === 'true';
+    enableDevAdminMode(!currentStatus);
+    setTimeout(() => {
+      checkSuperAdminStatus();
+      window.location.reload();
+    }, 100);
   };
 
-  // Log current auth status to help debug
-  useEffect(() => {
-    console.log("AdminCheck mounting with auth:", {
-      user: user?.email || "not logged in",
-      role: profile?.role || "none",
-      isAdmin,
-    });
-  }, [user, profile, isAdmin]);
+  // Format JSON data for display
+  const formatJson = (data: any) => {
+    return JSON.stringify(data, null, 2);
+  };
 
   return (
-    <div className="container mx-auto py-10">
-      <Card>
-        <CardHeader>
-          <CardTitle>Admin Access Checker</CardTitle>
-          <CardDescription>Check and fix admin access issues</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <h3 className="text-lg font-medium">Current User Status</h3>
-              <div className="text-sm">
-                <p>
-                  <strong>Email:</strong> {user?.email || "Not logged in"}
-                </p>
-                <p>
-                  <strong>Role:</strong> {profile?.role || "None"}
-                </p>
-                <p>
-                  <strong>Admin Access:</strong> {isAdmin ? "Yes" : "No"}
-                </p>
-              </div>
-            </div>
+    <div className="container py-6">
+      <h1 className="text-2xl font-bold mb-4">Admin Access Check</h1>
+      <p className="text-gray-500 dark:text-gray-400 mb-6">
+        This page helps diagnose and fix admin access issues.
+      </p>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Check User Role</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email address"
-                  />
-                  <Button onClick={checkUserRole} disabled={loading}>
-                    {loading ? "Checking..." : "Check"}
-                  </Button>
+      <Tabs defaultValue="status">
+        <TabsList className="mb-4">
+          <TabsTrigger value="status">Current Status</TabsTrigger>
+          <TabsTrigger value="super-admin">Super Admin</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="status">
+          <AdminCheckComponent />
+        </TabsContent>
+        
+        <TabsContent value="super-admin">
+          <Card>
+            <CardHeader>
+              <CardTitle>Super Admin Status</CardTitle>
+              <CardDescription>
+                View and manage super admin privileges
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="font-medium mb-1">User ID:</p>
+                  <p className="text-sm font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded">{user?.id || 'Not logged in'}</p>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">Super Admin Status:</p>
+                  <p className={`text-sm font-semibold ${isSuperAdmin ? 'text-green-600' : 'text-red-600'}`}>
+                    {isSuperAdmin ? 'Enabled' : 'Disabled'}
+                  </p>
                 </div>
               </div>
-
-              {profileData && (
-                <div className="space-y-2">
-                  <h4 className="font-medium">User Profile:</h4>
-                  <pre className="p-2 bg-gray-100 rounded text-xs overflow-auto">
-                    {JSON.stringify(profileData, null, 2)}
-                  </pre>
-
-                  <Button
-                    onClick={grantAdminRole}
-                    disabled={loading || profileData?.role === "admin"}
-                    className="mt-2"
-                  >
-                    {loading ? "Updating..." : "Grant Admin Access"}
-                  </Button>
-                </div>
-              )}
-
-              {message && (
-                <Alert
-                  variant={
-                    message.type === "error" ? "destructive" : "default"
-                  }
+              
+              <div className="flex space-x-4 mt-4">
+                <Button 
+                  onClick={toggleAdminStatus}
+                  variant={localStorage.getItem('akii-is-admin') === 'true' ? 'destructive' : 'default'}
                 >
-                  <AlertDescription>{message.text}</AlertDescription>
-                </Alert>
+                  {localStorage.getItem('akii-is-admin') === 'true' ? 'Disable Admin Mode' : 'Enable Admin Mode'}
+                </Button>
+                
+                <Button
+                  onClick={runDiagnostic}
+                  variant="outline"
+                  disabled={isRunningDiagnostic}
+                >
+                  {isRunningDiagnostic ? 'Running...' : 'Run Diagnostic'}
+                </Button>
+              </div>
+              
+              {/* Diagnostic results */}
+              {diagnosticData && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-medium mb-2">Diagnostic Results</h3>
+                  <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md">
+                    <pre className="text-xs overflow-auto max-h-96">
+                      {formatJson(diagnosticData)}
+                    </pre>
+                  </div>
+                </div>
               )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
-}
+};
 
-// Use the HOC to enhance the component with admin initialization and error handling
+// Use the admin init HOC to handle loading and access control
 export default withAdminInit(AdminCheck);

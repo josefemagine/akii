@@ -1,6 +1,15 @@
 import { handleRequest, createSuccessResponse, createErrorResponse, createAuthClient } from "../_shared/auth.ts";
 import { query } from "../_shared/postgres.ts";
 
+// Augment query result with rows property
+declare module "../_shared/postgres" {
+  interface QueryResult<T> {
+    rows: T[];
+    rowCount: number;
+  }
+}
+
+
 interface UserUsage {
   user_id: string;
   email: string;
@@ -45,7 +54,7 @@ Deno.serve(async (req) => {
       } catch (error) {
         console.error("Error in admin_get_user_usage:", error);
         return createErrorResponse(
-          error instanceof Error ? error.message : "An unexpected error occurred",
+          error instanceof Error ? (error instanceof Error ? error.message : String(error)) : "An unexpected error occurred",
           500
         );
       }

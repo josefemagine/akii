@@ -69,7 +69,7 @@ async function testListModels() {
     console.error("Failed to list foundation models:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error),
       errorType: error instanceof Error ? error.name : "Unknown"
     };
   }
@@ -91,7 +91,7 @@ async function testListProvisionedThroughputs() {
     console.error("Failed to list provisioned throughputs:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error),
       errorType: error instanceof Error ? error.name : "Unknown"
     };
   }
@@ -155,7 +155,7 @@ async function testCreateProvisionedThroughput() {
     console.error("Failed during test setup:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error),
       errorType: error instanceof Error ? error.name : "Unknown",
       stage: "test_setup"
     };

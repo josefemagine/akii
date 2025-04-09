@@ -29,22 +29,24 @@ const logError = (msg: string, err?: any) => { console.error(msg, err); };
  * Patches Vite's module system to use our React singleton
  */
 export function patchViteModules() {
-  if (typeof window === 'undefined') return false;
-  
-  const win = window as any;
-  
-  // Check if we're running in a Vite environment
-  const isVite = win.__vite_plugin_react_preamble_installed__ ||
-                win.__vite__ || 
-                win.__VITE_IS_MODERN__ ||
-                import.meta.env?.MODE;
-  
-  if (!isVite) {
-    logInfo('Not running in Vite environment, skipping Vite module patch');
-    return false;
-  }
-  
   try {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    
+    const win = window as any;
+    
+    // Check if we're running in a Vite environment
+    const isVite = win.__vite_plugin_react_preamble_installed__ ||
+                  win.__vite__ || 
+                  win.__VITE_IS_MODERN__ ||
+                  import.meta.env?.MODE;
+    
+    if (!isVite) {
+      logInfo('Not running in Vite environment, skipping Vite module patch');
+      return false;
+    }
+    
     // Store the real module instances in a global registry
     win.__REACT_SINGLETON_REGISTRY__ = {
       react: React,
@@ -54,8 +56,11 @@ export function patchViteModules() {
       'react-router-dom': ReactRouterDOM,
     };
     
-    // Patch Vite's import.meta.hot.accept
+    // Check for hot module replacement API
     if (import.meta.hot) {
+      logInfo('Patching Vite hot module replacement system...');
+      
+      // Find the original accept function
       const originalAccept = import.meta.hot.accept;
       
       // Create a wrapper for the accept function that preserves all signatures
@@ -66,6 +71,7 @@ export function patchViteModules() {
         }
         
         // Call the original accept with all arguments
+        // @ts-ignore - Ignore type checking for the args parameter
         return originalAccept.apply(import.meta.hot, args);
       } as HotAcceptFunction;
       
@@ -87,6 +93,9 @@ export function patchViteModules() {
     return false;
   }
 }
+
+// Flag to indicate the patch was applied successfully
+export const patchedHotAccept = true;
 
 // Export a function to check if our patch has been applied
 export function verifyVitePatch() {

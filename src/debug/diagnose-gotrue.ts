@@ -137,16 +137,17 @@ export function patchGoTrueClientForDebugging() {
  * Checks if a client is a singleton instance or a duplicate
  */
 export function checkGoTrueClientStatus(client: any) {
-  if (!client) return { isSingleton: false, isDuplicate: false };
+  if (typeof window === 'undefined') return { isTracked: false };
   
-  let foundInstance = null;
+  // Prepare counters
   let foundCount = 0;
+  let foundInstance: any = null;
   
-  // Check if this client instance is tracked
-  clientInstances.forEach((info) => {
-    if (info.instance === client) {
-      foundInstance = info;
+  // Check instances
+  clientInstances.forEach((info, instance) => {
+    if (client === instance) {
       foundCount++;
+      foundInstance = { instance, source: info.source };
     }
   });
   
@@ -155,12 +156,14 @@ export function checkGoTrueClientStatus(client: any) {
     window.__SUPABASE_SINGLETON && 
     window.__SUPABASE_SINGLETON.auth;
     
-  const isGlobalSingleton = globalSingleton && 
-    foundInstance && 
-    globalSingleton === foundInstance.instance;
+  // Check if it's the global singleton by direct comparison
+  let isGlobalSingleton = false;
+  if (globalSingleton && foundInstance) {
+    isGlobalSingleton = globalSingleton === foundInstance.instance;
+  }
   
   return {
-    isTracked: !!foundInstance,
+    isTracked: foundInstance !== null,
     instanceInfo: foundInstance,
     isSingleton: isGlobalSingleton,
     duplicateCount: foundCount > 1 ? foundCount : 0
@@ -212,8 +215,8 @@ export function getAuthDiagnostics() {
   } catch (error) {
     return {
       browser: true,
-      error: error.message,
-      stack: error.stack
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
     };
   }
 }

@@ -98,14 +98,14 @@ export function applySupabaseRefactor() {
           }
           
           return result;
-        } catch (e) {
+        } catch (e: unknown) {
           console.error("[SupabaseRefactor] Error in patched _refreshAccessToken:", e);
           
           // Return proper error format
           return { 
             data: null, 
             error: { 
-              message: e.message || "Error refreshing token", 
+              message: e instanceof Error ? e.message : "Error refreshing token", 
               status: 500 
             }
           };
@@ -130,11 +130,13 @@ export function applySupabaseRefactor() {
           // Try original method
           const result = await original_callRefreshToken.apply(this, args);
           return result;
-        } catch (error) {
+        } catch (error: unknown) {
           console.error("[SupabaseRefactor] Error in _callRefreshToken:", error);
           
           // For 400 errors, handle gracefully
-          if (error.status === 400 || error.message?.includes('refresh')) {
+          if (error && typeof error === 'object' && 
+              ('status' in error && error.status === 400 || 
+               'message' in error && typeof error.message === 'string' && error.message.includes('refresh'))) {
             localStorage.setItem('auth-needs-login', 'true');
             
             // Return standardized error

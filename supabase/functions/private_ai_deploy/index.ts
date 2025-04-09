@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
         });
       } catch (error) {
         console.error("Error in private_ai_deploy:", error);
-        return createErrorResponse(error.message);
+        return createErrorResponse((error instanceof Error ? error.message : String(error)));
       }
     },
     {

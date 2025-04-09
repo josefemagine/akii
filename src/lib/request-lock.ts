@@ -24,7 +24,7 @@ export async function withRequestLock<T>(
   fallbackFn?: () => Promise<T>
 ): Promise<T> {
   // If there's already a request in flight for this key, return that promise
-  if (activeRequests[key]) {
+  if (key in activeRequests) {
     console.log(`[RequestLock] Using existing request for ${key}`);
     try {
       return await activeRequests[key];
@@ -70,7 +70,7 @@ export async function withRequestLock<T>(
       delete activeRequests[key];
       
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       // Clear the timeout
       if (timeoutIds[key]) {
         clearTimeout(timeoutIds[key]);
@@ -81,7 +81,7 @@ export async function withRequestLock<T>(
       delete activeRequests[key];
       
       // If we have a timeout error and fallback function, use it
-      if (error.message?.includes('timeout') && fallbackFn) {
+      if (error instanceof Error && error.message?.includes('timeout') && fallbackFn) {
         console.log(`[RequestLock] Request for ${key} timed out, using fallback`);
         try {
           return await fallbackFn();

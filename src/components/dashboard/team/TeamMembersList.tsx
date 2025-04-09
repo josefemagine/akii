@@ -40,9 +40,10 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { UserPlus, Mail, Trash2, Edit, UserCheck, Loader2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/use-toast";
 import { Database } from "@/types/supabase";
+import { invokeServerFunction } from "@/utils/supabase/functions";
+import { handleError, showSuccess } from "@/lib/utils/error-handler";
 
 type TeamMemberRole = "owner" | "admin" | "member";
 
@@ -78,58 +79,31 @@ const TeamMembersList = ({ initialMembers = [] }: TeamMembersListProps) => {
   }, [user]);
 
   const fetchTeamAndMembers = async () => {
-    if (!user) return;
-
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-
-      // First get the user's team
-      const { data: teamData, error: teamError } = await supabase
-        .from("team_members")
-        .select("team_id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (teamError) throw teamError;
-      const teamId = (teamData as any)?.team_id;
-      if (!teamId) {
-        throw new Error("No team found for user");
+      if (!user?.id) {
+        throw new Error("No user ID available");
       }
 
-      setTeamId(teamId);
+      // Get user's team
+      const teamData = await invokeServerFunction("team_get_member_team", { userId: user.id });
+      if (!teamData || !teamData.id) {
+        throw new Error("Could not find your team");
+      }
 
-      // Then get the team members
-      const { data: membersData, error: membersError } = await supabase
-        .from("team_members")
-        .select("*")
-        .eq("team_id", teamId);
+      setTeamId(teamData.id);
 
-      if (membersError) throw membersError;
+      // Get team members
+      const membersData = await invokeServerFunction("team_get_members", { teamId: teamData.id });
+      if (!membersData || !Array.isArray(membersData)) {
+        throw new Error("Failed to fetch team members");
+      }
 
-      // Fetch user details for each member
-      const membersWithDetails = await Promise.all(
-        (membersData || []).map(async (member: any) => {
-          const { data: userData } = await supabase
-            .from("profiles")
-            .select("email")
-            .eq("id", member.user_id)
-            .single();
-
-          return {
-            ...member,
-            user_email: (userData as any)?.email || "Unknown",
-            user_name: (userData as any)?.email?.split("@")[0] || "Unknown User",
-          } as TeamMember;
-        })
-      );
-
-      setMembers(membersWithDetails);
+      setMembers(membersData);
     } catch (error) {
-      console.error("Error fetching team members:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load team members",
-        variant: "destructive",
+      handleError(error, {
+        title: "Failed to load team",
+        context: "TeamMembersList.fetchTeamAndMembers"
       });
     } finally {
       setIsLoading(false);
@@ -139,37 +113,31 @@ const TeamMembersList = ({ initialMembers = [] }: TeamMembersListProps) => {
   const handleInvite = async () => {
     if (!newMemberEmail || !teamId) return;
 
+    setIsProcessing(true);
     try {
-      setIsProcessing(true);
-
-      const { data, error } = await supabase.functions.invoke(
-        "supabase-functions-team-invite",
-        {
-          body: {
-            action: "invite",
-            teamId,
-            email: newMemberEmail,
-            role: newMemberRole,
-          },
-        },
-      );
-
-      if (error) throw error;
-
-      toast({
-        title: "Invitation sent",
-        description: `An invitation has been sent to ${newMemberEmail}`,
+      const response = await invokeServerFunction("team_invite", {
+        teamId,
+        email: newMemberEmail,
+        role: newMemberRole,
       });
 
+      if (!response || !response.success) {
+        throw new Error(response?.message || "Failed to send invitation");
+      }
+
+      showSuccess("Invitation sent", 
+        `An invitation has been sent to ${newMemberEmail}`
+      );
+      
       setNewMemberEmail("");
-      setNewMemberRole("member");
       setIsInviteDialogOpen(false);
+      
+      // Refresh the members list
+      fetchTeamAndMembers();
     } catch (error) {
-      console.error("Error sending invitation:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to send invitation",
-        variant: "destructive",
+      handleError(error, {
+        title: "Invitation failed",
+        context: "TeamMembersList.handleInvite"
       });
     } finally {
       setIsProcessing(false);
@@ -182,36 +150,33 @@ const TeamMembersList = ({ initialMembers = [] }: TeamMembersListProps) => {
   };
 
   const confirmRemoveMember = async () => {
-    if (!memberToRemove || !teamId) return;
+    if (!teamId || !memberToRemove) return;
 
+    setIsProcessing(true);
     try {
-      setIsProcessing(true);
-
-      const { error } = await supabase
-        .from("team_members")
-        .delete()
-        .eq("id", memberToRemove.id)
-        .eq("team_id", teamId);
-
-      if (error) throw error;
-
-      setMembers((prev) =>
-        prev.filter((member) => member.id !== memberToRemove.id),
-      );
-
-      toast({
-        title: "Member removed",
-        description: "Team member has been removed successfully",
+      const response = await invokeServerFunction("team_remove", {
+        teamId,
+        userId: memberToRemove.user_id,
       });
 
-      setShowRemoveDialog(false);
+      if (!response || !response.success) {
+        throw new Error(response?.message || "Failed to remove team member");
+      }
+
+      setMembers((prev) =>
+        prev.filter((member) => member.user_id !== memberToRemove.user_id)
+      );
+
+      showSuccess("Member removed", 
+        "Team member has been removed successfully"
+      );
+      
       setMemberToRemove(null);
+      setShowRemoveDialog(false);
     } catch (error) {
-      console.error("Error removing team member:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to remove team member",
-        variant: "destructive",
+      handleError(error, {
+        title: "Remove failed",
+        context: "TeamMembersList.confirmRemoveMember"
       });
     } finally {
       setIsProcessing(false);
@@ -223,17 +188,19 @@ const TeamMembersList = ({ initialMembers = [] }: TeamMembersListProps) => {
   };
 
   const handleSaveEdit = async () => {
-    if (!editingMember || !teamId) return;
+    if (!teamId || !editingMember) return;
 
+    setIsProcessing(true);
     try {
-      setIsProcessing(true);
+      const response = await invokeServerFunction("team_update_member_role", {
+        teamId,
+        userId: editingMember.user_id,
+        role: editingMember.role
+      });
 
-      const { error: updateError } = await supabase
-        .from("team_members")
-        .update({ role: editingMember.role } as any)
-        .eq("id", editingMember.id);
-
-      if (updateError) throw updateError;
+      if (!response || !response.success) {
+        throw new Error(response?.message || "Failed to update team member");
+      }
 
       setMembers((prev) =>
         prev.map((member) =>
@@ -241,18 +208,15 @@ const TeamMembersList = ({ initialMembers = [] }: TeamMembersListProps) => {
         ),
       );
 
-      toast({
-        title: "Member updated",
-        description: "Team member role has been updated successfully",
-      });
-
+      showSuccess("Member updated", 
+        "Team member role has been updated successfully"
+      );
+      
       setEditingMember(null);
     } catch (error) {
-      console.error("Error updating team member:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update team member",
-        variant: "destructive",
+      handleError(error, {
+        title: "Update failed",
+        context: "TeamMembersList.handleSaveEdit"
       });
     } finally {
       setIsProcessing(false);
