@@ -34,7 +34,20 @@ CREATE POLICY "Users can update their own subscriptions"
   USING (auth.uid() = user_id);
 
 -- Add to realtime publication
-alter publication supabase_realtime add table public.subscriptions;
+DO $$
+DECLARE
+  subscriptions_count integer;
+BEGIN
+  SELECT COUNT(*) INTO subscriptions_count
+  FROM pg_publication_tables
+  WHERE pubname = 'supabase_realtime'
+  AND tablename = 'subscriptions'
+  AND schemaname = 'public';
+  
+  IF subscriptions_count = 0 THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.subscriptions;
+  END IF;
+END $$;
 
 -- Create subscription_items table if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.subscription_items (
@@ -62,4 +75,17 @@ CREATE POLICY "Users can view their own subscription items"
   );
 
 -- Add to realtime publication
-alter publication supabase_realtime add table public.subscription_items;
+DO $$
+DECLARE
+  subscription_items_count integer;
+BEGIN
+  SELECT COUNT(*) INTO subscription_items_count
+  FROM pg_publication_tables
+  WHERE pubname = 'supabase_realtime'
+  AND tablename = 'subscription_items'
+  AND schemaname = 'public';
+  
+  IF subscription_items_count = 0 THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.subscription_items;
+  END IF;
+END $$;

@@ -68,10 +68,10 @@ DROP POLICY IF EXISTS "Team admins can insert team members" ON team_members;
 CREATE POLICY "Team admins can insert team members"
   ON team_members FOR INSERT
   WITH CHECK (EXISTS (
-    SELECT 1 FROM team_members 
-    WHERE user_id = auth.uid() 
-    AND team_id = new.team_id 
-    AND role = 'admin'
+    SELECT 1 FROM team_members tm
+    WHERE tm.user_id = auth.uid() 
+    AND tm.team_id = team_members.team_id 
+    AND tm.role = 'admin'
   ));
 
 DROP POLICY IF EXISTS "Team admins can update team members" ON team_members;
@@ -106,10 +106,10 @@ DROP POLICY IF EXISTS "Team admins can insert invitations" ON team_invitations;
 CREATE POLICY "Team admins can insert invitations"
   ON team_invitations FOR INSERT
   WITH CHECK (EXISTS (
-    SELECT 1 FROM team_members 
-    WHERE user_id = auth.uid() 
-    AND team_id = new.team_id 
-    AND role = 'admin'
+    SELECT 1 FROM team_members tm
+    WHERE tm.user_id = auth.uid() 
+    AND tm.team_id = team_invitations.team_id 
+    AND tm.role = 'admin'
   ));
 
 DROP POLICY IF EXISTS "Team admins can update invitations" ON team_invitations;

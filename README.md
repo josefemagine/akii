@@ -43,13 +43,13 @@ The authentication system has been refactored to consolidate and simplify the im
 
 - **`src/lib/supabase-client.ts`** - Singleton pattern for Supabase client instances.
 - **`src/lib/auth-core.ts`** - Core authentication functions and types.
-- **`src/contexts/ConsolidatedAuthContext.tsx`** - React context provider for auth state.
+- **`src/contexts/UnifiedAuthContext.tsx`** - React context provider for auth state.
 
 ### Usage
 
 ```tsx
 // Import the auth hook
-import { useAuth } from '@/contexts/ConsolidatedAuthContext';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
 
 function MyComponent() {
   // Access auth state and methods
@@ -228,3 +228,60 @@ The API includes extensive logging to help diagnose issues:
 2. **Test Endpoints**: Use the test endpoints (`/api/bedrock/test-env` or `/api/bedrock-next/test-env`) to get diagnostic information about your environment setup.
 
 3. **Request Headers**: The API logs all request headers (with sensitive information masked). Verify that your requests include the expected headers.
+
+# Profile Access Fix
+
+This document explains how to fix profile access issues in the Supabase database.
+
+## The Problem
+
+The application is experiencing issues with profile loading due to recursive Row Level Security (RLS) policies. This causes a circular dependency where:
+
+1. To check if a user is an admin, we need to query the profiles table
+2. But the profiles table RLS requires knowing if the user is an admin
+3. This creates an infinite recursion error
+
+## The Solution
+
+We've created a migration that fixes this issue by:
+
+1. Creating SECURITY DEFINER functions that bypass RLS
+2. Rebuilding the RLS policies to avoid circular dependencies 
+3. Ensuring proper access patterns for both users and admins
+
+## How to Apply the Fix
+
+### Using Supabase CLI (Recommended)
+
+The Supabase CLI is the easiest way to apply this migration:
+
+```bash
+# Navigate to your project directory
+cd your-project-directory
+
+# Apply the migration
+npx supabase db push
+
+# If you need to apply just this specific migration
+npx supabase db execute --file supabase/migrations/20240705000001_fix_profile_access_production.sql
+```
+
+### Verify the Fix
+
+After applying the migration:
+
+1. Restart your application
+2. Go to the Settings page and check if your profile is loading properly
+3. Test admin functionality if you have admin access
+
+## Troubleshooting
+
+If you encounter issues:
+
+1. Check the browser console for errors
+2. Verify the Supabase connection is working
+3. If needed, click the "Set as Admin" button in the Settings page to ensure your account has admin privileges
+
+## Additional Information
+
+This fix uses the SECURITY DEFINER attribute on key functions, which means they run with the permissions of the function owner (usually postgres) rather than the calling user. This allows these functions to bypass RLS restrictions and prevent the circular dependency.

@@ -17,11 +17,13 @@ export default function AuthExample() {
     e.preventDefault();
     if (!email || !password) return;
     
-    const { success, error } = await signIn(email, password);
-    if (success) {
+    try {
+      await signIn(email, password);
       // Clear form on success
       setEmail('');
       setPassword('');
+    } catch (error) {
+      console.error('Sign in error:', error);
     }
   };
   

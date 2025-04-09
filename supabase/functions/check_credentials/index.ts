@@ -1,5 +1,16 @@
 // This function checks if the Supabase credentials are properly configured
 
+import { handleRequest, createSuccessResponse, createErrorResponse, createAuthClient } from "../_shared/auth.ts";
+import { query } from "../_shared/postgres.ts";
+
+interface CredentialsCheckResponse {
+  supabase_url: string;
+  supabase_service_key: boolean;
+  supabase_anon_key: boolean;
+  supabase_project_id: string;
+  postgres_connection: boolean;
+}
+
 Deno.serve(async (req) => {
   // This is needed if you're planning to invoke your function from a browser
   if (req.method === "OPTIONS") {
@@ -12,127 +23,70 @@ Deno.serve(async (req) => {
     });
   }
 
-  try {
-    // Check if environment variables are available
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_KEY");
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const supabaseProjectId =
-      Deno.env.get("SUPABASE_PROJECT_ID") || "injxxchotrvgvvzelhvj";
-
-    // Log available environment variables for debugging
-    console.log("Environment variables check:", {
-      hasUrl: !!supabaseUrl,
-      hasServiceKey: !!supabaseKey,
-      hasAnonKey: !!supabaseAnonKey,
-      hasProjectId: !!supabaseProjectId,
-    });
-
-    // Get project ID from URL if available
-    let projectId = supabaseProjectId;
-    if (!projectId && supabaseUrl) {
+  return handleRequest(
+    req,
+    async () => {
       try {
-        const urlObj = new URL(supabaseUrl);
-        projectId = urlObj.hostname.split(".")[0];
-        console.log("Extracted project ID from URL:", projectId);
-      } catch (e) {
-        console.error("Failed to extract project ID from URL:", e);
-      }
-    }
+        // Get required environment variables
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_KEY");
+        const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+        const supabaseProjectId = Deno.env.get("SUPABASE_PROJECT_ID");
 
-    // Use the URL from environment or construct it from project ID
-    let url = supabaseUrl;
-    if (!url && projectId) {
-      url = `https://${projectId}.supabase.co`;
-      console.log("Constructed URL from project ID:", url);
-    }
+        // Log environment variables for debugging
+        console.log("SUPABASE_URL:", supabaseUrl ? "✅" : "❌");
+        console.log("SUPABASE_SERVICE_KEY:", supabaseServiceKey ? "✅" : "❌");
+        console.log("SUPABASE_ANON_KEY:", supabaseAnonKey ? "✅" : "❌");
+        console.log("SUPABASE_PROJECT_ID:", supabaseProjectId ? "✅" : "❌");
 
-    // Use the key from environment
-    const key = supabaseKey || "";
+        // Extract project ID from URL if not provided directly
+        let projectId = supabaseProjectId;
+        if (!projectId && supabaseUrl) {
+          const match = supabaseUrl.match(/https:\/\/([^.]+)\./);
+          if (match) {
+            projectId = match[1];
+          }
+        }
 
-    // Try to make a simple test query to verify credentials work
-    let testResponse;
-    let testStatus;
-    let testConnectionWorking = false;
+        // Construct Supabase URL if not available but project ID is known
+        let url = supabaseUrl;
+        if (!url && projectId) {
+          url = `https://${projectId}.supabase.co`;
+        }
 
-    if (url && key) {
-      try {
-        console.log(
-          "Testing connection to:",
-          `${url}/rest/v1/profiles?limit=1`,
+        // Check if we have the required credentials
+        if (!url || !supabaseServiceKey || !supabaseAnonKey) {
+          return createErrorResponse("Missing required Supabase credentials", 400);
+        }
+
+        // Test Postgres connection
+        let postgresConnection = false;
+        try {
+          const { rows } = await query("SELECT 1");
+          postgresConnection = rows.length > 0;
+        } catch (error) {
+          console.error("Error testing Postgres connection:", error);
+        }
+
+        return createSuccessResponse({
+          supabase_url: url,
+          supabase_service_key: !!supabaseServiceKey,
+          supabase_anon_key: !!supabaseAnonKey,
+          supabase_project_id: projectId || "",
+          postgres_connection: postgresConnection,
+        });
+
+      } catch (error) {
+        console.error("Error in check_credentials:", error);
+        return createErrorResponse(
+          error instanceof Error ? error.message : "An unexpected error occurred",
+          500
         );
-        testResponse = await fetch(`${url}/rest/v1/profiles?limit=1`, {
-          headers: {
-            apikey: key,
-            Authorization: `Bearer ${key}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        testStatus = testResponse.status;
-        testConnectionWorking = testStatus >= 200 && testStatus < 300;
-        console.log("Connection test result:", {
-          status: testStatus,
-          working: testConnectionWorking,
-        });
-      } catch (fetchError) {
-        console.error("Fetch error:", fetchError);
-        testStatus = 500;
-        testConnectionWorking = false;
       }
-    } else {
-      console.warn("Skipping connection test due to missing URL or key");
+    },
+    {
+      requiredSecrets: ["SUPABASE_URL", "SUPABASE_SERVICE_KEY", "SUPABASE_ANON_KEY"],
+      requireAuth: false,
     }
-
-    const data = {
-      status: "success",
-      message: "Supabase credentials check completed",
-      credentials: {
-        url: supabaseUrl ? "Available" : "Missing",
-        serviceKey: supabaseKey ? "Available" : "Missing",
-        anonKey: supabaseAnonKey ? "Available" : "Missing",
-        projectId: supabaseProjectId ? "Available" : "Missing",
-        constructedUrl: url,
-        extractedProjectId: projectId,
-      },
-      connectionTest: {
-        status: testStatus || 0,
-        working: testConnectionWorking,
-        error: !testConnectionWorking ? "Connection test failed" : null,
-      },
-    };
-
-    return new Response(JSON.stringify(data), {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Content-Type": "application/json",
-      },
-      status: 200,
-    });
-  } catch (error) {
-    console.error("Error in check_credentials:", error);
-    return new Response(
-      JSON.stringify({
-        error: error.message,
-        status: "error",
-        credentials: {
-          url: Deno.env.get("SUPABASE_URL") ? "Available" : "Missing",
-          serviceKey: Deno.env.get("SUPABASE_SERVICE_KEY")
-            ? "Available"
-            : "Missing",
-          anonKey: Deno.env.get("SUPABASE_ANON_KEY") ? "Available" : "Missing",
-          projectId: Deno.env.get("SUPABASE_PROJECT_ID")
-            ? "Available"
-            : "Missing",
-        },
-      }),
-      {
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Content-Type": "application/json",
-        },
-        status: 400,
-      },
-    );
-  }
+  );
 });

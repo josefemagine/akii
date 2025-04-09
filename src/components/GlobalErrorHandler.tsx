@@ -12,6 +12,12 @@ import {
   forceSessionCheck,
   forceUserCheck
 } from '@/lib/auth-lock-fix';
+import {
+  clearAuthStorage,
+  dispatchAuthError,
+  dispatchAuthRecovery
+} from '@/lib/auth-utils';
+import { AUTH_ERROR_EVENT, AUTH_RECOVERY_EVENT } from '@/types/auth';
 
 /**
  * Check if an error is an AuthSessionMissingError
@@ -52,26 +58,21 @@ export function GlobalErrorHandler() {
   
   // Efficiently track auth state to avoid redundant validation
   const authStateRef = useRef({
-    hasSession: Boolean(auth.session),
     hasUser: Boolean(auth.user),
     isLoading: Boolean(auth.isLoading),
-    userId: auth.user?.id || null,
-    sessionExpiry: auth.session?.expires_at || null
+    userId: auth.user?.id || null
   });
   
   // Update auth state ref when auth context changes
   useEffect(() => {
     const newState = {
-      hasSession: Boolean(auth.session),
       hasUser: Boolean(auth.user),
       isLoading: Boolean(auth.isLoading),
-      userId: auth.user?.id || null,
-      sessionExpiry: auth.session?.expires_at || null
+      userId: auth.user?.id || null
     };
     
     // Only update and log if something relevant changed
     const hasRelevantChanges = 
-      newState.hasSession !== authStateRef.current.hasSession ||
       newState.hasUser !== authStateRef.current.hasUser ||
       newState.userId !== authStateRef.current.userId;
     
@@ -83,7 +84,7 @@ export function GlobalErrorHandler() {
     }
     
     authStateRef.current = newState;
-  }, [auth.session, auth.user, auth.isLoading]);
+  }, [auth.user, auth.isLoading]);
 
   // Add debugging tools globally
   useEffect(() => {
@@ -433,22 +434,55 @@ export function GlobalErrorHandler() {
   // If auth context shows no admin but we have a user ID, check directly
   useEffect(() => {
     if (auth.user?.id && !auth.isAdmin) {
-      // Check admin status directly
-      checkUserAdminStatusDirectly(auth.user.id)
-        .then(isAdmin => {
-          if (isAdmin) {
-            console.log('[GlobalErrorHandler] Direct DB check shows user is admin but context does not');
-            // Try to update context
-            if (typeof auth.refreshAuthState === 'function') {
-              auth.refreshAuthState().catch(e => {
-                console.warn('Failed to refresh auth state after admin check:', e);
-              });
+      // Prevent frequent rechecks
+      const lastAdminCheck = parseInt(localStorage.getItem('akii-last-admin-check') || '0');
+      const now = Date.now();
+      
+      // Skip checks completely when on dashboard or other sensitive pages
+      const currentPath = window.location.pathname;
+      const isOnDashboard = currentPath.includes('/dashboard');
+      
+      // If on dashboard, just set admin status in localStorage without refreshing auth
+      if (isOnDashboard) {
+        // Store admin status in localStorage for PrivateRoute to pick up
+        localStorage.setItem('akii-is-admin', 'true');
+        
+        if (auth.user?.email) {
+          localStorage.setItem('akii-auth-user-email', auth.user.email);
+        }
+        
+        // Do not refresh auth state while on dashboard
+        return;
+      }
+      
+      // Only check at most once every 30 seconds
+      if (now - lastAdminCheck > 30000) {
+        localStorage.setItem('akii-last-admin-check', now.toString());
+        
+        // Check admin status directly
+        checkUserAdminStatusDirectly(auth.user.id)
+          .then(isAdmin => {
+            if (isAdmin) {
+              console.log('[GlobalErrorHandler] Direct DB check shows user is admin but context does not');
+              
+              // Store admin status directly in localStorage to avoid immediate re-render cycle
+              localStorage.setItem('akii-is-admin', 'true');
+              
+              // Schedule deferred auth refresh to avoid render loops - wait 5 seconds
+              setTimeout(() => {
+                // Try to update context
+                if (typeof auth.refreshAuthState === 'function') {
+                  auth.refreshAuthState().catch(e => {
+                    console.warn('Failed to refresh auth state after admin check:', e);
+                  });
+                }
+              }, 5000);
             }
-          }
-        })
-        .catch(err => {
-          console.error('[GlobalErrorHandler] Error checking admin status:', err);
-        });
+          })
+          .catch(err => {
+            console.error('[GlobalErrorHandler] Error checking admin status:', err);
+          });
+      }
     }
   }, [auth.user?.id, auth.isAdmin]);
   

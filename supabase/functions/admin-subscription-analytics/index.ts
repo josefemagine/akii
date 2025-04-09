@@ -1,93 +1,51 @@
 import serve from "https://deno.land/std@0.168.0/http/server.ts";
-import createClient from "https://esm.sh/@supabase/supabase-js@2.1.0";
-
-// Import CORS headers helper
 import { corsHeaders } from "../_shared/cors.ts";
+import { handleRequest, createSuccessResponse, createErrorResponse } from "../_shared/auth.ts";
+import { query } from "../_shared/postgres.ts";
 
-// Initialize Supabase client
-const supabaseAdmin = createClient(
-  Deno.env.get('SUPABASE_URL') || '',
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
+interface SubscriptionAnalyticsResponse {
+  active_subscriptions: number;
+  subscriptions_by_plan: Array<{ name: string; count: number }>;
+  subscriptions_by_billing_cycle: Record<string, number>;
+  subscriptions_by_month: Record<string, number>;
+  monthly_recurring_revenue: number;
+}
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders,
-    });
-  }
-
+serve((req) => handleRequest(req, async (user) => {
   try {
-    // Get authentication context
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header provided' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
     // Check if user is an admin
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single();
+    const profileResult = await query<{ is_admin: boolean }>(
+      "SELECT is_admin FROM profiles WHERE id = $1",
+      [user.id]
+    );
 
-    if (profileError || !profile?.is_admin) {
-      return new Response(JSON.stringify({ error: 'Admin privileges required' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    if (!profileResult.rows.length || !profileResult.rows[0].is_admin) {
+      return createErrorResponse("Admin privileges required", 403);
     }
 
     // Calculate total count of active subscriptions
-    const { count: activeSubscriptions, error: countError } = await supabaseAdmin
-      .from('subscriptions')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active');
-
-    if (countError) {
-      throw countError;
-    }
+    const activeSubscriptionsResult = await query<{ count: number }>(
+      "SELECT COUNT(*) as count FROM subscriptions WHERE status = 'active'"
+    );
+    const activeSubscriptions = activeSubscriptionsResult.rows[0]?.count || 0;
 
     // Get subscription counts by plan
-    const { data: subscriptionsByPlan, error: planError } = await supabaseAdmin
-      .from('subscriptions')
-      .select(`
-        plan_id,
-        plans:subscription_plans (name)
-      `)
-      .eq('status', 'active')
-      .order('plan_id');
-
-    if (planError) {
-      throw planError;
-    }
+    const subscriptionsByPlanResult = await query<{ 
+      plan_id: string; 
+      plan_name: string 
+    }>(
+      `SELECT s.plan_id, sp.name as plan_name
+       FROM subscriptions s
+       LEFT JOIN subscription_plans sp ON s.plan_id = sp.id
+       WHERE s.status = 'active'
+       ORDER BY s.plan_id`
+    );
 
     // Count subscriptions by plan
     const planCounts: Record<string, { name: string; count: number }> = {};
-    subscriptionsByPlan.forEach((subscription) => {
+    subscriptionsByPlanResult.rows.forEach((subscription) => {
       const planId = subscription.plan_id;
-      const planName = subscription.plans?.name || 'Unknown';
+      const planName = subscription.plan_name || 'Unknown';
       
       if (!planCounts[planId]) {
         planCounts[planId] = { name: planName, count: 0 };
@@ -97,15 +55,9 @@ serve(async (req) => {
     });
 
     // Get subscription counts by billing cycle
-    const { data: subscriptionsByBillingCycle, error: billingError } = await supabaseAdmin
-      .from('subscriptions')
-      .select('billing_cycle')
-      .eq('status', 'active')
-      .order('billing_cycle');
-
-    if (billingError) {
-      throw billingError;
-    }
+    const subscriptionsByBillingCycleResult = await query<{ billing_cycle: string }>(
+      "SELECT billing_cycle FROM subscriptions WHERE status = 'active' ORDER BY billing_cycle"
+    );
 
     // Count subscriptions by billing cycle
     const billingCycleCounts: Record<string, number> = {
@@ -113,7 +65,7 @@ serve(async (req) => {
       annual: 0,
     };
     
-    subscriptionsByBillingCycle.forEach((subscription) => {
+    subscriptionsByBillingCycleResult.rows.forEach((subscription) => {
       const cycle = subscription.billing_cycle || 'monthly';
       billingCycleCounts[cycle] = (billingCycleCounts[cycle] || 0) + 1;
     });
@@ -124,20 +76,15 @@ serve(async (req) => {
     sixMonthsAgo.setDate(1); // First day of the month
     sixMonthsAgo.setHours(0, 0, 0, 0);
 
-    const { data: subscriptionsByMonth, error: monthError } = await supabaseAdmin
-      .from('subscriptions')
-      .select('created_at')
-      .gte('created_at', sixMonthsAgo.toISOString())
-      .order('created_at');
-
-    if (monthError) {
-      throw monthError;
-    }
+    const subscriptionsByMonthResult = await query<{ created_at: string }>(
+      "SELECT created_at FROM subscriptions WHERE created_at >= $1 ORDER BY created_at",
+      [sixMonthsAgo.toISOString()]
+    );
 
     // Group by month and count
     const monthCounts: Record<string, number> = {};
     
-    subscriptionsByMonth.forEach((subscription) => {
+    subscriptionsByMonthResult.rows.forEach((subscription) => {
       const date = new Date(subscription.created_at);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       
@@ -145,58 +92,46 @@ serve(async (req) => {
     });
 
     // Get monthly recurring revenue (MRR)
-    const { data: mrr, error: mrrError } = await supabaseAdmin
-      .from('subscriptions')
-      .select(`
-        billing_cycle,
-        plans:subscription_plans (price_monthly, price_yearly)
-      `)
-      .eq('status', 'active');
-
-    if (mrrError) {
-      throw mrrError;
-    }
+    const mrrResult = await query<{ 
+      billing_cycle: string; 
+      price_monthly: number; 
+      price_yearly: number 
+    }>(
+      `SELECT s.billing_cycle, sp.price_monthly, sp.price_yearly
+       FROM subscriptions s
+       LEFT JOIN subscription_plans sp ON s.plan_id = sp.id
+       WHERE s.status = 'active'`
+    );
 
     // Calculate MRR
     let monthlyRecurringRevenue = 0;
     
-    mrr.forEach((subscription) => {
-      if (!subscription.plans) return;
-      
+    mrrResult.rows.forEach((subscription) => {
       if (subscription.billing_cycle === 'annual') {
         // For annual subscriptions, divide by 12 to get the monthly equivalent
-        monthlyRecurringRevenue += (subscription.plans.price_yearly || 0) / 12;
+        monthlyRecurringRevenue += (subscription.price_yearly || 0) / 12;
       } else {
         // For monthly subscriptions, use the monthly price
-        monthlyRecurringRevenue += subscription.plans.price_monthly || 0;
+        monthlyRecurringRevenue += subscription.price_monthly || 0;
       }
     });
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: {
-          active_subscriptions: activeSubscriptions,
-          subscriptions_by_plan: Object.values(planCounts),
-          subscriptions_by_billing_cycle: billingCycleCounts,
-          subscriptions_by_month: monthCounts,
-          monthly_recurring_revenue: Math.round(monthlyRecurringRevenue * 100) / 100,
-        },
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    return createSuccessResponse({
+      data: {
+        active_subscriptions: activeSubscriptions,
+        subscriptions_by_plan: Object.values(planCounts),
+        subscriptions_by_billing_cycle: billingCycleCounts,
+        subscriptions_by_month: monthCounts,
+        monthly_recurring_revenue: Math.round(monthlyRecurringRevenue * 100) / 100,
       }
-    );
+    });
 
   } catch (error) {
     console.error('Error fetching subscription analytics:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    return createErrorResponse(error.message);
   }
-}); 
+}, {
+  requireAuth: true,
+  requireAdmin: true,
+  requireBody: false
+})); 

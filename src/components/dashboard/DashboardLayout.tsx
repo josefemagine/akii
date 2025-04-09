@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
 import { useNavigate, Outlet } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { safeLocalStorage } from "@/lib/browser-check";
@@ -68,24 +68,147 @@ interface DashboardLayoutProps {
   fullWidth?: boolean;
 }
 
-const DashboardLayout: React.FC<DashboardLayoutProps> = ({ 
+// Global session refresh throttling - moved outside component to be truly stable
+const lastSessionRefreshTime = {
+  value: 0
+};
+
+// Circuit breaker to prevent excessive refreshes on the dashboard
+const isDashboardRefreshAllowed = () => {
+  const now = Date.now();
+  // Limit to once every 60 seconds
+  return now - lastSessionRefreshTime.value > 60000;
+};
+
+// Mark dashboard refresh as performed
+const markDashboardRefreshed = () => {
+  lastSessionRefreshTime.value = Date.now();
+};
+
+// Create a class component wrapper that provides stability through lifecycles
+interface StableRenderWrapperProps {
+  children: React.ReactNode;
+}
+
+class StableRenderWrapper extends React.Component<StableRenderWrapperProps> {
+  shouldComponentUpdate() {
+    // Never update after initial render
+    return false;
+  }
+
+  render() {
+    return this.props.children;
+  }
+}
+
+// Create a memoized container component outside the main component
+const StableDashboardContainer = React.memo(function StableDashboardContainer({ 
+  children, 
+  fullWidth 
+}: { 
+  children: React.ReactNode, 
+  fullWidth: boolean 
+}) {
+  return (
+    <DashboardPageContainer fullWidth={fullWidth}>
+      <StableRenderWrapper>
+        {children}
+      </StableRenderWrapper>
+    </DashboardPageContainer>
+  );
+});
+
+// Create a memoized outlet component to prevent re-rendering of route contents
+const StableOutlet = memo(() => <Outlet />);
+
+// Component instance ID to help with debugging remounts
+const DASHBOARD_LAYOUT_ID = Math.random().toString(36).substr(2, 9);
+
+const DashboardLayout: React.FC<DashboardLayoutProps> = memo(({ 
   children,
   isAdmin = false,
   fullWidth = false
 }) => {
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Log component id in dev mode
+  const instanceId = useRef(DASHBOARD_LAYOUT_ID);
+  if (DEBUG_LAYOUT) {
+    console.log(`[DashboardLayout:${instanceId.current}] Component initializing with props:`, {
+      isAdmin,
+      fullWidth,
+      hasChildren: !!children
+    });
+  }
+
+  // Use useState with initializer functions to avoid unnecessary re-renders
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const savedTheme = safeLocalStorage.getItem('dashboard-theme');
+    return (savedTheme === 'light' || savedTheme === 'dark') ? savedTheme as "light" | "dark" : 'dark';
+  });
+  
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return safeLocalStorage.getItem('sidebar-collapsed') === 'true';
+  });
+  
   const [authInitialized, setAuthInitialized] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [networkBanner, setNetworkBanner] = useState(false);
+  
+  // Stable references for child components - never changes after first render
+  const childrenRef = useRef(children);
+  if (children && !childrenRef.current) {
+    childrenRef.current = children;
+  }
   
   // State tracking references
   const checkInProgress = useRef(false);
   const isMounted = useRef(true);
   const lastProfileCheckTime = useRef<number>(0);
   
-  // Use unified auth context
-  const { profile, isLoading, refreshAuthState, user } = useAuth();
+  // Block frequent re-renders from auth state changes
+  const stableAuthRef = useRef({
+    profile: null,
+    isLoading: true,
+    user: null,
+    lastCheckTime: 0
+  });
+  
+  // Use unified auth context with stable reference
+  const auth = useAuth();
+  
+  // Update stable auth ref without causing re-renders
+  useEffect(() => {
+    // Only update if significant changes or enough time has passed
+    const now = Date.now();
+    const hasImportantChanges = 
+      (!stableAuthRef.current.user && auth.user) || 
+      (!stableAuthRef.current.profile && auth.profile) ||
+      (stableAuthRef.current.user?.id !== auth.user?.id) ||
+      (stableAuthRef.current.profile?.id !== auth.profile?.id);
+      
+    // Throttle updates to prevent render storms
+    if (hasImportantChanges || now - stableAuthRef.current.lastCheckTime > 30000) {
+      stableAuthRef.current = {
+        profile: auth.profile,
+        isLoading: auth.isLoading,
+        user: auth.user,
+        lastCheckTime: now
+      };
+      
+      // Initialize auth state if needed, but only once when we have valid data
+      if (!authInitialized && auth.user && auth.profile && !auth.isLoading) {
+        if (isMounted.current) {
+          setAuthInitialized(true);
+          logDebug('Auth initialized with profile from context');
+        }
+      }
+    }
+  }, [auth.user, auth.profile, auth.isLoading, authInitialized]);
+  
+  // Access refreshAuthState from auth but don't make it a dependency
+  const refreshAuthStateRef = useRef(auth.refreshAuthState);
+  useEffect(() => {
+    refreshAuthStateRef.current = auth.refreshAuthState;
+  }, [auth.refreshAuthState]);
   
   const navigate = useNavigate();
 
@@ -98,188 +221,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }, []);
 
   // Safe state setter that checks if component is mounted
-  const safeSetState = <T extends any>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+  const safeSetState = useCallback(<T extends any>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
     if (isMounted.current) {
       setter(value);
     }
-  };
+  }, []);
 
-  // Handle initial auth state (run only once)
+  // Handle theme initialization - only run once
   useEffect(() => {
-    // Skip if already initialized
-    if (authInitialized || checkInProgress.current) return;
-    
-    const checkAuthStatus = async () => {
-      // Set flag to prevent multiple simultaneous checks
-      checkInProgress.current = true;
-      logDebug('Checking initial auth status');
-      
-      // Check if we're in a potential loop already
-      const redirectCount = parseInt(sessionStorage.getItem('redirect-count') || '0');
-      if (redirectCount >= 3) {
-        console.warn('DashboardLayout: Detected potential redirect loop, skipping auto-redirect');
-        // Still mark as initialized so we show content instead of spinner
-        safeSetState(setAuthInitialized, true);
-        checkInProgress.current = false;
-        return;
-      }
-      
-      try {
-        // Dynamically import isLoggedIn
-        const { isLoggedIn } = await import('@/lib/direct-db-access');
-        
-        // Check both auth contexts - if either has a user, we're good
-        const loginStatus = isLoggedIn();
-        const isAuthenticated = !!user || loginStatus;
-        
-        safeSetState(setAuthInitialized, true);
-        
-        // If we're on production, try to recover auth state rather than redirecting immediately
-        if (isProduction && !isAuthenticated) {
-          // Check for emergency auth first
-          const hasEmergencyAuth = localStorage.getItem('akii-auth-emergency') === 'true';
-          if (hasEmergencyAuth) {
-            logDebug('Found emergency auth, enabling dashboard access');
-            checkInProgress.current = false;
-            return;
-          }
-          
-          // Force emergency auth for production as last resort
-          logDebug('Attempting to ensure dashboard access in production');
-          ensureDashboardAccess();
-          checkInProgress.current = false;
-          return;
-        }
-        
-        // If no user is found AND we're not in a loading state, redirect to login
-        if (!isAuthenticated && !isLoading) {
-          logDebug('Not authenticated, preparing redirect to login');
-          
-          // Set a timestamp for this redirect to detect loops
-          const currentTime = Date.now();
-          const lastRedirectTime = parseInt(sessionStorage.getItem('dashboard-redirect-time') || '0');
-          
-          // If multiple redirects happen too quickly, don't redirect
-          if (currentTime - lastRedirectTime < 2000) {
-            console.warn('DashboardLayout: Redirects happening too quickly, breaking the redirect chain');
-            checkInProgress.current = false;
-            return;
-          }
-          
-          // Mark this redirect
-          sessionStorage.setItem('dashboard-redirect-time', currentTime.toString());
-          
-          // Use replace to avoid growing history stack
-          navigate('/', { replace: true });
-        } else if (isAuthenticated && !profile) {
-          // We're authenticated but don't have a profile yet - force a refresh
-          logDebug('Authenticated but missing profile, refreshing auth state');
-          refreshAuthState();
-        }
-      } finally {
-        checkInProgress.current = false;
-      }
-    };
-    
-    checkAuthStatus();
-  }, [authInitialized, isLoading, navigate, refreshAuthState, user]);
-
-  // Set up network monitoring for offline mode
-  useEffect(() => {
-    const handleOnline = () => {
-      logDebug('Network online');
-      safeSetState(setIsOnline, true);
-      safeSetState(setNetworkBanner, false);
-      // Refresh auth state when back online
-      refreshAuthState();
-    };
-    
-    const handleOffline = () => {
-      logDebug('Network offline');
-      safeSetState(setIsOnline, false);
-      safeSetState(setNetworkBanner, true);
-    };
-    
-    // Check if we're online at startup
-    safeSetState(setIsOnline, navigator.onLine);
-    
-    // Add network status listeners
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [refreshAuthState]);
-
-  // Ensure the user profile exists on mount
-  useEffect(() => {
-    // Use a ref to track the last profile check time to prevent redundant checks
-    const currentTime = Date.now();
-    const MIN_PROFILE_CHECK_INTERVAL = 60000; // 1 minute minimum between profile checks (increased from 5s)
-    
-    if (currentTime - lastProfileCheckTime.current < MIN_PROFILE_CHECK_INTERVAL) {
-      logDebug('Skipping profile check - too soon since last attempt', {
-        timeSinceLastCheck: currentTime - lastProfileCheckTime.current,
-        minInterval: MIN_PROFILE_CHECK_INTERVAL
-      });
-      return;
-    }
-    
-    // Update the timestamp
-    lastProfileCheckTime.current = currentTime;
-    
-    const verifyUserProfile = async () => {
-      try {
-        // Skip if we don't have auth yet
-        if (!user) {
-          return;
-        }
-        
-        // Skip if we already have a profile
-        if (profile) {
-          return;
-        }
-        
-        const userId = user.id;
-        if (!userId) {
-          return;
-        }
-        
-        logDebug('Verifying user profile for userId', userId);
-        
-        // Dynamically import needed functions
-        const { ensureProfileExists } = await import('@/lib/direct-db-access');
-        
-        // Try to create a profile if missing
-        try {
-          await ensureProfileExists(userId);
-          refreshAuthState(); // Refresh auth state to load the new profile
-        } catch (error) {
-          console.error('DashboardLayout: Error ensuring user profile exists:', error);
-        }
-      } catch (error) {
-        console.error('DashboardLayout: Error in profile verification:', error);
-      }
-    };
-    
-    verifyUserProfile();
-  }, [user, profile, refreshAuthState]);
-
-  // Handle theme changes
-  useEffect(() => {
-    // Get or set default theme preference
-    const savedTheme = safeLocalStorage.getItem('dashboard-theme');
-    
-    // Always default to dark theme if no preference is set
-    if (!savedTheme) {
-      safeLocalStorage.setItem('dashboard-theme', 'dark');
-      safeSetState(setTheme, 'dark');
-    } else if (savedTheme === 'light' || savedTheme === 'dark') {
-      safeSetState(setTheme, savedTheme as "light" | "dark");
-    }
-    
     // Listen for system theme changes - only apply if explicitly enabled in user settings
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent) => {
@@ -298,55 +247,223 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     return () => {
       mediaQuery.removeEventListener('change', handleChange);
     };
-  }, []);
+  }, [safeSetState]); // Safe to include safeSetState as it's now memoized
 
-  const handleThemeChange = (newTheme: "light" | "dark") => {
+  // Initialize auth state immediately if possible
+  useEffect(() => {
+    // Safety timeout to ensure we never get stuck in loading state
+    const safetyTimeout = setTimeout(() => {
+      if (!authInitialized && auth.user) {
+        console.log('[DashboardLayout] Safety timeout triggered - forcing dashboard to initialize');
+        safeSetState(setAuthInitialized, true);
+      }
+    }, 10000); // 10 second timeout
+    
+    if (!authInitialized && auth.user && auth.profile && !auth.isLoading) {
+      safeSetState(setAuthInitialized, true);
+    }
+    
+    // Hard-coded admin check for specific user ID
+    const ADMIN_USER_ID = 'b574f273-e0e1-4cb8-8c98-f5a7569234c8';
+    
+    // If user matches our specific admin user, initialize dashboard even without profile
+    if (!authInitialized && auth.user?.id === ADMIN_USER_ID) {
+      console.log('[DashboardLayout] Known admin user detected by ID, initializing dashboard');
+      safeSetState(setAuthInitialized, true);
+      
+      // Force admin status in localStorage
+      safeLocalStorage.setItem('akii-is-admin', 'true');
+      safeLocalStorage.setItem('admin_user_id', ADMIN_USER_ID);
+    }
+    
+    // If user is admin by email, initialize dashboard even without profile
+    if (!authInitialized && auth.user?.email === 'josef@holm.com') {
+      console.log('[DashboardLayout] Admin user detected by email, initializing dashboard');
+      safeSetState(setAuthInitialized, true);
+      
+      // Force admin status in localStorage
+      safeLocalStorage.setItem('akii-is-admin', 'true');
+    }
+    
+    return () => clearTimeout(safetyTimeout);
+  }, [auth.user, auth.profile, auth.isLoading, authInitialized, safeSetState]);
+
+  const handleThemeChange = useCallback((newTheme: "light" | "dark") => {
     safeSetState(setTheme, newTheme);
     safeLocalStorage.setItem('dashboard-theme', newTheme);
-  };
+  }, [safeSetState]);
 
-  const handleSidebarToggle = () => {
+  const handleSidebarToggle = useCallback(() => {
     const newState = !sidebarCollapsed;
     safeSetState(setSidebarCollapsed, newState);
     safeLocalStorage.setItem('sidebar-collapsed', String(newState));
-  };
+  }, [sidebarCollapsed, safeSetState]);
 
-  return (
-    <div className={`${theme === "dark" ? "dark" : ""}`}>
-      <div className="flex h-screen bg-background">
-        <Sidebar 
-          isCollapsed={sidebarCollapsed} 
-          onToggle={handleSidebarToggle}
-          isAdmin={isAdmin}
-        />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header 
-            isAdmin={isAdmin}
-            theme={theme}
-            onThemeChange={handleThemeChange}
+  // Override isAdmin prop with our specific user ID check
+  const userIsAdmin = useMemo(() => {
+    const ADMIN_USER_ID = 'b574f273-e0e1-4cb8-8c98-f5a7569234c8';
+    
+    // First check if the prop explicitly says user is admin
+    if (isAdmin) return true;
+    
+    // Then check if auth context says user is admin
+    if (auth.isAdmin) return true;
+    
+    // Check if user has our specific admin ID
+    if (auth.user?.id === ADMIN_USER_ID) {
+      console.log('[DashboardLayout] Overriding admin status for specific user ID');
+      return true;
+    }
+    
+    // Check if user has admin email
+    if (auth.user?.email === 'josef@holm.com') {
+      console.log('[DashboardLayout] Overriding admin status for specific email');
+      return true;
+    }
+    
+    // Check localStorage fallback
+    if (safeLocalStorage.getItem('akii-is-admin') === 'true') {
+      console.log('[DashboardLayout] Using localStorage admin override');
+      return true;
+    }
+    
+    return false;
+  }, [isAdmin, auth.isAdmin, auth.user?.id, auth.user?.email]);
+
+  // Memoize the entire layout structure to prevent unnecessary re-renders
+  const layoutContent = useMemo(() => {
+    if (DEBUG_LAYOUT) {
+      console.log(`[DashboardLayout:${instanceId.current}] Setting up layout with auth state:`, {
+        hasUser: !!auth.user,
+        hasProfile: !!auth.profile,
+        isAdmin: !!auth.isAdmin,
+        userIsAdmin: userIsAdmin,
+        authInitialized,
+        userEmail: auth.user?.email || 'unknown',
+        userId: auth.user?.id || 'unknown'
+      });
+    }
+    
+    return (
+      <div className={`${theme === "dark" ? "dark" : ""}`}>
+        <div className="flex h-screen bg-background">
+          <Sidebar 
+            isCollapsed={sidebarCollapsed} 
+            onToggle={handleSidebarToggle}
+            isAdmin={userIsAdmin}
           />
-          <main className="flex-1 overflow-y-auto">
-            {networkBanner && (
-              <div className="bg-yellow-500 dark:bg-yellow-600 text-white text-center py-1 px-4">
-                You're currently offline. Some features may be unavailable.
-              </div>
-            )}
-            {!authInitialized && (
-              <div className="flex items-center justify-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-              </div>
-            )}
-            {authInitialized && (
-              <DashboardPageContainer fullWidth={fullWidth}>
-                {children || <Outlet />}
-              </DashboardPageContainer>
-            )}
-          </main>
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <Header 
+              isAdmin={userIsAdmin}
+              theme={theme}
+              onThemeChange={handleThemeChange}
+            />
+            <main className="flex-1 overflow-y-auto">
+              {networkBanner && (
+                <div className="bg-yellow-500 dark:bg-yellow-600 text-white text-center py-1 px-4">
+                  You're currently offline. Some features may be unavailable.
+                </div>
+              )}
+              {!authInitialized && (
+                <div className="flex flex-col items-center justify-center h-screen">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+                  <p className="text-sm text-muted-foreground">Initializing dashboard...</p>
+                  <div className="mt-4 text-xs text-muted-foreground">
+                    {/* Debug info */}
+                    <p>Auth state: {auth.isLoading ? 'Loading' : 'Ready'}</p>
+                    <p>User: {auth.user ? auth.user.email : 'None'}</p>
+                    <p>Admin (context): {auth.isAdmin ? 'Yes' : 'No'}</p>
+                    <p>Admin (effective): {userIsAdmin ? 'Yes' : 'No'}</p>
+                    <p>Profile: {auth.profile ? 'Loaded' : 'None'}</p>
+                  </div>
+                </div>
+              )}
+              {authInitialized && (
+                <StableDashboardContainer fullWidth={fullWidth}>
+                  <ErrorBoundary>
+                    {childrenRef.current || <StableOutlet />}
+                  </ErrorBoundary>
+                </StableDashboardContainer>
+              )}
+            </main>
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  }, [
+    theme, 
+    sidebarCollapsed, 
+    handleSidebarToggle, 
+    userIsAdmin, 
+    handleThemeChange, 
+    networkBanner, 
+    authInitialized, 
+    fullWidth,
+    auth.isAdmin,
+    auth.user
+  ]);
+
+  // For admin pages, ensure proper initialization
+  useEffect(() => {
+    if (userIsAdmin) {
+      // Set this for sidebar to show admin navigation
+      logDebug('Admin user detected, initializing dashboard');
+      safeLocalStorage.setItem('akii-is-admin', 'true');
+      
+      // If the specific user ID, ensure we remember it
+      if (auth.user?.id === 'b574f273-e0e1-4cb8-8c98-f5a7569234c8') {
+        safeLocalStorage.setItem('admin_user_id', auth.user.id);
+      }
+    }
+  }, [userIsAdmin, auth.user?.id]);
+
+  return layoutContent;
+});
+
+// Add this ErrorBoundary component at the beginning of the file
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("[DashboardLayout] Error caught by boundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 bg-red-50 dark:bg-red-900/20 rounded-lg">
+          <h2 className="text-lg font-semibold text-red-800 dark:text-red-300">
+            Dashboard Error
+          </h2>
+          <p className="mt-2 text-sm text-red-700 dark:text-red-300">
+            Something went wrong loading the dashboard content.
+          </p>
+          <pre className="mt-4 p-2 bg-red-100 dark:bg-red-900/40 rounded overflow-auto text-xs">
+            {this.state.error?.toString() || "Unknown error"}
+          </pre>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-800 dark:hover:bg-red-700 rounded-md text-sm text-red-800 dark:text-red-200"
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export default DashboardLayout;
 export { DashboardPageContainer };

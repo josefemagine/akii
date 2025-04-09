@@ -1,6 +1,28 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
-import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
+import { handleRequest, createSuccessResponse, createErrorResponse } from "../_shared/auth.ts";
+import { query, queryOne, execute } from "../_shared/postgres.ts";
+import encode from "https://deno.land/std@0.168.0/encoding/base64/encode.ts";
+
+// Valid permission types for API keys
+const VALID_PERMISSIONS = ["read", "write", "admin"] as const;
+type Permission = typeof VALID_PERMISSIONS[number];
+
+interface ApiKeyRequest {
+  instanceId: string;
+  name: string;
+  permissions?: Permission[];
+}
+
+interface Instance {
+  id: string;
+}
+
+interface ApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  permissions: Permission[];
+  created_at: string;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,118 +30,90 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+Deno.serve(async (req) => {
+  return handleRequest(req, async (user, body: ApiKeyRequest) => {
+    try {
+      const { instanceId, name, permissions = ["read"] } = body;
 
-  try {
-    // Create a Supabase client with the Auth context of the logged in user
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      },
-    );
+      // Validate required fields
+      if (!instanceId?.trim()) {
+        return createErrorResponse("Instance ID is required", 400);
+      }
+      if (!name?.trim()) {
+        return createErrorResponse("Name is required", 400);
+      }
 
-    // Get the session of the authenticated user
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabaseClient.auth.getSession();
-    if (sessionError || !session) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+      // Validate permissions
+      if (!Array.isArray(permissions) || permissions.length === 0) {
+        return createErrorResponse("At least one permission is required", 400);
+      }
+      if (!permissions.every(p => VALID_PERMISSIONS.includes(p))) {
+        return createErrorResponse(`Invalid permissions. Must be one of: ${VALID_PERMISSIONS.join(", ")}`, 400);
+      }
 
-    // Get the request body
-    const { instanceId, name, permissions = ["read"] } = await req.json();
-
-    if (!instanceId || !name) {
-      return new Response(
-        JSON.stringify({ error: "Instance ID and name are required" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+      // Check if the instance exists and belongs to the user
+      const instance = await queryOne<Instance>(
+        "SELECT id FROM private_ai_instances WHERE id = $1 AND user_id = $2",
+        [instanceId, user.id]
       );
-    }
 
-    // Check if the instance exists and belongs to the user
-    const { data: instance, error: instanceError } = await supabaseClient
-      .from("private_ai_instances")
-      .select("id")
-      .eq("id", instanceId)
-      .eq("user_id", session.user.id)
-      .single();
+      if (!instance) {
+        return createErrorResponse("Instance not found or access denied", 404);
+      }
 
-    if (instanceError || !instance) {
-      return new Response(JSON.stringify({ error: "Instance not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+      // Generate a cryptographically secure API key
+      const keyBuffer = new Uint8Array(32);
+      crypto.getRandomValues(keyBuffer);
+      const keyPrefix = `ak_${encode(keyBuffer.slice(0, 4))}_`;
+      const keySecret = encode(keyBuffer.slice(4));
+      const fullKey = `${keyPrefix}${keySecret}`;
 
-    // Generate a random API key
-    const keyPrefix = `ak_${Math.random().toString(36).substring(2, 8)}_`;
-    const keySecret =
-      Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15);
-    const fullKey = `${keyPrefix}${keySecret}`;
+      // Hash the key using base64 encoding
+      const keyHash = encode(new TextEncoder().encode(fullKey));
 
-    // In a real implementation, you would hash the key before storing it
-    // For this demo, we'll use a simple base64 encoding as a placeholder
-    const keyHash = base64Encode(new TextEncoder().encode(fullKey));
-
-    // Insert the new API key
-    const { data: apiKey, error: apiKeyError } = await supabaseClient
-      .from("api_keys")
-      .insert({
-        user_id: session.user.id,
-        instance_id: instanceId,
-        name,
-        key_prefix: keyPrefix,
-        key_hash: keyHash,
-        permissions: permissions,
-        created_at: new Date().toISOString(),
-      })
-      .select("id, name, key_prefix, permissions, created_at")
-      .single();
-
-    if (apiKeyError) {
-      return new Response(
-        JSON.stringify({ error: "Failed to create API key" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+      // Insert the new API key
+      const apiKey = await queryOne<ApiKey>(
+        `INSERT INTO api_keys (
+          user_id,
+          instance_id,
+          name,
+          key_prefix,
+          key_hash,
+          permissions,
+          created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, name, key_prefix, permissions, created_at`,
+        [
+          user.id,
+          instanceId,
+          name.trim(),
+          keyPrefix,
+          keyHash,
+          permissions,
+          new Date().toISOString()
+        ]
       );
-    }
 
-    // Return the API key (only returned once, never stored in plain text)
-    return new Response(
-      JSON.stringify({
-        success: true,
+      if (!apiKey) {
+        console.error("Error creating API key");
+        return createErrorResponse("Failed to create API key", 500);
+      }
+
+      // Return the API key (only returned once, never stored in plain text)
+      return createSuccessResponse({
         message: "API key created successfully",
         apiKey: {
           ...apiKey,
           key: fullKey, // Only returned once, never stored
         },
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+      });
+    } catch (error) {
+      console.error("Unexpected error in generate_api_key:", error);
+      return createErrorResponse("An unexpected error occurred", 500);
+    }
+  }, {
+    requiredSecrets: ["SUPABASE_URL", "SUPABASE_ANON_KEY"],
+    requireAuth: true,
+    requireBody: true,
+  });
 });

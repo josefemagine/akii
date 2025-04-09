@@ -13,7 +13,7 @@ export interface AvatarManagerProps {
   className?: string;
 }
 
-const DEFAULT_AVATAR = 'https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png';
+const DEFAULT_AVATAR = 'https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png';
 
 export const AvatarManager: React.FC<AvatarManagerProps> = ({
   userId,

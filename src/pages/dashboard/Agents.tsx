@@ -56,7 +56,7 @@ const mockAgents: Agent[] = [
     status: "active",
     lastUpdated: "2023-07-01",
     messageCount: 1234,
-    avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+    avatar: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
     version: "1.0",
   },
   {
@@ -67,7 +67,7 @@ const mockAgents: Agent[] = [
     status: "active",
     lastUpdated: "2023-06-25",
     messageCount: 856,
-    avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+    avatar: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
     version: "1.0",
   },
   {
@@ -78,7 +78,7 @@ const mockAgents: Agent[] = [
     status: "active",
     lastUpdated: "2023-06-15",
     messageCount: 567,
-    avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+    avatar: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
     version: "1.0",
   },
   {
@@ -89,7 +89,7 @@ const mockAgents: Agent[] = [
     status: "draft",
     lastUpdated: "2023-06-18",
     messageCount: 0,
-    avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+    avatar: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
     version: "1.0",
   },
   {
@@ -101,7 +101,7 @@ const mockAgents: Agent[] = [
     status: "draft",
     lastUpdated: "2023-06-01",
     messageCount: 0,
-    avatar: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+    avatar: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
     version: "1.0",
     parentId: "agent-3",
     isCloned: true,
@@ -217,7 +217,7 @@ const Agents = () => {
                 <div className="flex items-center space-x-4">
                   <div className="h-12 w-12 rounded-full overflow-hidden bg-primary/10">
                     <img
-                      src="https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png"
+                      src="https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png"
                       alt={agent.name}
                       className="h-full w-full object-cover"
                     />

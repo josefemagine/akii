@@ -161,7 +161,7 @@
         
         <div class="input-group">
             <label for="superAction">Super Action URL:</label>
-            <input type="text" id="superAction" value="https://api.akii.com/functions/v1/super-action/test-env" placeholder="Enter Super Action URL" />
+            <input type="text" id="superAction" value="https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action/test-env" placeholder="Enter Super Action URL" />
             <button onclick="saveSuperAction()">Save URL</button>
         </div>
     </div>
@@ -344,7 +344,7 @@
             }
             
             const testEndpoint = localStorage.getItem('test-endpoint') || 'test-env';
-            const url = `https://api.akii.com/functions/v1/super-action/${testEndpoint}`;
+            const url = `https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action/${testEndpoint}`;
             document.getElementById('endpointUrl').value = url;
             localStorage.setItem('edge-function-url', url);
             alert('Edge Function URL generated and saved');
@@ -473,7 +473,7 @@
                     const testEndpoint = localStorage.getItem('test-endpoint') || 'test-env';
                     
                     if (projectRef) {
-                        testUrl = `https://api.akii.com/functions/v1/super-action/${testEndpoint}`;
+                        testUrl = `https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action/${testEndpoint}`;
                     } else {
                         return {
                             success: false,
@@ -483,7 +483,7 @@
                 }
             } else {
                 testUrl = localStorage.getItem('super-action-url') || 
-                    'https://api.akii.com/functions/v1/super-action/test-env';
+                    'https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action/test-env';
             }
             
             try {
@@ -607,7 +607,7 @@
             } else if (savedProjectRef) {
                 // Try to build URL if we have project ref
                 const testEndpoint = localStorage.getItem('test-endpoint') || 'test-env';
-                document.getElementById('endpointUrl').value = `https://api.akii.com/functions/v1/super-action/${testEndpoint}`;
+                document.getElementById('endpointUrl').value = `https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action/${testEndpoint}`;
             }
             
             const savedSuperAction = localStorage.getItem('super-action-url');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -6,13 +6,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { fetchAnalyticsData } from "@/lib/api";
+import { fetchAnalyticsData, defaultAnalyticsData } from "@/lib/api";
 import type { AnalyticsData } from "@/lib/api";
 import { dashboardStyles, DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DashboardSection } from "@/components/layout/DashboardSection";
 import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { isProduction, ensureDashboardAccess } from "@/lib/production-recovery";
+import { supabase } from "@/lib/supabase";
 
 // Helper function to get time-appropriate greeting
 const getTimeBasedGreeting = (): string => {
@@ -27,54 +27,43 @@ const getTimeBasedGreeting = (): string => {
   }
 };
 
-// Custom hook for time-based greeting that updates when time period changes
-const useTimeBasedGreeting = () => {
-  const [greeting, setGreeting] = useState(getTimeBasedGreeting());
-  const previousGreetingRef = React.useRef(greeting);
-  
-  useEffect(() => {
-    // Update greeting when appropriate
-    const updateGreeting = () => {
-      const newGreeting = getTimeBasedGreeting();
-      if (newGreeting !== previousGreetingRef.current) {
-        previousGreetingRef.current = newGreeting;
-        setGreeting(newGreeting);
-      }
-    };
-    
-    // Check for greeting change every minute
-    const intervalId = setInterval(updateGreeting, 60000);
-    
-    return () => clearInterval(intervalId);
-  }, []); // Empty dependency array to run only once on mount
-  
-  return greeting;
-};
-
-// Custom hook to get user's first name
-const useUserFirstName = () => {
-  const { profile } = useAuth();
-  
-  return useMemo(() => {
-    if (profile?.first_name) return profile.first_name;
-    if (profile?.name) {
-      // Split name and return first part
-      return profile.name.split(' ')[0];
-    }
-    return "there"; // Default if no name found
-  }, [profile]);
-};
-
-// Combined hook for personalized greeting
+// Custom hook for personalized greeting
 const usePersonalizedGreeting = () => {
-  const timeGreeting = useTimeBasedGreeting();
-  const firstName = useUserFirstName();
+  const { profile, user } = useAuth();
+  const [greeting, setGreeting] = useState(getTimeBasedGreeting());
   
-  return `${timeGreeting}, ${firstName}!`;
+  // Update greeting every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setGreeting(getTimeBasedGreeting());
+    }, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Get name from profile or user email
+  const name = useMemo(() => {
+    // First try to get name from profile
+    if (profile?.first_name) {
+      return profile.first_name;
+    }
+    
+    // Then try to get from email
+    if (profile?.email || user?.email) {
+      const email = profile?.email || user?.email || '';
+      // Extract username part before the @ symbol
+      return email.split('@')[0];
+    }
+    
+    // Default fallback
+    return "there";
+  }, [profile, user]);
+  
+  return `${greeting}, ${name}!`;
 };
 
-// Memoized stats card to prevent re-rendering when parent re-renders
-const StatCard = React.memo(({ 
+// Stats card component
+const StatCard = ({ 
   title, 
   value, 
   subtitle 
@@ -94,18 +83,13 @@ const StatCard = React.memo(({
       <p className="text-xs text-muted-foreground">{subtitle}</p>
     </CardContent>
   </Card>
-));
+);
 
-// Memoized dashboard content to avoid re-renders when data doesn't change
-const DashboardContent = React.memo(({ analyticsData }: { analyticsData: AnalyticsData }) => {
-  // Use safe defaults for analytics data
-  const totalMessages = analyticsData.totalMessages || 0;
-  const activeAgents = analyticsData.activeAgents || 0;
-  const totalConversations = analyticsData.totalConversations || 0;
-  const averageRating = analyticsData.averageRating || 0;
-  const { isAdmin } = useAuth();
+// Dashboard content component
+const DashboardContent = ({ analyticsData }: { analyticsData: AnalyticsData }) => {
   const personalizedGreeting = usePersonalizedGreeting();
-
+  const data = analyticsData || defaultAnalyticsData;
+  
   return (
     <div>
       <PageHeader
@@ -127,22 +111,22 @@ const DashboardContent = React.memo(({ analyticsData }: { analyticsData: Analyti
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard 
             title="Total Messages" 
-            value={totalMessages.toLocaleString()} 
+            value={(data.totalMessages || 0).toLocaleString()} 
             subtitle="+12% from last period" 
           />
           <StatCard 
             title="Active Agents" 
-            value={activeAgents} 
-            subtitle={activeAgents > 0 ? "All running smoothly" : "No active agents"} 
+            value={data.activeAgents || 0} 
+            subtitle={(data.activeAgents || 0) > 0 ? "All running smoothly" : "No active agents"} 
           />
           <StatCard 
             title="Conversations" 
-            value={totalConversations.toLocaleString()} 
+            value={(data.totalConversations || 0).toLocaleString()} 
             subtitle="+5% from last period" 
           />
           <StatCard 
             title="Average Rating" 
-            value={averageRating.toLocaleString(undefined, {maximumFractionDigits: 1})} 
+            value={(data.averageRating || 0).toLocaleString(undefined, {maximumFractionDigits: 1})} 
             subtitle="Based on user feedback" 
           />
         </div>
@@ -270,201 +254,149 @@ const DashboardContent = React.memo(({ analyticsData }: { analyticsData: Analyti
       </DashboardSection>
     </div>
   );
-});
+};
 
-// Error state component
-const ErrorState = React.memo(({ error, analyticsData }: { error: string, analyticsData: AnalyticsData }) => {
-  const personalizedGreeting = usePersonalizedGreeting();
-
-  return (
-    <div>
-      <div className={dashboardStyles.sectionSpacing}>
-        <Card>
-          <CardHeader>
-            <CardTitle>{personalizedGreeting}</CardTitle>
-            <CardDescription className="text-red-500">
-              {error}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p>
-              We're experiencing some technical difficulties. Showing limited
-              data.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-      <DashboardContent analyticsData={analyticsData} />
+// Loading state component
+const LoadingState = () => (
+  <div className="flex items-center justify-center h-[calc(100vh-16rem)]">
+    <div className="flex flex-col items-center space-y-4">
+      <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-primary rounded-full"></div>
+      <p>Loading dashboard data...</p>
     </div>
-  );
-});
+  </div>
+);
 
-// Loading state component with safety timeout
-const LoadingState = React.memo(() => {
-  const [showForceExit, setShowForceExit] = useState(false);
-  
-  // Show force exit button after 10 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowForceExit(true);
-    }, 10000);
-    
-    return () => clearTimeout(timer);
-  }, []);
-  
-  return (
-    <div className="flex items-center justify-center h-[calc(100vh-16rem)]">
-      <div className="flex flex-col items-center space-y-4">
-        <div className="animate-spin h-8 w-8 border-t-2 border-b-2 border-primary rounded-full"></div>
-        <p>Loading dashboard data...</p>
-        
-        {showForceExit && (
-          <button 
-            onClick={() => window.location.href = '/dashboard'} 
-            className="mt-4 px-4 py-2 bg-muted hover:bg-muted/90 rounded-md text-sm"
-          >
-            Click to force refresh
-          </button>
-        )}
-      </div>
-    </div>
-  );
-});
-
-// Empty state component
-const EmptyState = React.memo(() => {
-  const { profile } = useAuth();
-  
-  // Get user's first name for the welcome message
-  const firstName = useMemo(() => {
-    if (profile?.first_name) return profile.first_name;
-    if (profile?.name) {
-      // Split name and return first part
-      return profile.name.split(' ')[0];
-    }
-    return "there"; // Default if no name found
-  }, [profile]);
-  
-  return (
-    <div>
-      <Card>
-        <CardHeader>
-          <CardTitle>{`Welcome, ${firstName}`}</CardTitle>
-          <CardDescription>Overview of your private AI Instances and performance</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p>No analytics data is currently available.</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-});
-
-// Main Dashboard component with simplified rendering
-const Dashboard = () => {
-  console.log("🔍 Dashboard component rendering STARTED");
-  
-  // Added dev detection
-  const isDev = import.meta.env.DEV;
-  if (isDev) {
-    console.log("🧪 Running in development mode - logging extra details");
+// Error boundary component
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
+  constructor(props: {children: React.ReactNode}) {
+    super(props);
+    this.state = { hasError: false, error: null };
   }
-  
-  const [timePeriod, setTimePeriod] = useState("Last 7 days");
-  const [loading, setLoading] = useState(false); // Start with loading false
-  const [error, setError] = useState<string | null>(null);
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
-  
-  // Default data - always available immediately
-  const defaultData = useMemo(() => ({
-    totalMessages: 0,
-    activeAgents: 0,
-    totalConversations: 0,
-    averageRating: 0,
-  }), []);
 
-  // Auth
-  const { isAdmin, profile } = useAuth();
-  console.log("🔐 Dashboard - Auth state:", { 
-    isAdmin, 
-    hasProfile: !!profile, 
-    userId: profile?.id || 'none',
-    userEmail: profile?.email || 'none',
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("Dashboard error boundary caught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <DashboardPageContainer>
+          <div className="p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <h2 className="text-lg font-semibold text-red-800 dark:text-red-300">Dashboard Error</h2>
+            <p className="mt-2 text-sm text-red-700 dark:text-red-300">
+              Something went wrong loading the dashboard. Please try refreshing the page.
+            </p>
+            <pre className="mt-4 p-2 bg-red-100 dark:bg-red-900/40 rounded overflow-auto text-xs">
+              {this.state.error?.toString()}
+            </pre>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-800 dark:hover:bg-red-700 rounded-md text-sm text-red-800 dark:text-red-200"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </DashboardPageContainer>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Main Dashboard component with proper authentication handling
+const Dashboard = () => {
+  console.log("[Dashboard] Component rendering start");
+  
+  // Get auth state
+  const { user, profile, isLoading: authLoading } = useAuth();
+  console.log("[Dashboard] Auth state:", { 
+    hasUser: !!user,
+    hasProfile: !!profile,
+    authLoading
   });
   
-  // Always render with at least default data
-  useEffect(() => {
-    console.log("📊 Dashboard - Default data effect running");
-    if (!analyticsData) {
-      console.log("📊 Dashboard - Setting default data immediately");
-      setAnalyticsData(defaultData);
-    }
-  }, [defaultData, analyticsData]);
+  // Data state
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Fetch real data in the background
+  // Data fetching with resilient error handling
   useEffect(() => {
-    console.log("📡 Dashboard - Background fetch effect running");
+    console.log("[Dashboard] Starting data fetch effect");
+    let isMounted = true;
     
-    // Immediately use default data
-    if (!analyticsData) {
-      console.log("📊 Dashboard - Setting default data from fetch effect");
-      setAnalyticsData(defaultData);
-    }
+    // Start fetching data immediately
+    console.log("[Dashboard] Fetching analytics data");
     
-    const fetchDataInBackground = async () => {
-      try {
-        console.log("📡 Dashboard - Background fetch started");
-        const data = await fetchAnalyticsData(timePeriod);
-        console.log("📡 Dashboard - Background fetch completed successfully");
+    fetchAnalyticsData("Last 7 days")
+      .then((data) => {
+        if (!isMounted) return;
+        console.log("[Dashboard] Data received successfully");
         setAnalyticsData(data);
-      } catch (err) {
-        console.error("❌ Error in background fetch:", err);
-        // Keep using default data on error
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error("[Dashboard] Error fetching data:", err);
+        // Use fallback data on error
+        setAnalyticsData(defaultAnalyticsData);
+        setError("Could not load analytics data. Using default values.");
+        setIsLoading(false);
+      });
+    
+    // Set a safety timeout to ensure we always exit loading state
+    const timeoutId = setTimeout(() => {
+      if (isMounted && isLoading) {
+        console.log("[Dashboard] Safety timeout triggered, ensuring dashboard loads");
+        setAnalyticsData(prev => prev || defaultAnalyticsData);
+        setIsLoading(false);
       }
-    };
+    }, 3000);
     
-    fetchDataInBackground();
-  }, [timePeriod, defaultData, analyticsData]);
-  
-  // Get user's first name for the welcome message
-  const firstName = profile?.first_name || profile?.name?.split(' ')[0] || 'there';
-  
-  // Determine which component to render - but ALWAYS render something
-  const content = useMemo(() => {
-    console.log("🖥️ Dashboard - Determining content to render:", { 
-      hasData: !!analyticsData, 
-      hasError: !!error 
-    });
-    
-    // Show error state but with data
-    if (error && analyticsData) {
-      console.log("❌ Dashboard - Rendering error state");
-      return <ErrorState error={error} analyticsData={analyticsData} />;
-    }
-    
-    // If we somehow still don't have data, use default data
-    const dataToRender = analyticsData || defaultData;
-    
-    // Always render main content
-    console.log("✅ Dashboard - Rendering main content");
-    return <DashboardContent analyticsData={dataToRender} />;
-  }, [error, analyticsData, defaultData]);
-
-  console.log("🏁 Dashboard - Rendering content complete");
-  
-  // Add component mounting detection
-  useEffect(() => {
-    console.log("🔄 Dashboard component mounted");
+    // Cleanup
     return () => {
-      console.log("🔄 Dashboard component unmounted");
+      isMounted = false;
+      clearTimeout(timeoutId);
     };
-  }, []);
+  }, [isLoading]);
   
-  // Wrap all rendered content in the DashboardPageContainer for consistent width and styling
+  console.log("[Dashboard] Rendering with state:", {
+    isLoading,
+    hasError: !!error,
+    hasData: !!analyticsData
+  });
+
+  // Show loading state or content
   return (
-    <DashboardPageContainer>
-      {content}
-    </DashboardPageContainer>
+    <ErrorBoundary>
+      <DashboardPageContainer>
+        {isLoading ? (
+          <LoadingState />
+        ) : (
+          <>
+            {error && (
+              <div className="mb-4">
+                <Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20">
+                  <CardHeader className="pb-2">
+                    <CardTitle>Notice</CardTitle>
+                    <CardDescription className="text-orange-700 dark:text-orange-300">
+                      {error}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </div>
+            )}
+            
+            <DashboardContent analyticsData={analyticsData || defaultAnalyticsData} />
+          </>
+        )}
+      </DashboardPageContainer>
+    </ErrorBoundary>
   );
 };
 

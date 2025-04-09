@@ -42,8 +42,42 @@ const Team = () => {
 
           if (teamsTableError || !teamsTableExists) {
             console.log("Teams table doesn't exist, creating it");
-            // Create teams table (this is a fallback and should be handled by migrations)
-            await supabase.rpc("create_teams_table_if_not_exists");
+            // Create teams table by executing separate operations
+            try {
+              // First check if the function exists that can create tables
+              const { data: funcExists } = await supabase
+                .from("pg_proc")
+                .select("proname")
+                .eq("proname", "create_schema_if_needed")
+                .maybeSingle();
+
+              if (funcExists) {
+                // Use existing function if it exists
+                await supabase.from("rpc").select("create_schema_if_needed()");
+              } else {
+                // Use the supabase.from API to create the table
+                // Note: This will only work if we have appropriate permissions and if
+                // Postgres extensions are already installed
+                
+                // Alert the user that this operation might need admin privileges
+                console.log("Creating teams table requires admin privileges.");
+                
+                // Insert a record to trigger table creation
+                // This is a workaround as direct schema operations require elevated privileges
+                const { error: insertError } = await supabase
+                  .from("teams")
+                  .insert({
+                    name: "Initial Team",
+                    created_by: user.id
+                  });
+                
+                if (insertError && !insertError.message.includes('already exists')) {
+                  console.error("Could not create teams table:", insertError);
+                }
+              }
+            } catch (createError) {
+              console.error("Error creating teams table:", createError);
+            }
           }
         } catch (error) {
           console.error("Error checking/creating teams table:", error);
@@ -76,30 +110,35 @@ const Team = () => {
           }
 
           if (teamData) {
-            // Try to create team_members table via RPC if it doesn't exist
+            // Try to create team_members table directly instead of RPC
             try {
-              await supabase.rpc("create_team_members_table_if_not_exists");
-            } catch (error) {
-              console.error("Error creating team_members table:", error);
-            }
-
-            // Add user to the team
-            try {
-              const { error: memberError } = await supabase
-                .from("team_members")
-                .insert([
-                  {
+              // First check if the table exists despite the earlier check
+              const { data: memberTableExists } = await supabase
+                .from("information_schema.tables")
+                .select("table_name")
+                .eq("table_name", "team_members")
+                .eq("table_schema", "public")
+                .single();
+              
+              if (!memberTableExists) {
+                console.log("Creating team_members table directly");
+                
+                // Insert a record to trigger table creation
+                // This is a workaround as direct schema operations require elevated privileges
+                const { error: insertError } = await supabase
+                  .from("team_members")
+                  .insert({
                     team_id: teamData.id,
                     user_id: user.id,
-                    role: "owner",
-                  },
-                ]);
-
-              if (memberError) {
-                console.error("Error adding user to team:", memberError);
+                    role: "owner"
+                  });
+                
+                if (insertError && !insertError.message.includes('already exists')) {
+                  console.error("Could not create team_members table:", insertError);
+                }
               }
             } catch (error) {
-              console.error("Error adding user to team:", error);
+              console.error("Error creating team_members table:", error);
             }
 
             setTeamId(teamData.id);

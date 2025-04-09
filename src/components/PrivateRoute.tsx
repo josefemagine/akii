@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
+import { useAuth } from '../contexts/UnifiedAuthContext';
+import LoadingScreen from './ui/LoadingScreen';
 
 // Add global interface declaration for circuitBroken property
 declare global {
@@ -23,6 +24,7 @@ interface PrivateRouteProps {
 const REDIRECT_THRESHOLD = 3; // Max number of redirects allowed in a time window
 const TIME_WINDOW_MS = 5000; // Time window for tracking redirects (5 seconds)
 const CIRCUIT_RECOVERY_TIME = 30000; // Time until circuit breaker resets (30 seconds)
+const MAX_AUTH_WAIT_TIME = 10000; // Maximum time to wait for auth before showing content anyway (10 seconds)
 
 // Track redirect timestamps globally
 const redirectHistory: number[] = [];
@@ -81,195 +83,153 @@ const checkCircuitBreaker = (path: string): boolean => {
  * Redirects to login if not authenticated
  * Optionally, can restrict access to admin users only
  */
-export const PrivateRoute: React.FC<PrivateRouteProps> = ({
+export const PrivateRoute = ({
   children,
   adminOnly = false,
   redirectTo = '/',
-}) => {
-  const { user, isAdmin: contextIsAdmin, isLoading: authLoading } = useAuth();
+}: PrivateRouteProps) => {
+  const { user, isAdmin, isLoading, profile } = useAuth();
   const location = useLocation();
-  const [circuitOpen, setCircuitOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  // Check if user is admin using UnifiedAuthContext
+  const [showContent, setShowContent] = useState(false);
+  const loadingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [redirectAttempt, setRedirectAttempt] = useState(false);
+  
+  // Track if we're past the initial mount
+  const isMounted = useRef(false);
+  
+  // For logging purposes
   useEffect(() => {
-    // First check auth context admin status
-    const authContextAdmin = !!contextIsAdmin;
-    
-    // Check local storage for admin status (for direct navigation)
-    const localStorageAdmin = localStorage.getItem('akii-is-admin') === 'true';
-    
-    // Special case for specific accounts (especially for development)
-    const isJosefUser = 
-      (user?.email === 'josef@holm.com') ||
-      (localStorage.getItem('akii-auth-user-email') === 'josef@holm.com');
-    
-    // Set admin status based on any valid source
-    const finalIsAdmin = authContextAdmin || localStorageAdmin || isJosefUser;
-    
-    // Always set local storage based on current determination
-    if (finalIsAdmin) {
-      localStorage.setItem('akii-is-admin', 'true');
-      // Also save email for special case detection
-      if (user?.email) {
-        localStorage.setItem('akii-auth-user-email', user.email);
+    console.log('PrivateRoute auth state:', {
+      hasUser: !!user,
+      isAdmin,
+      isLoading,
+      hasProfile: !!profile,
+      profileRole: profile?.role,
+      path: location.pathname,
+      redirectTo,
+      adminOnly,
+      devMode: import.meta.env.DEV,
+      localAdmin: localStorage.getItem('akii-is-admin') === 'true'
+    });
+  }, [user, isAdmin, isLoading, profile, location.pathname, redirectTo, adminOnly]);
+  
+  // Handle loading timeouts
+  useEffect(() => {
+    // Set a loading timeout to prevent indefinite loading screens
+    if (isLoading && !showContent) {
+      loadingTimerRef.current = setTimeout(() => {
+        console.log('Setting showContent to true after loading timeout');
+        setShowContent(true);
+      }, 5000); // Show content after 5 seconds of loading
+    } else if (!isLoading) {
+      // When loading is finished, show the content
+      setShowContent(true);
+      
+      // Clear any pending timer
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+        loadingTimerRef.current = null;
       }
     }
     
-    console.log('PrivateRoute Admin Check:', {
-      path: location.pathname,
-      authContextAdmin,
-      localStorageAdmin,
-      isJosefUser,
-      finalIsAdmin,
-      userEmail: user?.email,
-      storedEmail: localStorage.getItem('akii-auth-user-email')
-    });
-    
-    setIsAdmin(finalIsAdmin);
-  }, [user, contextIsAdmin, location.pathname]);
-
-  // Monitor for redirect loops
+    return () => {
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+    };
+  }, [isLoading, showContent]);
+  
+  // Mark component as mounted after first render
   useEffect(() => {
-    // Check if circuit breaker should trip
-    if (checkCircuitBreaker(location.pathname)) {
-      setCircuitOpen(true);
-    }
-    
-    // Regular redirect count logic (as a backup)
-    const redirectCount = parseInt(sessionStorage.getItem('redirect-count') || '0');
-    const MAX_REDIRECTS = 5;
-    const currentTimestamp = Date.now();
-    const lastRedirectTime = parseInt(sessionStorage.getItem('last-redirect-time') || '0');
-    const ONE_SECOND = 1000;
-    
-    // Reset redirect count if it's been more than 5 seconds since the last redirect
-    if (currentTimestamp - lastRedirectTime > 5 * ONE_SECOND) {
-      sessionStorage.setItem('redirect-count', '0');
-    } else if (redirectCount >= MAX_REDIRECTS) {
-      console.error('PrivateRoute: Too many redirects detected, stopping redirect chain');
-      sessionStorage.setItem('redirect-count', '0');
-    }
-  }, [location.pathname]);
-
-  // Show loading state while checking authentication
-  if (authLoading) {
+    isMounted.current = true;
+  }, []);
+  
+  // Show loading screen while auth is initializing
+  if (!showContent && isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background">
-        <div className="w-12 h-12 border-t-4 border-primary rounded-full animate-spin mb-4"></div>
-        <p className="text-foreground text-lg">Loading...</p>
-      </div>
+      <LoadingScreen 
+        message="Authenticating..." 
+      />
     );
   }
-
-  // Circuit breaker triggered - show error screen
-  if (circuitOpen) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background">
-        <div className="max-w-lg p-6 bg-card rounded-lg shadow-lg">
-          <h1 className="text-2xl font-bold text-foreground mb-4">Authentication Circuit Breaker Triggered</h1>
-          <p className="text-muted-foreground mb-4">
-            We detected a problem with authentication navigation flows. This usually happens when
-            the application gets into a redirect loop. The circuit breaker has been triggered to protect your browser.
-          </p>
-          <div className="space-y-4">
-            <div className="bg-muted p-4 rounded text-sm font-mono">
-              <p>Time: {new Date().toISOString()}</p>
-              <p>Path: {location.pathname}</p>
-              <p>Redirect Count: {redirectHistory.length}</p>
-            </div>
-            <button 
-              className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-              onClick={() => {
-                // Clear all storage that might be causing the loop
-                sessionStorage.clear();
-                localStorage.clear();
-                
-                // Manually reset circuit breaker
-                window.circuitBroken = false;
-                redirectHistory.length = 0;
-                if (circuitBreakerTimeout) {
-                  window.clearTimeout(circuitBreakerTimeout);
-                }
-                
-                // Force full page reload to start fresh
-                window.location.href = '/';
-              }}
-            >
-              Reset Authentication & Start Fresh
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+  
+  // Handle user auth check after loading
+  // If we have a user, render the protected content
+  if (user) {
+    // For admin routes, check if user has admin access
+    const hasAdminAccess = () => {
+      // Context-based admin check
+      if (isAdmin) return true;
+      
+      // Profile-based admin check
+      if (profile?.role === 'admin') return true;
+      
+      // Development mode override
+      if (import.meta.env.DEV && localStorage.getItem('akii-is-admin') === 'true') {
+        console.log('DEV MODE: Admin access granted via localStorage override');
+        return true;
+      }
+      
+      return false;
+    };
+    
+    // If route requires admin access but user is not admin
+    if (adminOnly && !hasAdminAccess()) {
+      console.log('Admin route accessed by non-admin user, redirecting to dashboard', {
+        userId: user.id,
+        email: user.email,
+        profileRole: profile?.role,
+        isAdmin,
+        isDev: import.meta.env.DEV
+      });
+      return <Navigate to="/dashboard" replace />;
+    }
+    
+    // User is authenticated and meets admin requirements if needed
+    console.log('Auth requirements satisfied, rendering protected route', {
+      isAdmin,
+      adminOnly,
+      profileRole: profile?.role,
+      hasAdminAccess: hasAdminAccess()
+    });
+    return <>{children}</>;
   }
-
-  // If user is not authenticated, redirect to login
-  if (!user) {
-    // DEV BYPASS - If we're in development and there's a special flag, allow access anyway
-    // This helps debug situations where auth is causing infinite loading
-    if (import.meta.env.DEV && 
-        (localStorage.getItem('akii-dev-bypass') === 'true' || 
-         sessionStorage.getItem('akii-dev-bypass') === 'true')) {
-      console.log('🔓 DEV AUTH BYPASS: Allowing access to private route without authentication');
-      return <>{children}</>;
-    }
-    
-    // Check if we're already in a redirect loop
-    const redirectCount = parseInt(sessionStorage.getItem('redirect-count') || '0');
-    const MAX_REDIRECTS = 5;
-    
-    if (redirectCount >= MAX_REDIRECTS) {
-      return (
-        <div className="flex flex-col items-center justify-center h-screen bg-background">
-          <div className="max-w-lg p-6 bg-card rounded-lg shadow-lg">
-            <h1 className="text-2xl font-bold text-foreground mb-4">Authentication Error</h1>
-            <p className="text-muted-foreground mb-4">
-              We encountered a problem with authentication. Please try clearing your browser cache and cookies, 
-              then refresh the page.
-            </p>
-            <button 
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-              onClick={() => {
-                sessionStorage.clear();
-                localStorage.clear();
-                window.location.href = redirectTo;
-              }}
-            >
-              Clear Session & Retry
-            </button>
-          </div>
-        </div>
-      );
-    }
-    
-    // Increment redirect count and store the current time
-    sessionStorage.setItem('redirect-count', (redirectCount + 1).toString());
-    sessionStorage.setItem('last-redirect-time', Date.now().toString());
-    
-    // Store the current location they were trying to go to
+  
+  // If no user but past the loading state, redirect to login
+  // We use redirectAttempt to prevent multiple redirects
+  if (!user && !redirectAttempt) {
+    console.log('User not authenticated, redirecting to login page');
+    setRedirectAttempt(true);
     return <Navigate to={redirectTo} state={{ from: location.pathname }} replace />;
   }
-
-  // If route requires admin privileges and user is not admin, redirect to dashboard
-  if (adminOnly && !isAdmin) {
-    // DEV BYPASS - Allow admin access in development with special flag
-    if (import.meta.env.DEV && 
-        (localStorage.getItem('akii-dev-admin-bypass') === 'true' ||
-         sessionStorage.getItem('akii-dev-admin-bypass') === 'true')) {
-      console.log('🔓 DEV ADMIN BYPASS: Allowing access to admin route without admin privileges');
-      return <>{children}</>;
-    }
-    
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // Reset redirect count since authentication was successful
-  sessionStorage.setItem('redirect-count', '0');
   
-  // User is authenticated (and is admin if required), render the protected route
-  return <>{children}</>;
+  // Safety fallback - if something else goes wrong, show an error screen
+  // This should rarely happen but provides a safeguard against edge cases
+  return (
+    <div className="flex flex-col items-center justify-center h-screen bg-background">
+      <div className="max-w-lg p-6 bg-card rounded-lg shadow-lg">
+        <h1 className="text-2xl font-bold text-foreground mb-4">Authentication Error</h1>
+        <p className="text-muted-foreground mb-4">
+          We encountered a problem with authentication. Please try clearing your browser cache and cookies, 
+          then refresh the page.
+        </p>
+        <button 
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          onClick={() => {
+            sessionStorage.clear();
+            localStorage.clear();
+            window.location.href = redirectTo;
+          }}
+        >
+          Clear Session & Retry
+        </button>
+      </div>
+    </div>
+  );
 };
+
+export default PrivateRoute;
 
 
 

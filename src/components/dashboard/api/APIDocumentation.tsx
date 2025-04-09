@@ -54,13 +54,13 @@ export default function APIDocumentation() {
                 <h4 className="text-sm font-medium mb-2">Base URL</h4>
                 <div className="flex items-center justify-between rounded-md bg-background p-2">
                   <code className="text-xs font-mono">
-                    https://api.akii.com/v1/your-org-id
+                    https://injxxchotrvgvvzelhvj.supabase.co/v1/your-org-id
                   </code>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() =>
-                      handleCopyCode("https://api.akii.com/v1/your-org-id")
+                      handleCopyCode("https://injxxchotrvgvvzelhvj.supabase.co/v1/your-org-id")
                     }
                   >
                     <Copy size={14} />

@@ -23,3 +23,33 @@ CREATE POLICY "service_role can do everything"
   ON analytics FOR ALL
   TO service_role
   USING (true);
+
+-- Add service_role policies
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_policies 
+    WHERE tablename = 'subscriptions' 
+    AND policyname = 'service_role can do everything'
+  ) THEN
+    CREATE POLICY "service_role can do everything"
+      ON public.subscriptions FOR ALL
+      TO service_role
+      USING (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT FROM pg_policies 
+    WHERE tablename = 'analytics' 
+    AND policyname = 'service_role can do everything'
+  ) THEN
+    CREATE POLICY "service_role can do everything"
+      ON public.analytics FOR ALL
+      TO service_role
+      USING (true);
+  END IF;
+END $$;
+
+-- Ensure edge functions can access auth schema
+GRANT USAGE ON SCHEMA auth TO service_role;
+GRANT SELECT ON auth.users TO service_role;

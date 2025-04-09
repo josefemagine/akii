@@ -44,6 +44,20 @@ USING (
   )
 );
 
--- Add realtime support
-ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
-ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+-- Add realtime support using DO blocks to handle existing publications
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
+    EXCEPTION
+        WHEN duplicate_object THEN
+            RAISE NOTICE 'Table conversations already in publication';
+    END;
+    
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+    EXCEPTION
+        WHEN duplicate_object THEN
+            RAISE NOTICE 'Table messages already in publication';
+    END;
+END $$;

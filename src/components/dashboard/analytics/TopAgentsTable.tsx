@@ -31,7 +31,7 @@ const TopAgentsTable = ({
     {
       id: "agent-1",
       name: "Sales Assistant",
-      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+      avatar_url: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
       messages: 3650,
       conversations: 842,
       rating: 4.8,
@@ -40,7 +40,7 @@ const TopAgentsTable = ({
     {
       id: "agent-2",
       name: "Support Helper",
-      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+      avatar_url: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
       messages: 2980,
       conversations: 756,
       rating: 4.7,
@@ -49,7 +49,7 @@ const TopAgentsTable = ({
     {
       id: "agent-3",
       name: "Product Guide",
-      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+      avatar_url: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
       messages: 2450,
       conversations: 624,
       rating: 4.6,
@@ -58,7 +58,7 @@ const TopAgentsTable = ({
     {
       id: "agent-4",
       name: "Onboarding Agent",
-      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+      avatar_url: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
       messages: 1980,
       conversations: 512,
       rating: 4.9,

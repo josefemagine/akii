@@ -51,5 +51,17 @@ CREATE POLICY "Service role can update all profiles"
   TO service_role
   USING (true);
 
--- Enable realtime
-alter publication supabase_realtime add table profiles;
+-- Enable realtime safely
+DO $$
+BEGIN
+  -- Check if the table is already in the publication
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'profiles'
+  ) THEN
+    -- Add table to publication
+    EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE profiles';
+  END IF;
+END $$;

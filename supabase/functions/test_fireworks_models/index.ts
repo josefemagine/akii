@@ -1,6 +1,8 @@
 // This edge function tests all Fireworks AI models and logs their performance
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
+import serve from "https://deno.land/std@0.208.0/http/server.ts";
+import { handleRequest, createSuccessResponse, createErrorResponse } from "../_shared/auth.ts";
+import { execute, queryOne } from "../_shared/postgres.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +30,9 @@ const FIREWORKS_MODELS = {
   },
 };
 
+// Add secret variable references
+const FIREWORKS_API_KEY = Deno.env.get("FIREWORKS_API_KEY");
+
 // Function to call Fireworks AI API
 async function callFireworksAI(message, tier) {
   const startTime = Date.now();
@@ -42,7 +47,7 @@ async function callFireworksAI(message, tier) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("FIREWORKS_API_KEY") || ""}`,
+          Authorization: `Bearer ${FIREWORKS_API_KEY}`,
         },
         body: JSON.stringify({
           model: modelConfig.modelId,
@@ -92,29 +97,38 @@ async function callFireworksAI(message, tier) {
 }
 
 // Function to log model response for testing/analytics
-async function logModelResponse(supabaseClient, modelResponse) {
+async function logModelResponse(modelResponse) {
   try {
     // Truncate response preview if too long
     const responsePreview = modelResponse.response.substring(0, 500);
 
-    const { data, error } = await supabaseClient
-      .from("test_model_responses")
-      .insert({
-        tier: modelResponse.tier,
-        model_id: modelResponse.modelId,
-        latency: modelResponse.latency,
-        tokens_used: modelResponse.tokensUsed,
-        response_preview: responsePreview,
-      })
-      .select();
+    const result = await queryOne(
+      `INSERT INTO test_model_responses (
+        tier,
+        model_id,
+        latency,
+        tokens_used,
+        response_preview,
+        created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id`,
+      [
+        modelResponse.tier,
+        modelResponse.modelId,
+        modelResponse.latency,
+        modelResponse.tokensUsed,
+        responsePreview,
+        new Date().toISOString()
+      ]
+    );
 
-    if (error) {
-      console.error("Error inserting test result:", error);
-    } else {
+    if (result) {
       console.log(`Logged test result for ${modelResponse.tier} tier`);
+    } else {
+      console.error("Error inserting test result");
     }
 
-    return data;
+    return result;
   } catch (error) {
     console.error("Error logging model response:", error);
     return null;
@@ -123,66 +137,54 @@ async function logModelResponse(supabaseClient, modelResponse) {
 
 // Main handler function
 Deno.serve(async (req) => {
-  // Handle CORS preflight request
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  return handleRequest(
+    req,
+    async (user, body) => {
+      try {
+        const { message, model = "llama-v2-7b-chat" } = body;
+        if (!message) {
+          return createErrorResponse("Missing required field: message", 400);
+        }
 
-  try {
-    // Create a Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_KEY") ?? "",
-    );
+        // Make the Fireworks API call
+        const response = await fetch("https://api.fireworks.ai/inference/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${FIREWORKS_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "user", content: message }],
+            temperature: 0.7,
+            max_tokens: 1000,
+          }),
+        });
 
-    // Test prompt
-    const testPrompt = "Hi Akii, can you summarize what your capabilities are?";
+        if (!response.ok) {
+          throw new Error(`Fireworks API request failed: ${response.statusText}`);
+        }
 
-    // Test all models
-    const tiers = ["basic", "pro", "scale", "enterprise"];
-    const results = [];
+        const data = await response.json();
 
-    for (const tier of tiers) {
-      // Call Fireworks AI API
-      const modelResponse = await callFireworksAI(testPrompt, tier);
-
-      // Log the model response
-      await logModelResponse(supabaseClient, modelResponse);
-
-      // Add to results
-      results.push({
-        tier: tier,
-        modelId: modelResponse.modelId,
-        modelName: FIREWORKS_MODELS[tier].name,
-        latency: modelResponse.latency,
-        tokensUsed: modelResponse.tokensUsed,
-        responsePreview: modelResponse.response.substring(0, 100) + "...",
-      });
+        return createSuccessResponse({
+          message: data.choices[0].message.content,
+          model,
+          user: {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+          },
+        });
+      } catch (error) {
+        console.error("Error in test_fireworks_models:", error);
+        return createErrorResponse(error.message);
+      }
+    },
+    {
+      requiredSecrets: ["SUPABASE_URL", "SUPABASE_ANON_KEY", "FIREWORKS_API_KEY"],
+      requireAuth: true,
+      requireBody: true,
     }
-
-    // Return the results
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "All Fireworks AI models tested successfully",
-        results: results,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      },
-    );
-  } catch (error) {
-    console.error("Error testing Fireworks AI models:", error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      },
-    );
-  }
+  );
 });

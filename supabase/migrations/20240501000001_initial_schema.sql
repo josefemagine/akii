@@ -307,10 +307,24 @@ CREATE POLICY "Users can view their own analytics events"
   ON analytics_events FOR SELECT
   USING (auth.uid() = user_id);
 
--- Create realtime publication
-alter publication supabase_realtime add table conversations;
-alter publication supabase_realtime add table messages;
-alter publication supabase_realtime add table agents;
+-- Create realtime publication safely
+DO $$
+DECLARE
+  table_name text;
+  table_names text[] := ARRAY['conversations', 'messages', 'agents'];
+BEGIN
+  FOREACH table_name IN ARRAY table_names
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' 
+      AND schemaname = 'public' 
+      AND tablename = table_name
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', table_name);
+    END IF;
+  END LOOP;
+END $$;
 
 -- Insert default subscription plans
 INSERT INTO subscription_plans (name, description, price, interval, messages_limit, agents_limit, api_access, dev_tools)

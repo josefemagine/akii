@@ -3,13 +3,60 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import { tempo } from "tempo-devtools/dist/vite";
 import tsconfigPaths from 'vite-tsconfig-paths'
+import sitemap from 'vite-plugin-sitemap'
+
+// Import our blog routes generator function
+// Wrap in try/catch in case the script doesn't exist yet
+let getBlogRoutes = () => [];
+try {
+  getBlogRoutes = require('./scripts/generate-blog-routes');
+} catch (e) {
+  console.warn('Blog routes generator not found, sitemap will not include blog posts');
+}
 
 // Check if we're doing a focused build for Bedrock API testing
 const isFocusedBedrockBuild = process.env.FOCUS_BEDROCK === "true";
 
+// Site URL for sitemap generation
+const siteUrl = 'https://www.akii.com';
+
+// Define your public routes for the sitemap
+const staticRoutes = [
+  '/',
+  '/about',
+  '/plans',
+  '/blog',
+  '/contact',
+  '/products/web-chat',
+  '/products/mobile-chat',
+  '/products/whatsapp-chat',
+  '/products/telegram-chat',
+  '/products/shopify-chat',
+  '/products/wordpress-chat',
+  '/products/private-ai-api',
+  '/products/integrations/zapier',
+  '/products/integrations/n8n',
+  '/terms-of-service',
+  '/privacy-policy',
+  '/legal/cookie-policy',
+];
+
+// Combine static routes with dynamically generated blog routes
+const allRoutes = [...staticRoutes, ...getBlogRoutes()];
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), tempo(), tsconfigPaths()],
+  plugins: [
+    react(), 
+    tempo(), 
+    tsconfigPaths(),
+    !isFocusedBedrockBuild && sitemap({
+      hostname: siteUrl,
+      dynamicRoutes: allRoutes,
+      exclude: ['/dashboard/**', '/admin/**', '/auth/**'],
+      outDir: 'dist'
+    }),
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -34,8 +81,7 @@ export default defineConfig({
       // Exclude unused/transitional files from build to prevent errors
       external: [
         /supabase\/auth-helpers-nextjs/,
-        /SimpleAuthContext\.tsx$/,
-        /ConsolidatedAuthContext\.tsx$/ // Exclude the problematic auth context file
+        /SimpleAuthContext\.tsx$/
       ],
       output: {
         manualChunks: {

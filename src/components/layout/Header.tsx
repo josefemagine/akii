@@ -16,6 +16,7 @@ import JoinModal from "@/components/auth/JoinModal";
 import PasswordReset from "@/components/auth/PasswordReset";
 import { supabase } from "@/lib/supabase";
 import AkiiLogo from "@/components/shared/AkiiLogo";
+import { toast } from "@/components/ui/use-toast";
 
 interface NavLinkProps {
   href: string;
@@ -124,20 +125,19 @@ const Header = ({}: HeaderProps) => {
   
   // Update local auth state whenever auth context changes - with reduced logging
   useEffect(() => {
-    const contextAuthState = Boolean(auth.user) || Boolean(auth.session);
+    const contextAuthState = Boolean(auth.user);
     
     // Only update and log if there's an actual change
     if (contextAuthState !== isAuthenticatedLocal) {
       console.log("[Header] Auth state updated from context:", { 
         hasUser: Boolean(auth.user),
         userId: auth.user?.id,
-        hasSession: Boolean(auth.session),
         previousState: isAuthenticatedLocal
       });
       
       setIsAuthenticatedLocal(contextAuthState);
     }
-  }, [auth.user, auth.session, isAuthenticatedLocal]);
+  }, [auth.user, isAuthenticatedLocal]);
   
   // Listen for auth state changes
   useEffect(() => {
@@ -203,34 +203,19 @@ const Header = ({}: HeaderProps) => {
   
   // Handle sign out with better cleanup
   const handleSignOut = async (scope: 'global' | 'local' | 'others' = 'global') => {
-    // Immediately set local state to unauthenticated for fast UI feedback
-    setIsAuthenticatedLocal(false);
+    console.log(`Logging out user (scope: ${scope})`);
     
-    // Manually clear tokens for immediate UI feedback
-    try {
-      const authKeys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (
-          key.includes('supabase') || 
-          key.includes('sb-') || 
-          key.includes('akii-auth') ||
-          key.includes('token')
-        )) {
-          authKeys.push(key);
-        }
-      }
-      
-      if (authKeys.length > 0) {
-        authKeys.forEach(key => localStorage.removeItem(key));
-        console.log(`[Header] Cleared ${authKeys.length} auth tokens from localStorage`);
-      }
-    } catch (e) {
-      console.error("Error clearing localStorage:", e);
+    if (scope === 'local' || scope === 'others') {
+      // Show a warning that this is not fully supported
+      toast({
+        title: "Limited Functionality",
+        description: `Single device logouts are not fully supported. All devices will be logged out.`,
+        variant: "destructive",
+      });
     }
     
     // Call auth context signOut
-    auth.signOut(scope).catch(error => {
+    auth.signOut().catch(error => {
       console.error("Error during logout:", error);
     });
     

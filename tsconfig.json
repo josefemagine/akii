@@ -23,7 +23,7 @@
     },
     "baseUrl": "."
   },
-  "include": ["src"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.js", "src/**/*.jsx"],
   "exclude": [
     "src/tempobook", 
     "src/contexts/AuthContext.tsx.new.tsx", 

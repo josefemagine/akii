@@ -13,7 +13,6 @@ BEGIN
   INSERT INTO public.profiles (
     id, 
     email, 
-    full_name, 
     first_name,
     last_name,
     company_name,
@@ -24,7 +23,6 @@ BEGIN
   VALUES (
     NEW.id,
     NEW.email,
-    coalesce(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name'),
     NEW.raw_user_meta_data->>'first_name',
     NEW.raw_user_meta_data->>'last_name',
     NEW.raw_user_meta_data->>'company_name',
@@ -45,12 +43,28 @@ SET
 FROM auth.users u
 WHERE p.id = u.id AND p.first_name IS NULL;
 
--- Update profile first_name/last_name from full_name if needed
-UPDATE public.profiles
-SET 
-  first_name = split_part(full_name, ' ', 1),
-  last_name = substring(full_name from position(' ' in full_name))
-WHERE full_name IS NOT NULL AND first_name IS NULL;
+-- Check if full_name column exists before using it
+DO $$
+DECLARE
+  column_exists BOOLEAN;
+BEGIN
+  SELECT EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles' 
+    AND column_name = 'full_name'
+  ) INTO column_exists;
+  
+  IF column_exists THEN
+    -- Update profile first_name/last_name from full_name if needed
+    EXECUTE '
+    UPDATE public.profiles
+    SET 
+      first_name = split_part(full_name, '' '', 1),
+      last_name = substring(full_name from position('' '' in full_name))
+    WHERE full_name IS NOT NULL AND first_name IS NULL';
+  END IF;
+END $$;
 
 -- Make sure indexes exist for the RLS policies
 CREATE INDEX IF NOT EXISTS idx_profiles_id ON public.profiles(id);

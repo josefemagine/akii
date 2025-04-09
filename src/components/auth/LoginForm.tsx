@@ -47,44 +47,32 @@ const LoginForm: React.FC<LoginFormProps> = ({ signInWithGoogle }) => {
       localStorage.setItem("login-attempt-time", Date.now().toString());
       localStorage.setItem("login-attempt-email", email);
 
-      const result = await signIn(email, password);
+      await signIn(email, password);
       
-      if (result.error) {
-        console.error("Login error:", result.error);
-        setError(result.error.message);
-        localStorage.removeItem("login-attempt");
-      } else if (result.data) {
-        const userData = result.data.user;
-        console.log(
-          "Login successful, user data:",
-          userData ? "User exists" : "No user data",
-        );
+      // If we get here, login was successful
+      console.log("Login successful");
 
-        // Store user email and ID for backup recovery
-        if (userData) {
-          localStorage.setItem("akii-auth-user-email", email);
-          localStorage.setItem("akii-auth-user-id", userData.id);
-          localStorage.setItem("akii-auth-timestamp", Date.now().toString());
+      // Store user email for backup recovery
+      localStorage.setItem("akii-auth-user-email", email);
+      localStorage.setItem("akii-auth-timestamp", Date.now().toString());
+
+      // Clear login attempt tracking
+      localStorage.removeItem("login-attempt");
+      localStorage.removeItem("login-attempt-time");
+      localStorage.removeItem("login-attempt-email");
+
+      toast({
+        title: "Success",
+        description: "You have been logged in successfully.",
+      });
+
+      // Force redirect to dashboard if not automatically redirected
+      setTimeout(() => {
+        if (window.location.pathname !== "/dashboard") {
+          console.log("Manual redirect to dashboard after login");
+          window.location.href = "/dashboard";
         }
-
-        // Clear login attempt tracking
-        localStorage.removeItem("login-attempt");
-        localStorage.removeItem("login-attempt-time");
-        localStorage.removeItem("login-attempt-email");
-
-        toast({
-          title: "Success",
-          description: "You have been logged in successfully.",
-        });
-
-        // Force redirect to dashboard if not automatically redirected
-        setTimeout(() => {
-          if (window.location.pathname !== "/dashboard") {
-            console.log("Manual redirect to dashboard after login");
-            window.location.href = "/dashboard";
-          }
-        }, 1000);
-      }
+      }, 1000);
     } catch (err) {
       console.error("Login error:", err);
       setError("An unexpected error occurred. Please try again.");

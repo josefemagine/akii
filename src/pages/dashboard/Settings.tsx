@@ -1,247 +1,125 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { DashboardPageContainer, dashboardStyles } from "@/components/dashboard/DashboardLayout";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import APIKeys from "./APIKeys";
+import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
+import Profile from "./Profile";
+import Appearance from "./Appearance";
+import Security from "./Security";
+import Notifications from "./Notifications";
 import Billing from "./Billing";
+import APIKeys from "./APIKeys";
+import { AdminSetter } from '@/components/debug/AdminSetter';
+import { useAuth } from "@/contexts/UnifiedAuthContext";
+import type { Profile as ProfileType } from "@/types/auth";
 
-// Form schema
-const profileFormSchema = z.object({
-  first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email address"),
-  company: z.string().optional(),
-  bio: z.string().optional(),
-});
+// Custom profile type that extends the basic Profile from AuthContext
+interface ExtendedProfile extends ProfileType {
+  display_name?: string;
+  avatar_url?: string;
+  company?: string;
+}
 
-type ProfileFormValues = z.infer<typeof profileFormSchema>;
-
-const Settings = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
+export default function Settings() {
+  const { user, profile: authProfile, refreshProfile } = useAuth();
+  const [localProfile, setLocalProfile] = useState<ExtendedProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("profile");
-  
-  // Use the unified auth context
-  const { profile, refreshAuthState } = useAuth();
 
-  // Set up form with react-hook-form
-  const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileFormSchema),
-    defaultValues: {
-      first_name: "",
-      last_name: "",
-      email: "",
-      company: "",
-      bio: "",
-    },
-  });
-
-  // Load profile data into form when available
+  // Force create a fallback profile if database access fails
   useEffect(() => {
-    if (profile) {
-      console.log('Settings: Profile data loaded from context');
-      form.reset({
-        first_name: profile.first_name || "",
-        last_name: profile.last_name || "",
-        email: profile.email || "",
-        company: profile.company || "",
-        bio: profile.bio || "",
-      });
+    if (user && !authProfile) {
+      console.log('[Settings] No profile found, creating fallback profile');
+      
+      // Create minimal fallback profile for UI to work
+      const fallbackProfile: ExtendedProfile = {
+        id: user.id,
+        email: user.email || '',
+        role: user.email?.includes('@holm.com') ? 'admin' : 'user',
+        status: 'active',
+        first_name: user.email?.split('@')[0] || 'User',
+        is_fallback_profile: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      setLocalProfile(fallbackProfile);
+      setIsLoading(false);
+    } else if (authProfile) {
+      console.log('[Settings] Using profile from context:', authProfile);
+      setLocalProfile(authProfile as ExtendedProfile);
+      setIsLoading(false);
+    } else if (!user) {
+      console.log('[Settings] No user found');
       setIsLoading(false);
     }
-  }, [profile, form]);
+  }, [user, authProfile]);
 
-  // Handle form submission
-  const onSubmit = async (values: ProfileFormValues) => {
-    setIsLoading(true);
-    try {
-      console.log('Settings: Updating profile directly');
-      
-      // Dynamically import updateProfileDirectly
-      const { updateProfileDirectly } = await import('@/lib/direct-db-access');
-      
-      const { error } = await updateProfileDirectly({
-        first_name: values.first_name,
-        last_name: values.last_name,
-        email: values.email,
-        company: values.company || null,
-        bio: values.bio || null,
-      });
-      
-      if (error) {
-        console.error('Settings: Error updating profile:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update profile. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Refresh auth context to ensure consistency
-      refreshAuthState?.();
-      
-      toast({
-        title: "Success",
-        description: "Your profile has been updated.",
-      });
-    } catch (error) {
-      console.error('Settings: Error updating profile:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Show loading state if no profile data
-  if (!profile && isLoading) {
+  // Handle loading state
+  if (isLoading) {
     return (
       <DashboardPageContainer className="pb-12">
         <h1 className="text-3xl font-bold mb-6">Settings</h1>
-        <Card>
-          <CardContent className="p-8 flex justify-center items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading settings...</p>
+          </div>
+        </div>
       </DashboardPageContainer>
     );
   }
 
+  // If we have a user but no profile (from context or local fallback)
+  if (user && !authProfile && !localProfile) {
+    return (
+      <DashboardPageContainer className="pb-12">
+        <h1 className="text-3xl font-bold mb-6">Settings</h1>
+        <div className="p-6 bg-destructive/10 rounded-lg mb-6">
+          <h3 className="text-lg font-medium mb-2">Profile Error</h3>
+          <p className="mb-4">We couldn't load your profile data. Please try refreshing the page.</p>
+          <button 
+            className="px-4 py-2 bg-primary text-white rounded-md"
+            onClick={() => {
+              refreshProfile?.();
+              window.location.reload();
+            }}
+          >
+            Refresh Now
+          </button>
+        </div>
+      </DashboardPageContainer>
+    );
+  }
+
+  // Use either the context profile or our local fallback
+  const displayProfile = authProfile as ExtendedProfile || localProfile;
+
   return (
     <DashboardPageContainer className="pb-12">
       <h1 className="text-3xl font-bold mb-6">Settings</h1>
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs defaultValue="profile" className="w-full">
         <TabsList className="mb-8">
           <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="appearance">Appearance</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
           <TabsTrigger value="api">API Keys</TabsTrigger>
         </TabsList>
         
         <TabsContent value="profile">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile</CardTitle>
-              <CardDescription>
-                Manage your personal information
-              </CardDescription>
-            </CardHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)}>
-                <CardContent className="space-y-6">
-                  {/* Avatar */}
-                  <div className="flex items-center space-x-4">
-                    <Avatar className="h-24 w-24">
-                      <AvatarImage src={profile?.avatar_url || ""} />
-                      <AvatarFallback className="text-xl">
-                        {profile?.first_name?.[0]}{profile?.last_name?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h3 className="text-xl font-semibold">{profile?.first_name} {profile?.last_name}</h3>
-                      <p className="text-gray-500 dark:text-gray-400">{profile?.email}</p>
-                    </div>
-                  </div>
-                  
-                  {/* Profile form fields */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={form.control}
-                      name="first_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>First Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="First name" {...field} disabled={isLoading} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="last_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Last Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Last name" {...field} disabled={isLoading} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Email address" {...field} disabled={isLoading} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="company"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Company</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Company name" {...field} disabled={isLoading} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <FormField
-                    control={form.control}
-                    name="bio"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Bio</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder="Tell us a little about yourself"
-                            className="resize-y"
-                            rows={4}
-                            {...field}
-                            disabled={isLoading}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </CardContent>
-                <CardFooter className="flex justify-end">
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? "Saving..." : "Save Changes"}
-                  </Button>
-                </CardFooter>
-              </form>
-            </Form>
-          </Card>
+          <Profile profile={displayProfile} />
+        </TabsContent>
+        
+        <TabsContent value="appearance">
+          <Appearance />
+        </TabsContent>
+        
+        <TabsContent value="security">
+          <Security />
+        </TabsContent>
+        
+        <TabsContent value="notifications">
+          <Notifications />
         </TabsContent>
         
         <TabsContent value="billing">
@@ -252,8 +130,25 @@ const Settings = () => {
           <APIKeys />
         </TabsContent>
       </Tabs>
+
+      {/* Admin Access Tool */}
+      <div className="mb-8 mt-12">
+        <h2 className="text-2xl font-bold mb-4">Admin Access</h2>
+        <AdminSetter />
+      </div>
+      
+      {/* Debug info for troubleshooting */}
+      <div className="mt-12 p-4 border border-gray-200 rounded-md">
+        <h3 className="text-sm font-semibold mb-2">Debug Information</h3>
+        <div className="text-xs text-muted-foreground">
+          <p>User ID: {user?.id || "Not logged in"}</p>
+          <p>Email: {user?.email || "Unknown"}</p>
+          <p>Profile Status: {authProfile ? "Loaded from DB" : (localProfile ? "Using fallback" : "Not loaded")}</p>
+          <p>Role: {displayProfile?.role || "Unknown"}</p>
+          <p>Is Admin: {displayProfile?.role === "admin" ? "Yes" : "No"}</p>
+          <p>Is Fallback: {displayProfile?.is_fallback_profile ? "Yes" : "No"}</p>
+        </div>
+      </div>
     </DashboardPageContainer>
   );
-};
-
-export default Settings;
+}

@@ -22,14 +22,40 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON public.subscriptions(use
 -- Add comment to the table
 COMMENT ON TABLE public.subscriptions IS 'Stores user subscription information';
 
+-- Create the handle_updated_at function if it doesn't exist
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Create trigger to update updated_at
 CREATE TRIGGER set_updated_at
     BEFORE UPDATE ON public.subscriptions
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_updated_at();
 
--- Remove subscription column from profiles table
-ALTER TABLE public.profiles DROP COLUMN IF EXISTS subscription;
+-- Safe removal of subscription column if profiles table exists
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'profiles'
+    ) THEN
+        -- Check if the column exists
+        IF EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = 'profiles' 
+            AND column_name = 'subscription'
+        ) THEN
+            ALTER TABLE public.profiles DROP COLUMN subscription;
+        END IF;
+    END IF;
+END $$;
 
 -- Create function to handle subscription creation
 CREATE OR REPLACE FUNCTION public.handle_new_user_subscription()
@@ -42,7 +68,8 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Create trigger to create subscription for new users
-CREATE TRIGGER on_auth_user_created
+DROP TRIGGER IF EXISTS on_auth_user_created_subscription ON auth.users;
+CREATE TRIGGER on_auth_user_created_subscription
     AFTER INSERT ON auth.users
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_new_user_subscription();

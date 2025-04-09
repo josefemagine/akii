@@ -1,0 +1,11 @@
+# Edge Functions Configuration File
+# https://supabase.com/docs/guides/functions/edge-functions-configuration
+
+[functions]
+  [functions.ensure_profile_exists]
+    verify_jwt = false
+    import_map = "./_shared/import_map.json"
+
+[shared_environment]
+  SUPABASE_URL = "https://injxxchotrvgvvzelhvj.supabase.co"
+  SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imluanh4Y2hvdHJ2Z3Z2emVsaHZqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MzE4NzE4MywiZXhwIjoyMDU4NzYzMTgzfQ.xJZpOe1MxGg55BwRWy7rBMsPnCeij7fMmvNk_uzq1lk" 

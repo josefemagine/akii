@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Bell, Menu, User as UserIcon, Moon, Sun, LogOut, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,12 +11,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { toast } from "@/components/ui/use-toast";
+import { Profile } from "@/types/auth";
+import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabase";
 import { ensureDashboardAccess } from "@/lib/production-recovery";
 
 // Control debug logging with a single flag
 const DEBUG_AUTH = false;
+
+// Default avatar URL - use the same one from the settings page
+const DEFAULT_AVATAR_URL = "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/avatars/b574f273-e0e1-4cb8-8c98-f5a7569234c8/green-robot-icon.png";
+
+// Extended profile interface to include additional properties
+interface ExtendedProfile extends Profile {
+  display_name?: string;
+  avatar_url?: string;
+}
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -33,7 +43,9 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   // Use unified auth context
   const { user, profile, signOut, isAdmin: contextIsAdmin, refreshAuthState } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const lastCheckTime = useRef<number>(Date.now());
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const authStatusChecked = useRef<boolean>(false);
@@ -292,14 +304,14 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   // Get profile info from unified auth
-  const displayProfile = profile;
+  const displayProfile = profile as ExtendedProfile;
   
   const displayName = 
     displayProfile?.first_name || 
     displayProfile?.display_name || 
     'User';
   
-  const avatarUrl = displayProfile?.avatar_url;
+  const avatarUrl = displayProfile?.avatar_url || DEFAULT_AVATAR_URL;
   const firstInitial = displayName.charAt(0).toUpperCase();
   
   // Determine if user is admin from props or context
@@ -384,13 +396,10 @@ const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-2 rounded-full overflow-hidden"
               >
                 <Avatar className="h-8 w-8">
-                  {avatarUrl ? (
-                    <AvatarImage src={avatarUrl} alt="User's profile picture" />
-                  ) : (
-                    <AvatarFallback>
-                      {firstInitial || <UserIcon className="h-5 w-5" />}
-                    </AvatarFallback>
-                  )}
+                  <AvatarImage src={avatarUrl} alt="User's profile picture" />
+                  <AvatarFallback>
+                    {firstInitial || <UserIcon className="h-5 w-5" />}
+                  </AvatarFallback>
                 </Avatar>
                 <span className="font-medium ml-1 hidden md:inline-block">
                   {displayName}

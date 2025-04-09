@@ -1,9 +1,6 @@
-import serve from "https://deno.land/std@0.168.0/http/server.ts";
-import createClient from "https://esm.sh/@supabase/supabase-js@2.1.0";
+import { handleRequest, createSuccessResponse, createErrorResponse } from "../_shared/auth.ts";
+import { query, queryOne, execute } from "../_shared/postgres.ts";
 import Stripe from "https://esm.sh/stripe@12.0.0?dts";
-
-// Import CORS headers helper
-import { corsHeaders } from "../_shared/cors.ts";
 
 // Initialize Stripe
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
@@ -13,184 +10,149 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
 // Cache of plan data to minimize database requests
 const planCache = new Map();
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders,
-    });
-  }
+interface UpdateSubscriptionRequest {
+  planId: string;
+  billingCycle?: 'monthly' | 'annual';
+}
 
-  try {
-    // Parse request body
-    const { planId, billingCycle = 'monthly' } = await req.json();
-    
-    if (!planId) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required parameters' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+interface UpdateSubscriptionResponse {
+  success: boolean;
+  message: string;
+  updated: boolean;
+  data?: {
+    subscription_id: string;
+    plan_id: string;
+    billing_cycle: string;
+  };
+}
+
+interface Subscription {
+  id: string;
+  stripe_subscription_id: string;
+  plan_id: string;
+  billing_cycle: string;
+  subscription_item_id: string;
+}
+
+interface SubscriptionPlan {
+  id: string;
+  stripe_price_id_monthly: string;
+  stripe_price_id_yearly: string;
+  [key: string]: any;
+}
+
+Deno.serve(async (req) => {
+  return handleRequest(
+    req,
+    async (user, body: UpdateSubscriptionRequest) => {
+      try {
+        const { planId, billingCycle = 'monthly' } = body;
+
+        if (!planId) {
+          return createErrorResponse('Missing required parameters', 400);
         }
-      );
-    }
 
-    // Create Supabase client
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') || '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
+        // Get user's current subscription
+        const subscription = await queryOne<Subscription>(
+          `SELECT id, stripe_subscription_id, plan_id, billing_cycle, subscription_item_id 
+           FROM subscriptions 
+           WHERE user_id = $1 AND status = $2`,
+          [user.id, 'active']
+        );
 
-    // Get authentication context
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header provided' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Get user's current subscription
-    const { data: subscription, error: subscriptionError } = await supabaseAdmin
-      .from('subscriptions')
-      .select('id, stripe_subscription_id, plan_id')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .single();
-
-    if (subscriptionError || !subscription?.stripe_subscription_id) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'No active subscription found for this user',
-          details: subscriptionError || 'Missing subscription data'
-        }), 
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        if (!subscription?.stripe_subscription_id) {
+          return createErrorResponse(
+            'No active subscription found for this user',
+            400
+          );
         }
-      );
-    }
 
-    // If trying to update to the same plan with the same billing cycle, return early
-    const currentBillingCycle = subscription.billing_cycle || 'monthly';
-    if (subscription.plan_id === planId && currentBillingCycle === billingCycle) {
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          message: 'Subscription already on this plan and billing cycle',
-          updated: false
-        }), 
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        // If trying to update to the same plan with the same billing cycle, return early
+        const currentBillingCycle = subscription.billing_cycle || 'monthly';
+        if (subscription.plan_id === planId && currentBillingCycle === billingCycle) {
+          return createSuccessResponse({
+            success: true,
+            message: 'Subscription already on this plan and billing cycle',
+            updated: false,
+          });
         }
-      );
-    }
 
-    // Get the new plan data
-    let plan;
-    if (planCache.has(planId)) {
-      plan = planCache.get(planId);
-    } else {
-      const { data: planData, error: planError } = await supabaseAdmin
-        .from('subscription_plans')
-        .select('*')
-        .eq('id', planId)
-        .single();
+        // Get the new plan data
+        let plan: SubscriptionPlan;
+        if (planCache.has(planId)) {
+          plan = planCache.get(planId);
+        } else {
+          const planData = await queryOne<SubscriptionPlan>(
+            'SELECT * FROM subscription_plans WHERE id = $1',
+            [planId]
+          );
 
-      if (planError || !planData) {
-        return new Response(JSON.stringify({ error: 'Invalid plan ID', details: planError }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
+          if (!planData) {
+            return createErrorResponse('Invalid plan ID', 400);
+          }
 
-      plan = planData;
-      planCache.set(planId, plan);
-    }
+          plan = planData;
+          planCache.set(planId, plan);
+        }
 
-    // Determine price ID based on billing cycle
-    const priceField = billingCycle === 'annual' ? 'stripe_price_id_yearly' : 'stripe_price_id_monthly';
-    const priceId = plan[priceField];
+        // Determine price ID based on billing cycle
+        const priceField = billingCycle === 'annual' ? 'stripe_price_id_yearly' : 'stripe_price_id_monthly';
+        const priceId = plan[priceField];
 
-    if (!priceId) {
-      return new Response(JSON.stringify({ error: 'No price ID configured for this plan and billing cycle' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+        if (!priceId) {
+          return createErrorResponse('No price ID configured for this plan and billing cycle', 400);
+        }
 
-    // Update the subscription in Stripe
-    const updatedSubscription = await stripe.subscriptions.update(
-      subscription.stripe_subscription_id,
-      {
-        items: [
+        // Update the subscription in Stripe
+        const updatedSubscription = await stripe.subscriptions.update(
+          subscription.stripe_subscription_id,
           {
-            id: subscription.subscription_item_id, // Get from subscription table or Stripe API
-            price: priceId,
+            items: [
+              {
+                id: subscription.subscription_item_id,
+                price: priceId,
+              },
+            ],
+            metadata: {
+              plan_id: planId,
+              user_id: user.id,
+              billing_cycle: billingCycle,
+            },
+            proration_behavior: 'create_prorations',
+          }
+        );
+
+        // Update the subscription in database
+        await execute(
+          `UPDATE subscriptions 
+           SET plan_id = $1, billing_cycle = $2, updated_at = $3 
+           WHERE id = $4`,
+          [planId, billingCycle, new Date().toISOString(), subscription.id]
+        );
+
+        return createSuccessResponse({
+          success: true,
+          message: 'Subscription updated successfully',
+          updated: true,
+          data: {
+            subscription_id: updatedSubscription.id,
+            plan_id: planId,
+            billing_cycle: billingCycle,
           },
-        ],
-        metadata: {
-          plan_id: planId,
-          user_id: user.id,
-          billing_cycle: billingCycle,
-        },
-        proration_behavior: 'create_prorations',
-      }
-    );
+        });
 
-    // Update the subscription in Supabase
-    await supabaseAdmin
-      .from('subscriptions')
-      .update({
-        plan_id: planId,
-        billing_cycle: billingCycle,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', subscription.id);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Subscription updated successfully',
-        updated: true,
-        data: {
-          subscription_id: updatedSubscription.id,
-          plan_id: planId,
-          billing_cycle: billingCycle,
-        }
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      } catch (error) {
+        console.error('Error updating subscription:', error);
+        return createErrorResponse(
+          error instanceof Error ? error.message : 'An unexpected error occurred',
+          500
+        );
       }
-    );
-
-  } catch (error) {
-    console.error('Error updating subscription:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-  }
+    },
+    {
+      requiredSecrets: ["SUPABASE_URL", "SUPABASE_ANON_KEY", "STRIPE_SECRET_KEY"],
+      requireAuth: true,
+      requireBody: true,
+    }
+  );
 }); 

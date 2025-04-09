@@ -18,9 +18,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
-import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from './AuthStateManager';
+import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from '@/types/auth';
 import { supabase } from "@/lib/supabase";
-import { useAuth, useSupabaseAuth } from "@/contexts/UnifiedAuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailPasswordRetry } from "@/lib/supabase-singleton";
 
@@ -75,9 +75,6 @@ const LoginModal = ({
       signInWithGoogle: async () => ({ data: null, error: new Error("Auth not initialized") })
     };
   }
-
-  // Use the Supabase auth context directly for consistent behavior with Login page
-  const { signIn, user } = useSupabaseAuth();
 
   const {
     register,

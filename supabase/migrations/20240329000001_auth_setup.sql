@@ -1,69 +1,56 @@
--- Create profiles table if it doesn't exist
+-- Create profiles table to store user information
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID REFERENCES auth.users(id) PRIMARY KEY,
-  email TEXT NOT NULL,
-  full_name TEXT,
-  avatar_url TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT,
+    full_name TEXT,
+    avatar_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Set up Row Level Security (RLS)
+-- Enable row level security
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Create policies
+-- Create policies to allow users to access their own profile data
 DO $$
 BEGIN
-  -- Drop policies if they exist to avoid errors on recreation
-  DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
-  DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
-  DROP POLICY IF EXISTS "Admin users can view all profiles" ON public.profiles;
-END
-$$;
+  IF NOT EXISTS (
+    SELECT FROM pg_policies 
+    WHERE tablename = 'profiles' 
+    AND policyname = 'Admin users can view all profiles'
+  ) THEN
+    -- Admin policy
+    CREATE POLICY "Admin users can view all profiles"
+      ON public.profiles
+      FOR SELECT
+      USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
+  END IF;
+END $$;
 
--- Create policies
-CREATE POLICY "Users can view their own profile"
-  ON public.profiles
-  FOR SELECT
-  USING (auth.uid() = id);
-
-CREATE POLICY "Users can update their own profile"
-  ON public.profiles
-  FOR UPDATE
-  USING (auth.uid() = id);
-
-CREATE POLICY "Admin users can view all profiles"
-  ON public.profiles
-  FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM auth.users
-      WHERE auth.users.id = auth.uid() AND auth.users.email LIKE '%@akii.ai'
-    )
-  );
-
--- Create function to handle new user creation
+-- Create a function to automatically create a profile entry when a new user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, full_name, avatar_url)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    NEW.raw_user_meta_data->>'full_name',
-    NEW.raw_user_meta_data->>'avatar_url'
-  );
+  VALUES (NEW.id, NEW.email, '', '');
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create trigger for new user creation
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+-- Trigger the function every time a user is created
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_trigger 
+    WHERE tgname = 'on_auth_user_created'
+  ) THEN
+    CREATE TRIGGER on_auth_user_created
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  END IF;
+END $$;
 
--- Enable realtime for profiles
+-- Only add profiles to realtime if not already in publication
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -74,5 +61,4 @@ BEGIN
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
   END IF;
-END
-$$;
+END $$;

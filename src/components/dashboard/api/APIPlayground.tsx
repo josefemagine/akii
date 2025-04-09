@@ -156,13 +156,13 @@ export default function APIPlayground() {
     try {
       const parsedBody = JSON.parse(requestBody);
       return `curl -X ${method} \
-  https://api.akii.com${endpoint} \
+  https://injxxchotrvgvvzelhvj.supabase.co${endpoint} \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${apiKey || "YOUR_API_KEY"}" \
   -d '${JSON.stringify(parsedBody)}'`;
     } catch (e) {
       return `curl -X ${method} \
-  https://api.akii.com${endpoint} \
+  https://injxxchotrvgvvzelhvj.supabase.co${endpoint} \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${apiKey || "YOUR_API_KEY"}" \
   -d '${requestBody}'`;
@@ -176,7 +176,7 @@ async function makeRequest() {
   try {
     const response = await axios({
       method: '${method}',
-      url: 'https://api.akii.com${endpoint}',
+      url: 'https://injxxchotrvgvvzelhvj.supabase.co${endpoint}',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ${apiKey || "YOUR_API_KEY"}'
@@ -198,7 +198,7 @@ makeRequest();`;
     return `import requests
 import json
 
-url = "https://api.akii.com${endpoint}"
+url = "https://injxxchotrvgvvzelhvj.supabase.co${endpoint}"
 headers = {
     "Content-Type": "application/json",
     "Authorization": "Bearer ${apiKey || "YOUR_API_KEY"}"

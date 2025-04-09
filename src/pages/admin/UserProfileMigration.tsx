@@ -60,57 +60,31 @@ const UserProfileMigration = () => {
       setIsRunning(true);
       setProgress(10);
       
-      // Check if the columns exist
-      const { data, error } = await supabase.rpc('check_profile_columns');
+      // Check if columns exist directly using information_schema
+      const { data, error } = await supabase
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_name', 'profiles')
+        .eq('table_schema', 'public');
       
       if (error) {
-        // If the function doesn't exist, create it first
-        await supabase.rpc('admin_query', {
-          query: `
-            CREATE OR REPLACE FUNCTION check_profile_columns()
-            RETURNS json AS $$
-            DECLARE
-              result json;
-            BEGIN
-              SELECT json_build_object(
-                'first_name', EXISTS (
-                  SELECT 1 FROM information_schema.columns 
-                  WHERE table_name = 'profiles' AND column_name = 'first_name'
-                ),
-                'last_name', EXISTS (
-                  SELECT 1 FROM information_schema.columns 
-                  WHERE table_name = 'profiles' AND column_name = 'last_name'
-                ),
-                'company_name', EXISTS (
-                  SELECT 1 FROM information_schema.columns 
-                  WHERE table_name = 'profiles' AND column_name = 'company_name'
-                ),
-                'role', EXISTS (
-                  SELECT 1 FROM information_schema.columns 
-                  WHERE table_name = 'profiles' AND column_name = 'role'
-                ),
-                'status', EXISTS (
-                  SELECT 1 FROM information_schema.columns 
-                  WHERE table_name = 'profiles' AND column_name = 'status'
-                )
-              ) INTO result;
-              
-              RETURN result;
-            END;
-            $$ LANGUAGE plpgsql SECURITY DEFINER;
-          `
-        });
+        throw new Error(`Could not check columns: ${error.message}`);
+      }
+      
+      if (data) {
+        // Extract column names into an array
+        const columnNames = data.map(col => col.column_name);
         
-        // Try again
-        const { data: retryData, error: retryError } = await supabase.rpc('check_profile_columns');
+        // Build status object
+        const newColumnStatus: Record<string, boolean> = {
+          first_name: columnNames.includes('first_name'),
+          last_name: columnNames.includes('last_name'),
+          company_name: columnNames.includes('company_name'),
+          role: columnNames.includes('role'),
+          status: columnNames.includes('status')
+        };
         
-        if (retryError) {
-          throw new Error(`Could not check columns: ${retryError.message}`);
-        }
-        
-        setColumnStatus(retryData || {});
-      } else {
-        setColumnStatus(data || {});
+        setColumnStatus(newColumnStatus);
       }
       
       setProgress(100);
@@ -129,51 +103,88 @@ const UserProfileMigration = () => {
       setIsRunning(true);
       setProgress(10);
 
-      // First try with RPC if we have appropriate permission
-      try {
-        const { error } = await supabase.rpc('admin_query', {
-          query: MigrationSQL
-        });
+      // Split SQL into individual statements
+      const statements = MigrationSQL.split(';').filter(s => s.trim());
+      
+      // Execute each statement using direct database operations
+      for (let i = 0; i < statements.length; i++) {
+        const statement = statements[i].trim();
+        if (!statement) continue;
         
-        if (error) {
-          throw error;
-        }
+        setProgress(Math.floor(10 + (i / statements.length) * 70));
         
-        setProgress(80);
-        setResult("Migration completed successfully. The profiles table has been updated with the new columns.");
-      } catch (rpcError) {
-        console.log("RPC error, falling back to SQL queries:", rpcError);
+        // For each statement, determine if it's an ALTER TABLE for profiles table
+        const isAlterProfilesTable = statement.includes('ALTER TABLE public.profiles');
         
-        // Split into individual statements and execute separately
-        const statements = MigrationSQL.split(';').filter(s => s.trim());
-        
-        for (let i = 0; i < statements.length; i++) {
-          const statement = statements[i].trim();
-          if (!statement) continue;
+        if (isAlterProfilesTable) {
+          // Extract column definitions
+          const addColumnMatch = statement.match(/ADD COLUMN IF NOT EXISTS ([A-Za-z_]+) ([A-Za-z()0-9]+)( DEFAULT [^,]+)?/i);
           
-          setProgress(Math.floor(10 + (i / statements.length) * 70));
-          
-          // Execute each statement
-          const { error } = await supabase.rpc('admin_query', {
-            query: statement
-          });
-          
-          if (error) {
-            throw new Error(`Error executing statement ${i+1}: ${error.message}`);
+          if (addColumnMatch) {
+            const columnName = addColumnMatch[1];
+            const columnType = addColumnMatch[2];
+            const defaultValue = addColumnMatch[3] || '';
+            
+            console.log(`Adding column ${columnName} of type ${columnType}${defaultValue}`);
+            
+            // Check if column already exists
+            const { data: colExists } = await supabase
+              .from('information_schema.columns')
+              .select('column_name')
+              .eq('table_name', 'profiles')
+              .eq('table_schema', 'public')
+              .eq('column_name', columnName)
+              .maybeSingle();
+            
+            if (!colExists) {
+              // Use upsert to add the column
+              try {
+                // Use a test query to see if we have permission
+                const testResult = await supabase
+                  .from('profiles')
+                  .select('id')
+                  .limit(1);
+                
+                if (testResult.error) {
+                  throw new Error(`No permission to access profiles: ${testResult.error.message}`);
+                }
+                
+                // Unfortunately, we can't add columns with direct data operations
+                // We need to notify the user that this requires admin privileges
+                console.error(`Adding column ${columnName} requires admin privileges.`);
+                throw new Error(`Cannot add column ${columnName} - requires admin privileges`);
+              } catch (e) {
+                console.error(`Error adding column ${columnName}:`, e);
+                throw e;
+              }
+            } else {
+              console.log(`Column ${columnName} already exists.`);
+            }
           }
+        } else {
+          // For other statements like creating indexes or updating constraints,
+          // we need to notify the user these require admin privileges
+          console.log("This migration requires admin privileges.");
         }
-        
-        setResult("Migration completed successfully via sequential statements. The profiles table has been updated with the new columns.");
       }
       
-      // Check columns after migration
+      // Re-check columns after migration attempts
       await checkColumns();
       
       setProgress(100);
-      toast({
-        title: "Migration Successful",
-        description: "The profile columns have been added successfully.",
-      });
+      
+      // Determine if migration was successful
+      const allColumnsExist = Object.values(columnStatus).every(exists => exists);
+      
+      if (allColumnsExist) {
+        setResult("Migration completed successfully. The profiles table has been updated with the new columns.");
+        toast({
+          title: "Migration Successful",
+          description: "The profile columns have been added successfully.",
+        });
+      } else {
+        throw new Error("Not all columns were added. This operation requires database admin privileges.");
+      }
     } catch (err) {
       console.error('Error running migration:', err);
       setError(err instanceof Error ? err.message : String(err));

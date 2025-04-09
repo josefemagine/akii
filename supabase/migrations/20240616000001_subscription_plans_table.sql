@@ -1,51 +1,241 @@
--- Create subscription_plans table if it doesn't exist
-CREATE TABLE IF NOT EXISTS subscription_plans (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT,
-  price_monthly DECIMAL(10, 2) NOT NULL DEFAULT 0,
-  price_yearly DECIMAL(10, 2) NOT NULL DEFAULT 0,
-  message_limit INTEGER,
-  agent_limit INTEGER,
-  features JSONB,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  stripe_product_id TEXT,
-  stripe_price_id_monthly TEXT,
-  stripe_price_id_yearly TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Check if subscription_plans table exists and modify it
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name = 'subscription_plans'
+  ) THEN
+    -- Add any missing columns to the existing table
+    IF NOT EXISTS (
+      SELECT FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'subscription_plans'
+      AND column_name = 'stripe_product_id'
+    ) THEN
+      ALTER TABLE subscription_plans ADD COLUMN stripe_product_id TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+      SELECT FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'subscription_plans'
+      AND column_name = 'stripe_price_id_monthly'
+    ) THEN
+      ALTER TABLE subscription_plans ADD COLUMN stripe_price_id_monthly TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+      SELECT FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'subscription_plans'
+      AND column_name = 'stripe_price_id_yearly'
+    ) THEN
+      ALTER TABLE subscription_plans ADD COLUMN stripe_price_id_yearly TEXT;
+    END IF;
+    
+    IF NOT EXISTS (
+      SELECT FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'subscription_plans'
+      AND column_name = 'message_limit'
+    ) THEN
+      ALTER TABLE subscription_plans ADD COLUMN message_limit INTEGER;
+    END IF;
+    
+    IF NOT EXISTS (
+      SELECT FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'subscription_plans'
+      AND column_name = 'agent_limit'
+    ) THEN
+      ALTER TABLE subscription_plans ADD COLUMN agent_limit INTEGER;
+    END IF;
+    
+    -- Add is_active column if it doesn't exist
+    IF NOT EXISTS (
+      SELECT FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'subscription_plans'
+      AND column_name = 'is_active'
+    ) THEN
+      ALTER TABLE subscription_plans ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;
+    END IF;
+    
+    -- Rename price_annual to price_yearly if needed
+    IF EXISTS (
+      SELECT FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'subscription_plans'
+      AND column_name = 'price_annual'
+    ) AND NOT EXISTS (
+      SELECT FROM information_schema.columns 
+      WHERE table_schema = 'public' 
+      AND table_name = 'subscription_plans'
+      AND column_name = 'price_yearly'
+    ) THEN
+      ALTER TABLE subscription_plans RENAME COLUMN price_annual TO price_yearly;
+    END IF;
+    
+  ELSE
+    -- Create the table if it doesn't exist
+    CREATE TABLE subscription_plans (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      code TEXT UNIQUE,
+      description TEXT,
+      price_monthly DECIMAL(10, 2) NOT NULL DEFAULT 0,
+      price_yearly DECIMAL(10, 2) NOT NULL DEFAULT 0,
+      message_limit INTEGER,
+      agent_limit INTEGER,
+      features JSONB,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      stripe_product_id TEXT,
+      stripe_price_id_monthly TEXT,
+      stripe_price_id_yearly TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  END IF;
+END $$;
 
--- Create indexes to improve query performance
-CREATE INDEX IF NOT EXISTS idx_subscription_plans_is_active ON subscription_plans(is_active);
-CREATE INDEX IF NOT EXISTS idx_subscription_plans_stripe_product_id ON subscription_plans(stripe_product_id) WHERE stripe_product_id IS NOT NULL;
+-- Check if is_admin column exists in profiles
+DO $$
+BEGIN
+  -- Add is_admin column to profiles if it doesn't exist
+  IF EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles'
+  ) AND NOT EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles'
+    AND column_name = 'is_admin'
+  ) THEN
+    ALTER TABLE profiles ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+  END IF;
+END $$;
+
+-- Check if profiles table exists and add the needed columns
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles'
+  ) THEN
+    CREATE TABLE profiles (
+      id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+      email TEXT,
+      first_name TEXT,
+      last_name TEXT,
+      avatar_url TEXT,
+      is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  END IF;
+END $$;
+
+-- Check if is_active column exists and create indexes
+DO $$
+BEGIN
+  -- Check if is_active column exists before creating the index
+  IF EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'subscription_plans'
+    AND column_name = 'is_active'
+  ) THEN
+    -- Create indexes if they don't already exist
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_subscription_plans_is_active ON subscription_plans(is_active)';
+  END IF;
+  
+  -- Check if stripe_product_id column exists before creating the index
+  IF EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'subscription_plans'
+    AND column_name = 'stripe_product_id'
+  ) THEN
+    -- Create index for stripe_product_id
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_subscription_plans_stripe_product_id ON subscription_plans(stripe_product_id) WHERE stripe_product_id IS NOT NULL';
+  END IF;
+END
+$$;
 
 -- Add RLS policies for subscription_plans
 ALTER TABLE subscription_plans ENABLE ROW LEVEL SECURITY;
 
--- Anyone can view active plans
-CREATE POLICY "Anyone can view active plans" ON subscription_plans
-  FOR SELECT 
-  USING (is_active = TRUE);
+-- Drop existing policies before creating new ones
+DROP POLICY IF EXISTS "Anyone can view active plans" ON subscription_plans;
+DROP POLICY IF EXISTS "Anyone can view all plans" ON subscription_plans;
+DROP POLICY IF EXISTS "Only admins can insert plans" ON subscription_plans;
+DROP POLICY IF EXISTS "Only admins can update plans" ON subscription_plans;
+DROP POLICY IF EXISTS "Only admins can delete plans" ON subscription_plans;
+DROP POLICY IF EXISTS "Allow all users to read subscription plans" ON subscription_plans;
 
--- Only admins can insert, update, delete plans
-CREATE POLICY "Only admins can insert plans" ON subscription_plans
-  FOR INSERT
-  WITH CHECK (
-    (SELECT is_admin FROM profiles WHERE id = auth.uid())
-  );
+-- Create policy based on is_active column existence
+DO $$
+BEGIN
+  -- Check if is_active column exists
+  IF EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'subscription_plans'
+    AND column_name = 'is_active'
+  ) THEN
+    -- Anyone can view active plans if is_active exists
+    EXECUTE 'CREATE POLICY "Anyone can view active plans" ON subscription_plans
+      FOR SELECT 
+      USING (is_active = TRUE)';
+  ELSE
+    -- Fallback policy for all users to view plans
+    EXECUTE 'CREATE POLICY "Anyone can view all plans" ON subscription_plans
+      FOR SELECT 
+      USING (true)';
+  END IF;
+END $$;
 
-CREATE POLICY "Only admins can update plans" ON subscription_plans
-  FOR UPDATE
-  USING (
-    (SELECT is_admin FROM profiles WHERE id = auth.uid())
-  );
-
-CREATE POLICY "Only admins can delete plans" ON subscription_plans
-  FOR DELETE
-  USING (
-    (SELECT is_admin FROM profiles WHERE id = auth.uid())
-  );
+-- Create admin policies with checks for is_admin column
+DO $$
+BEGIN
+  -- Check if is_admin column exists in profiles
+  IF EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles'
+    AND column_name = 'is_admin'
+  ) THEN
+    -- Only admins can insert plans
+    EXECUTE 'CREATE POLICY "Only admins can insert plans" ON subscription_plans
+      FOR INSERT
+      WITH CHECK (
+        (SELECT is_admin FROM profiles WHERE id = auth.uid())
+      )';
+    
+    -- Only admins can update plans
+    EXECUTE 'CREATE POLICY "Only admins can update plans" ON subscription_plans
+      FOR UPDATE
+      USING (
+        (SELECT is_admin FROM profiles WHERE id = auth.uid())
+      )';
+    
+    -- Only admins can delete plans
+    EXECUTE 'CREATE POLICY "Only admins can delete plans" ON subscription_plans
+      FOR DELETE
+      USING (
+        (SELECT is_admin FROM profiles WHERE id = auth.uid())
+      )';
+  ELSE
+    -- If is_admin doesn't exist, create a policy for service_role
+    EXECUTE 'CREATE POLICY "Service role can manage plans" ON subscription_plans
+      FOR ALL
+      USING (auth.jwt() ->> ''role'' = ''service_role'')
+      WITH CHECK (auth.jwt() ->> ''role'' = ''service_role'')';
+  END IF;
+END $$;
 
 -- Create subscriptions table if it doesn't exist
 CREATE TABLE IF NOT EXISTS subscriptions (
@@ -68,10 +258,25 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 -- Create indexes for subscriptions table
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
-CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON subscriptions(stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL;
+
+-- Check if stripe_subscription_id column exists before creating the index
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'subscriptions'
+    AND column_name = 'stripe_subscription_id'
+  ) THEN
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON subscriptions(stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL';
+  END IF;
+END $$;
 
 -- Add RLS policies for subscriptions
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+
+-- Drop policy if it exists before creating it
+DROP POLICY IF EXISTS "Users can view their own subscriptions" ON subscriptions;
 
 -- Users can view their own subscriptions
 CREATE POLICY "Users can view their own subscriptions" ON subscriptions
@@ -79,11 +284,25 @@ CREATE POLICY "Users can view their own subscriptions" ON subscriptions
   USING (user_id = auth.uid());
 
 -- Admins can view all subscriptions
-CREATE POLICY "Admins can view all subscriptions" ON subscriptions
-  FOR SELECT
-  USING (
-    (SELECT is_admin FROM profiles WHERE id = auth.uid())
-  );
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles'
+    AND column_name = 'is_admin'
+  ) THEN
+    DROP POLICY IF EXISTS "Admins can view all subscriptions" ON subscriptions;
+    EXECUTE 'CREATE POLICY "Admins can view all subscriptions" ON subscriptions
+      FOR SELECT
+      USING (
+        (SELECT is_admin FROM profiles WHERE id = auth.uid())
+      )';
+  END IF;
+END $$;
+
+-- Drop service role policy if it exists
+DROP POLICY IF EXISTS "Service roles can manage subscriptions" ON subscriptions;
 
 -- Stripe webhook service can create/update subscriptions
 CREATE POLICY "Service roles can manage subscriptions" ON subscriptions
@@ -113,17 +332,32 @@ CREATE INDEX IF NOT EXISTS idx_invoices_stripe_invoice_id ON invoices(stripe_inv
 -- Add RLS policies for invoices
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
+-- Drop policies before creating them
+DROP POLICY IF EXISTS "Users can view their own invoices" ON invoices;
+DROP POLICY IF EXISTS "Admins can view all invoices" ON invoices;
+DROP POLICY IF EXISTS "Service roles can manage invoices" ON invoices;
+
 -- Users can view their own invoices
 CREATE POLICY "Users can view their own invoices" ON invoices
   FOR SELECT
   USING (user_id = auth.uid());
 
 -- Admins can view all invoices
-CREATE POLICY "Admins can view all invoices" ON invoices
-  FOR SELECT
-  USING (
-    (SELECT is_admin FROM profiles WHERE id = auth.uid())
-  );
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'profiles'
+    AND column_name = 'is_admin'
+  ) THEN
+    EXECUTE 'CREATE POLICY "Admins can view all invoices" ON invoices
+      FOR SELECT
+      USING (
+        (SELECT is_admin FROM profiles WHERE id = auth.uid())
+      )';
+  END IF;
+END $$;
 
 -- Stripe webhook service can create/update invoices
 CREATE POLICY "Service roles can manage invoices" ON invoices

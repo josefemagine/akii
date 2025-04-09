@@ -27,7 +27,7 @@ CREATE POLICY "Users can update own profile."
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- Enable realtime for profiles
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables 
@@ -38,4 +38,4 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE profiles;
   END IF;
 END
-$;
+$$;

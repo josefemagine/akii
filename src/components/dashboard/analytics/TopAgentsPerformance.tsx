@@ -27,7 +27,7 @@ const TopAgentsPerformance = ({
       messages: 3650,
       rating: 4.8,
       type: "Sales",
-      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+      avatar_url: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
     },
     {
       id: "agent-2",
@@ -36,7 +36,7 @@ const TopAgentsPerformance = ({
       messages: 2980,
       rating: 4.7,
       type: "Support",
-      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+      avatar_url: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
     },
     {
       id: "agent-3",
@@ -45,7 +45,7 @@ const TopAgentsPerformance = ({
       messages: 2450,
       rating: 4.6,
       type: "Product",
-      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+      avatar_url: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
     },
     {
       id: "agent-4",
@@ -54,7 +54,7 @@ const TopAgentsPerformance = ({
       messages: 1980,
       rating: 4.9,
       type: "Onboarding",
-      avatar_url: "https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png",
+      avatar_url: "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/images//green-robot-icon.png",
     },
   ],
   period = "Last 30 days",

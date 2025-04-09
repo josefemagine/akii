@@ -10,6 +10,9 @@ export interface AvatarUploadResult {
   error: Error | null;
 }
 
+// Define default avatar as a constant at the top of the file
+const DEFAULT_AVATAR_URL = 'https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/avatars/b574f273-e0e1-4cb8-8c98-f5a7569234c8/green-robot-icon.png';
+
 /**
  * Uploads a profile picture to Supabase storage
  */
@@ -108,7 +111,7 @@ export async function updateUserAvatar(userId: string, avatarUrl: string): Promi
  */
 export function getAvatarUrl(user: User | null): string {
   if (!user) {
-    return 'https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png';
+    return DEFAULT_AVATAR_URL;
   }
   
   // Check for custom avatar in profile
@@ -123,5 +126,5 @@ export function getAvatarUrl(user: User | null): string {
   }
   
   // Default avatar
-  return 'https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png';
+  return DEFAULT_AVATAR_URL;
 } 

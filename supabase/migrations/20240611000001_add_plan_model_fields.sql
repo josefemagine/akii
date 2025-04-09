@@ -15,43 +15,16 @@ ADD COLUMN IF NOT EXISTS message_limit INTEGER DEFAULT 1000,
 ADD COLUMN IF NOT EXISTS has_overage BOOLEAN DEFAULT false,
 ADD COLUMN IF NOT EXISTS overage_rate DECIMAL(10, 5) DEFAULT 0.00;
 
--- Optional: Update existing plans
+-- Safe update with defaults for all plans
 UPDATE subscription_plans
 SET 
-  bedrock_model_id = CASE 
-    WHEN code = 'free' OR code = 'starter' THEN 'amazon.titan-text-lite-v1'
-    WHEN code = 'pro' THEN 'amazon.titan-text-express-v1'
-    WHEN code = 'business' THEN 'anthropic.claude-instant-v1'
-    WHEN code = 'enterprise' THEN 'anthropic.claude-v2'
-    ELSE 'amazon.titan-text-lite-v1'
-  END,
-  has_trial = CASE 
-    WHEN code = 'starter' THEN true
-    ELSE false
-  END,
-  trial_days = CASE 
-    WHEN code = 'starter' THEN 14
-    ELSE 0
-  END,
-  message_limit = CASE 
-    WHEN code = 'free' THEN 1000
-    WHEN code = 'starter' THEN 5000
-    WHEN code = 'pro' THEN 20000
-    WHEN code = 'business' THEN 50000
-    WHEN code = 'enterprise' THEN 100000
-    ELSE 1000
-  END,
-  has_overage = CASE 
-    WHEN code = 'pro' OR code = 'business' OR code = 'enterprise' THEN true
-    ELSE false
-  END,
-  overage_rate = CASE 
-    WHEN code = 'pro' THEN 0.005
-    WHEN code = 'business' THEN 0.004
-    WHEN code = 'enterprise' THEN 0.003
-    ELSE 0.00
-  END
-WHERE EXISTS (SELECT 1 FROM subscription_plans);
+  bedrock_model_id = 'amazon.titan-text-lite-v1',
+  has_trial = false,
+  trial_days = 0,
+  message_limit = 1000,
+  has_overage = false,
+  overage_rate = 0.00
+WHERE bedrock_model_id IS NULL;
 
 -- Comment explaining the migration
 COMMENT ON TABLE subscription_plans IS 'Subscription plans with Bedrock model associations and pricing details';

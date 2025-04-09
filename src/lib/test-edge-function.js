@@ -17,7 +17,7 @@ async function testEdgeFunction() {
     const token = session.access_token;
     
     // Test the edge function directly
-    const response = await fetch('https://api.akii.com/functions/v1/super-action/test-env', {
+    const response = await fetch('https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action/test-env', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

@@ -1,5 +1,5 @@
-import serve from "https://deno.land/std@0.168.0/http/server.ts";
-import createClient from "https://esm.sh/@supabase/supabase-js@2.1.0";
+import { handleRequest, createSuccessResponse, createErrorResponse } from "../_shared/auth.ts";
+import { query, queryOne, execute } from "../_shared/postgres.ts";
 import Stripe from "https://esm.sh/stripe@12.0.0?dts";
 
 // Import CORS headers helper
@@ -13,7 +13,28 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
 // Cache of plan data to minimize database requests
 const planCache = new Map();
 
-serve(async (req) => {
+interface CheckoutRequest {
+  planId: string;
+  billingCycle?: 'monthly' | 'annual';
+}
+
+interface CheckoutResponse {
+  url: string;
+}
+
+interface Profile {
+  stripe_customer_id: string | null;
+}
+
+interface SubscriptionPlan {
+  id: string;
+  name: string;
+  stripe_price_id_monthly: string;
+  stripe_price_id_yearly: string;
+  [key: string]: any;
+}
+
+Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -22,159 +43,108 @@ serve(async (req) => {
     });
   }
 
-  try {
-    // Parse request body
-    const { planId, billingCycle = 'monthly' } = await req.json();
-    
-    if (!planId) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required parameters' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  return handleRequest(
+    req,
+    async (user, body: CheckoutRequest) => {
+      try {
+        const { planId, billingCycle = 'monthly' } = body;
+
+        if (!planId) {
+          return createErrorResponse('Missing required parameters', 400);
         }
-      );
-    }
 
-    // Create Supabase client for the function
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') || '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
+        // Fetch the user's profile
+        const profile = await queryOne<Profile>(
+          'SELECT stripe_customer_id FROM profiles WHERE id = $1',
+          [user.id]
+        );
 
-    // Get authentication context
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header provided' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+        // Get the subscription plan
+        let plan: SubscriptionPlan;
+        if (planCache.has(planId)) {
+          plan = planCache.get(planId);
+        } else {
+          const planData = await queryOne<SubscriptionPlan>(
+            'SELECT * FROM subscription_plans WHERE id = $1',
+            [planId]
+          );
 
-    // Get the user session from the auth header
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+          if (!planData) {
+            return createErrorResponse('Invalid plan ID', 400);
+          }
 
-    // Fetch the user's profile
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('stripe_customer_id')
-      .eq('id', user.id)
-      .single();
+          plan = planData;
+          planCache.set(planId, plan);
+        }
 
-    if (profileError && profileError.code !== 'PGRST116') {
-      return new Response(JSON.stringify({ error: 'Error fetching profile', details: profileError }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+        // Determine price ID based on billing cycle
+        const priceField = billingCycle === 'annual' ? 'stripe_price_id_yearly' : 'stripe_price_id_monthly';
+        const priceId = plan[priceField];
 
-    // Get the subscription plan
-    let plan;
-    if (planCache.has(planId)) {
-      plan = planCache.get(planId);
-    } else {
-      const { data: planData, error: planError } = await supabaseAdmin
-        .from('subscription_plans')
-        .select('*')
-        .eq('id', planId)
-        .single();
+        if (!priceId) {
+          return createErrorResponse('No price ID configured for this plan and billing cycle', 400);
+        }
 
-      if (planError || !planData) {
-        return new Response(JSON.stringify({ error: 'Invalid plan ID', details: planError }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        // Get or create customer
+        let customerId = profile?.stripe_customer_id;
+        if (!customerId) {
+          const customer = await stripe.customers.create({
+            email: user.email,
+            metadata: {
+              supabase_user_id: user.id,
+            },
+          });
+          customerId = customer.id;
+
+          // Update the profile with the customer ID
+          await execute(
+            'UPDATE profiles SET stripe_customer_id = $1 WHERE id = $2',
+            [customerId, user.id]
+          );
+        }
+
+        // Create the checkout session
+        const session = await stripe.checkout.sessions.create({
+          customer: customerId,
+          line_items: [
+            {
+              price: priceId,
+              quantity: 1,
+            },
+          ],
+          mode: 'subscription',
+          success_url: `${Deno.env.get('CLIENT_URL')}/dashboard?checkout=success`,
+          cancel_url: `${Deno.env.get('CLIENT_URL')}/dashboard?checkout=cancelled`,
+          metadata: {
+            plan_id: planId,
+            user_id: user.id,
+            billing_cycle: billingCycle,
+          },
+          subscription_data: {
+            metadata: {
+              plan_id: planId,
+              user_id: user.id,
+              billing_cycle: billingCycle,
+            },
+          },
         });
+
+        return createSuccessResponse({
+          url: session.url,
+        });
+
+      } catch (error) {
+        console.error('Error creating checkout session:', error);
+        return createErrorResponse(
+          error instanceof Error ? error.message : 'An unexpected error occurred',
+          500
+        );
       }
-
-      plan = planData;
-      planCache.set(planId, plan);
+    },
+    {
+      requiredSecrets: ["SUPABASE_URL", "SUPABASE_ANON_KEY", "STRIPE_SECRET_KEY", "CLIENT_URL"],
+      requireAuth: true,
+      requireBody: true,
     }
-
-    // Determine price ID based on billing cycle
-    const priceField = billingCycle === 'annual' ? 'stripe_price_id_yearly' : 'stripe_price_id_monthly';
-    const priceId = plan[priceField];
-
-    if (!priceId) {
-      return new Response(JSON.stringify({ error: 'No price ID configured for this plan and billing cycle' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Get or create customer
-    let customerId = profile?.stripe_customer_id;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        metadata: {
-          supabase_user_id: user.id,
-        },
-      });
-      customerId = customer.id;
-
-      // Update the profile with the customer ID
-      await supabaseAdmin
-        .from('profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('id', user.id);
-    }
-
-    // Create the checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription',
-      success_url: `${Deno.env.get('CLIENT_URL')}/dashboard?checkout=success`,
-      cancel_url: `${Deno.env.get('CLIENT_URL')}/dashboard?checkout=cancelled`,
-      metadata: {
-        plan_id: planId,
-        user_id: user.id,
-        billing_cycle: billingCycle,
-      },
-      subscription_data: {
-        metadata: {
-          plan_id: planId,
-          user_id: user.id,
-          billing_cycle: billingCycle,
-        },
-      },
-    });
-
-    return new Response(
-      JSON.stringify({ url: session.url }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-
-  } catch (error) {
-    console.error('Error creating checkout session:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-  }
+  );
 }); 

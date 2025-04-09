@@ -1,32 +1,22 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/UnifiedAuthContext';
-
-// Create a custom event for auth state changes
-export const AUTH_STATE_CHANGE_EVENT = 'akii:auth:stateChange';
-
-// Custom event detail type
-export interface AuthStateChangeEvent {
-  authenticated: boolean;
-  userId?: string;
-  timestamp: number;
-}
+import { AUTH_STATE_CHANGE_EVENT, AuthStateChangeEvent } from '@/types/auth';
 
 /**
  * This component monitors auth state and broadcasts changes via custom events
  * to help coordinate UI state across components (especially modals)
  */
 export default function AuthStateManager() {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   
   // Monitor auth state and dispatch events when it changes
   useEffect(() => {
-    const isAuthenticated = !!user || !!session;
+    const isAuthenticated = !!user;
     
     console.log('[Auth State Manager] Auth state changed:', {
       authenticated: isAuthenticated,
       userId: user?.id,
-      email: user?.email,
-      hasSession: !!session
+      email: user?.email
     });
     
     // Dispatch a custom event that other components can listen for
@@ -65,7 +55,7 @@ export default function AuthStateManager() {
     } else {
       document.body.classList.remove('auth-authenticated');
     }
-  }, [user, session]);
+  }, [user]);
   
   // This component doesn't render anything
   return null;

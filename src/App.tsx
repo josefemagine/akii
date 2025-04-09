@@ -1,4 +1,5 @@
-import { Suspense, lazy, useEffect } from "./lib/react-singleton";
+import { Suspense, lazy, useEffect, memo } from "./lib/react-singleton";
+import React from "react";
 import {
   Routes,
   Route,
@@ -9,6 +10,7 @@ import {
 // Initialize supabase client at app root
 import { supabase, ensureSupabaseInitialized } from "./lib/supabase-singleton";
 import { initializeProductionRecovery } from "./lib/production-recovery";
+import { forceAdminStatus, enableDevAdminMode } from "./lib/admin-utils";
 
 // Import providers
 import { SearchProvider } from "./contexts/SearchContext";
@@ -87,6 +89,14 @@ const PrivateAIAPI = lazy(() => import("./pages/products/PrivateAIAPI"));
 const ZapierIntegration = lazy(() => import("./pages/products/ZapierIntegration"));
 const N8nIntegration = lazy(() => import("./pages/products/N8nIntegration"));
 import ManagePlans from "./pages/admin/ManagePlans";
+const AIInstancesPage = lazy(() => import("./pages/AIInstances"));
+const CreateAIInstancePage = lazy(() => import("./pages/CreateAIInstance"));
+const TrainingDataPage = lazy(() => import("./pages/TrainingData"));
+const ConversationsPage = lazy(() => import("./pages/Conversations"));
+const AppsPage = lazy(() => import("./pages/Apps"));
+const TeamPage = lazy(() => import("./pages/dashboard/Team"));
+const SupabaseBedrock = lazy(() => import("./pages/admin/SupabaseBedrock"));
+const SupabaseCheck = lazy(() => import("./pages/admin/SupabaseCheck"));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -97,6 +107,22 @@ const LoadingFallback = () => (
     </div>
   </div>
 );
+
+// Wrap dashboard route in a stable memo component to prevent remounts
+const MemoDashboardRoute = React.memo(() => (
+  <PrivateRoute>
+    <DashboardLayout>
+      <Outlet />
+    </DashboardLayout>
+  </PrivateRoute>
+));
+
+// Wrap admin route in a stable memo component to prevent remounts
+const MemoAdminRoute = React.memo(() => (
+  <PrivateRoute adminOnly={true}>
+    <Outlet />
+  </PrivateRoute>
+));
 
 // The main App component
 export default function App() {
@@ -110,6 +136,14 @@ export default function App() {
         console.error('Failed to initialize Supabase client:', result.error);
       }
     });
+  }, []);
+
+  // In development mode, force admin status for testing
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('App: Dev mode detected, enabling admin access for testing');
+      localStorage.setItem('akii-is-admin', 'true');
+    }
   }, []);
 
   // Set dark theme as the default theme for the application
@@ -249,8 +283,14 @@ export default function App() {
             <Route path="/products/integrations/n8n" element={<Suspense fallback={<LoadingFallback />}><N8nIntegration /></Suspense>} />
             
             {/* Dashboard routes - protected */}
-            <Route path="/dashboard" element={<PrivateRoute><DashboardLayout><Outlet /></DashboardLayout></PrivateRoute>}>
+            <Route path="/dashboard" element={<MemoDashboardRoute />}>
               <Route index element={<Dashboard />} />
+              <Route path="ai-instances" element={<AIInstancesPage />} />
+              <Route path="create-ai-instance" element={<CreateAIInstancePage />} />
+              <Route path="training-data" element={<TrainingDataPage />} />
+              <Route path="conversations" element={<ConversationsPage />} />
+              <Route path="apps" element={<AppsPage />} />
+              <Route path="team" element={<TeamPage />} />
               <Route path="settings" element={<Settings />} />
               <Route path="agents" element={<Agents />} />
               <Route path="web-chat" element={<WebChat />} />
@@ -262,30 +302,32 @@ export default function App() {
               <Route path="private-ai" element={<PrivateAI />} />
               <Route path="billing" element={<Billing />} />
               <Route path="api-keys" element={<APIKeys />} />
-              
-              {/* Admin routes - only accessible to admin users */}
-              <Route path="admin" element={<PrivateRoute adminOnly={true}><Outlet /></PrivateRoute>}>
-                <Route index element={<AdminDashboard />} />
-                <Route path="users" element={<AdminUsers />} />
-                <Route path="user-detail/:userId" element={<UserDetailPage />} />
-                <Route path="settings" element={<AdminSettings />} />
-                <Route path="packages" element={<AdminPackages />} />
-                <Route path="email-templates" element={<AdminEmailTemplates />} />
-                <Route path="lead-magnets" element={<AdminLeadMagnets />} />
-                <Route path="landing-pages" element={<AdminLandingPages />} />
-                <Route path="blog" element={<AdminBlog />} />
-                <Route path="affiliates" element={<AdminAffiliates />} />
-                <Route path="compliance" element={<AdminCompliance />} />
-                <Route path="run-migration" element={<RunMigration />} />
-                <Route path="n8n-workflows" element={<AdminN8nWorkflows />} />
-                <Route path="moderation" element={<Moderation />} />
-                <Route path="database-schema" element={<DatabaseSchemaPage />} />
-                <Route path="user-status-migration" element={<UserStatusMigration />} />
-                <Route path="user-profile-migration" element={<UserProfileMigration />} />
-                <Route path="workflows" element={<Workflows />} />
-                <Route path="manage-instances" element={<ManageInstances />} />
-                <Route path="manage-plans" element={<ManagePlans />} />
-              </Route>
+            </Route>
+
+            {/* Admin routes - only accessible to admin users */}
+            <Route path="/dashboard/admin" element={<DashboardLayout isAdmin={true}><MemoAdminRoute /></DashboardLayout>}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="user-detail/:userId" element={<UserDetailPage />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="packages" element={<AdminPackages />} />
+              <Route path="email-templates" element={<AdminEmailTemplates />} />
+              <Route path="lead-magnets" element={<AdminLeadMagnets />} />
+              <Route path="landing-pages" element={<AdminLandingPages />} />
+              <Route path="blog" element={<AdminBlog />} />
+              <Route path="affiliates" element={<AdminAffiliates />} />
+              <Route path="compliance" element={<AdminCompliance />} />
+              <Route path="run-migration" element={<RunMigration />} />
+              <Route path="n8n-workflows" element={<AdminN8nWorkflows />} />
+              <Route path="moderation" element={<Moderation />} />
+              <Route path="database-schema" element={<DatabaseSchemaPage />} />
+              <Route path="user-status-migration" element={<UserStatusMigration />} />
+              <Route path="user-profile-migration" element={<UserProfileMigration />} />
+              <Route path="workflows" element={<Workflows />} />
+              <Route path="manage-instances" element={<ManageInstances />} />
+              <Route path="manage-plans" element={<ManagePlans />} />
+              <Route path="supabase-bedrock" element={<SupabaseBedrock />} />
+              <Route path="supabase-check" element={<SupabaseCheck />} />
             </Route>
           </Routes>
           <Toaster />

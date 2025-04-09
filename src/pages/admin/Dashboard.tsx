@@ -1,5 +1,5 @@
-import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useEffect, useState, useRef } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
@@ -18,8 +18,167 @@ import {
 import { dashboardStyles } from "@/components/layout/DashboardPageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DashboardSection } from "@/components/layout/DashboardSection";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
+import withAdminInit from "@/components/admin/withAdminInit";
+import { runDashboardHealthCheck, fixCommonDashboardIssues } from '@/lib/dashboard-health';
+
+// TODO: Remove this when admin dashboard issues are fixed
+const DEBUG_ADMIN = true;
+
+const DebugAdminDashboard: React.FC = () => {
+  const { user, isLoading, isAdmin, profile, refreshAuthState } = useAuth();
+  const [healthResults, setHealthResults] = useState<Record<string, any> | null>(null);
+  const [isRunningHealthCheck, setIsRunningHealthCheck] = useState(false);
+  
+  const timestamp = () => new Date().toISOString();
+  const renderTime = useRef(timestamp());
+  
+  useEffect(() => {
+    console.log(`[DebugAdminDashboard] Rendered at ${renderTime.current}`);
+    console.log(`[DebugAdminDashboard] Auth state:`, { 
+      isLoading, 
+      hasUser: !!user, 
+      isAdmin,
+      email: user?.email 
+    });
+  }, [isLoading, user, isAdmin]);
+
+  const runHealthCheck = async () => {
+    setIsRunningHealthCheck(true);
+    try {
+      const results = await runDashboardHealthCheck();
+      setHealthResults(results);
+    } catch (error) {
+      console.error("[DebugAdminDashboard] Health check error:", error);
+      setHealthResults({ error: String(error) });
+    } finally {
+      setIsRunningHealthCheck(false);
+    }
+  };
+
+  const applyFixes = () => {
+    try {
+      fixCommonDashboardIssues();
+      setTimeout(() => {
+        runHealthCheck();
+        if (refreshAuthState) {
+          refreshAuthState();
+        }
+      }, 500);
+    } catch (error) {
+      console.error("[DebugAdminDashboard] Fix error:", error);
+    }
+  };
+
+  const forceAdminStatus = () => {
+    localStorage.setItem('akii-is-admin', 'true');
+    localStorage.setItem('akii-auth-emergency', 'true');
+    localStorage.setItem('akii-auth-emergency-time', Date.now().toString());
+    if (refreshAuthState) {
+      refreshAuthState();
+    }
+  };
+
+  return (
+    <div className="p-4 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Admin Dashboard Debug</h1>
+      
+      <div className="bg-card border-border border rounded p-4 mb-4 dark:bg-card">
+        <h2 className="text-lg font-semibold mb-2">Debug Information</h2>
+        <div className="mb-2">
+          <p><strong>Render time:</strong> {renderTime.current}</p>
+          <p><strong>Current time:</strong> {timestamp()}</p>
+        </div>
+      </div>
+
+      <div className="bg-card border-border border rounded p-4 mb-4 dark:bg-card">
+        <h2 className="text-lg font-semibold mb-2">Authentication State</h2>
+        <div className="mb-2">
+          <p><strong>Loading:</strong> {isLoading ? '⏳' : '✅'}</p>
+          <p><strong>User:</strong> {user ? user.email : 'Not signed in'}</p>
+          <p><strong>Admin:</strong> {isAdmin ? '✅' : '❌'}</p>
+          <p><strong>Profile:</strong> {profile ? '✅' : '❌'}</p>
+        </div>
+      </div>
+      
+      <div className="bg-card border-primary/20 border rounded p-4 mb-4 dark:bg-card">
+        <h2 className="text-lg font-semibold mb-2">Dashboard Health</h2>
+        <div className="flex space-x-2 mb-4">
+          <button 
+            onClick={runHealthCheck}
+            disabled={isRunningHealthCheck}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:bg-primary/50"
+          >
+            {isRunningHealthCheck ? 'Running Check...' : 'Run Health Check'}
+          </button>
+          <button 
+            onClick={applyFixes}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 dark:bg-green-800 dark:hover:bg-green-700"
+          >
+            Fix Common Issues
+          </button>
+        </div>
+        
+        {healthResults && (
+          <div className="bg-background border-border border rounded p-3 mb-3 max-h-60 overflow-auto">
+            <pre className="text-xs">{JSON.stringify(healthResults, null, 2)}</pre>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-card border-purple-500/20 border rounded p-4 mb-4 dark:bg-card">
+        <h2 className="text-lg font-semibold mb-2">Admin Actions</h2>
+        <div className="flex space-x-2">
+          <button 
+            onClick={forceAdminStatus}
+            className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 dark:bg-purple-800 dark:hover:bg-purple-700"
+          >
+            Force Admin Status
+          </button>
+          <button 
+            onClick={() => refreshAuthState && refreshAuthState()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 dark:bg-indigo-800 dark:hover:bg-indigo-700"
+          >
+            Refresh Auth State
+          </button>
+        </div>
+      </div>
+      
+      <div className="bg-card border-red-500/20 border rounded p-4 dark:bg-card">
+        <h2 className="text-lg font-semibold mb-2">Actions</h2>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 dark:bg-red-800 dark:hover:bg-red-700"
+        >
+          Reload Page
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const AdminDashboard = () => {
+  const { user, isAdmin } = useAuth();
+  
+  console.log("[AdminDashboard] Component rendering start");
+  
+  // Log auth state for debugging
+  useEffect(() => {
+    console.log("[AdminDashboard] Auth state:", {
+      user: user?.email,
+      isAdmin,
+      localStorage: {
+        isAdmin: localStorage.getItem('akii-is-admin') === 'true',
+        userEmail: localStorage.getItem('akii-auth-user-email')
+      }
+    });
+  }, [user, isAdmin]);
+
+  // Use debug admin dashboard when enabled
+  if (DEBUG_ADMIN) {
+    return <DebugAdminDashboard />;
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -387,4 +546,5 @@ const AdminDashboard = () => {
   );
 };
 
-export default AdminDashboard;
+// Use the HOC to enhance the component with admin initialization and error handling
+export default withAdminInit(AdminDashboard);

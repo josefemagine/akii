@@ -279,38 +279,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Define admin links (settings, users, etc.)
   const adminLinks = [
-    { to: "/admin/dashboard", icon: <LayoutDashboard className="h-5 w-5" />, label: "Dashboard" },
-    { to: "/admin/bedrock", icon: <Box className="h-5 w-5" />, label: "Bedrock Instances" },
-    { to: "/admin/users", icon: <Users className="h-5 w-5" />, label: "Users" },
-    { to: "/admin/plans", icon: <DollarSign className="h-5 w-5" />, label: "Plans" },
-    { to: "/admin/settings", icon: <Settings className="h-5 w-5" />, label: "Settings" },
+    { to: "/dashboard/admin", icon: <LayoutDashboard className="h-5 w-5" />, label: "Dashboard" },
+    { to: "/dashboard/admin/supabase-bedrock", icon: <Box className="h-5 w-5" />, label: "Bedrock Instances" },
+    { to: "/dashboard/admin/users", icon: <Users className="h-5 w-5" />, label: "Users" },
+    { to: "/dashboard/admin/manage-plans", icon: <DollarSign className="h-5 w-5" />, label: "Plans" },
+    { to: "/dashboard/admin/settings", icon: <Settings className="h-5 w-5" />, label: "Settings" },
     
     // Content
-    { to: "/admin/blog", icon: <PenTool className="h-5 w-5" />, label: "Blog" },
-    { to: "/admin/landing-pages", icon: <Layout className="h-5 w-5" />, label: "Landing Pages" },
-    { to: "/admin/lead-magnets", icon: <Magnet className="h-5 w-5" />, label: "Lead Magnets" },
-    { to: "/admin/email-templates", icon: <Mail className="h-5 w-5" />, label: "Email Templates" },
+    { to: "/dashboard/admin/blog", icon: <PenTool className="h-5 w-5" />, label: "Blog" },
+    { to: "/dashboard/admin/landing-pages", icon: <Layout className="h-5 w-5" />, label: "Landing Pages" },
+    { to: "/dashboard/admin/lead-magnets", icon: <Magnet className="h-5 w-5" />, label: "Lead Magnets" },
+    { to: "/dashboard/admin/email-templates", icon: <Mail className="h-5 w-5" />, label: "Email Templates" },
     
     // Compliance & Security
-    { to: "/admin/compliance", icon: <Shield className="h-5 w-5" />, label: "Compliance" },
+    { to: "/dashboard/admin/compliance", icon: <Shield className="h-5 w-5" />, label: "Compliance" },
     
     // Partners
-    { to: "/admin/packages", icon: <Package className="h-5 w-5" />, label: "Packages" },
-    { to: "/admin/affiliates", icon: <Users className="h-5 w-5" />, label: "Affiliates" },
-    { to: "/admin/billing", icon: <CreditCard className="h-5 w-5" />, label: "Billing" },
+    { to: "/dashboard/admin/packages", icon: <Package className="h-5 w-5" />, label: "Packages" },
+    { to: "/dashboard/admin/affiliates", icon: <Users className="h-5 w-5" />, label: "Affiliates" },
+    { to: "/dashboard/admin/billing", icon: <CreditCard className="h-5 w-5" />, label: "Billing" },
     
     // Migrations
-    { to: "/admin/user-status-migration", icon: <User className="h-5 w-5" />, label: "Status Migration" },
-    { to: "/admin/user-profile-migration", icon: <User className="h-5 w-5" />, label: "Profile Migration" },
-    { to: "/admin/run-migration", icon: <RefreshCcw className="h-5 w-5" />, label: "Run Migration" },
+    { to: "/dashboard/admin/user-status-migration", icon: <User className="h-5 w-5" />, label: "Status Migration" },
+    { to: "/dashboard/admin/user-profile-migration", icon: <User className="h-5 w-5" />, label: "Profile Migration" },
+    { to: "/dashboard/admin/run-migration", icon: <RefreshCcw className="h-5 w-5" />, label: "Run Migration" },
     
     // Technical
-    { to: "/admin/workflows", icon: <Workflow className="h-5 w-5" />, label: "Workflows" },
-    { to: "/admin/n8n-workflows", icon: <Zap className="h-5 w-5" />, label: "n8n Workflows" },
-    { to: "/admin/database-schema", icon: <Database className="h-5 w-5" />, label: "Database Schema" },
-    { to: "/admin/manage-instances", icon: <Cloud className="h-5 w-5" />, label: "AI Instances" },
-    { to: "/admin/supabase-check", icon: <CheckCircle className="h-5 w-5" />, label: "Supabase Check" },
-    { to: "/admin/admin-check", icon: <AlertTriangle className="h-5 w-5" />, label: "Admin Check" },
+    { to: "/dashboard/admin/workflows", icon: <Workflow className="h-5 w-5" />, label: "Workflows" },
+    { to: "/dashboard/admin/n8n-workflows", icon: <Zap className="h-5 w-5" />, label: "n8n Workflows" },
+    { to: "/dashboard/admin/database-schema", icon: <Database className="h-5 w-5" />, label: "Database Schema" },
+    { to: "/dashboard/admin/manage-instances", icon: <Cloud className="h-5 w-5" />, label: "AI Instances" },
+    { to: "/dashboard/admin/supabase-check", icon: <CheckCircle className="h-5 w-5" />, label: "Supabase Check" },
+    { to: "/dashboard/admin/admin-check", icon: <AlertTriangle className="h-5 w-5" />, label: "Admin Check" },
   ];
   
   // Define bottom links (settings, help, etc.)
@@ -552,8 +552,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   to="#"
                   icon={<div className="text-red-600 dark:text-red-400"><Shield className="h-5 w-5" /></div>}
                   label="Compliance"
-                  isActive={currentPath.includes("/admin/compliance") || 
-                            currentPath.includes("/admin/moderation")}
+                  isActive={currentPath.includes("/dashboard/admin/compliance") || 
+                            currentPath.includes("/dashboard/admin/moderation")}
                   isCollapsed={isCollapsed}
                   onClick={() => toggleSection('adminCompliance')}
                   hasChildren={true}
@@ -586,9 +586,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   to="#"
                   icon={<div className="text-red-600 dark:text-red-400"><Users className="h-5 w-5" /></div>}
                   label="Partners"
-                  isActive={currentPath.includes("/admin/affiliates") || 
-                            currentPath.includes("/admin/packages") ||
-                            currentPath.includes("/admin/billing")}
+                  isActive={currentPath.includes("/dashboard/admin/affiliates") || 
+                            currentPath.includes("/dashboard/admin/packages") ||
+                            currentPath.includes("/dashboard/admin/billing")}
                   isCollapsed={isCollapsed}
                   onClick={() => toggleSection('adminPartners')}
                   hasChildren={true}
@@ -621,10 +621,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   to="#"
                   icon={<div className="text-red-600 dark:text-red-400"><RefreshCcw className="h-5 w-5" /></div>}
                   label="Migrations"
-                  isActive={currentPath.includes("/admin/user-sync") || 
-                            currentPath.includes("/admin/user-status-migration") || 
-                            currentPath.includes("/admin/user-profile-migration") ||
-                            currentPath.includes("/admin/run-migration")}
+                  isActive={currentPath.includes("/dashboard/admin/user-sync") || 
+                            currentPath.includes("/dashboard/admin/user-status-migration") || 
+                            currentPath.includes("/dashboard/admin/user-profile-migration") ||
+                            currentPath.includes("/dashboard/admin/run-migration")}
                   isCollapsed={isCollapsed}
                   onClick={() => toggleSection('adminMigrations')}
                   hasChildren={true}
@@ -657,12 +657,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   to="#"
                   icon={<div className="text-red-600 dark:text-red-400"><Database className="h-5 w-5" /></div>}
                   label="Technical"
-                  isActive={currentPath.includes("/admin/workflows") || 
-                            currentPath.includes("/admin/n8n-workflows") || 
-                            currentPath.includes("/admin/database-schema") ||
-                            currentPath.includes("/admin/manage-instances") || 
-                            currentPath.includes("/admin/supabase-check") || 
-                            currentPath.includes("/admin/admin-check")}
+                  isActive={currentPath.includes("/dashboard/admin/workflows") || 
+                            currentPath.includes("/dashboard/admin/n8n-workflows") || 
+                            currentPath.includes("/dashboard/admin/database-schema") ||
+                            currentPath.includes("/dashboard/admin/manage-instances") || 
+                            currentPath.includes("/dashboard/admin/supabase-check") || 
+                            currentPath.includes("/dashboard/admin/admin-check")}
                   isCollapsed={isCollapsed}
                   onClick={() => toggleSection('adminTechnical')}
                   hasChildren={true}

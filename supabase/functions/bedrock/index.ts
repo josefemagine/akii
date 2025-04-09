@@ -6,8 +6,8 @@
 // Supabase Edge Function for AWS Bedrock operations
 // @ts-ignore - Deno-specific import
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-// @ts-ignore - Deno-specific import
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleRequest, createSuccessResponse, createErrorResponse } from "../_shared/auth.ts";
+import { query, queryOne, execute } from "../_shared/postgres.ts";
 
 // CORS headers for all responses
 const CORS_HEADERS = {
@@ -23,245 +23,139 @@ const AWS_ACCESS_KEY_ID = Deno.env.get("AWS_ACCESS_KEY_ID") || "";
 const AWS_SECRET_ACCESS_KEY = Deno.env.get("AWS_SECRET_ACCESS_KEY") || "";
 // @ts-ignore - Deno global
 const AWS_REGION = Deno.env.get("AWS_REGION") || "us-east-1";
-// @ts-ignore - Deno global
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
-// @ts-ignore - Deno global
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-// Initialize Supabase client
-const supabaseClient = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY
-);
+interface BedrockInstance {
+  instance_id: string;
+  model_id: string;
+  commitment_duration: string;
+  model_units: number;
+  status: string;
+  created_at: string;
+  user_id: string;
+}
 
-// JWT token validation
-async function validateJwtToken(request: Request): Promise<{ user: any, error: string | null }> {
-  // Get the Authorization header
-  const authHeader = request.headers.get("authorization");
-  
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    console.log("[API] Missing or invalid Authorization header");
-    return { user: null, error: "Missing or invalid Authorization header" };
-  }
-  
-  // Extract token
-  const token = authHeader.split(" ")[1];
-  
-  try {
-    // Verify the JWT token using Supabase
-    const { data: { user }, error } = await supabaseClient.auth.getUser(token);
-    
-    if (error || !user) {
-      console.log("[API] JWT verification failed:", error?.message);
-      return { user: null, error: error?.message || "Invalid token" };
-    }
-    
-    console.log("[API] JWT verification successful for user:", user.id);
-    return { user, error: null };
-  } catch (error) {
-    console.error("[API] Error validating JWT:", error);
-    return { user: null, error: "Error validating token" };
-  }
+interface CreateInstanceRequest {
+  modelId: string;
+  commitmentDuration: string;
+  modelUnits: number;
 }
 
 // Handle diagnostics endpoint
-async function handleTestEnv(request: Request): Promise<Response> {
-  // Validate JWT token
-  const { user, error } = await validateJwtToken(request);
-  
-  if (error) {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
-  }
-
+async function handleTestEnv(user: any): Promise<Response> {
   try {
-    // Return environment diagnostic information
-    return new Response(
-      JSON.stringify({
-        environment: {
-          // @ts-ignore - Deno global
-          isProduction: Deno.env.get("DENO_ENV") !== "development",
-          aws: {
-            region: AWS_REGION,
-            hasAccessKey: Boolean(AWS_ACCESS_KEY_ID),
-            hasSecretKey: Boolean(AWS_SECRET_ACCESS_KEY),
-            accessKeyFormat: AWS_ACCESS_KEY_ID ? (AWS_ACCESS_KEY_ID.startsWith("AKIA") ? "valid" : "invalid") : "missing",
-          },
-          // @ts-ignore - Deno global
-          platform: Deno.build.os,
-          supabase: {
-            hasUrl: Boolean(SUPABASE_URL),
-            hasServiceKey: Boolean(SUPABASE_SERVICE_ROLE_KEY),
-          },
-          user: {
-            id: user.id,
-            email: user.email
-          }
+    return createSuccessResponse({
+      environment: {
+        // @ts-ignore - Deno global
+        isProduction: Deno.env.get("DENO_ENV") !== "development",
+        aws: {
+          region: AWS_REGION,
+          hasAccessKey: Boolean(AWS_ACCESS_KEY_ID),
+          hasSecretKey: Boolean(AWS_SECRET_ACCESS_KEY),
+          accessKeyFormat: AWS_ACCESS_KEY_ID ? (AWS_ACCESS_KEY_ID.startsWith("AKIA") ? "valid" : "invalid") : "missing",
+        },
+        // @ts-ignore - Deno global
+        platform: Deno.build.os,
+        supabase: {
+          hasUrl: Boolean(Deno.env.get("SUPABASE_URL")),
+          hasServiceKey: Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")),
+        },
+        user: {
+          id: user.id,
+          email: user.email
         }
-      }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
+      }
+    });
   } catch (error) {
     console.error("Error handling test environment request:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
+    return createErrorResponse(error instanceof Error ? error.message : String(error));
   }
 }
 
 // Get all Bedrock model throughput instances
-async function handleGetInstances(request: Request): Promise<Response> {
-  // Validate JWT token
-  const { user, error } = await validateJwtToken(request);
-  
-  if (error) {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
-  }
-
+async function handleGetInstances(user: any): Promise<Response> {
   try {
-    // Get instances for the authenticated user only
-    const { data, error: dbError } = await supabaseClient
-      .from('bedrock_instances')
-      .select('*')
-      .eq('user_id', user.id);
-
-    if (dbError) throw dbError;
-
-    return new Response(
-      JSON.stringify({ instances: data || [] }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    const instances = await query<BedrockInstance>(
+      'SELECT * FROM bedrock_instances WHERE user_id = $1',
+      [user.id]
     );
+
+    return createSuccessResponse({ instances: instances || [] });
   } catch (error) {
     console.error("Error getting instances:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
+    return createErrorResponse(error instanceof Error ? error.message : String(error));
   }
 }
 
 // Create a mock Bedrock model throughput instance
-async function handleCreateInstance(request: Request): Promise<Response> {
-  // Validate JWT token
-  const { user, error } = await validateJwtToken(request);
-  
-  if (error) {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
-  }
-
+async function handleCreateInstance(user: any, requestData: CreateInstanceRequest): Promise<Response> {
   try {
-    const requestData = await request.json();
     const { modelId, commitmentDuration, modelUnits } = requestData;
 
     if (!modelId || !commitmentDuration || !modelUnits) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
+      return createErrorResponse("Missing required fields", 400);
     }
 
     // Create a mock instance ID
     const mockInstanceId = `arn:aws:bedrock:${AWS_REGION}:123456789012:provisioned-model/${modelId.split('/').pop()}-${Date.now()}`;
     
-    // Store mock data in Supabase with user_id
-    const { data, error: dbError } = await supabaseClient
-      .from('bedrock_instances')
-      .insert({
-        instance_id: mockInstanceId,
-        model_id: modelId,
-        commitment_duration: commitmentDuration,
-        model_units: modelUnits,
-        status: 'CREATING',
-        created_at: new Date().toISOString(),
-        user_id: user.id  // Associate with the authenticated user
-      })
-      .select()
-      .single();
-
-    if (dbError) throw dbError;
-
-    return new Response(
-      JSON.stringify({ 
-        instance: data,
-        info: "Created instance in database"
-      }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    // Store mock data in database with user_id
+    const instance = await queryOne<BedrockInstance>(
+      `INSERT INTO bedrock_instances (
+        instance_id,
+        model_id,
+        commitment_duration,
+        model_units,
+        status,
+        created_at,
+        user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *`,
+      [
+        mockInstanceId,
+        modelId,
+        commitmentDuration,
+        modelUnits,
+        'CREATING',
+        new Date().toISOString(),
+        user.id
+      ]
     );
+
+    if (!instance) {
+      throw new Error("Failed to create instance");
+    }
+
+    return createSuccessResponse({ 
+      instance,
+      info: "Created instance in database"
+    });
   } catch (error) {
     console.error("Error creating instance:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
+    return createErrorResponse(error instanceof Error ? error.message : String(error));
   }
 }
 
 // Delete a Bedrock model throughput instance
-async function handleDeleteInstance(request: Request): Promise<Response> {
-  // Validate JWT token
-  const { user, error } = await validateJwtToken(request);
-  
-  if (error) {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized", message: error }),
-      { status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
-  }
-
+async function handleDeleteInstance(user: any, instanceId: string): Promise<Response> {
   try {
-    const requestData = await request.json();
-    const { instanceId } = requestData;
-
-    if (!instanceId) {
-      return new Response(
-        JSON.stringify({ error: "Missing instanceId" }),
-        { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Verify ownership of the instance
-    const { data: instance, error: fetchError } = await supabaseClient
-      .from('bedrock_instances')
-      .select('id')
-      .eq('instance_id', instanceId)
-      .eq('user_id', user.id)
-      .single();
-      
-    if (fetchError || !instance) {
-      return new Response(
-        JSON.stringify({ error: "Instance not found or not owned by user" }),
-        { status: 404, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Update status in Supabase 
-    const { error: updateError } = await supabaseClient
-      .from('bedrock_instances')
-      .update({ status: 'DELETED', deleted_at: new Date().toISOString() })
-      .eq('instance_id', instanceId)
-      .eq('user_id', user.id);  // Ensure user can only delete their own instances
-
-    if (updateError) throw updateError;
-
-    return new Response(
-      JSON.stringify({ success: true }),
-      { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+    // Delete the instance from database
+    const result = await execute(
+      'DELETE FROM bedrock_instances WHERE instance_id = $1 AND user_id = $2',
+      [instanceId, user.id]
     );
+
+    // Check if any rows were affected
+    if (!result || result.rowCount === 0) {
+      return createErrorResponse("Instance not found or you don't have permission to delete it", 404);
+    }
+
+    return createSuccessResponse({ 
+      message: "Instance deleted successfully",
+      instanceId
+    });
   } catch (error) {
     console.error("Error deleting instance:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-    );
+    return createErrorResponse(error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -273,28 +167,45 @@ function handleOptionsRequest(request: Request): Response {
 }
 
 // Main request handler
-serve(async (request: Request) => {
-  const url = new URL(request.url);
-  
-  // Handle OPTIONS requests (CORS preflight)
-  if (request.method === "OPTIONS") {
-    return handleOptionsRequest(request);
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      },
+    });
   }
-  
-  // Route requests based on path and method
-  if (url.pathname.endsWith("/test-env")) {
-    return await handleTestEnv(request);
-  } else if (url.pathname.endsWith("/instances") && request.method === "GET") {
-    return await handleGetInstances(request);
-  } else if (url.pathname.endsWith("/provision-instance") && request.method === "POST") {
-    return await handleCreateInstance(request);
-  } else if (url.pathname.endsWith("/delete-instance") && request.method === "DELETE") {
-    return await handleDeleteInstance(request);
-  }
-  
-  // Return 404 for unknown routes
-  return new Response(
-    JSON.stringify({ error: "Not Found" }),
-    { status: 404, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-  );
+
+  return handleRequest(req, async (user) => {
+    const url = new URL(req.url);
+    const path = url.pathname.split("/").pop();
+
+    switch (req.method) {
+      case "GET":
+        if (path === "test") {
+          return handleTestEnv(user);
+        }
+        return handleGetInstances(user);
+
+      case "POST":
+        if (!path) {
+          const requestData = await req.json() as CreateInstanceRequest;
+          return handleCreateInstance(user, requestData);
+        }
+        return createErrorResponse("Invalid endpoint", 404);
+
+      case "DELETE":
+        if (path) {
+          return handleDeleteInstance(user, path);
+        }
+        return createErrorResponse("Instance ID required", 400);
+
+      default:
+        return createErrorResponse("Method not allowed", 405);
+    }
+  });
 }); 

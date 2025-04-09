@@ -16,7 +16,7 @@ interface UseAvatarReturn {
   resetUploadStatus: () => void;
 }
 
-const DEFAULT_AVATAR = 'https://api.akii.com/storage/v1/object/public/images//green-robot-icon.png';
+const DEFAULT_AVATAR = 'https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/avatars/b574f273-e0e1-4cb8-8c98-f5a7569234c8/green-robot-icon.png';
 
 export function useAvatar(options?: UseAvatarOptions): UseAvatarReturn {
   const { user, refreshAuthState } = useAuth();

@@ -244,4 +244,4 @@ For more information on all available AWS Bedrock API operations, visit: https:/
 You can access the Bedrock API through the following endpoints:
 
 - For local development with Vite proxy: `/api/super-action`
-- For direct Edge Function access: `https://api.akii.com/functions/v1/super-action` 
+- For direct Edge Function access: `https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/super-action` 

@@ -22,8 +22,20 @@ CREATE POLICY "Users can update their own profile"
 ON public.profiles FOR UPDATE
 USING (auth.uid() = id);
 
--- Set up realtime
-alter publication supabase_realtime add table profiles;
+-- Set up realtime safely
+DO $$
+BEGIN
+  -- Check if the table is already in the publication
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' 
+    AND schemaname = 'public' 
+    AND tablename = 'profiles'
+  ) THEN
+    -- Add table to publication
+    EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE profiles';
+  END IF;
+END $$;
 
 -- Create a trigger to automatically create a profile entry when a new user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()

@@ -32,6 +32,12 @@ declare namespace Deno {
     port: number;
   }
 
+  export interface ServeHandler {
+    (request: Request): Promise<Response> | Response;
+  }
+
+  export function serve(handler: ServeHandler): Promise<void>;
+
   // Add more Deno API declarations as needed
 }
 

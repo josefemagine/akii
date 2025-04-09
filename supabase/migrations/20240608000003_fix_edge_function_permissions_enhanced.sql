@@ -9,11 +9,12 @@ GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO service_role;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
 
 -- Ensure edge functions can access the database with service_role permissions
-ALTER ROLE service_role SET pgrst.db_schemas TO 'public,storage,graphql_public';
-ALTER ROLE anon SET pgrst.db_schemas TO 'public,storage,graphql_public';
+-- NOTE: Commented out as these require superuser privileges
+-- ALTER ROLE service_role SET pgrst.db_schemas TO 'public,storage,graphql_public';
 
 -- Enable RLS bypass for service_role
-ALTER ROLE service_role SET pgrst.db_anon_role TO 'anon';
+-- NOTE: Commented out as these require superuser privileges
+-- ALTER ROLE service_role SET pgrst.db_anon_role TO 'anon';
 
 -- Ensure profiles table exists and has proper permissions
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -44,5 +45,35 @@ CREATE POLICY "Users can update own profile."
   ON profiles FOR UPDATE
   USING (auth.uid() = id);
 
--- Add realtime support
-ALTER PUBLICATION supabase_realtime ADD TABLE profiles;
+-- Add realtime support only if not already in publication
+DO $$
+DECLARE
+  profile_count integer;
+BEGIN
+  SELECT COUNT(*) INTO profile_count
+  FROM pg_publication_tables
+  WHERE pubname = 'supabase_realtime'
+  AND tablename = 'profiles'
+  AND schemaname = 'public';
+  
+  IF profile_count = 0 THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE profiles;
+  END IF;
+END $$;
+
+-- Enhanced permissions for edge functions (workaround for permission errors)
+DO $$
+BEGIN
+  -- Add comments about why we need these permissions
+  EXECUTE 'COMMENT ON ROLE service_role IS ''This role is used by edge functions and should have access to public, storage, and graphql_public schemas''';
+    
+  -- Grant specific permissions to tables that edge functions need
+  EXECUTE 'GRANT ALL ON public.profiles TO service_role';
+  EXECUTE 'GRANT ALL ON public.documents TO service_role';
+  EXECUTE 'GRANT ALL ON public.agents TO service_role';
+  EXECUTE 'GRANT ALL ON public.conversations TO service_role';
+  EXECUTE 'GRANT ALL ON public.messages TO service_role';
+  
+  -- Note: The following commented line requires superuser privileges and is causing errors 
+  -- ALTER ROLE service_role SET pgrst.db_schemas TO 'public,storage,graphql_public';
+END $$;

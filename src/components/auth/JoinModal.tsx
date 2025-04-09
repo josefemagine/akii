@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
-import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from './AuthStateManager';
+import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from '@/types/auth';
 import { supabase } from "@/lib/supabase";
 
 const joinSchema = z
@@ -91,7 +91,15 @@ export default function JoinModal({
         company: data.company || null,
       };
       
-      const { error } = await signUp(data.email, data.password, metadata);
+      // Use the supabase client directly to support metadata
+      const { error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: metadata
+        }
+      });
+      
       if (error) {
         console.error("Signup error:", error.message);
         

@@ -15,6 +15,10 @@ import {
   DeleteProvisionedModelThroughputCommand
 } from "npm:@aws-sdk/client-bedrock";
 
+import { corsHeaders, createPreflightResponse, addCorsHeaders } from "../_shared/cors.ts";
+import { handleRequest, createSuccessResponse, createErrorResponse, createAuthClient } from "../_shared/auth.ts";
+import { query, queryOne, execute } from "../_shared/postgres.ts";
+
 // Add FoundationModel type definition at the top of the file after imports
 interface FoundationModel {
   modelId: string;
@@ -42,10 +46,27 @@ const REGIONS_WITH_PROVISIONED_THROUGHPUT = [
   // Note: Other regions like us-west-2, eu-central-1, and eu-west-3 may not support all provisioned throughput models
 ];
 
-// Add AWS credential variable references
-const AWS_ACCESS_KEY_ID = Deno.env.get("AWS_ACCESS_KEY_ID") || "";
-const AWS_SECRET_ACCESS_KEY = Deno.env.get("AWS_SECRET_ACCESS_KEY") || "";
+// Add AWS credential variable references with proper validation
+const AWS_ACCESS_KEY_ID = Deno.env.get("AWS_ACCESS_KEY_ID");
+const AWS_SECRET_ACCESS_KEY = Deno.env.get("AWS_SECRET_ACCESS_KEY");
 const AWS_REGION = "us-east-1";  // Hardcoded to us-east-1
+
+// Define CORS headers
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': 'https://www.akii.com',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, X-Client-Info',
+  'Access-Control-Allow-Credentials': 'true',
+  'Vary': 'Origin'
+} as const;
+
+// Function to create a response with CORS headers
+function createResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+  });
+}
 
 // Function to get the appropriate CORS origin
 function getCorsOrigin(requestOrigin: string | null): string {
@@ -99,17 +120,29 @@ interface RequestData {
   };
 }
 
+// Add validation function for AWS credentials
+function validateAwsCredentials(): { isValid: boolean; error?: string } {
+  if (!AWS_ACCESS_KEY_ID) {
+    return { isValid: false, error: "AWS_ACCESS_KEY_ID is not set" };
+  }
+  if (!AWS_SECRET_ACCESS_KEY) {
+    return { isValid: false, error: "AWS_SECRET_ACCESS_KEY is not set" };
+  }
+  return { isValid: true };
+}
+
 // Test AWS connectivity and credentials
 async function verifyAwsCredentials(): Promise<{ success: boolean, message: string, data?: any }> {
   try {
     console.log("[API] Verifying AWS credentials");
     
     // Check if credentials are provided
-    if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
-      console.log("[API] AWS credentials missing");
+    const validationResult = validateAwsCredentials();
+    if (!validationResult.isValid) {
+      console.log("[API] AWS credentials missing:", validationResult.error);
       return { 
         success: false, 
-        message: "AWS credentials are not configured" 
+        message: validationResult.error || "AWS credentials are not configured" 
       };
     }
     
@@ -491,7 +524,7 @@ async function handleListFoundationModels(req: Request): Promise<Response> {
       })) || [];
       
       // Return the formatted models
-      return createSuccessResponse({
+      return createResponse({
         models: models,
         count: models.length,
         region: "us-east-1"
@@ -500,708 +533,159 @@ async function handleListFoundationModels(req: Request): Promise<Response> {
       console.error("[API] AWS API Error in ListFoundationModels:", awsError);
       
       // Create a more detailed error response with AWS error information
-      return createErrorResponse("AWS Bedrock API Error", {
-        message: awsError instanceof Error ? awsError.message : String(awsError),
+      return createResponse({
+        error: awsError instanceof Error ? awsError.message : String(awsError),
         name: awsError instanceof Error ? awsError.name : "UnknownError",
         stack: awsError instanceof Error ? awsError.stack : undefined,
         region: "us-east-1"
-      });
+      }, 500);
     }
   } catch (error) {
     console.error("[API] Unexpected error in handleListFoundationModels:", error);
-    return createErrorResponse("Error listing foundation models", error);
+    return createResponse({
+      error: "Error listing foundation models",
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 }
 
-// Function to create a success response with proper headers
-function createSuccessResponse(data: any): Response {
-  return new Response(
-    JSON.stringify(data),
+interface SuperActionRequest {
+  action: string;
+  parameters?: Record<string, any>;
+}
+
+interface SuperActionResponse {
+  result: any;
+  timestamp: string;
+  action: string;
+}
+
+interface UserData {
+  subscription_status: string;
+  subscription_id: string;
+  role: string;
+}
+
+Deno.serve(async (req) => {
+  return handleRequest(
+    req,
+    async (user, body: SuperActionRequest) => {
+      try {
+        // Validate required fields
+        if (!body.action?.trim()) {
+          return createErrorResponse("Action is required", 400);
+        }
+
+        // Get user's subscription status and role
+        const userData = await queryOne<UserData>(
+          "SELECT subscription_status, subscription_id, role FROM profiles WHERE id = $1",
+          [user.id]
+        );
+
+        if (!userData) {
+          return createErrorResponse("User profile not found", 404);
+        }
+
+        // Check if user has active subscription
+        if (userData.subscription_status !== "active") {
+          return createErrorResponse("Subscription required for super actions", 403);
+        }
+
+        // Check if user has admin role
+        if (userData.role !== "admin") {
+          return createErrorResponse("Admin role required for super actions", 403);
+        }
+
+        // Execute the requested action
+        let result;
+        switch (body.action) {
+          case "get_system_status":
+            result = await getSystemStatus();
+            break;
+          case "get_user_stats":
+            result = await getUserStats();
+            break;
+          case "get_subscription_stats":
+            result = await getSubscriptionStats();
+            break;
+          default:
+            return createErrorResponse("Invalid action", 400);
+        }
+
+        return createSuccessResponse({
+          result,
+          timestamp: new Date().toISOString(),
+          action: body.action,
+        });
+      } catch (error) {
+        console.error("Unexpected error in super-action:", error);
+        return createErrorResponse("An unexpected error occurred", 500);
+      }
+    },
     {
-      status: 200,
-      headers: createCorsHeaders(null)
+      requiredSecrets: ["SUPABASE_URL", "SUPABASE_ANON_KEY"],
+      requireAuth: true,
+      requireBody: true,
     }
   );
-}
-
-// Function to create an error response with proper headers
-function createErrorResponse(message: string, error: any): Response {
-  const errorData = {
-    error: message,
-    details: error instanceof Error ? error.message : String(error)
-  };
-  
-  return new Response(
-    JSON.stringify(errorData),
-    {
-      status: 400,
-      headers: createCorsHeaders(null)
-    }
-  );
-}
-
-// Function to get a Bedrock client configured for us-east-1
-function getBedrockClient(): BedrockClient {
-  return new BedrockClient({
-    region: "us-east-1",
-    credentials: {
-      accessKeyId: AWS_ACCESS_KEY_ID,
-      secretAccessKey: AWS_SECRET_ACCESS_KEY
-    }
-  });
-}
-
-// Main serve function
-serve(async (req) => {
-  console.log("Edge Function running. Supabase Edge Function Diagnostic Start");
-  console.log(`Request URL: ${req.url}`);
-  console.log(`Request method: ${req.method}`);
-  console.log(`Request headers: ${[...req.headers.entries()].map(([key, value]) => `${key}: ${value}`).join(', ')}`);
-
-  const origin = req.headers.get("origin");
-  console.log(`Received request from origin: ${origin}`);
-  
-  // Handle preflight request
-  if (req.method === "OPTIONS") {
-    console.log("Handling OPTIONS preflight request");
-    const preflightHeaders = createPreflightHeaders(origin);
-    console.log("Preflight response headers:", preflightHeaders);
-    
-    return new Response(null, { 
-      status: 204,
-      headers: preflightHeaders
-    });
-  }
-
-  try {
-    // Create CORS headers for this request
-    const corsHeaders = createCorsHeaders(origin);
-    console.log("CORS response headers:", corsHeaders);
-    
-    // Get AWS configuration from environment
-    const region = Deno.env.get("AWS_REGION") || "us-east-1";
-    const accessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID") || "";
-    const secretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY") || "";
-    
-    // Log AWS configuration (without exposing full credentials)
-    console.log("AWS Config:", {
-      region,
-      hasAccessKey: !!accessKeyId,
-      accessKeyPrefix: accessKeyId ? accessKeyId.substring(0, 4) + "..." : "not set",
-      hasSecretKey: !!secretAccessKey
-    });
-
-    // Create AWS client with custom timeout - increase timeout for long operations
-    const client = new BedrockClient({
-      region,
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
-      requestHandler: {
-        timeout: 30000 // 30 seconds timeout (increased from 15s)
-      }
-    });
-
-    // Parse request data - handle empty bodies and format errors gracefully
-    let requestData: RequestData = { action: '', data: {} };
-    try {
-      if (req.method === "POST") {
-        const contentType = req.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const body = await req.text();
-          if (body && body.trim()) {
-            requestData = JSON.parse(body) as RequestData;
-          } else {
-            throw new Error("Empty request body");
-          }
-        } else {
-          throw new Error(`Unsupported content type: ${contentType}`);
-        }
-      }
-    } catch (parseError) {
-      console.error("Error parsing request data:", parseError);
-      const errorResponse = new Response(
-        JSON.stringify({
-          error: `Invalid request data: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
-          timestamp: new Date().toISOString()
-        }), 
-        { 
-          status: 400,
-          headers: corsHeaders
-        }
-      );
-      return errorResponse;
-    }
-    
-    const { action, data } = requestData;
-    
-    console.log(`Processing action: ${action}`);
-    
-    let result;
-    let diagnosticInfo = {};
-    
-    // Process action
-    if (action === "aws-permission-test") {
-      console.log("Running AWS permission tests");
-      
-      // First test basic credentials verification
-      const credentialsResult = await verifyAwsCredentials();
-      
-      // Then run permissions test for different actions
-      const permissionsResult = await runAwsPermissionsTest();
-      
-      // Return comprehensive test results
-      result = {
-        test_results: {
-          timestamp: new Date().toISOString(),
-          credentials: {
-            success: credentialsResult.success,
-            message: credentialsResult.message,
-            region: region,
-            hasAccessKey: !!accessKeyId,
-            hasSecretAccessKey: !!secretAccessKey
-          },
-          permissions: permissionsResult.permissions || {},
-          diagnostics: {
-            environment: {
-              runtime: "Deno Edge Function",
-              region: Deno.env.get("REGION") || "unknown",
-              function_name: "super-action"
-            }
-          }
-        },
-        success: true
-      };
-    } else if (action === "aws-provisioned-throughput-test") {
-      console.log("Running AWS provisioned throughput test");
-      
-      // Test if specific regions support provisioned throughput
-      const regionsToTest = ["us-east-1", "us-west-2", "eu-central-1", "eu-west-3"];
-      const regionResults = {};
-      
-      // Test each region
-      for (const testRegion of regionsToTest) {
-        console.log(`Testing region ${testRegion}`);
-        
-        try {
-          // Create a client for the specific region
-          const regionalClient = new BedrockClient({
-            region: testRegion,
-            credentials: {
-              accessKeyId,
-              secretAccessKey,
-            }
-          });
-          
-          // Try to list provisioned models in this region
-          try {
-            const command = new ListProvisionedModelThroughputsCommand({});
-            await regionalClient.send(command);
-            regionResults[testRegion] = {
-              success: true,
-              message: "Region supports provisioned throughput"
-            };
-          } catch (error) {
-            regionResults[testRegion] = {
-              success: false,
-              message: error.message || "Error testing region",
-              errorType: error.name,
-              isValidationError: error.name === "ValidationException" && error.message === "Operation not allowed"
-            };
-          }
-        } catch (error) {
-          regionResults[testRegion] = {
-            success: false,
-            message: "Failed to initialize client",
-            error: error instanceof Error ? error.message : String(error)
-          };
-        }
-      }
-      
-      // Check account prerequisites in the current region
-      const prerequisitesCheck = await checkAwsAccountPrerequisites(client);
-      
-      // Test model availability
-      const modelResults = {};
-      const modelsToTest = [
-        "anthropic.claude-v2",
-        "anthropic.claude-3-sonnet-20240229-v1:0",
-        "meta.llama2-13b-chat-v1"
-      ];
-      
-      for (const modelId of modelsToTest) {
-        try {
-          console.log(`Testing model ${modelId}`);
-          const modelArn = getModelArn(modelId, region);
-          
-          try {
-            // Simply test if the model is listable
-            const command = new ListFoundationModelsCommand({});
-            const response = await client.send(command);
-            
-            // Check if this model is in the list
-            const isModelAvailable = response.modelSummaries?.some(model => 
-              model.modelId === modelId || model.modelId?.includes(modelId)
-            );
-            
-            modelResults[modelId] = {
-              success: isModelAvailable,
-              message: isModelAvailable ? "Model is available" : "Model not found in region",
-              supportsProvisionedThroughput: modelSupportsProvisionedThroughput(modelId),
-              arn: modelArn
-            };
-          } catch (error) {
-            modelResults[modelId] = {
-              success: false,
-              message: "Error checking model",
-              error: error instanceof Error ? error.message : String(error),
-              arn: modelArn
-            };
-          }
-        } catch (error) {
-          modelResults[modelId] = {
-            success: false,
-            message: "Failed to test model",
-            error: error instanceof Error ? error.message : String(error)
-          };
-        }
-      }
-      
-      // Return comprehensive diagnostic results
-      result = {
-        test_results: {
-          timestamp: new Date().toISOString(),
-          region: region,
-          accountPrerequisites: prerequisitesCheck,
-          regionTests: regionResults,
-          modelTests: modelResults,
-          recommendations: {
-            recommendedRegion: REGIONS_WITH_PROVISIONED_THROUGHPUT[0],
-            recommendedModels: ["anthropic.claude-3-sonnet-20240229-v1:0", "anthropic.claude-v2", "meta.llama2-70b-chat-v1"],
-            nextSteps: "If tests show 'Operation not allowed', your AWS account may not be set up for provisioned throughput. Check AWS Bedrock console for activation."
-          }
-        },
-        success: true
-      };
-    } else if (action === "ListFoundationModels") {
-      console.log("Handling ListFoundationModels action");
-      return handleListFoundationModels(req);
-    } else if (action === "ListAccessibleModels") {
-      console.log("Handling ListAccessibleModels action (redirecting to ListFoundationModels)");
-      // For backward compatibility, redirect to ListFoundationModels
-      return handleListFoundationModels(req);
-    } else if (action === "ListProvisionedModelThroughputs") {
-      console.log("Fetching provisioned model throughputs");
-      
-      const command = new ListProvisionedModelThroughputsCommand({});
-      try {
-        const response = await client.send(command);
-        
-        // Capture diagnostic info
-        diagnosticInfo = {
-          requestId: response.$metadata.requestId,
-          httpStatusCode: response.$metadata.httpStatusCode,
-          attempts: response.$metadata.attempts
-        };
-        
-        console.log("Provisioned models response metadata:", diagnosticInfo);
-        
-        // Log the entire response structure (safely)
-        console.log("Raw API response:", JSON.stringify({
-          $metadata: response.$metadata,
-          provisionedModelSummaries: response.provisionedModelSummaries || [],
-          nextToken: response.nextToken
-        }));
-        
-        // Check if models array exists and its length
-        const models = response.provisionedModelSummaries || [];
-        console.log(`Found ${models.length} provisioned models`);
-        
-        result = {
-          models: models.map(model => ({
-            id: model.provisionedModelId,
-            name: model.modelId,
-            throughput: model.provisionedThroughput,
-            status: model.status
-          })),
-          diagnosticInfo
-        };
-      } catch (error) {
-        console.error("Error fetching provisioned models:", error);
-        // Provide detailed error information
-        diagnosticInfo = {
-          errorName: error.name,
-          errorMessage: error.message,
-          errorCode: error.$metadata?.httpStatusCode || error.Code,
-          errorType: error.name === 'TimeoutError' ? 'TIMEOUT' : 
-                    (error.name === 'AccessDeniedException' ? 'ACCESS_DENIED' : 'API_ERROR')
-        };
-        throw error;
-      }
-    } else if (action === "GetFoundationModel") {
-      console.log(`Getting foundation model details for: ${data.modelId}`);
-      
-      // We don't have GetFoundationModelCommand available, so we'll use ListFoundationModels and filter
-      console.log("Using ListFoundationModels as fallback for GetFoundationModel");
-      
-      try {
-        // Get all foundation models first
-        const command = new ListFoundationModelsCommand({});
-        const response = await client.send(command);
-        
-        // Find the specific model by ID
-        const foundModel = response.modelSummaries?.find(model => model.modelId === data.modelId);
-        
-        if (!foundModel) {
-          throw new Error(`Model with ID ${data.modelId} not found`);
-        }
-        
-        // Capture diagnostic info
-        diagnosticInfo = {
-          requestId: response.$metadata.requestId,
-          httpStatusCode: response.$metadata.httpStatusCode,
-          attempts: response.$metadata.attempts,
-          note: "Using ListFoundationModels as fallback for GetFoundationModel"
-        };
-        
-        console.log("Model details response metadata:", diagnosticInfo);
-        
-        result = {
-          model: {
-            id: foundModel.modelId,
-            name: foundModel.modelName,
-            provider: foundModel.providerName,
-            responseStreamingSupported: foundModel.responseStreamingSupported || false,
-            inputModalities: foundModel.inputModalities || [],
-            outputModalities: foundModel.outputModalities || [],
-            customizationsSupported: foundModel.customizationsSupported || []
-          },
-          diagnosticInfo
-        };
-      } catch (error) {
-        console.error(`Error getting foundation model ${data.modelId}:`, error);
-        diagnosticInfo = {
-          errorName: error.name,
-          errorMessage: error.message,
-          errorCode: error.$metadata?.httpStatusCode || error.Code
-        };
-        throw error;
-      }
-    } else if (action === "CreateProvisionedModelThroughput" || action === "createInstance") {
-      console.log("Creating provisioned model throughput", data);
-      
-      // Ensure modelId is properly set in the request
-      if (!data.modelId) {
-        const errorResponse = JSON.stringify({
-          error: "modelId is required for creating provisioned model throughput",
-          timestamp: new Date().toISOString()
-        });
-        return new Response(errorResponse, { 
-          status: 400, 
-          headers: corsHeaders 
-        });
-      }
-      
-      // Check if the model supports provisioned throughput
-      if (!modelSupportsProvisionedThroughput(data.modelId)) {
-        console.log(`Model ${data.modelId} does not support provisioned throughput`);
-        const errorResponse = JSON.stringify({
-          success: false,
-          error: "The selected model does not support provisioned throughput",
-          details: {
-            modelId: data.modelId,
-            supportedModels: "All models are now considered to potentially support provisioned throughput",
-            documentation: "https://docs.aws.amazon.com/bedrock/latest/userguide/prov-throughput.html"
-          },
-          timestamp: new Date().toISOString()
-        });
-        return new Response(errorResponse, { 
-          status: 400, 
-          headers: corsHeaders 
-        });
-      }
-      
-      // Check if the region supports provisioned throughput
-      if (!regionSupportsProvisionedThroughput(region)) {
-        console.log(`Region ${region} may not fully support provisioned throughput`);
-        const errorResponse = JSON.stringify({
-          success: false,
-          error: "The selected AWS region may not support provisioned throughput for this model",
-          details: {
-            region: region,
-            supportedRegions: REGIONS_WITH_PROVISIONED_THROUGHPUT,
-            recommendation: "Try using us-east-1 (N. Virginia) or us-west-2 (Oregon) region"
-          },
-          timestamp: new Date().toISOString()
-        });
-        return new Response(errorResponse, { 
-          status: 400, 
-          headers: corsHeaders 
-        });
-      }
-      
-      try {
-        // First check if the AWS account is set up for provisioned throughput
-        const prerequisitesCheck = await checkAwsAccountPrerequisites(client);
-        console.log("AWS prerequisites check result:", JSON.stringify(prerequisitesCheck));
-        
-        if (!prerequisitesCheck.success) {
-          const errorResponse = JSON.stringify({
-            success: false,
-            error: "AWS account prerequisites check failed",
-            details: prerequisitesCheck,
-            timestamp: new Date().toISOString()
-          });
-          return new Response(errorResponse, { 
-            status: 400, 
-            headers: corsHeaders 
-          });
-        }
-        
-        // Extract user ID from JWT token if available
-        const userId = await extractUserIdFromJwt(req);
-        if (userId) {
-          console.log("Extracted user ID from JWT:", userId);
-          // Add userId to data for tagging
-          data.userId = userId;
-        } else {
-          console.log("No user ID extracted from JWT, will create instance without user tag");
-        }
-        
-        // If prerequisites check passed, continue with the provisioned throughput creation
-        // Prepare the model ARN and other parameters
-        const modelArn = getModelArn(data.modelId, region);
-        const commitmentDuration = getCommitmentDuration(data.commitmentDuration);
-        const modelUnits = Number(data.modelUnits) || 1;
-        
-        // Log the full request parameters with more details
-        const requestParams = {
-          modelId: data.modelId,
-          modelArn: modelArn,
-          commitmentDuration: commitmentDuration,
-          modelUnits: modelUnits,
-          provisionedModelName: data.provisionedModelName,
-          userId: data.userId,
-          timestamp: new Date().toISOString(),
-          region: region
-        };
-        
-        console.log("Create instance parameters:", JSON.stringify(requestParams));
-        
-        try {
-          // Create a unique, identifiable provisioned model name if not provided
-          if (!data.provisionedModelName) {
-            const dateStr = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
-            data.provisionedModelName = `akii-pmt-${dateStr}`;
-          }
-          console.log(`Attempting to create provisioned model with name: ${data.provisionedModelName}`);
-          
-          // Create the actual AWS Bedrock provisioned model throughput
-          const command = new CreateProvisionedModelThroughputCommand({
-            modelId: modelArn,
-            provisionedModelName: data.provisionedModelName,
-            commitmentDuration: commitmentDuration,
-            modelUnits: modelUnits,
-            tags: {
-              CreatedBy: "AkiiApp",
-              CreatedAt: new Date().toISOString(),
-              Source: "akii-super-action",
-              ...(data.userId && { userId: data.userId }),
-              ...(data.tags && typeof data.tags === 'object' ? data.tags : {})
-            }
-          });
-          
-          // Add a longer timeout for this specific operation
-          const awsResponse = await Promise.race([
-            client.send(command),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error("AWS Bedrock API timeout after 20 seconds")), 20000)
-            )
-          ]) as any;
-          
-          console.log("AWS Bedrock API response:", JSON.stringify(awsResponse));
-          
-          // Format the response to match the expected format
-          result = {
-            success: true,
-            instance: {
-              id: Date.now(),
-              instance_id: awsResponse.provisionedModelId || data.provisionedModelName,
-              model_id: data.modelId,
-              commitment_duration: commitmentDuration,
-              model_units: modelUnits,
-              status: awsResponse.provisionedModelLifecycle?.status || "CREATING",
-              created_at: new Date().toISOString(),
-              deleted_at: null,
-              userId: data.userId || null,
-              name: data.provisionedModelName,
-              tags: {
-                CreatedBy: "AkiiApp",
-                CreatedAt: new Date().toISOString(),
-                Source: "akii-super-action",
-                ...(data.userId && { userId: data.userId }),
-                ...(data.tags && typeof data.tags === 'object' ? data.tags : {})
-              }
-            }
-          };
-        } catch (awsError) {
-          console.error("AWS API error creating provisioned model throughput:", awsError);
-          
-          // Extract detailed error information with more specific message parsing
-          let errorMessage = awsError.message || "Unknown error";
-          
-          // Try to extract the specific validation message from AWS
-          if (errorMessage === "Operation not allowed" && awsError.name === "ValidationException") {
-            errorMessage = "Operation not allowed. Your AWS account may not be approved for provisioned throughput or the feature may be unavailable in this region.";
-          }
-          
-          const errorDetails = {
-            name: awsError.name,
-            message: errorMessage,
-            code: awsError.$fault,
-            httpStatus: awsError.$metadata?.httpStatusCode,
-            requestId: awsError.$metadata?.requestId,
-            attempts: awsError.$metadata?.attempts || 1
-          };
-          
-          console.log("Error details:", JSON.stringify(errorDetails));
-          
-          // Determine possible causes based on error type
-          let possibleCauses = [];
-          let recommendedActions = [];
-          
-          if (awsError.name === "ValidationException") {
-            possibleCauses = [
-              "The model ID format may be incorrect",
-              "The selected model may not support provisioned throughput",
-              "The requested model units may be outside allowed range",
-              "The commitment duration value may be invalid"
-            ];
-            recommendedActions = [
-              "Verify that the model supports provisioned throughput",
-              "Try a different foundation model",
-              "Check the AWS Bedrock documentation for this specific model",
-              "Verify the model ARN format is correct"
-            ];
-          } else if (awsError.name === "AccessDeniedException") {
-            possibleCauses = [
-              "IAM permissions may be insufficient",
-              "AWS account may not have access to this feature"
-            ];
-            recommendedActions = [
-              "Check IAM policy for bedrock:CreateProvisionedModelThroughput permission",
-              "Ensure your AWS account has been approved for Bedrock provisioned throughput"
-            ];
-          } else if (awsError.name === "ServiceQuotaExceededException") {
-            possibleCauses = [
-              "You may have reached your account's quota for provisioned models",
-              "You may have reached your quota for model units"
-            ];
-            recommendedActions = [
-              "Check your Service Quotas in the AWS console",
-              "Request a quota increase if needed"
-            ];
-          } else {
-            possibleCauses = [
-              "This may be an AWS Bedrock service issue",
-              "The API parameters may be invalid",
-              "Network connectivity issues"
-            ];
-            recommendedActions = [
-              "Check the AWS status page",
-              "Try again later"
-            ];
-          }
-          
-          // Provide a detailed error response
-          result = {
-            success: false,
-            error: `AWS Bedrock API error: ${awsError.name}: ${awsError.message}`,
-            errorDetails: {
-              ...errorDetails,
-              possibleCauses,
-              recommendedActions,
-              requestParameters: requestParams
-            },
-            timestamp: new Date().toISOString()
-          };
-          
-          // Return a proper error response with appropriate status code
-          const errorResponse = JSON.stringify(result);
-          return new Response(errorResponse, { 
-            status: awsError.$metadata?.httpStatusCode || 500, 
-            headers: corsHeaders 
-          });
-        }
-      } catch (error) {
-        console.error("Error creating provisioned model throughput:", error);
-        const errorResponse = JSON.stringify({
-          error: `Failed to create provisioned model: ${error instanceof Error ? error.message : String(error)}`,
-          timestamp: new Date().toISOString()
-        });
-        return new Response(errorResponse, { 
-          status: 500, 
-          headers: corsHeaders 
-        });
-      }
-    } else if (action === "TestAuth") {
-      console.log("Testing AWS Bedrock authentication");
-      
-      try {
-        // Verify AWS credentials by making a simple API call
-        const credentialsResult = await verifyAwsCredentials();
-        
-        // Return a simplified response for the auth check
-        result = {
-          connected: credentialsResult.success,
-          status: credentialsResult.success ? "connected" : "error",
-          message: credentialsResult.message,
-          data: {
-            timestamp: new Date().toISOString(),
-            aws: {
-              region: region,
-              hasCredentials: !!accessKeyId && !!secretAccessKey
-            }
-          }
-        };
-      } catch (error) {
-        console.error("Error in TestAuth:", error);
-        result = {
-          connected: false,
-          status: "error",
-          message: error instanceof Error ? error.message : String(error),
-          error: error instanceof Error ? error.message : String(error)
-        };
-      }
-    } else {
-      console.log(`Unsupported action: ${action}`);
-      return new Response(
-        JSON.stringify({ error: "Unsupported action", action }),
-        { 
-          status: 400, 
-          headers: corsHeaders 
-        }
-      );
-    }
-
-    // Return the result with CORS headers
-    const responseBody = JSON.stringify(result || { error: "No action matched" });
-    return new Response(responseBody, { 
-      status: 200, 
-      headers: corsHeaders 
-    });
-  } catch (error) {
-    console.error("Unhandled server error:", error);
-    return new Response(
-      JSON.stringify({
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}`,
-        timestamp: new Date().toISOString()
-      }),
-      { 
-        status: 500, 
-        headers: createCorsHeaders(origin) 
-      }
-    );
-  }
 });
+
+async function getSystemStatus() {
+  const totalUsers = await queryOne<{ count: number }>(
+    "SELECT COUNT(*) as count FROM profiles"
+  );
+
+  const activeSubscriptions = await queryOne<{ count: number }>(
+    "SELECT COUNT(*) as count FROM profiles WHERE subscription_status = 'active'"
+  );
+
+  if (!totalUsers || !activeSubscriptions) {
+    throw new Error("Failed to fetch system status");
+  }
+
+  return {
+    total_users: totalUsers.count,
+    active_subscriptions: activeSubscriptions.count,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function getUserStats() {
+  const stats = await query<{
+    subscription_status: string;
+    role: string;
+    count: number;
+  }>(
+    `SELECT 
+      subscription_status,
+      role,
+      COUNT(*) as count
+     FROM profiles
+     GROUP BY subscription_status, role`
+  );
+
+  if (!stats) {
+    throw new Error("Failed to fetch user stats");
+  }
+
+  return stats.rows;
+}
+
+async function getSubscriptionStats() {
+  const stats = await query<{
+    subscription_status: string;
+    count: number;
+  }>(
+    `SELECT 
+      subscription_status,
+      COUNT(*) as count
+     FROM profiles
+     GROUP BY subscription_status`
+  );
+
+  if (!stats) {
+    throw new Error("Failed to fetch subscription stats");
+  }
+
+  return stats.rows;
+}
