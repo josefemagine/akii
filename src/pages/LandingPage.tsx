@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import AnimatedText from "@/components/animations/AnimatedText";
-import DataFlowAnimation from "@/components/animations/DataFlowAnimation";
-import IntegrationSection from "@/components/marketing/IntegrationSection";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import LoginModal from "@/components/auth/LoginModal";
+import { Button } from "@/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import AnimatedText from "@/components/animations/AnimatedText.tsx";
+import DataFlowAnimation from "@/components/animations/DataFlowAnimation.tsx";
+import IntegrationSection from "@/components/marketing/IntegrationSection.tsx";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import LoginModal from "@/components/auth/LoginModal.tsx";
 import {
   Zap,
   MessageSquare,

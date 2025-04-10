@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
 import {
   Card,
   CardContent,
@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
   CardFooter,
-} from "@/components/ui/card";
+} from "@/components/ui/card.tsx";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,16 +26,16 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui/alert-dialog.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
+import { Textarea } from "@/components/ui/textarea.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import { Loader2, Plus, Edit, Trash2, Bot } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { AIInstanceStatus } from "@/types/custom";
-import { invokeServerFunction } from "@/utils/supabase/functions";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { AIInstanceStatus } from "@/types/custom.ts";
+import { invokeServerFunction } from "@/utils/supabase/functions.ts";
 
 type AIInstance = {
   id: string;

@@ -1,36 +1,36 @@
-import { Suspense, lazy, useEffect, memo } from "./lib/react-singleton";
+import { Suspense, lazy, useEffect, memo } from "./lib/react-singleton.tsx";
 import React from "react";
 import {
   Routes,
   Route,
   Navigate,
   Outlet,
-} from "./lib/react-router-singleton";
+} from "./lib/react-router-singleton.tsx";
 
 // Initialize supabase client at app root
-import { supabase, ensureSupabaseInitialized } from "./lib/supabase-singleton";
-import { initializeProductionRecovery } from "./lib/production-recovery";
-import { forceAdminStatus, enableDevAdminMode } from "./lib/admin-utils";
+import { supabase, ensureSupabaseInitialized } from "./lib/supabase-singleton.tsx";
+import { initializeProductionRecovery } from "./lib/production-recovery.ts";
+import { forceAdminStatus, enableDevAdminMode } from "./lib/admin-utils.ts";
 
 // Import providers
-import { SearchProvider } from "./contexts/SearchContext";
-import { UnifiedAuthProvider, useAuth } from "./contexts/UnifiedAuthContext";
+import { SearchProvider } from "./contexts/SearchContext.tsx";
+import { UnifiedAuthProvider, useAuth } from "./contexts/UnifiedAuthContext.tsx";
 
 // Use a direct import from react-query instead of @tanstack/react-query
 import { QueryClient, QueryClientProvider } from "react-query";
 
 // Import components
-import { EnvWarning } from "@/components/ui/env-warning";
-import LoadingScreen from "@/components/ui/LoadingScreen";
-import { Toaster } from "./components/ui/toaster";
-import MainLayout from "./components/layout/MainLayout";
-import DashboardLayout from "./components/dashboard/DashboardLayout";
-import { PrivateRoute } from "./components/PrivateRoute";
-import { GlobalErrorHandler } from "./components/GlobalErrorHandler";
-import ScrollToTop from "./components/layout/ScrollToTop";
-import { Button } from "@/components/ui/button";
+import { EnvWarning } from "@/components/ui/env-warning.tsx";
+import LoadingScreen from "@/components/ui/LoadingScreen.tsx";
+import { Toaster } from "./components/ui/toaster.tsx";
+import MainLayout from "./components/layout/MainLayout.tsx";
+import DashboardLayout from "./components/dashboard/DashboardLayout.tsx";
+import { PrivateRoute } from "./components/PrivateRoute.tsx";
+import { GlobalErrorHandler } from "./components/GlobalErrorHandler.tsx";
+import ScrollToTop from "./components/layout/ScrollToTop.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { Link } from "react-router-dom";
-import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import LoadingSpinner from "@/components/ui/LoadingSpinner.tsx";
 
 // Import development-only components
 // Only import AuthDebugger in development mode
@@ -39,11 +39,11 @@ const AuthDebugger = import.meta.env.DEV
   : () => null;
 
 // Import utilities
-import { setupNetworkInterceptors } from "./lib/network-utils";
+import { setupNetworkInterceptors } from "./lib/network-utils.ts";
 
 // Import pages
-import LandingPage from "./pages/LandingPage";
-import { UserDetailPage } from "./pages/admin/UserDetail";
+import LandingPage from "./pages/LandingPage.tsx";
+import { UserDetailPage } from "./pages/admin/UserDetail.tsx";
 
 // Lazy load pages
 const Dashboard = lazy(() => import("./pages/dashboard/Dashboard"));
@@ -94,7 +94,7 @@ const WordPressChatAgent = lazy(() => import("./pages/products/WordPressChatAgen
 const PrivateAIAPI = lazy(() => import("./pages/products/PrivateAIAPI"));
 const ZapierIntegration = lazy(() => import("./pages/products/ZapierIntegration"));
 const N8nIntegration = lazy(() => import("./pages/products/N8nIntegration"));
-import ManagePlans from "./pages/admin/ManagePlans";
+import ManagePlans from "./pages/admin/ManagePlans.tsx";
 const AIInstancesPage = lazy(() => import("./pages/AIInstances"));
 const CreateAIInstancePage = lazy(() => import("./pages/CreateAIInstance"));
 const TrainingDataPage = lazy(() => import("./pages/TrainingData"));

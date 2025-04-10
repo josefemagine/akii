@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
 import {
   Card,
   CardContent,
@@ -8,23 +8,23 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/ui/card.tsx";
 import {
   Download,
   Filter,
   Search,
   UserPlus,
 } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
-import { setUserAsAdmin } from "@/lib/supabase-admin";
-import { User, EditUserData } from "@/types/user";
-import { UserTable } from "@/components/admin/users/UserTable";
-import { EditUserDialog } from "@/components/admin/users/EditUserDialog";
+import { toast } from "@/components/ui/use-toast.ts";
+import { setUserAsAdmin } from "@/lib/supabase-admin.ts";
+import { User, EditUserData } from "@/types/user.ts";
+import { UserTable } from "@/components/admin/users/UserTable.tsx";
+import { EditUserDialog } from "@/components/admin/users/EditUserDialog.tsx";
 import {
   fetchAllUsers,
   updateUserRole,
   updateUserData
-} from "@/services/userService";
+} from "@/services/userService.ts";
 
 const UsersPage = () => {
   const [searchQuery, setSearchQuery] = useState("");

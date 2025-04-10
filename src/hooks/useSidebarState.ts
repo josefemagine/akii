@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { safeLocalStorage } from "@/lib/browser-check";
+import { safeLocalStorage } from "@/lib/browser-check.ts";
 
 export interface SidebarState {
   collapsed: boolean;

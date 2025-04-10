@@ -2,7 +2,7 @@
  * API helper functions for making requests to external services
  */
 
-import { BedrockConfig } from './env-config';
+import { BedrockConfig } from './env-config.ts';
 
 /**
  * Get the appropriate API URL for Bedrock based on environment

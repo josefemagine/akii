@@ -6,7 +6,7 @@
  * valid responses when the original requests would fail.
  */
 
-import { supabase } from './supabase';
+import { supabase } from "./supabase.tsx";
 
 // Save original fetch for later use
 const originalFetch = window.fetch;

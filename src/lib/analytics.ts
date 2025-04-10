@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabase } from "./supabase.tsx";
 
 export interface AnalyticsData {
   totalMessages: number;

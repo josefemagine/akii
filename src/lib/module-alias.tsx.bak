@@ -1,0 +1,41 @@
+/**
+ * MODULE ALIASES
+ *
+ * This module sets up global module aliases to ensure consistent module usage
+ * throughout the application, preventing duplicate React instances.
+ */
+import React from './react-singleton';
+import ReactDOM from './react-dom-singleton';
+import * as ReactRouter from './react-router-singleton';
+import * as ReactRouterDOM from './react-router-singleton';
+// Set up module aliases
+export function setupModuleAliases() {
+    if (typeof window === 'undefined')
+        return;
+    // Create the module aliases object if it doesn't exist
+    if (!window.__MODULE_ALIASES__) {
+        window.__MODULE_ALIASES__ = {};
+    }
+    // Set up aliases
+    window.__MODULE_ALIASES__['react'] = React;
+    window.__MODULE_ALIASES__['react-dom'] = ReactDOM;
+    window.__MODULE_ALIASES__['react-router'] = ReactRouter;
+    window.__MODULE_ALIASES__['react-router-dom'] = ReactRouterDOM;
+}
+// Verify that the module aliases are set up correctly
+export function verifyModuleAliases() {
+    var _a, _b, _c, _d;
+    if (typeof window === 'undefined')
+        return;
+    console.log('Module alias verification:');
+    console.log('- React alias:', (_a = window.__MODULE_ALIASES__) === null || _a === void 0 ? void 0 : _a['react']);
+    console.log('- ReactDOM alias:', (_b = window.__MODULE_ALIASES__) === null || _b === void 0 ? void 0 : _b['react-dom']);
+    console.log('- ReactRouter alias:', (_c = window.__MODULE_ALIASES__) === null || _c === void 0 ? void 0 : _c['react-router']);
+    console.log('- ReactRouterDOM alias:', (_d = window.__MODULE_ALIASES__) === null || _d === void 0 ? void 0 : _d['react-router-dom']);
+}
+// Apply aliases immediately
+setupModuleAliases();
+// Export default object for convenient importing
+export default { setupModuleAliases, verifyModuleAliases };
+interface module-aliasProps {}
+

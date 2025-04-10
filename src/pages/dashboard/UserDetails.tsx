@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.tsx';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { supabase } from "@/lib/supabase.tsx";
 
 // Define the auth.users table columns
 const userColumns = [

@@ -11,8 +11,8 @@ import {
   RefreshCw,
   BarChart3
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import MainLayout from "@/components/layout/MainLayout";
+import { Button } from "@/components/ui/button.tsx";
+import MainLayout from "@/components/layout/MainLayout.tsx";
 
 const PrivateAIAPI = () => {
   return (

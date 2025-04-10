@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
-import Profile from "./Profile";
-import Appearance from "./Appearance";
-import Security from "./Security";
-import Notifications from "./Notifications";
-import Billing from "./Billing";
-import APIKeys from "./APIKeys";
-import { AdminSetter } from '@/components/debug/AdminSetter';
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import type { Profile as ProfileType } from "@/types/auth";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer.tsx";
+import Profile from "./Profile.tsx";
+import Appearance from "./Appearance.tsx";
+import Security from "./Security.tsx";
+import Notifications from "./Notifications.tsx";
+import Billing from "./Billing.tsx";
+import APIKeys from "./APIKeys.tsx";
+import { AdminSetter } from '@/components/debug/AdminSetter.tsx';
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import type { Profile as ProfileType } from "@/types/auth.ts";
 
 // Custom profile type that extends the basic Profile from auth types
 // All properties are already included in the Profile type from @/types/auth

@@ -1,7 +1,7 @@
 import React from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
-import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar";
-import { Badge } from "../ui/badge";
+import { Card, CardHeader, CardTitle, CardContent } from "../ui/card.tsx";
+import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar.tsx";
+import { Badge } from "../ui/badge.tsx";
 import {
   MessageSquare,
   Bell,

@@ -1,4 +1,5 @@
-import React from 'react';
+import React from "react";
+interface BillingProps {}
 
 export default function Billing() {
   return (
@@ -9,4 +10,4 @@ export default function Billing() {
       </div>
     </div>
   );
-} 
+}

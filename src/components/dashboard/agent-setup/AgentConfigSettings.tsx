@@ -5,18 +5,18 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "../../ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
+} from "../../ui/card.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs.tsx";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../ui/select";
-import { Switch } from "../../ui/switch";
-import { Input } from "../../ui/input";
-import { Slider } from "../../ui/slider";
+} from "../../ui/select.tsx";
+import { Switch } from "../../ui/switch.tsx";
+import { Input } from "../../ui/input.tsx";
+import { Slider } from "../../ui/slider.tsx";
 import { Globe, Mic, Brain, Clock, Repeat, Users } from "lucide-react";
 
 interface AgentConfigSettingsProps {

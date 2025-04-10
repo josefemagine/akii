@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 import type { User } from "@supabase/supabase-js";
 import { 
   Monitor, 

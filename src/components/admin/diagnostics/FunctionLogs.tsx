@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card.tsx';
 import { 
   Table, 
   TableBody, 
@@ -7,16 +7,16 @@ import {
   TableHead, 
   TableHeader, 
   TableRow 
-} from '@/components/ui/table';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
+} from '@/components/ui/table.tsx';
+import { ScrollArea } from '@/components/ui/scroll-area.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Alert, AlertDescription } from '@/components/ui/alert.tsx';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.tsx';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
+import { Button } from '@/components/ui/button.tsx';
 import { Loader2, AlertCircle, Info, BarChart2 } from 'lucide-react';
-import { FunctionLog, FunctionInvocation } from '@/types/diagnostics';
-import { EDGE_FUNCTIONS } from '@/utils/diagnostics';
+import { FunctionLog, FunctionInvocation } from '@/types/diagnostics.ts';
+import { EDGE_FUNCTIONS } from '@/utils/diagnostics.ts';
 
 interface FunctionLogsProps {
   logs: FunctionLog[];

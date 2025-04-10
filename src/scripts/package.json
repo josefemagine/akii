@@ -1,0 +1,8 @@
+{
+  "name": "syntax-fix-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "glob": "^9.3.5"
+  }
+} 

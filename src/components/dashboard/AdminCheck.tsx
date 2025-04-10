@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { supabase } from '@/lib/supabase';
-import { Profile } from '@/types/auth';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { supabase } from "@/lib/supabase.tsx";
+import { Profile } from '@/types/auth.ts';
 
 /**
  * Component to check admin status directly from the database

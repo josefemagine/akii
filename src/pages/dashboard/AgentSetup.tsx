@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import AgentSetupStepper from "@/components/dashboard/agent-setup/AgentSetupStepper";
-import AgentBasicInfo from "@/components/dashboard/agent-setup/AgentBasicInfo";
-import AgentConfigSettings from "@/components/dashboard/agent-setup/AgentConfigSettings";
-import TrainingDataSelector from "@/components/dashboard/agent-setup/TrainingDataSelector";
-import PlatformSelector from "@/components/dashboard/agent-setup/PlatformSelector";
-import AgentTester from "@/components/dashboard/agent-setup/AgentTester";
-import DeploymentOptions from "@/components/dashboard/agent-setup/DeploymentOptions";
+import { Button } from "@/components/ui/button.tsx";
+import { Card } from "@/components/ui/card.tsx";
+import AgentSetupStepper from "@/components/dashboard/agent-setup/AgentSetupStepper.tsx";
+import AgentBasicInfo from "@/components/dashboard/agent-setup/AgentBasicInfo.tsx";
+import AgentConfigSettings from "@/components/dashboard/agent-setup/AgentConfigSettings.tsx";
+import TrainingDataSelector from "@/components/dashboard/agent-setup/TrainingDataSelector.tsx";
+import PlatformSelector from "@/components/dashboard/agent-setup/PlatformSelector.tsx";
+import AgentTester from "@/components/dashboard/agent-setup/AgentTester.tsx";
+import DeploymentOptions from "@/components/dashboard/agent-setup/DeploymentOptions.tsx";
 
 interface AgentData {
   basicInfo?: {

@@ -1,0 +1,270 @@
+import React from "react";
+/**
+ * Supabase AWS Credentials Helper
+ * Fetches AWS credentials from Supabase database and initializes AWS clients
+ */
+import { createClient } from '@supabase/supabase-js';
+import { createBedrockClient } from './aws-bedrock-client.tsx';
+
+// Import from client singleton if available
+import { supabase } from './supabase.ts';
+
+/**
+ * Fetch AWS Bedrock credentials from Supabase
+ * @param {Object} options - Options
+ * @param {string} options.userId - User ID to fetch credentials for
+ * @param {Object} options.client - Optional Supabase client
+ * @returns {Promise<Object>} Credentials result
+ */
+export async function fetchBedrockCredentials(options = {}) {
+  const { userId, client = null } = options;
+  
+  if (!userId) {
+    console.error('[Supabase AWS] No user ID provided');
+    return {
+      error: 'User ID is required',
+      credentials: null
+    };
+  }
+  
+  try {
+    // Use the provided client, the singleton instance, or create a temporary one as last resort
+    const supabaseClient = client || supabase || createTemporaryClient();
+    
+    if (!supabaseClient) {
+      console.error('[Supabase AWS] Could not create Supabase client');
+      return {
+        error: 'Could not create Supabase client',
+        credentials: null
+      };
+    }
+    
+    console.log(`[Supabase AWS] Attempting to fetch credentials for user ${userId} via edge function`);
+    
+    try {
+      // Create a timeout promise to prevent infinite waiting
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Supabase Edge Function request timed out after 10 seconds'));
+        }, 10000); // 10 second timeout
+      });
+      
+      // Create the actual function call
+      const functionPromise = supabaseClient.functions.invoke('super-action', {
+        body: {
+          action: 'getCredentials',
+          userId: userId
+        }
+      });
+      
+      // Race the two promises - whichever resolves/rejects first wins
+      const { data, error } = await Promise.race([
+        functionPromise,
+        timeoutPromise.then(() => {
+          throw new Error('Supabase Edge Function request timed out after 10 seconds');
+        })
+      ]);
+      
+      if (error) {
+        console.error('[Supabase AWS] Edge function error:', error);
+        return {
+          error: `Edge function error: ${error.message || 'Unknown error'}`,
+          credentials: null
+        };
+      }
+      
+      if (!data || data.error) {
+        console.warn('[Supabase AWS] Edge function returned an error:', data?.error);
+        return {
+          error: data?.error || 'Edge function returned no data',
+          credentials: null
+        };
+      }
+      
+      // The edge function should return credentials in this format
+      if (!data.credentials || !data.credentials.aws_access_key_id || !data.credentials.aws_secret_access_key) {
+        console.warn(`[Supabase AWS] No credentials found for user ${userId}`);
+        return {
+          error: 'No credentials found',
+          credentials: null
+        };
+      }
+      
+      // Convert to standard format and log success (with masked keys)
+      const credentials = {
+        accessKeyId: data.credentials.aws_access_key_id,
+        secretAccessKey: data.credentials.aws_secret_access_key,
+        region: data.credentials.aws_region || 'us-east-1'
+      };
+      
+      console.log(`[Supabase AWS] Successfully retrieved credentials via edge function for user ${userId} (Key ID: ${maskKey(credentials.accessKeyId)})`);
+      
+      return {
+        error: null,
+        credentials
+      };
+    } catch (funcError) {
+      // Detailed error handling for edge function call
+      console.error('[Supabase AWS] Error calling edge function:', funcError);
+      
+      // Check for timeout errors
+      if (funcError.message && funcError.message.includes('timed out')) {
+        return {
+          error: 'Edge function request timed out. The service may be temporarily unavailable.',
+          credentials: null,
+          timeout: true
+        };
+      }
+      
+      // Check if this is a network error
+      if (funcError.message && (
+          funcError.message.includes('NetworkError') || 
+          funcError.message.includes('Failed to fetch')
+      )) {
+        return {
+          error: 'Network error connecting to Supabase Edge Function',
+          credentials: null
+        };
+      }
+      
+      // Check if this is a 404 error (edge function not found)
+      if (funcError.status === 404 || (funcError.message && funcError.message.includes('404'))) {
+        return {
+          error: 'Edge function not found (404). Ensure the super-action function is deployed.',
+          credentials: null
+        };
+      }
+      
+      // Check for auth errors
+      if (funcError.status === 401 || funcError.status === 403 || 
+          (funcError.message && (funcError.message.includes('401') || funcError.message.includes('403')))) {
+        return {
+          error: 'Authentication error accessing edge function. Please login again.',
+          credentials: null
+        };
+      }
+      
+      return {
+        error: `Error calling edge function: ${funcError.message || 'Unknown error'}`,
+        credentials: null
+      };
+    }
+  } catch (error) {
+    console.error('[Supabase AWS] Error fetching credentials:', error);
+    return {
+      error: error.message || 'Failed to fetch credentials',
+      credentials: null
+    };
+  }
+}
+
+/**
+ * Mask sensitive keys for logging
+ * @param {string} key - The key to mask
+ * @returns {string} The masked key
+ */
+function maskKey(key) {
+  if (!key) return 'undefined';
+  if (key.length <= 8) return '***';
+  
+  // Only show first 4 and last 4 characters
+  return `${key.substring(0, 4)}...${key.substring(key.length - 4)}`;
+}
+
+/**
+ * Create a temporary Supabase client for one-time operations
+ * Only used as a fallback if the singleton isn't available
+ * @returns {Object|null} A Supabase client or null if environment variables not available
+ */
+function createTemporaryClient() {
+  // Always try to use the singleton first
+  if (supabase) {
+    console.log('[Supabase AWS] Using singleton client');
+    return supabase;
+  }
+  
+  console.warn('[Supabase AWS] Using temporary client as fallback. This is not recommended.');
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[Supabase AWS] Missing Supabase URL or key');
+      return null;
+    }
+    
+    return createClient(supabaseUrl, supabaseKey);
+  } catch (error) {
+    console.error('[Supabase AWS] Error creating temporary client:', error);
+    return null;
+  }
+}
+
+/**
+ * Initialize AWS Bedrock client with credentials from Supabase
+ * @param {Object} options - Options
+ * @param {string} options.userId - User ID to fetch credentials for
+ * @param {Object} options.client - Optional Supabase client
+ * @param {boolean} options.useFallbackOnError - Whether to use fallback on error
+ * @returns {Promise<Object>} The initialized client and result info
+ */
+export async function initBedrockClientWithSupabaseCredentials(options = {}) {
+  const { 
+    userId, 
+    client = null,
+    useFallbackOnError = true
+  } = options;
+  
+  try {
+    // Fetch credentials
+    const { credentials, error } = await fetchBedrockCredentials({
+      userId,
+      client
+    });
+    
+    if (error && !useFallbackOnError) {
+      throw new Error(error);
+    }
+    
+    // Create the Bedrock client
+    const bedrockClient = createBedrockClient({
+      region: credentials?.region || 'us-east-1',
+      accessKeyId: credentials?.accessKeyId,
+      secretAccessKey: credentials?.secretAccessKey,
+      useFallbackOnError
+    });
+    
+    return {
+      client: bedrockClient,
+      success: !error,
+      message: error || 'Successfully initialized Bedrock client',
+      usingFallback: !!error,
+      credentials: credentials ? {
+        hasCredentials: !!credentials.accessKeyId && !!credentials.secretAccessKey,
+        region: credentials.region
+      } : null
+    };
+  } catch (error) {
+    console.error('[Supabase AWS] Error initializing Bedrock client:', error);
+    
+    if (useFallbackOnError) {
+      // Create a fallback client with no credentials
+      const fallbackClient = createBedrockClient({
+        useFallbackOnError: true
+      });
+      
+      return {
+        client: fallbackClient,
+        success: false,
+        message: error.message || 'Failed to initialize Bedrock client',
+        usingFallback: true,
+        credentials: null
+      };
+    }
+    
+    throw error;
+  }
+}
+
+interface SupabaseAwsCredentialsProps {} 

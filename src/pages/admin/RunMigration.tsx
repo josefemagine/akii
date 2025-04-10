@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Card,
   CardContent,
@@ -7,12 +7,12 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { runMigration } from "@/lib/run-migration";
+} from "@/components/ui/card.tsx";
+import { Textarea } from "@/components/ui/textarea.tsx";
+import { runMigration } from "@/lib/run-migration.ts";
 import { Loader2, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { supabase } from "@/lib/supabase";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
+import { supabase } from "@/lib/supabase.tsx";
 
 export default function RunMigration() {
   const [sql, setSql] = useState("");

@@ -11,7 +11,7 @@ export type {
   ConfigData,
   FunctionLog,
   FunctionInvocation
-} from '@/types/diagnostics';
+} from '@/types/diagnostics.ts';
 
 // Re-export utility functions from the utils directory
 export {
@@ -34,4 +34,4 @@ export {
   
   // Main diagnostic runner
   runAllDiagnosticTests
-} from '@/utils/diagnostics'; 
+} from '@/utils/diagnostics.ts'; 

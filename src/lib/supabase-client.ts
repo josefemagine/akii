@@ -5,8 +5,8 @@
  */
 
 // Import the singleton client instead of creating a new one
-import supabase, { auth } from './supabase-singleton';
-import { isBrowser } from './browser-check';
+import supabase, { auth } from "./supabase-singleton.tsx";
+import { isBrowser } from './browser-check.ts';
 import { User } from "@supabase/supabase-js";
 
 // Debug helper

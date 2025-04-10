@@ -1,13 +1,13 @@
 import React from 'react';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button.tsx';
+import { Progress } from '@/components/ui/progress.tsx';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { Loader2 } from 'lucide-react';
-import { DiagnosticPanel } from './DiagnosticPanel';
-import { DiagnosticLogs } from './DiagnosticLogs';
-import { EnvironmentVariables } from './EnvironmentVariables';
-import { FunctionLogs } from './FunctionLogs';
-import { useDiagnostics } from '@/hooks/useDiagnostics';
+import { DiagnosticPanel } from './DiagnosticPanel.tsx';
+import { DiagnosticLogs } from './DiagnosticLogs.tsx';
+import { EnvironmentVariables } from './EnvironmentVariables.tsx';
+import { FunctionLogs } from './FunctionLogs.tsx';
+import { useDiagnostics } from '@/hooks/useDiagnostics.ts';
 
 export function DiagnosticDashboard() {
   const {

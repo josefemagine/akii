@@ -1,0 +1,199 @@
+import React from "react";
+/**
+ * SUPABASE AUTH MODULE
+ * Authentication and user management functions
+ * Uses client.ts for Supabase instances
+ */
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+import { getClient, getAdminClient } from './client.ts';
+interface authProps {}
+
+// Get the auth client (cached for consistency)
+export function getAuth() {
+    return getClient().auth;
+}
+/**
+ * Get the current logged-in user
+ */
+export function getCurrentUser() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { data, error } = yield getAuth().getUser();
+            if (error)
+                throw error;
+            return { data: data.user, error: null };
+        }
+        catch (error) {
+            console.error("Get user error:", error);
+            return { data: null, error: error };
+        }
+    });
+}
+/**
+ * Get the current session
+ */
+export function getCurrentSession() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { data, error } = yield getAuth().getSession();
+            if (error)
+                throw error;
+            return { data: data.session, error: null };
+        }
+        catch (error) {
+            console.error("Get session error:", error);
+            return { data: null, error: error };
+        }
+    });
+}
+/**
+ * Get a user's profile by ID
+ */
+export function getUserProfile(userId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (!userId) {
+                throw new Error("User ID is required");
+            }
+            const { data, error } = yield getClient()
+                .from("profiles")
+                .select("*")
+                .eq("id", userId)
+                .single();
+            if (error)
+                throw error;
+            if (!data)
+                throw new Error("Profile not found");
+            return {
+                data: {
+                    id: data.id,
+                    email: data.email,
+                    role: data.role || "user",
+                    status: data.status || "active",
+                    full_name: data.full_name,
+                    avatar_url: data.avatar_url,
+                    created_at: data.created_at,
+                    updated_at: data.updated_at,
+                },
+                error: null
+            };
+        }
+        catch (error) {
+            console.error("Get user profile error:", error);
+            return { data: null, error: error };
+        }
+    });
+}
+/**
+ * Get complete user data from Supabase
+ * This includes auth data, profile data, and other associated data
+ */
+export function getCompleteUserData(userId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (!userId) {
+                throw new Error("User ID is required");
+            }
+            // Get user profile data
+            const { data: profileData, error: profileError } = yield getClient()
+                .from("profiles")
+                .select("*")
+                .eq("id", userId)
+                .single();
+            if (profileError && profileError.code !== 'PGRST116')
+                throw profileError;
+            // Get admin client and check if it exists
+            const adminClient = getAdminClient();
+            if (!adminClient) {
+                throw new Error("Failed to get admin client for user data retrieval");
+            }
+            // Get auth user data (this endpoint is available in admin API)
+            const { data: adminUserData, error: adminUserError } = yield adminClient.auth.admin.getUserById(userId);
+            if (adminUserError)
+                throw adminUserError;
+            // Combine data
+            return {
+                data: {
+                    auth: (adminUserData === null || adminUserData === void 0 ? void 0 : adminUserData.user) || null,
+                    profile: profileData || null
+                },
+                error: null
+            };
+        }
+        catch (error) {
+            console.error("Get complete user data error:", error);
+            return { data: null, error: error };
+        }
+    });
+}
+/**
+ * Update a user's profile
+ */
+export function updateUserProfile(userId, updates) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (!userId) {
+                throw new Error("User ID is required");
+            }
+            const { data, error } = yield getClient()
+                .from("profiles")
+                .update(Object.assign(Object.assign({}, updates), { updated_at: new Date().toISOString() }))
+                .eq("id", userId)
+                .select()
+                .single();
+            if (error)
+                throw error;
+            return { data, error: null };
+        }
+        catch (error) {
+            console.error("Error updating user profile:", error);
+            return { data: null, error: error };
+        }
+    });
+}
+/**
+ * Check a user's status
+ */
+export function checkUserStatus(userId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (!userId) {
+                throw new Error("User ID is required");
+            }
+            const { data, error } = yield getUserProfile(userId);
+            if (error)
+                throw error;
+            if (!data)
+                throw new Error("User profile not found");
+            return { data: data.status, error: null };
+        }
+        catch (error) {
+            console.error("Error checking user status:", error);
+            return { data: null, error: error };
+        }
+    });
+}
+/**
+ * Set a user's role
+ */
+export function setUserRole(userId, role) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return updateUserProfile(userId, { role });
+    });
+}
+/**
+ * Set a user's status
+ */
+export function setUserStatus(userId, status) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return updateUserProfile(userId, { status });
+    });
+}

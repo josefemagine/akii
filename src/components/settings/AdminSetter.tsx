@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { supabase } from "@/lib/supabase.tsx";
+import { Button } from '@/components/ui/button.tsx';
 import { Shield, AlertCircle } from 'lucide-react';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/components/ui/use-toast.ts';
 
 export function AdminSetter() {
   const { user, profile, refreshProfile } = useAuth();

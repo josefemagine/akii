@@ -5,7 +5,7 @@
  * and prevent "loadSession() used outside of an acquired lock" errors.
  */
 
-import { supabase } from './supabase-singleton';
+import { supabase } from "./supabase-singleton.tsx";
 import type { User, Session } from '@supabase/supabase-js';
 
 // Configuration

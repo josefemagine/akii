@@ -1,0 +1,100 @@
+import React from "react";
+var __rest = (this && this.__rest> || function (s, e> {
+    var t = {};
+    for (var p in s> if (Object.prototype.hasOwnProperty.call(s, p> && e.indexOf(p> < 0>
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function">
+        for (var i = 0, p = Object.getOwnPropertySymbols(s>; i < p.length; i++> {
+            if (e.indexOf(p[i]> < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]>>
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
+
+import * as React from "react";
+import { cn } from "@/lib/utils";
+import { Upload } from "lucide-react";
+interface FileInputProps {}
+
+const FileInput = React.forwardRef((_a, ref> => {
+    var { className, onFileSelected, onChange, variant = "default", dropzoneText = "Click or drag to upload" } = _a, props = __rest(_a, ["className", "onFileSelected", "onChange", "variant", "dropzoneText"]>;
+    const [isDragging, setIsDragging] = React.useState<any>(false>;
+    const fileInputRef = React.useRef(null>;
+    const combinedRef = useCombinedRefs(ref, fileInputRef>;
+    const handleChange = (e>: void => {
+        // Call the original onChange if provided
+        if (onChange> {
+            onChange(e>;
+        }
+        // Call onFileSelected with the selected file
+        if (onFileSelected && e.target.files && e.target.files.length > 0> {
+            onFileSelected(e.target.files[0]>;
+        }
+        else if (onFileSelected> {
+            onFileSelected(null>;
+        }
+    };
+    const handleDragEnter = (e>: void => {
+        e.preventDefault(>;
+        e.stopPropagation(>;
+        setIsDragging(true>;
+    };
+    const handleDragLeave = (e>: void => {
+        e.preventDefault(>;
+        e.stopPropagation(>;
+        setIsDragging(false>;
+    };
+    const handleDragOver = (e>: void => {
+        e.preventDefault(>;
+        e.stopPropagation(>;
+        setIsDragging(true>;
+    };
+    const handleDrop = (e>: void => {
+        e.preventDefault(>;
+        e.stopPropagation(>;
+        setIsDragging(false>;
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0> {
+            if (fileInputRef.current> {
+                // Create a DataTransfer object to set the files
+                const dataTransfer = new DataTransfer(>;
+                dataTransfer.items.add(e.dataTransfer.files[0]>;
+                fileInputRef.current.files = dataTransfer.files;
+                // Trigger change event manually
+                const changeEvent = new Event("change", { bubbles: true }>;
+                fileInputRef.current.dispatchEvent(changeEvent>;
+                // Call onFileSelected directly
+                if (onFileSelected> {
+                    onFileSelected(e.dataTransfer.files[0]>;
+                }
+            }
+        }
+    };
+    const handleClick = (>: void => {
+        if (fileInputRef.current> {
+            fileInputRef.current.click(>;
+        }
+    };
+    if (variant === "dropzone"> {
+        return (<"div", { className: cn("relative flex flex-col items-center justify-center w-full min-h-[120px] rounded-lg border-2 border-dashed transition-colors cursor-pointer", isDragging
+                ? "border-primary bg-primary/5"
+                : "border-muted-foreground/25 hover:border-primary/50", className>, onDragEnter: handleDragEnter, onDragLeave: handleDragLeave, onDragOver: handleDragOver, onDrop: handleDrop, onClick: handleClick, children: [<Upload, { className: "h-8 w-8 mb-2 text-muted-foreground" }>, <"p", { className: "text-sm text-muted-foreground", children: dropzoneText }>, <"input", Object.assign({ type: "file", className: "sr-only", onChange: handleChange, ref: combinedRef }, props>>] }>>;
+    }
+    return (<"input", Object.assign({ type: "file", className: cn("flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary/90 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", className>, onChange: handleChange, ref: combinedRef }, props>>>;
+}>;
+// Helper function to combine refs
+function useCombinedRefs(...refs> {
+    return React.useCallback((element> => {
+        refs.forEach((ref> => {
+            if (!ref>
+                return;
+            if (typeof ref === "function"> {
+                ref(element>;
+            }
+            else {
+                ref.current = element;
+            }
+        }>;
+    }, [refs]>;
+}
+FileInput.displayName = "FileInput";
+export { FileInput };

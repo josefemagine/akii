@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Button } from "@/components/ui/button";
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { safeLocalStorage } from '@/lib/browser-check';
-import { Card, CardContent } from '@/components/ui/card';
-import { Profile } from '@/types/auth';
+import { Button } from "@/components/ui/button.tsx";
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { safeLocalStorage } from '@/lib/browser-check.ts';
+import { Card, CardContent } from '@/components/ui/card.tsx';
+import { Profile } from '@/types/auth.ts';
 
 interface TrialBannerProps {
   className?: string;

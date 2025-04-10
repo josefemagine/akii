@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Card,
   CardContent,
@@ -7,24 +7,24 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+} from "@/components/ui/card.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
+import { Switch } from "@/components/ui/switch.tsx";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+} from "@/components/ui/select.tsx";
+import { Slider } from "@/components/ui/slider.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
+import { Progress } from "@/components/ui/progress.tsx";
 import { AlertCircle, Check, Info, Server, Shield, Zap } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { supabase } from "@/lib/supabase.tsx";
 
 export default function PrivateAISetup() {
   const [activeTab, setActiveTab] = useState("configuration");

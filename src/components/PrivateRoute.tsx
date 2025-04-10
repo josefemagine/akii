@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/UnifiedAuthContext';
-import LoadingScreen from './ui/LoadingScreen';
+import { useAuth } from '../contexts/UnifiedAuthContext.tsx';
+import LoadingScreen from './ui/LoadingScreen.tsx';
 
 // Add global interface declaration for circuitBroken property
 declare global {

@@ -1,9 +1,9 @@
 import React from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
 import { TrashIcon, RefreshCw } from 'lucide-react';
-import { BedrockInstance } from '@/types/bedrock';
+import { BedrockInstance } from '@/types/bedrock.ts';
 import { formatDistanceToNow } from 'date-fns';
 
 interface BedrockInstanceCardProps {

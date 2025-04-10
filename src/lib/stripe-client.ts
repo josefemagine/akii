@@ -1,5 +1,5 @@
 import { loadStripe } from '@stripe/stripe-js';
-import { supabase } from './supabase';
+import { supabase } from "./supabase.tsx";
 
 // Load the Stripe.js script
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');

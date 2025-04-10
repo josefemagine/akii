@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { DiagnosticDashboard } from "@/components/admin/diagnostics/DiagnosticDashboard";
+import { useAuth } from "@/hooks/useAuth.ts";
+import { DiagnosticDashboard } from "@/components/admin/diagnostics/DiagnosticDashboard.tsx";
 
 /**
  * SupabaseCheck Page

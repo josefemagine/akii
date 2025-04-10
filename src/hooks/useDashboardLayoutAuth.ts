@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
-import { safeLocalStorage, safeSessionStorage } from "@/lib/browser-check";
-import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/lib/supabase.tsx";
+import { safeLocalStorage, safeSessionStorage } from "@/lib/browser-check.ts";
+import { toast } from "@/components/ui/use-toast.ts";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 
 // Define the interface for user that may include additional fields

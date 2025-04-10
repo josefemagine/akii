@@ -4,8 +4,8 @@
  * to maintain backward compatibility with existing imports
  */
 
-import type { UserProfile } from "./auth-helpers";
-import { getAdminClient, supabaseAdmin } from "./supabase-singleton";
+import type { UserProfile } from "./auth-helpers.ts";
+import { getAdminClient, supabaseAdmin } from "./supabase-singleton.tsx";
 
 // Export the admin client for backward compatibility
 export { supabaseAdmin };

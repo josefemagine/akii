@@ -1,4 +1,4 @@
-import { Profile } from "@/types/auth";
+import { Profile } from "@/types/auth.ts";
 
 // Debug logger
 const log = (...args: any[]) => console.log('[Auth]', ...args);

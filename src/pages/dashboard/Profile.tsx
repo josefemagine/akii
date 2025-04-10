@@ -6,18 +6,18 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/ui/card.tsx";
 import { useForm } from "react-hook-form";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import { Camera, Loader2 } from "lucide-react";
 import { useRef } from "react";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import type { Profile as ProfileType } from "@/types/auth";
-import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import type { Profile as ProfileType } from "@/types/auth.ts";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { supabase } from "@/lib/supabase.tsx";
 
 // Default avatar URL
 const DEFAULT_AVATAR_URL = "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/avatars/b574f273-e0e1-4cb8-8c98-f5a7569234c8/green-robot-icon.png";

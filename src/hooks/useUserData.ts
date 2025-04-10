@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { safeLocalStorage } from "@/lib/browser-check";
-import { supabase } from "@/lib/supabase";
+import { safeLocalStorage } from "@/lib/browser-check.ts";
+import { supabase } from "@/lib/supabase.tsx";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 
 // Define enhanced user types to avoid TypeScript errors with the properties we're accessing

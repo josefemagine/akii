@@ -1,5 +1,5 @@
 import React from "react";
-import DocumentsList from "@/components/dashboard/documents/DocumentsList";
+import DocumentsList from "@/components/dashboard/documents/DocumentsList.tsx";
 
 const Documents = () => {
   return (

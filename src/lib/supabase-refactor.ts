@@ -5,7 +5,7 @@
  * by implementing the recommended approach from the error suggestions.
  */
 
-import { supabase } from './supabase-singleton';
+import { supabase } from "./supabase-singleton.tsx";
 
 // Save original methods
 let originalRefreshAccessToken: any = null;

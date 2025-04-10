@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import {
   Table,
   TableBody,
@@ -10,13 +10,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu.tsx";
 import {
   Search,
   FileText,
@@ -30,18 +30,18 @@ import {
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { useToast } from "@/components/ui/use-toast";
-import DocumentUploader from "./DocumentUploader";
-import DocumentChunkViewer from "./DocumentChunkViewer";
+import { supabase } from "@/lib/supabase.tsx";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { useToast } from "@/components/ui/use-toast.ts";
+import DocumentUploader from "./DocumentUploader.tsx";
+import DocumentChunkViewer from "./DocumentChunkViewer.tsx";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,10 +51,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Database } from "@/types/supabase";
-import { DocumentChunk } from "@/types/custom";
-import { invokeServerFunction } from "@/utils/supabase/functions";
+} from "@/components/ui/alert-dialog.tsx";
+import { Database } from "@/types/supabase.tsx";
+import { DocumentChunk } from "@/types/custom.ts";
+import { invokeServerFunction } from "@/utils/supabase/functions.ts";
 
 type Document = Database["public"]["Tables"]["training_documents"]["Row"];
 

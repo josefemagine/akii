@@ -1,21 +1,21 @@
-import React, { ReactNode } from "react";
-import { dashboardStyles } from "./DashboardPageContainer";
-import { cn } from "@/lib/utils";
+import React from "react";
+import { dashboardStyles } from "./DashboardPageContainer.tsx";
+import { cn } from "@/lib/utils.ts";
 
 interface DashboardSectionProps {
-  children: ReactNode;
+  children: React.ReactNode;
   className?: string;
-  title?: string;
-  description?: string;
+  title?: React.ReactNode;
+  description?: React.ReactNode;
   requireAuth?: boolean;
 }
 
-export function DashboardSection({
-  children,
-  className,
-  title,
-  description,
-  requireAuth = true
+export function DashboardSection({ 
+  children, 
+  className, 
+  title, 
+  description, 
+  requireAuth = true 
 }: DashboardSectionProps) {
   return (
     <div className={cn(dashboardStyles.sectionSpacing, className)}>
@@ -28,4 +28,4 @@ export function DashboardSection({
       {children}
     </div>
   );
-} 
+}

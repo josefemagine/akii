@@ -1,6 +1,6 @@
-import { supabase } from '@/lib/supabase-singleton';
+import { supabase } from "@/lib/supabase-singleton.tsx";
 import type { User, Session } from '@supabase/supabase-js';
-import { getSessionSafely } from '@/lib/auth-lock-fix';
+import { getSessionSafely } from '@/lib/auth-lock-fix.ts';
 
 // Types
 export { User, Session };

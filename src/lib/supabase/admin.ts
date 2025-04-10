@@ -3,9 +3,9 @@
  * Admin-only functions that require service role
  */
 
-import { getAdminClient } from './client';
-import { getUserProfile, updateUserProfile } from './auth';
-import type { UserProfile, UserRole, UserStatus, ApiResponse } from './types';
+import { getAdminClient } from './client.ts';
+import { getUserProfile, updateUserProfile } from './auth.ts';
+import type { UserProfile, UserRole, UserStatus, ApiResponse } from './types.ts';
 
 /**
  * Get all users (admin only)

@@ -1,1 +1,1 @@
-export { default as AkiiLogo } from './AkiiLogo'; 
+export { default as AkiiLogo } from './AkiiLogo.tsx'; 

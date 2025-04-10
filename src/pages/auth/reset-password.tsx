@@ -3,12 +3,12 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { supabase } from "@/lib/supabase.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
+import { Alert, AlertDescription } from "@/components/ui/alert.tsx";
 import { Loader2 } from "lucide-react";
 
 const resetSchema = z

@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import TeamMembersList from "@/components/dashboard/team/TeamMembersList";
-import TeamRoles from "@/components/dashboard/team/TeamRoles";
-import PendingInvitations from "@/components/dashboard/team/PendingInvitations";
-import TeamInviteForm from "@/components/dashboard/team/TeamInviteForm";
-import AIInstanceAccess from "@/components/dashboard/team/AIInstanceAccess";
-import AIInstancesList from "@/components/dashboard/team/AIInstancesList";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import TeamMembersList from "@/components/dashboard/team/TeamMembersList.tsx";
+import TeamRoles from "@/components/dashboard/team/TeamRoles.tsx";
+import PendingInvitations from "@/components/dashboard/team/PendingInvitations.tsx";
+import TeamInviteForm from "@/components/dashboard/team/TeamInviteForm.tsx";
+import AIInstanceAccess from "@/components/dashboard/team/AIInstanceAccess.tsx";
+import AIInstancesList from "@/components/dashboard/team/AIInstancesList.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { Users, ShieldCheck, Mail, Bot, Loader2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { useToast } from "@/components/ui/use-toast";
-import { Button } from "@/components/ui/button";
-import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
+import { supabase } from "@/lib/supabase.tsx";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer.tsx";
 
 const Team = () => {
   const { user, hasUser, isLoading: authLoading } = useAuth();

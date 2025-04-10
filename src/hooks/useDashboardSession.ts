@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
-import { EnhancedUser } from '@/types/dashboard';
-import { clearAuthStorage } from '@/utils/dashboard';
-import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/hooks/useAuth.ts';
+import { supabase } from "@/lib/supabase.tsx";
+import { EnhancedUser } from '@/types/dashboard.ts';
+import { clearAuthStorage } from '@/utils/dashboard.ts';
+import { toast } from '@/components/ui/use-toast.ts';
 
 /**
  * Hook for managing dashboard user sessions

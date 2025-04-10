@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { Link } from "react-router-dom";
 import {
   BarChart3,
@@ -15,12 +15,12 @@ import {
   Bell,
   Settings,
 } from "lucide-react";
-import { dashboardStyles } from "@/components/layout/DashboardPageContainer";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { DashboardSection } from "@/components/layout/DashboardSection";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import withAdminInit from "@/components/admin/withAdminInit";
-import { runDashboardHealthCheck, fixCommonDashboardIssues } from '@/lib/dashboard-health';
+import { dashboardStyles } from "@/components/layout/DashboardPageContainer.tsx";
+import { PageHeader } from "@/components/layout/PageHeader.tsx";
+import { DashboardSection } from "@/components/layout/DashboardSection.tsx";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import withAdminInit from "@/components/admin/withAdminInit.tsx";
+import { runDashboardHealthCheck, fixCommonDashboardIssues } from '@/lib/dashboard-health.ts';
 
 // TODO: Remove this when admin dashboard issues are fixed
 const DEBUG_ADMIN = true;

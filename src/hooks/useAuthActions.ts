@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import { clearSession, dispatchAuthError, saveUserProfile } from '@/utils/auth';
+import { supabase } from "@/lib/supabase.tsx";
+import { clearSession, dispatchAuthError, saveUserProfile } from '@/utils/auth.ts';
 
 // Debug logger
 const log = (...args: any[]) => console.log('[useAuthActions]', ...args);

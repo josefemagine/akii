@@ -5,7 +5,7 @@
  * across the application, which can cause authentication issues.
  */
 
-import { supabase } from './supabase';
+import { supabase } from "./supabase.tsx";
 
 interface ClientInfo {
   source: string;

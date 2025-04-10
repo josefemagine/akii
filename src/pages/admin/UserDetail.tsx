@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getUserProfile, getCompleteUserData } from "../../lib/supabase/auth";
-import { getClient } from "../../lib/supabase/client";
-import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card";
-import { Separator } from "../../components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
-import { Badge } from "../../components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
-import { Skeleton } from "../../components/ui/skeleton";
+import { getUserProfile, getCompleteUserData } from "../../lib/supabase/auth.ts";
+import { getClient } from "../../lib/supabase/client.ts";
+import { Button } from "../../components/ui/button.tsx";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card.tsx";
+import { Separator } from "../../components/ui/separator.tsx";
+import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar.tsx";
+import { Badge } from "../../components/ui/badge.tsx";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table.tsx";
+import { Skeleton } from "../../components/ui/skeleton.tsx";
 import { ReloadIcon, ArrowLeftIcon } from "@radix-ui/react-icons";
-import { toast } from "../../components/ui/use-toast";
+import { toast } from "../../components/ui/use-toast.ts";
 import { 
   checkSubscriptionTables, 
   getUserSubscriptions, 
@@ -19,7 +19,7 @@ import {
   type Subscription,
   type Invoice,
   type TablesInfo
-} from "../../lib/supabase/subscriptions";
+} from "../../lib/supabase/subscriptions.ts";
 
 interface UserProfile {
   id: string;

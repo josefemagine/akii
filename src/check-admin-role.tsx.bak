@@ -1,0 +1,141 @@
+import React from "react";
+import { supabase } from "./lib/supabase";
+interface check-admin-roleProps {}
+
+
+async function checkAdminRole() {
+  console.log("Checking admin role for josef@holm.com...");
+
+  try {
+    // Set local storage overrides first (this works even if DB update fails)
+    setJosefAdminOverrides();
+
+    // Query the profiles table for josef@holm.com
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("email", "josef@holm.com")
+      .single();
+
+    if (error) {
+      console.error("Error querying profile:", error.message);
+      return;
+    }
+
+    if (!data) {
+      console.log("User profile not found for josef@holm.com");
+      // Try to create the profile
+      await createJosefProfile();
+      return;
+    }
+
+    console.log("User profile found:", data);
+    console.log("Current role:", data.role);
+
+    // If role is not admin, update it
+    if (data.role !== "admin") {
+      console.log("Updating role to admin...");
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ role: "admin", status: "active" })
+        .eq("id", data.id);
+
+      if (updateError) {
+        console.error("Error updating role:", updateError.message);
+      } else {
+        console.log("Role updated to admin successfully!");
+      }
+    } else {
+      console.log("User already has admin role.");
+    }
+  } catch (error) {
+    console.error("Script error:", error.message);
+  }
+}
+
+async function createJosefProfile() {
+  try {
+    console.log("Attempting to create profile for josef@holm.com...");
+
+    // First, check if user exists in auth.users
+    const { data: userData, error: userError } =
+      await supabase.auth.admin.getUserByEmail("josef@holm.com");
+
+    let userId = userData?.id;
+
+    if (userError || !userId) {
+      console.log("User not found in auth.users, using a placeholder ID");
+      userId = "josef-placeholder-id";
+    }
+
+    // Create profile
+    const { data, error } = await supabase
+      .from("profiles")
+      .insert({
+        id: userId,
+        email: "josef@holm.com",
+        role: "admin",
+        status: "active",
+        first_name: "Josef",
+        last_name: "Holm",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating profile:", error.message);
+    } else {
+      console.log("Profile created successfully:", data);
+    }
+  } catch (error) {
+    console.error("Error in createJosefProfile:", error.message);
+  }
+}
+
+function setJosefAdminOverrides() {
+  try {
+    const email = "josef@holm.com";
+
+    // Set admin override for 30 days
+    const now = new Date();
+    const expiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    // Set in both localStorage and sessionStorage for maximum compatibility
+    localStorage.setItem("akii_admin_override", "true");
+    localStorage.setItem("akii_admin_override_email", email);
+    localStorage.setItem("akii_admin_override_expiry", expiry.toISOString());
+
+    sessionStorage.setItem("akii_admin_override", "true");
+    sessionStorage.setItem("akii_admin_override_email", email);
+    sessionStorage.setItem("akii_admin_override_expiry", expiry.toISOString());
+
+    // Legacy support
+    localStorage.setItem("admin_override", "true");
+    localStorage.setItem("admin_override_email", email);
+    localStorage.setItem("admin_override_time", Date.now().toString());
+
+    sessionStorage.setItem("admin_override", "true");
+    sessionStorage.setItem("admin_override_email", email);
+    sessionStorage.setItem("admin_override_time", Date.now().toString());
+
+    // Additional admin flags
+    localStorage.setItem("auth-user-role", "admin");
+    localStorage.setItem("user-role", "admin");
+    localStorage.setItem("akii-auth-role", "admin");
+    localStorage.setItem("akii-auth-robust-email", email);
+    localStorage.setItem("akii-auth-robust-time", Date.now().toString());
+    localStorage.setItem("akii-auth-success", "true");
+
+    console.log(
+      "Admin overrides set for Josef in localStorage and sessionStorage",
+    );
+  } catch (error) {
+    console.error("Error setting admin overrides:", error.message);
+  }
+}
+
+// Run the check
+checkAdminRole();

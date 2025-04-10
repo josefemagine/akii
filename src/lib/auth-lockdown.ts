@@ -5,7 +5,7 @@
  * still import from it. All real authentication is now handled by supabase-auth.ts.
  */
 
-import { supabase } from './supabase-singleton';
+import { supabase } from "./supabase-singleton.tsx";
 
 /**
  * Check if the user is authenticated

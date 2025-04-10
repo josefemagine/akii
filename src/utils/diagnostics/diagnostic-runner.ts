@@ -1,11 +1,11 @@
-import { ServiceCheckResult } from "@/types/diagnostics";
+import { ServiceCheckResult } from "@/types/diagnostics.ts";
 import { 
   checkSuperActionFunction, 
   checkAuthService, 
   checkDatabaseService, 
   checkStorageService, 
   checkEdgeFunctionsService 
-} from "./service-checkers";
+} from "./service-checkers.ts";
 
 /**
  * Runs all diagnostic tests with progress tracking and logging

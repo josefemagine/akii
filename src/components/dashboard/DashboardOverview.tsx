@@ -1,9 +1,9 @@
 import React from "react";
-import StatCards from "./StatCards";
-import AgentsList from "./AgentsList";
-import RecentActivity from "./RecentActivity";
-import QuickActions from "./QuickActions";
-import SubscriptionUsage from "./SubscriptionUsage";
+import StatCards from "./StatCards.tsx";
+import AgentsList from "./AgentsList.tsx";
+import RecentActivity from "./RecentActivity.tsx";
+import { QuickActions } from "./QuickActions.tsx";
+import SubscriptionUsage from "./SubscriptionUsage.tsx";
 
 interface DashboardOverviewProps {
   stats?: {

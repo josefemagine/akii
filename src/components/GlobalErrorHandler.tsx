@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { useToast } from '@/components/ui/use-toast';
-import { authRecoveryMiddleware, tryRepairAuthIssues } from '@/lib/supabase-auth-recovery';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { useToast } from '@/components/ui/use-toast.ts';
+import { authRecoveryMiddleware, tryRepairAuthIssues } from '@/lib/supabase-auth-recovery.ts';
+import { supabase } from "@/lib/supabase.tsx";
 import { 
   getSessionSafely, 
   getUserSafely, 
@@ -11,13 +11,13 @@ import {
   getAuthLockStatus,
   forceSessionCheck,
   forceUserCheck
-} from '@/lib/auth-lock-fix';
+} from '@/lib/auth-lock-fix.ts';
 import {
   clearAuthStorage,
   dispatchAuthError,
   dispatchAuthRecovery
-} from '@/lib/auth-utils';
-import { AUTH_ERROR_EVENT, AUTH_RECOVERY_EVENT } from '@/types/auth';
+} from '@/lib/auth-utils.ts';
+import { AUTH_ERROR_EVENT, AUTH_RECOVERY_EVENT } from '@/types/auth.ts';
 
 /**
  * Check if an error is an AuthSessionMissingError

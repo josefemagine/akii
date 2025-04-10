@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/lib/supabase';
-import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Input } from '@/components/ui/input.tsx';
+import { Label } from '@/components/ui/label.tsx';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card.tsx';
+import { supabase } from "@/lib/supabase.tsx";
+import { toast } from '@/components/ui/use-toast.ts';
 
 export function ProfileAddressForm() {
   const { profile, refreshProfile } = useAuth();

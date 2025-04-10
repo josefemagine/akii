@@ -2,9 +2,9 @@
  * Dashboard profile utility functions
  */
 import { User as SupabaseUser } from '@supabase/supabase-js';
-import { EnhancedUser, UserDisplayData } from '@/types/dashboard';
-import { supabase } from '@/lib/supabase';
-import { safeLocalStorage } from '@/lib/browser-check';
+import { EnhancedUser, UserDisplayData } from '@/types/dashboard.ts';
+import { supabase } from "@/lib/supabase.tsx";
+import { safeLocalStorage } from '@/lib/browser-check.ts';
 
 /**
  * Extracts display data from user information

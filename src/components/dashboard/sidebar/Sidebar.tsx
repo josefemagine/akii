@@ -5,10 +5,10 @@ import {
   ChevronRight,
   LogOut
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { LinkGroups } from "./LinkGroups";
+import { cn } from "@/lib/utils.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { LinkGroups } from "./LinkGroups.tsx";
 
 interface SidebarProps {
   className?: string;

@@ -1,9 +1,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import MainLayout from "@/components/layout/MainLayout";
+import { Button } from "@/components/ui/button.tsx";
+import { Card, CardContent, CardFooter } from "@/components/ui/card.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import MainLayout from "@/components/layout/MainLayout.tsx";
 import {
   Search,
   Calendar,

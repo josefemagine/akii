@@ -1,7 +1,7 @@
 /**
  * Utility functions for AWS Bedrock
  */
-import { FoundationModel } from '@/types/bedrock';
+import { FoundationModel } from '@/types/bedrock.ts';
 
 /**
  * Maps a model ID to a user-friendly plan name

@@ -1,55 +1,62 @@
 import React from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table.tsx";
 import { Check, X } from "lucide-react";
 
-const TeamRoles = () => {
-  const rolePermissions = [
+interface RolePermission {
+  action: string;
+  admin: boolean;
+  member: boolean;
+  viewer: boolean;
+}
+
+export function TeamRoles() {
+  // Mock role permissions data
+  const rolePermissions: RolePermission[] = [
     {
-      action: "Create and manage AI agents",
-      admin: true,
-      member: true,
-      viewer: false,
-    },
-    {
-      action: "Upload and manage training data",
-      admin: true,
-      member: true,
-      viewer: false,
-    },
-    {
-      action: "View agent conversations",
+      action: "View team members",
       admin: true,
       member: true,
       viewer: true,
     },
     {
-      action: "Modify agent settings",
+      action: "Invite team members",
       admin: true,
       member: true,
       viewer: false,
     },
     {
-      action: "Invite team members",
+      action: "Remove team members",
       admin: true,
       member: false,
       viewer: false,
     },
     {
-      action: "Manage team roles",
+      action: "Manage roles",
+      admin: true,
+      member: false,
+      viewer: false,
+    },
+    {
+      action: "View AI instances",
+      admin: true,
+      member: true,
+      viewer: true,
+    },
+    {
+      action: "Create AI instances",
+      admin: true,
+      member: true,
+      viewer: false,
+    },
+    {
+      action: "Edit AI instances",
+      admin: true,
+      member: true,
+      viewer: false,
+    },
+    {
+      action: "Delete AI instances",
       admin: true,
       member: false,
       viewer: false,
@@ -61,21 +68,9 @@ const TeamRoles = () => {
       viewer: true,
     },
     {
-      action: "Manage subscription",
+      action: "Access billing",
       admin: true,
       member: false,
-      viewer: false,
-    },
-    {
-      action: "Access API keys",
-      admin: true,
-      member: false,
-      viewer: false,
-    },
-    {
-      action: "Configure integrations",
-      admin: true,
-      member: true,
       viewer: false,
     },
   ];
@@ -132,6 +127,4 @@ const TeamRoles = () => {
       </CardContent>
     </Card>
   );
-};
-
-export default TeamRoles;
+}

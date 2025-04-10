@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card.tsx';
 import { 
   Table, 
   TableBody, 
@@ -7,11 +7,11 @@ import {
   TableHead, 
   TableHeader, 
   TableRow 
-} from '@/components/ui/table';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
+} from '@/components/ui/table.tsx';
+import { ScrollArea } from '@/components/ui/scroll-area.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { maskSecret, isSensitiveKey } from '@/utils/diagnostics';
+import { maskSecret, isSensitiveKey } from '@/utils/diagnostics.ts';
 
 interface EnvironmentVariablesProps {
   variables: {[key: string]: {value: string; success: boolean}} | Record<string, string | undefined>;

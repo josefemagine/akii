@@ -5,9 +5,8 @@
  * that fixes the "Invalid hook call" and "Cannot read properties of null (reading 'useRef')" errors.
  */
 
-import React from './react-singleton';
-import * as ReactRouter from './react-router-singleton';
-import { ReactRouterDOM } from './react-router-singleton';
+import React from "./react-singleton.ts";
+import { BrowserRouter } from "./react-router-singleton.ts";
 
 // Import key types
 type BrowserRouterProps = React.PropsWithChildren<{
@@ -23,7 +22,7 @@ type BrowserRouterProps = React.PropsWithChildren<{
  * our singleton instance of React Router DOM.
  */
 export function SafeBrowserRouter(props: BrowserRouterProps) {
-  return <ReactRouterDOM.BrowserRouter {...props} />;
+  return <BrowserRouter {...props} />;
 }
 
 /**
@@ -31,9 +30,7 @@ export function SafeBrowserRouter(props: BrowserRouterProps) {
  */
 export function verifyRouterPatch() {
   console.log('Router patch verification:');
-  console.log('- ReactRouter singleton:', ReactRouter);
-  console.log('- ReactRouterDOM singleton:', ReactRouterDOM);
-  console.log('- BrowserRouter implementation:', ReactRouterDOM.BrowserRouter);
+  console.log('- BrowserRouter implementation:', BrowserRouter);
 }
 
 // Export safer versions of important React Router components
@@ -43,7 +40,7 @@ export {
   Link, 
   NavLink, 
   Outlet
-} from './react-router-singleton';
+} from "./react-router-singleton.ts";
 
 // Export a default component that's safer to use
 export default SafeBrowserRouter; 

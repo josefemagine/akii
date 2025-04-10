@@ -1,0 +1,22 @@
+import React from "react";
+
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
+interface AnimatedTextProps {}
+
+const AnimatedText = ({ words, className, interval = 3000, }>: void => {
+    const [currentIndex, setCurrentIndex] = useState<any>(0>;
+    const [isAnimating, setIsAnimating] = useState<any>(false>;
+    useEffect((> => {
+        const timer = setInterval((> => {
+            setIsAnimating(true>;
+            setTimeout((> => {
+                setCurrentIndex((prevIndex> => (prevIndex + 1> % words.length>;
+                setIsAnimating(false>;
+            }, 500>; // Fade out duration
+        }, interval>;
+        return (> => clearInterval(timer>;
+    }, [words.length, interval]>;
+    return (<"span", { className: cn("transition-opacity duration-500", isAnimating ? "opacity-0" : "opacity-100", className>, children: words[currentIndex] }>>;
+};
+export default AnimatedText;

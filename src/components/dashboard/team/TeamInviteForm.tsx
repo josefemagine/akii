@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useToast } from "@/components/ui/use-toast";
-import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Form,
   FormControl,
@@ -11,16 +11,16 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+} from "@/components/ui/form.tsx";
+import { Input } from "@/components/ui/input.tsx";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { supabase } from "@/lib/supabase";
+} from "@/components/ui/select.tsx";
+import { supabase } from "@/lib/supabase.tsx";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({

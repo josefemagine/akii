@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
 import {
   Table,
   TableBody,
@@ -7,8 +7,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+} from "@/components/ui/table.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,23 +27,23 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/ui/alert-dialog.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui/select.tsx";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import { UserPlus, Mail, Trash2, Edit, UserCheck, Loader2 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { Database } from "@/types/supabase";
-import { invokeServerFunction } from "@/utils/supabase/functions";
-import { handleError, showSuccess } from "@/lib/utils/error-handler";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { Database } from "@/types/supabase.tsx";
+import { invokeServerFunction } from "@/utils/supabase/functions.ts";
+import { handleError, showSuccess } from "@/lib/utils/error-handler.ts";
 
 type TeamMemberRole = "owner" | "admin" | "member";
 

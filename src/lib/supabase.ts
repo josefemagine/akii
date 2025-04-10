@@ -14,7 +14,7 @@ import {
   auth, 
   debugSupabaseInstances, 
   getSupabaseClient 
-} from "./supabase-singleton";
+} from "./supabase-singleton.tsx";
 
 // Export the clients and auth
 export { 

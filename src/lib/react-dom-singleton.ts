@@ -9,23 +9,10 @@
 import * as ReactDOMOriginal from 'react-dom';
 import * as ReactDOMClientOriginal from 'react-dom/client';
 
-// Create a singleton object to export
-const ReactDOMSingleton = {
-  ...ReactDOMOriginal,
-  
-  // Re-export client methods
-  createRoot: ReactDOMClientOriginal.createRoot,
-  hydrateRoot: ReactDOMClientOriginal.hydrateRoot
-};
+// Simply re-export ReactDOM directly
+export default ReactDOMOriginal;
 
-// Export verification method
-export function verifyReactDOMSingleton() {
-  console.log('ReactDOM singleton verification:');
-  console.log('- ReactDOM singleton:', ReactDOMSingleton);
-  console.log('- createRoot implementation:', ReactDOMSingleton.createRoot);
-}
-
-// Export client methods
+// Export client methods directly
 export const { createRoot, hydrateRoot } = ReactDOMClientOriginal;
 
 // Export individual methods
@@ -40,5 +27,12 @@ export const {
   version,
 } = ReactDOMOriginal;
 
-// Default export the singleton instance
-export default ReactDOMSingleton; 
+// Export verification method
+export function verifyReactDOMSingleton() {
+  console.log('ReactDOM singleton verification:');
+  console.log('- ReactDOM methods available:', {
+    render: typeof ReactDOMOriginal.render === 'function',
+    createPortal: typeof ReactDOMOriginal.createPortal === 'function',
+    createRoot: typeof ReactDOMClientOriginal.createRoot === 'function'
+  });
+} 

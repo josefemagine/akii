@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import MainLayout from "@/components/layout/MainLayout";
-import { Button } from "@/components/ui/button";
+import MainLayout from "@/components/layout/MainLayout.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Card,
   CardContent,
@@ -9,8 +9,8 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
+} from "@/components/ui/card.tsx";
+import { Switch } from "@/components/ui/switch.tsx";
 import {
   Table,
   TableBody,
@@ -18,19 +18,19 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table.tsx";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion";
+} from "@/components/ui/accordion.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@/components/ui/tooltip.tsx";
 import { 
   CheckCircle, 
   XCircle, 

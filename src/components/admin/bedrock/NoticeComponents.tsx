@@ -1,8 +1,8 @@
 import React from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import { AlertTriangle, Database, InfoIcon } from "lucide-react";
-import { BedrockConfig } from "@/lib/bedrock-config";
-import { ClientStatus } from "@/types/bedrock";
+import { BedrockConfig } from "@/lib/bedrock-config.tsx";
+import { ClientStatus } from "@/types/bedrock.ts";
 
 // Mock data notice component
 export const MockDataNotice = () => {

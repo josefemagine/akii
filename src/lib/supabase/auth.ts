@@ -4,8 +4,8 @@
  * Uses client.ts for Supabase instances
  */
 
-import { getClient, getAdminClient } from './client';
-import type { UserProfile, UserRole, UserStatus, ApiResponse } from './types';
+import { getClient, getAdminClient } from './client.ts';
+import type { UserProfile, UserRole, UserStatus, ApiResponse } from './types.ts';
 
 // Get the auth client (cached for consistency)
 export function getAuth() {

@@ -1,4 +1,5 @@
-import React from 'react';
+import React from "react";
+interface WorkflowsProps {}
 
 export default function Workflows() {
   return (
@@ -9,4 +10,4 @@ export default function Workflows() {
       </div>
     </div>
   );
-} 
+}

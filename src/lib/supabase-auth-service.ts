@@ -5,9 +5,9 @@
  * following Supabase's official recommendations and best practices.
  */
 
-import { supabase } from './supabase-singleton';
+import { supabase } from "./supabase-singleton.tsx";
 import type { User } from '@supabase/supabase-js';
-import { getSessionSafely } from '@/lib/auth-lock-fix';
+import { getSessionSafely } from '@/lib/auth-lock-fix.ts';
 
 // Standard interface for user profiles
 export interface UserProfile {

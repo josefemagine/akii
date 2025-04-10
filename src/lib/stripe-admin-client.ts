@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase } from "./supabase.tsx";
 
 /**
  * Stripe admin client utilities for managing plans and subscriptions

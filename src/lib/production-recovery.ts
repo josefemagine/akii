@@ -3,7 +3,7 @@
  * This ensures users can access the dashboard even if there are auth issues.
  */
 
-import supabase from './supabase';
+import supabase from "./supabase.tsx";
 
 // Check if we're in a production environment
 export function isProduction(): boolean {

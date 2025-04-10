@@ -1,0 +1,10 @@
+import React from "react";
+
+import { Outlet } from 'react-router-dom';
+import { Sidebar } from '@/components/Sidebar';
+import { TopBar } from '@/components/TopBar';
+interface DashboardLayoutProps {}
+
+export default function DashboardLayout(> {
+    return (<"div", { className: "flex h-screen bg-gray-100 dark:bg-gray-900", children: [<Sidebar, {}>, <"div", { className: "flex flex-col flex-1 overflow-hidden", children: [<TopBar, {}>, <"main", { className: "flex-1 overflow-y-auto p-4", children: <Outlet, {}> }>] }>] }>>;
+}

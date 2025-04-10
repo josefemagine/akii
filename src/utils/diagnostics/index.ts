@@ -5,13 +5,13 @@
 // Types are exported from @/types/diagnostics
 
 // Re-export utility functions
-export { maskSecret, isSensitiveKey, maskSensitiveData } from './mask-utils';
+export { maskSecret, isSensitiveKey, maskSensitiveData } from './mask-utils.ts';
 export { 
   checkAuthService, 
   checkStorageService, 
   checkDatabaseService, 
   checkEdgeFunctionsService,
   checkSuperActionFunction 
-} from './service-checkers';
-export { EDGE_FUNCTIONS, fetchFunctionLogs, fetchFunctionInvocations } from './function-utils';
-export { runAllDiagnosticTests } from './diagnostic-runner';
+} from './service-checkers.ts';
+export { EDGE_FUNCTIONS, fetchFunctionLogs, fetchFunctionInvocations } from './function-utils.ts';
+export { runAllDiagnosticTests } from './diagnostic-runner.ts';

@@ -1,26 +1,17 @@
-import React, { ReactNode } from "react";
-import { dashboardStyles } from "./DashboardPageContainer";
-import { cn } from "@/lib/utils";
+import React from "react";
+import { dashboardStyles } from "./DashboardPageContainer.tsx";
+import { cn } from "@/lib/utils.ts";
 
 interface PageHeaderProps {
-  title: string;
-  description?: string;
-  children?: ReactNode;
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
 }
 
-export function PageHeader({ 
-  title, 
-  description, 
-  children, 
-  className 
-}: PageHeaderProps) {
+export function PageHeader({ title, description, children, className }: PageHeaderProps) {
   return (
-    <div className={cn(
-      "flex items-center justify-between",
-      dashboardStyles.sectionSpacing,
-      className
-    )}>
+    <div className={cn("flex items-center justify-between", dashboardStyles.sectionSpacing, className)}>
       <div>
         <h1 className="text-3xl font-bold">{title}</h1>
         {description && (
@@ -34,4 +25,4 @@ export function PageHeader({
       )}
     </div>
   );
-} 
+}

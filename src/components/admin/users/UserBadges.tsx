@@ -1,7 +1,7 @@
 import React from "react";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge.tsx";
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react";
-import { User } from "@/types/user";
+import { User } from "@/types/user.ts";
 
 export const getRoleBadge = (role: User["role"]) => {
   switch (role) {

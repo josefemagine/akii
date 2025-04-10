@@ -7,11 +7,11 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
-import { BedrockClient } from "@/lib/supabase-bedrock-client";
+} from "@/components/ui/dialog.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area.tsx";
+import { cn } from "@/lib/utils.ts";
+import { BedrockClient } from "@/lib/supabase-bedrock-client.tsx";
 
 // Type definitions for test results
 interface PermissionTest {

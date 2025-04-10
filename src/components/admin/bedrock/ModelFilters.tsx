@@ -1,9 +1,9 @@
 import React from "react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button.tsx";
+import { Label } from "@/components/ui/label.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Loader2, RefreshCw } from "lucide-react";
-import { ModelFilter, ModelFiltersProps } from "@/types/bedrock";
+import { ModelFilter, ModelFiltersProps } from "@/types/bedrock.ts";
 
 // Define the available filters
 const modelFilters: ModelFilter[] = [

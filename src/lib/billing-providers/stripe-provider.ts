@@ -1,5 +1,5 @@
-import { BillingProvider } from './index';
-import { supabase } from '@/lib/supabase';
+import { BillingProvider } from './index.ts';
+import { supabase } from "@/lib/supabase.tsx";
 
 // Implementation of the BillingProvider interface for Stripe
 export class StripeBillingProvider implements BillingProvider {

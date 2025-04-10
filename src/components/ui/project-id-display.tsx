@@ -1,14 +1,14 @@
 import React from "react";
-import { Badge } from "./badge";
+import { Copy } from "lucide-react";
+import { Badge } from "@/components/ui/badge.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "./tooltip";
-import { Copy } from "lucide-react";
-import { Button } from "./button";
-import { useToast } from "./use-toast";
+} from "@/components/ui/tooltip.tsx";
+import { useToast } from "@/components/ui/use-toast.tsx";
 
 interface ProjectIdDisplayProps {
   projectId?: string;
@@ -24,8 +24,8 @@ export function ProjectIdDisplay({
   const copyToClipboard = () => {
     navigator.clipboard.writeText(projectId);
     toast({
-      title: "Project ID copied",
-      description: "Project ID has been copied to clipboard",
+      title: "Copied to clipboard",
+      description: "Project ID has been copied to your clipboard.",
     });
   };
 

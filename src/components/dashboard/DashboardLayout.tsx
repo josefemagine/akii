@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
 import { useNavigate, Outlet } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import { safeLocalStorage } from "@/lib/browser-check";
-import { Sidebar } from "./Sidebar";
-import Header from "./Header";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { Profile } from "@/types/auth";
+import { cn } from "@/lib/utils.ts";
+import { safeLocalStorage } from "@/lib/browser-check.ts";
+import { Sidebar } from "./Sidebar.tsx";
+import Header from "./Header.tsx";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { Profile } from "@/types/auth.ts";
 
 // Debug flag for controlling logs
 const DEBUG_LAYOUT = false;

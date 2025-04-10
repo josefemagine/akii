@@ -1,11 +1,11 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card.tsx';
+import { Alert, AlertDescription } from '@/components/ui/alert.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Button } from '@/components/ui/button.tsx';
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { ServiceCheckResult } from '@/types/diagnostics';
+import { cn } from '@/lib/utils.ts';
+import { ServiceCheckResult } from '@/types/diagnostics.ts';
 
 // Define props for the component
 interface DiagnosticPanelProps {

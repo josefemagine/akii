@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button.tsx";
+import { Card, CardContent } from "@/components/ui/card.tsx";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Send, Paperclip, X, Maximize2, Minimize2 } from "lucide-react";
 
 interface Message {

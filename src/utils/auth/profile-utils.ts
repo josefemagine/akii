@@ -1,6 +1,6 @@
-import { Profile, AuthContextType } from "@/types/auth";
-import { cacheUserProfile } from "./profile-cache";
-import { dispatchProfileUpdated } from "./auth-events";
+import { Profile, AuthContextType } from "@/types/auth.ts";
+import { cacheUserProfile } from "./profile-cache.ts";
+import { dispatchProfileUpdated } from "./auth-events.ts";
 
 // Debug logger
 const log = (...args: any[]) => console.log('[Profile Utils]', ...args);

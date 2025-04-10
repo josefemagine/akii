@@ -1,19 +1,19 @@
 import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+} from "@/components/ui/card.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
+import { Separator } from "@/components/ui/separator.tsx";
 import { MessageSquare, Settings, BarChart3, Code } from "lucide-react";
-import WebChatSetup from "@/components/dashboard/web-chat/WebChatSetup";
-import WebChatAnalytics from "@/components/dashboard/web-chat/WebChatAnalytics";
-import WebChatPreview from "@/components/dashboard/web-chat/WebChatPreview";
+import WebChatSetup from "@/components/dashboard/web-chat/WebChatSetup.tsx";
+import WebChatAnalytics from "@/components/dashboard/web-chat/WebChatAnalytics.tsx";
+import WebChatPreview from "@/components/dashboard/web-chat/WebChatPreview.tsx";
 
 export default function WebChat() {
   const [activeTab, setActiveTab] = useState("setup");

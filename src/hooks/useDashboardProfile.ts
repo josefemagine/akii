@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { UserProfile, UserDisplayData, EnhancedUser } from '@/types/dashboard';
-import { extractUserDisplayData, createUserProfile, fetchUserProfile } from '@/utils/dashboard';
-import { toast } from '@/components/ui/use-toast';
+import { supabase } from "@/lib/supabase.tsx";
+import { UserProfile, UserDisplayData, EnhancedUser } from '@/types/dashboard.ts';
+import { extractUserDisplayData, createUserProfile, fetchUserProfile } from '@/utils/dashboard.ts';
+import { toast } from '@/components/ui/use-toast.ts';
 
 /**
  * Hook for managing dashboard user profiles

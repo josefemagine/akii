@@ -1,8 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import MainLayout from "@/components/layout/MainLayout";
+import { Button } from "@/components/ui/button.tsx";
+import MainLayout from "@/components/layout/MainLayout.tsx";
 import {
   Check,
   ShoppingCart,

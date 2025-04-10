@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { recoverAuthFromLocalStorage, checkLocalStorageAuth } from '@/utils/dashboard';
-import { toast } from '@/components/ui/use-toast';
+import { recoverAuthFromLocalStorage, checkLocalStorageAuth } from '@/utils/dashboard.ts';
+import { toast } from '@/components/ui/use-toast.ts';
 
 /**
  * Hook for managing emergency authentication fallbacks

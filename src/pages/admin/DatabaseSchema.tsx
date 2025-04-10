@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { toast } from "@/components/ui/use-toast";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+} from "@/components/ui/card.tsx";
+import { toast } from "@/components/ui/use-toast.ts";
+import { supabaseAdmin } from "@/lib/supabase-admin.ts";
+import { Input } from "@/components/ui/input.tsx";
+import { Alert, AlertDescription } from "@/components/ui/alert.tsx";
 import { Info, Database, AlertCircle, Search } from "lucide-react";
 
 const DatabaseSchemaPage = () => {

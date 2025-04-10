@@ -3,8 +3,8 @@
  * Functions for managing user subscriptions
  */
 
-import { getClient, getAdminClient } from './client';
-import type { ApiResponse } from './types';
+import { getClient, getAdminClient } from './client.ts';
+import type { ApiResponse } from './types.ts';
 
 // Type definitions
 export interface Plan {

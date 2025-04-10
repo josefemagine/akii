@@ -5,13 +5,13 @@
  */
 
 // Export Bedrock configuration
-export { BedrockConfig } from './lib/env-config';
+export { BedrockConfig } from './lib/env-config.ts';
 
 // Export API helpers
 export { 
   makeBedrockApiRequest,
   getBedrockApiUrl 
-} from './lib/api-helpers';
+} from './lib/api-helpers.ts';
 
 // Log that this entry point is being used
 console.log('[Bedrock API] Loading Bedrock API module...');
@@ -20,7 +20,7 @@ console.log('[Bedrock API] Development mode:', import.meta.env.DEV);
 console.log('[Bedrock API] Production mode:', import.meta.env.PROD);
 
 // Initialize and validate configuration
-import { BedrockConfig } from './lib/env-config';
+import { BedrockConfig } from './lib/env-config.ts';
 BedrockConfig.logConfig();
 
 // Export a simple test function

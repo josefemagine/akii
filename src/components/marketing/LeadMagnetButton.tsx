@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Button, ButtonProps } from "@/components/ui/button";
-import LeadMagnetModal from "./LeadMagnetModal";
+import { Button, ButtonProps } from "@/components/ui/button.tsx";
+import LeadMagnetModal from "./LeadMagnetModal.tsx";
 
 interface LeadMagnetButtonProps extends ButtonProps {
   title?: string;

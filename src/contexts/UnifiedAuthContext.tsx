@@ -6,12 +6,11 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { Session, User, AuthError } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase } from "@/lib/supabase.tsx";
 import { useNavigate } from 'react-router-dom';
 import { useDebouncedCallback } from 'use-debounce';
-import { sleep } from '@/lib/utils/sleep';
-import { withRequestLock } from '@/lib/request-lock';
-import { Database } from "@/types/supabase";
+import { sleep } from '@/lib/utils/sleep.ts';
+import { withRequestLock } from '@/lib/request-lock.ts';
 import { 
   AuthContextType,
   Profile,
@@ -19,8 +18,8 @@ import {
   AUTH_STATE_CHANGE_EVENT,
   AUTH_ERROR_EVENT,
   AUTH_RECOVERY_EVENT
-} from "@/types/auth";
-import { USER_DATA_ENDPOINT } from "@/lib/api-endpoints";
+} from "@/types/auth.ts";
+import { USER_DATA_ENDPOINT } from "@/lib/api-endpoints.ts";
 
 // Debug logger
 const log = (...args: any[]) => console.log('[Auth]', ...args);
@@ -663,10 +662,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 .from('profiles')
                 .upsert({
                   id: data.session.user.id,
-                  email: data.session.user.email,
+                  email: data.session.user.email || '', // Ensure email is never null
                   role: 'user', // Default to regular user role
                   status: 'active',
-                  first_name: data.session.user.email.split('@')[0] || 'User',
+                  first_name: data.session.user.email?.split('@')[0] || 'User',
                   is_admin: false, // Default to not admin
                   address1: '',
                   address2: '',
@@ -682,6 +681,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               
               if (createError) {
                 log('Error creating profile', createError);
+                log('Failed to update profile in database:', createError);
               } else if (newProfile) {
                 log('Profile created successfully', newProfile);
                 userProfile = newProfile as Profile;

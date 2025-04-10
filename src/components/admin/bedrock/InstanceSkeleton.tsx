@@ -1,6 +1,6 @@
 import React from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader } from "@/components/ui/card.tsx";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 const InstanceSkeleton: React.FC = () => (
   <Card>

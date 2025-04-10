@@ -4,6 +4,10 @@
   "version": "0.1.1",
   "type": "module",
   "scripts": {
+    "fix-js-imports": "node scripts/fix-js-imports.js",
+    "complete-migration": "npm run migrate-to-tsx && npm run fix-js-imports && npm run cleanup-js-files",
+    "migrate-to-tsx": "node scripts/migrate-js-to-ts.js",
+    "cleanup-js-files": "node scripts/cleanup-js-files.js",
     "dev": "vite",
     "build": "tsc && vite build",
     "postbuild": "node scripts/generate-sitemap.js",

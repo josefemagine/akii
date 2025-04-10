@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/ui/card.tsx";
 import {
   Table,
   TableBody,
@@ -14,7 +14,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table.tsx";
 import {
   Dialog,
   DialogContent,
@@ -23,14 +23,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui/dialog.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Checkbox } from "@/components/ui/checkbox.tsx";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import { Loader2, Settings, Bot } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { invokeServerFunction } from "@/utils/supabase/functions";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { invokeServerFunction } from "@/utils/supabase/functions.ts";
 
 type AIInstance = {
   id: string;

@@ -1,9 +1,0 @@
-import DashboardLayout from '../dashboard/DashboardLayout';
-import MainLayout from './MainLayout';
-import { DashboardPageContainer } from './DashboardPageContainer';
-// Export the dashboard layout components
-export { DashboardLayout, MainLayout, DashboardPageContainer };
-// Export DashboardLayout as the default export for backwards compatibility
-export default DashboardLayout;
-export { PageHeader } from './PageHeader';
-export { DashboardSection } from './DashboardSection';

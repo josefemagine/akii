@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { LoadingScreen } from "@/components/LoadingScreen";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { LoadingScreen } from "@/components/LoadingScreen.tsx";
+import { supabase } from "@/lib/supabase.tsx";
 
 /**
  * This component handles token authentication when the user lands on any page with tokens in the URL hash

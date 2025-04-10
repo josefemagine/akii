@@ -1,6 +1,6 @@
 import React from "react";
-import { SidebarLink } from "./SidebarLink";
-import { NestedLink } from "./NestedLink";
+import { SidebarLink } from "./SidebarLink.tsx";
+import { NestedLink } from "./NestedLink.tsx";
 import { useLocation } from "react-router-dom";
 import {
   Home,

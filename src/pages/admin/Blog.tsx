@@ -1,12 +1,12 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from "@/components/ui/card.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import {
   PlusCircle,
   Edit,
@@ -15,7 +15,7 @@ import {
   FileText,
   Settings,
 } from "lucide-react";
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable } from "@/components/ui/data-table.tsx";
 import { useState } from "react";
 
 // Sample blog post data

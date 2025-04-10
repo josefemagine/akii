@@ -1,5 +1,5 @@
-import { supabase } from "@/lib/supabase";
-import { FunctionLog, FunctionInvocation } from "@/types/diagnostics";
+import { supabase } from "@/lib/supabase.tsx";
+import { FunctionLog, FunctionInvocation } from "@/types/diagnostics.ts";
 
 /**
  * List of available edge functions

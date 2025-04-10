@@ -6,15 +6,15 @@
  */
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth.ts';
+import { supabase } from "@/lib/supabase.tsx";
 import { User as SupabaseUser } from '@supabase/supabase-js';
-import { safeLocalStorage, safeSessionStorage } from '@/lib/browser-check';
-import { toast } from '@/components/ui/use-toast';
-import { useDashboardSession } from './useDashboardSession';
-import { useDashboardProfile } from './useDashboardProfile';
-import { useDashboardEmergencyAuth } from './useDashboardEmergencyAuth';
-import { EnhancedUser, UserProfile, UserDisplayData } from '@/types/dashboard';
+import { safeLocalStorage, safeSessionStorage } from '@/lib/browser-check.ts';
+import { toast } from '@/components/ui/use-toast.ts';
+import { useDashboardSession } from './useDashboardSession.ts';
+import { useDashboardProfile } from './useDashboardProfile.ts';
+import { useDashboardEmergencyAuth } from './useDashboardEmergencyAuth.ts';
+import { EnhancedUser, UserProfile, UserDisplayData } from '@/types/dashboard.ts';
 
 /**
  * Main dashboard authentication hook

@@ -5,7 +5,7 @@
  * to prevent "Invalid hook call" errors caused by multiple React instances.
  */
 
-import { SingletonReact } from '../react-singleton';
+import { SingletonReact } from "../react-singleton.ts";
 
 // Attempt to patch the TempoDevtools library to use our React singleton
 export function patchTempoDevtools() {

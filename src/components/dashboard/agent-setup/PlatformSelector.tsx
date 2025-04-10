@@ -6,8 +6,8 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
+} from "@/components/ui/card.tsx";
+import { Switch } from "@/components/ui/switch.tsx";
 import {
   Globe,
   Smartphone,

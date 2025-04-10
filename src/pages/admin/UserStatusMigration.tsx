@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { toast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card.tsx";
+import { Alert, AlertDescription } from "@/components/ui/alert.tsx";
+import { supabaseAdmin } from "@/lib/supabase-admin.ts";
+import { toast } from "@/components/ui/use-toast.ts";
 import { AlertCircle, Check } from "lucide-react";
 
 const UserStatusMigration = () => {

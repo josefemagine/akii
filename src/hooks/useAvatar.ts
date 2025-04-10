@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { uploadAvatar, updateUserAvatar } from '@/services/avatar-service';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { uploadAvatar, updateUserAvatar } from '@/services/avatar-service.ts';
 
 interface UseAvatarOptions {
   onAvatarChange?: (url: string | null) => void;

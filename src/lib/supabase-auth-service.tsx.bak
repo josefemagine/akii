@@ -1,0 +1,269 @@
+import React from "react";
+/**
+ * Supabase Authentication Service
+ *
+ * This service provides proper auth handling for Supabase using the REST API
+ * following Supabase's official recommendations and best practices.
+ */
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+import { supabase } from './supabase-singleton';
+import { getSessionSafely } from '@/lib/auth-lock-fix';
+// Store user and profile in module variables for caching
+let _currentUser = null;
+let _currentProfile = null;
+/**
+ * Fetches the current user and profile using the proper Supabase API
+ * This function uses the correct Authorization headers and endpoints
+ */
+export function getCurrentUserWithProfile() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            // First get the current session - proper way to check auth
+            const { data, error: sessionError } = yield getSessionSafely();
+            if (sessionError) {
+                console.error('Error getting session:', sessionError);
+                return { user: null, profile: null };
+            }
+            if (!data.session) {
+                console.log('No active session found');
+                return { user: null, profile: null };
+            }
+            const user = data.session.user;
+            _currentUser = user;
+            // If we have a user, fetch their profile
+            if (user) {
+                // Use the correct profile endpoint with proper auth
+                const profile = yield refreshProfile();
+                return { user, profile };
+            }
+            return { user: null, profile: null };
+        }
+        catch (error) {
+            console.error('Error in getCurrentUserWithProfile:', error);
+            return { user: null, profile: null };
+        }
+    });
+}
+/**
+ * Signs in a user with email and password
+ * Uses the proper signInWithPassword method from Supabase
+ */
+export function signIn(email, password) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { data, error } = yield supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+            if (error) {
+                console.error('Sign in error:', error);
+                throw error;
+            }
+            // Cache the user
+            _currentUser = data.user;
+            // Fetch profile after sign in
+            if (data.user) {
+                yield refreshProfile();
+            }
+            return data;
+        }
+        catch (err) {
+            console.error('Exception in signIn:', err);
+            throw err;
+        }
+    });
+}
+/**
+ * Signs out the current user using the proper endpoint
+ */
+export function signOut() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { error } = yield supabase.auth.signOut();
+            if (error) {
+                console.error('Sign out error:', error);
+                throw error;
+            }
+            // Clear cached user and profile
+            _currentUser = null;
+            _currentProfile = null;
+            return true;
+        }
+        catch (err) {
+            console.error('Exception in signOut:', err);
+            throw err;
+        }
+    });
+}
+/**
+ * Gets the current user properly from the session
+ */
+export function getCurrentUser() {
+    return _currentUser;
+}
+/**
+ * Gets the current user profile using proper data access
+ */
+export function getCurrentProfile() {
+    return _currentProfile;
+}
+/**
+ * Refreshes the user profile
+ */
+export function refreshProfile(updates) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            // Make sure we have a current user
+            if (!_currentUser || !_currentUser.id) {
+                console.error('Cannot refresh profile: No authenticated user');
+                return null;
+            }
+            // Create a base query
+            const query = supabase
+                .from('profiles')
+                .select('*');
+            // If there are updates, update the profile first
+            if (updates && Object.keys(updates).length > 0) {
+                const { data: updateData, error: updateError } = yield supabase
+                    .from('profiles')
+                    .update(Object.assign(Object.assign({}, updates), { updated_at: new Date().toISOString() }))
+                    .eq('id', _currentUser.id)
+                    .select('*')
+                    .single();
+                if (updateError) {
+                    console.error('Error updating profile:', updateError);
+                    // Continue to try to fetch the profile even if update failed
+                }
+                else if (updateData) {
+                    _currentProfile = updateData;
+                    return _currentProfile;
+                }
+            }
+            // Fetch the profile
+            const { data, error } = yield query
+                .eq('id', _currentUser.id)
+                .single();
+            if (error) {
+                console.error('Error fetching profile:', error);
+                return null;
+            }
+            _currentProfile = data;
+            return _currentProfile;
+        }
+        catch (error) {
+            console.error('Exception in refreshProfile:', error);
+            return null;
+        }
+    });
+}
+/**
+ * Updates a user profile using proper data access patterns
+ */
+export function updateProfile(updates) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return yield refreshProfile(updates);
+    });
+}
+/**
+ * Sets up a listener for auth state changes
+ */
+export function onAuthStateChange(callback) {
+    return supabase.auth.onAuthStateChange(callback);
+}
+/**
+ * Initialize auth service and check for existing session
+ */
+export function initializeAuthService() {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b;
+        try {
+            // Get session to check if user is already logged in
+            // Use getSessionSafely to avoid lock issues
+            const { data, error } = yield getSessionSafely();
+            if (error) {
+                console.error('Error initializing auth service:', error);
+                // Even if getSession fails, check localStorage for tokens
+                if (((_a = error.message) === null || _a === void 0 ? void 0 : _a.includes('JWT')) || ((_b = error.message) === null || _b === void 0 ? void 0 : _b.includes('token'))) {
+                    console.log('JWT validation error detected - checking localStorage for tokens');
+                    return hasLocalStorageAuth();
+                }
+                return false;
+            }
+            if (data.session) {
+                console.log('User already authenticated via Supabase session');
+                return true;
+            }
+            // If no session but localStorage has tokens, consider authenticated
+            return hasLocalStorageAuth();
+        }
+        catch (error) {
+            console.error('Exception in initializeAuthService:', error);
+            // Even if there's an exception, check localStorage for auth tokens
+            return hasLocalStorageAuth();
+        }
+    });
+}
+/**
+ * Check if there are auth tokens in localStorage
+ */
+function hasLocalStorageAuth() {
+    try {
+        // Check all possible auth-related keys in localStorage
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.includes('supabase.auth.token') ||
+                key.includes('sb-') ||
+                key.includes('akii-auth') ||
+                key === 'akii-auth-token' ||
+                key === 'force-auth-login')) {
+                console.log('[AuthService] Found auth token in localStorage:', key);
+                // For enhanced debugging, check what's in the token
+                const value = localStorage.getItem(key);
+                if (value) {
+                    try {
+                        // Try to parse JSON values
+                        const jsonData = JSON.parse(value);
+                        if (jsonData) {
+                            console.log('[AuthService] Auth token contains data with keys:', Object.keys(jsonData));
+                        }
+                    }
+                    catch (e) {
+                        // Not JSON, might be a direct token value
+                        console.log('[AuthService] Auth token is not JSON, length:', value.length);
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+    catch (e) {
+        console.error('[AuthService] Error checking localStorage auth:', e);
+        return false;
+    }
+}
+/**
+ * Main export for easy importing
+ */
+const authService = {
+    getCurrentUserWithProfile,
+    signIn,
+    signOut,
+    getCurrentUser,
+    getCurrentProfile,
+    updateProfile,
+    onAuthStateChange,
+    initializeAuthService,
+    client: supabase
+};
+interface supabase-auth-serviceProps {}
+
+export default authService;

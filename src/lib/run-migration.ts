@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabase } from "./supabase.tsx";
 
 export async function runMigration(sql: string) {
   try {

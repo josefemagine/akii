@@ -1,4 +1,4 @@
-import { Database } from "./supabase";
+import { Database } from "./supabase.tsx";
 
 // Define types for database operations
 export type Tables = Database["public"]["Tables"];

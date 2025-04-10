@@ -5,7 +5,7 @@
  * This approach follows the suggested fix from the Supabase error message.
  */
 
-import { supabase } from './supabase-singleton';
+import { supabase } from "./supabase-singleton.tsx";
 
 // Track if we've already applied our handler
 let handlerApplied = false;

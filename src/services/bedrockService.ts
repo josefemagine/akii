@@ -1,18 +1,18 @@
 /**
  * Service for AWS Bedrock API calls
  */
-import { BedrockClient } from "@/lib/supabase-bedrock-client";
-import { createBedrockClient } from "@/lib/aws-bedrock-client";
+import { BedrockClient } from "@/lib/supabase-bedrock-client.tsx";
+import { createBedrockClient } from "@/lib/aws-bedrock-client.tsx";
 import { 
   FoundationModel, 
   BedrockInstance, 
   InstanceCreationOptions,
   EnvironmentDiagnostics 
-} from "@/types/bedrock";
+} from "@/types/bedrock.ts";
 import { 
   normalizeFoundationModel, 
   filterFoundationModels 
-} from "@/utils/bedrock/helpers";
+} from "@/utils/bedrock/helpers.ts";
 
 class BedrockService {
   /**

@@ -1,0 +1,4 @@
+import React from "react";
+interface indexProps {}
+
+export { default as AkiiLogo } from './AkiiLogo';

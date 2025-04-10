@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Profile } from '@/types/auth';
+import { Profile } from '@/types/auth.ts';
 import { 
   saveUserProfile, 
   fetchUserProfile, 
@@ -8,7 +8,7 @@ import {
   isAdmin as checkIsAdmin,
   dispatchProfileUpdated,
   dispatchAuthError
-} from '@/utils/auth';
+} from '@/utils/auth.ts';
 
 // Debug logger
 const log = (...args: any[]) => console.log('[useUserProfile]', ...args);

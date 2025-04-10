@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Check, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils.ts";
+import { Button } from "@/components/ui/button.tsx";
 
 export interface AgentSetupStepperProps {
   steps?: Array<{

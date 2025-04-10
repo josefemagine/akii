@@ -1,6 +1,6 @@
-import { supabase } from "@/lib/supabase";
-import { getAdminClient } from "@/lib/supabase-singleton";
-import { User, AuthUser, EditUserData } from "@/types/user";
+import { supabase } from "@/lib/supabase.tsx";
+import { getAdminClient } from "@/lib/supabase-singleton.tsx";
+import { User, AuthUser, EditUserData } from "@/types/user.ts";
 
 /**
  * Fetches all users from the database

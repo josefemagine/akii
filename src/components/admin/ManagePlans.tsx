@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button.tsx';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card.tsx';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog.tsx';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form.tsx';
+import { Input } from '@/components/ui/input.tsx';
+import { Switch } from '@/components/ui/switch.tsx';
+import { Textarea } from '@/components/ui/textarea.tsx';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Trash2, Plus, Edit2, AlertTriangle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { useToast } from '@/components/ui/use-toast';
-import ConfirmDialog from '@/components/ui/confirm-dialog';
+import { supabase } from "@/lib/supabase.tsx";
+import { useToast } from '@/components/ui/use-toast.ts';
+import ConfirmDialog from '@/components/ui/confirm-dialog.tsx';
 
 interface Plan {
   id: string;

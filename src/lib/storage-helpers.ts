@@ -1,6 +1,6 @@
-import supabase from "./supabase";
+import supabase from "./supabase.tsx";
 import { v4 as uuidv4 } from "uuid";
-import { updateUserProfile } from "./auth-helpers";
+import { updateUserProfile } from "./auth-helpers.ts";
 
 export interface UploadResponse {
   url: string | null;

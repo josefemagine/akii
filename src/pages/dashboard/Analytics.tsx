@@ -1,6 +1,6 @@
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import {
   BarChart3,
   LineChart,
@@ -12,7 +12,7 @@ import {
   Clock,
   Download,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 
 const Analytics = () => {
   return (

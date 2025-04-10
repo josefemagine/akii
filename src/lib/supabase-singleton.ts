@@ -3,7 +3,7 @@
  * Ensures a single instance of Supabase clients across the application
  */
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/supabase';
+import type { Database } from "@/types/supabase.tsx";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Environment variables with better error handling and fallbacks

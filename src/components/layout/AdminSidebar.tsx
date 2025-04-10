@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Home,
   Users,
@@ -19,7 +19,7 @@ import {
   FileCheck,
   Terminal,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 
 interface SidebarItemProps {
   icon: React.ReactNode;

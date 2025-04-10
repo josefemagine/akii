@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { billingProvider } from '@/lib/billing-providers';
+import { supabase } from "@/lib/supabase.ts";
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { billingProvider } from '@/lib/billing-providers.ts';
 
 // Define the billing data structure
 export interface BillingData {

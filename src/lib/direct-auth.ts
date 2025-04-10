@@ -3,7 +3,7 @@
  * This is a specialized module to handle the specific case of tokens in the URL hash
  */
 
-import { supabase } from "./supabase";
+import { supabase } from "./supabase.tsx";
 
 /**
  * Directly extracts and processes tokens from the URL hash

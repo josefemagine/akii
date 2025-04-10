@@ -1,6 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
-import { ServiceCheckResult, ConfigData } from "@/types/diagnostics";
+import { supabase } from "@/lib/supabase.tsx";
+import { ServiceCheckResult, ConfigData } from "@/types/diagnostics.ts";
 
 /**
  * Checks the authentication service

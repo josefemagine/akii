@@ -1,7 +1,7 @@
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { Bot, Star, MessageSquare, Users } from "lucide-react";
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarImage } from "@/components/ui/avatar.tsx";
 
 interface AgentData {
   id: string;

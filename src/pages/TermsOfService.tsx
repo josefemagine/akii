@@ -1,6 +1,6 @@
 import React from "react";
-import MainLayout from "@/components/layout/MainLayout";
-import { Separator } from "@/components/ui/separator";
+import MainLayout from "@/components/layout/MainLayout.tsx";
+import { Separator } from "@/components/ui/separator.tsx";
 
 const TermsOfService = () => {
   return (

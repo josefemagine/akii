@@ -1,147 +1,52 @@
-import React, { useState, ChangeEvent } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { toast } from '@/components/ui/use-toast';
+import React from "react";
+var __awaiter = (this && this.__awaiter> || function (thisArg, _arguments, P, generator> {
+    function adopt(value> { return value instanceof P ? value : new P(function (resolve> { resolve(value>; }>; }
+    return new (P || (P = Promise>>(function (resolve, reject> {
+        function fulfilled(value> { try { step(generator.next(value>>; } catch (e> { reject(e>; } }
+        function rejected(value> { try { step(generator["throw"](value>>; } catch (e> { reject(e>; } }
+        function step(result> { result.done ? resolve(result.value> : adopt(result.value>.then(fulfilled, rejected>; }
+        step((generator = generator.apply(thisArg, _arguments || []>>.next(>>;
+    }>;
+};
 
-export default function AuthExample() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  
-  // Use our auth hooks
-  const { signIn, signOut, user, profile, isLoading, updateProfile } = useAuth();
-  const isAuthenticated = !!user;
+import { useState } from 'react';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Input } from '@/components/ui/input.tsx';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card.tsx';
+import { toast } from '@/components/ui/use-toast.ts';
+interface AuthExampleProps {}
 
-  // Handle sign in
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await signIn(email, password);
-      
-      // Clear form on success
-      setEmail('');
-      setPassword('');
-    } catch (err) {
-      console.error('Error signing in:', err);
-      toast({
-        title: "Authentication Error",
-        description: "Failed to sign in. Please check your credentials and try again."
-      });
-    }
-  };
-  
-  // Handle sign out
-  const handleSignOut = async () => {
-    await signOut();
-  };
-  
-  // Now we can update profile with the new hooks
-  const handleUpdateName = async () => {
-    if (!user?.id) return;
-    
-    try {
-      const success = await updateProfile({ first_name: 'Updated Name' });
-      if (success) {
-        toast({
-          title: "Profile Updated",
-          description: "Your name has been updated successfully."
-        });
-      }
-    } catch (err) {
-      console.error('Error updating profile:', err);
-      toast({
-        title: "Update Error",
-        description: "Failed to update your profile."
-      });
-    }
-  };
-
-  return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle>Authentication Example</CardTitle>
-        <CardDescription>
-          Using the new Auth Hooks
-        </CardDescription>
-      </CardHeader>
-      
-      <CardContent>
-        {isAuthenticated ? (
-          <div className="space-y-4">
-            <div className="text-center">
-              <h3 className="text-lg font-medium">
-                Welcome, {profile?.first_name || user?.email || 'User'}!
-              </h3>
-              {profile?.role && (
-                <p className="text-sm text-muted-foreground">
-                  Role: {profile.role}
-                </p>
-              )}
-            </div>
-            
-            <div className="flex flex-col space-y-2">
-              <Button 
-                variant="outline" 
-                onClick={handleUpdateName}
-                disabled={isLoading}
-              >
-                Update Name
-              </Button>
-              
-              <Button 
-                variant="destructive" 
-                onClick={handleSignOut}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Signing Out...' : 'Sign Out'}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSignIn} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </div>
-            
-            <Button 
-              type="submit" 
-              className="w-full"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Signing In...' : 'Sign In'}
-            </Button>
-          </form>
-        )}
-      </CardContent>
-      
-      <CardFooter className="flex justify-center text-sm text-muted-foreground">
-        This component uses the new modular Auth Hooks
-      </CardFooter>
-    </Card>
-  );
-} 
+export default function AuthExample(> {
+    const [email, setEmail] = useState<any>(''>;
+    const [password, setPassword] = useState<any>(''>;
+    // Use our auth hooks
+    const { signIn, signOut, user, profile, isLoading } = useAuth(>;
+    const isAuthenticated = !!user;
+    // Handle sign in
+    const handleSignIn = (e> => __awaiter(this, void 0, void 0, function* (> {
+        e.preventDefault(>;
+        try {
+            yield signIn(email, password>;
+            // Clear form on success
+            setEmail(''>;
+            setPassword(''>;
+        }
+        catch (err> {
+            console.error('Error signing in:', err>;
+            toast({
+                title: "Authentication Error",
+                description: "Failed to sign in. Please check your credentials and try again."
+            }>;
+        }
+    }>;
+    // Handle sign out
+    const handleSignOut = (> => __awaiter(this, void 0, void 0, function* (> {
+        yield signOut(>;
+    }>;
+    // We can't update profile directly with UnifiedAuthContext, so this has been modified
+    const handleUpdateName = (> => __awaiter(this, void 0, void 0, function* (> {
+        alert('Profile updates are not available in this example'>;
+    }>;
+    return (<Card, { className: "w-full max-w-md mx-auto", <CardHeader, { children: [<CardTitle, { children: "Authentication Example" }>, <CardDescription, { children: "Using the Unified Auth Context" }> }>, <CardContent, { children: isAuthenticated ? (<div className={"space-y-4"}  children={[<"div"}  { className={"text-center"}  children={[<"h3"}  { className={"text-lg font-medium"}  children={["Welcome}  ", (profile === null || profile === void 0 ? void 0 : profile.first_name> || (user === null || user === void 0 ? void 0 : user.email> || 'User', "!"]>, (profile === null || profile === void 0 ? void 0 : profile.role> && (<p className={"text-sm text-muted-foreground"}  children={["Role: "}  profile.role]>>] }>, <div className={"flex flex-col space-y-2"}  children={[<Button}  { variant={"outline"}  onClick={handleUpdateName}  disabled={isLoading}  children={"Update Name"} >, <Button, { variant: "destructive", onClick: handleSignOut, disabled: isLoading, children: isLoading ? 'Signing Out...' : 'Sign Out' }>] }>] } /> : (<form onSubmit={handleSignIn}  className={"space-y-4"}  children={[<"div"}  { className={"space-y-2"}  children={[<"label"}  { htmlFor={"email"}  className={"text-sm font-medium"}  children={"Email"} >, <Input, { id: "email", type: "email", value: email, onChange: (e> => setEmail(e.target.value>, placeholder: "you@example.com", required: true }>] }>, <div className={"space-y-2"}  children={[<"label"}  { htmlFor={"password"}  className={"text-sm font-medium"}  children={"Password"} >, <Input, { id: "password", type: "password", value: password, onChange: (e> => setPassword(e.target.value>, placeholder: "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022", required: true }>] }>, <Button, { type: "submit", className: "w-full", disabled: isLoading, children: isLoading ? 'Signing In...' : 'Sign In' }>] } /> }>, <CardFooter, { className: "flex justify-center text-sm text-muted-foreground", children: "This component uses the new consolidated Auth Context" }>] } />;
+}

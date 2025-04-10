@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import MainLayout from "@/components/layout/MainLayout";
-import { Button } from "@/components/ui/button";
+import MainLayout from "@/components/layout/MainLayout.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Form,
   FormControl,
@@ -11,8 +11,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+} from "@/components/ui/form.tsx";
+import { Input } from "@/components/ui/input.tsx";
 import {
   Card,
   CardContent,
@@ -20,7 +20,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/ui/card.tsx";
 import { Loader2, Download, CheckCircle, FileText } from "lucide-react";
 
 const formSchema = z.object({

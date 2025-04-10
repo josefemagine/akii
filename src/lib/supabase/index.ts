@@ -5,8 +5,8 @@
  */
 
 // Import directly to fix references
-import { getClient, getAdminClient, supabase, supabaseAdmin } from './client';
-import { getAuth } from './auth';
+import { getClient, getAdminClient, supabase, supabaseAdmin } from './client.ts';
+import { getAuth } from './auth.ts';
 
 // Re-export from client
 export { 
@@ -14,7 +14,7 @@ export {
   getAdminClient, 
   supabase, 
   supabaseAdmin 
-} from './client';
+} from './client.ts';
 
 // Re-export from auth
 export {
@@ -26,7 +26,7 @@ export {
   checkUserStatus,
   setUserRole,
   setUserStatus
-} from './auth';
+} from './auth.ts';
 
 // Re-export from admin
 export {
@@ -34,7 +34,7 @@ export {
   syncUserProfile,
   ensureUserProfile,
   setUserAsAdmin
-} from './admin';
+} from './admin.ts';
 
 // Re-export types
 export type {
@@ -42,7 +42,7 @@ export type {
   UserRole,
   UserStatus,
   ApiResponse
-} from './types';
+} from './types.ts';
 
 // Aliases for backward compatibility
 export const supabaseClient = supabase;

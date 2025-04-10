@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from "@/lib/supabase.tsx";
 
 /**
  * Admin functionality is now determined by database roles only

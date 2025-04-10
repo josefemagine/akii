@@ -7,18 +7,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+} from "@/components/ui/table.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu.tsx";
 import { MoreVertical, Edit, Mail, Lock, Trash2 } from "lucide-react";
-import { User } from "@/types/user";
-import { getRoleBadge, getStatusIcon, getPlanBadge } from "./UserBadges";
+import { User } from "@/types/user.ts";
+import { getRoleBadge, getStatusIcon, getPlanBadge } from "./UserBadges.tsx";
 
 interface UserTableProps {
   users: User[];

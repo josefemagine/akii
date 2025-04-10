@@ -2,10 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useToast } from "@/components/ui/use-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
 import {
   Dialog,
   DialogContent,
@@ -13,16 +13,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+} from "@/components/ui/dialog.tsx";
+import { Alert, AlertDescription } from "@/components/ui/alert.tsx";
 import { Loader2 } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "@/components/ui/use-toast";
-import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from '@/types/auth';
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
+import { Separator } from "@/components/ui/separator.tsx";
+import { toast } from "@/components/ui/use-toast.ts";
+import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from '@/types/auth.ts';
+import { supabase } from "@/lib/supabase.tsx";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
 import { useNavigate } from "react-router-dom";
-import { signInWithEmailPasswordRetry } from "@/lib/supabase-singleton";
+import { signInWithEmailPasswordRetry } from "@/lib/supabase-singleton.tsx";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),

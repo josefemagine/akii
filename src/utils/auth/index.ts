@@ -1,13 +1,13 @@
 // Re-export all auth utilities for easy import
-export * from './auth-events';
-export * from './auth-api';
-export * from './profile-cache';
-export * from './profile-utils';
-export * from './session-manager';
+export * from './auth-events.ts';
+export * from './auth-api.ts';
+export * from './profile-cache.ts';
+export * from './profile-utils.ts';
+export * from './session-manager.ts';
 
 // Export a helpful message for debugging
 import { Session } from '@supabase/supabase-js';
-import { getStoredSession, isSessionExpired } from './session-manager';
+import { getStoredSession, isSessionExpired } from './session-manager.ts';
 
 /**
  * Debug function to get current auth state

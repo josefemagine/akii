@@ -1,6 +1,6 @@
 import { User } from '@supabase/supabase-js';
-import { Profile, AUTH_ERROR_EVENT, AUTH_RECOVERY_EVENT } from '@/types/auth';
-import { supabase } from './supabase';
+import { Profile, AUTH_ERROR_EVENT, AUTH_RECOVERY_EVENT } from '@/types/auth.ts';
+import { supabase } from "./supabase.tsx";
 
 /**
  * Helper function to clear auth state data from storage

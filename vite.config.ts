@@ -44,9 +44,33 @@ const staticRoutes = [
 // Combine static routes with dynamically generated blog routes
 const allRoutes = [...staticRoutes, ...getBlogRoutes()];
 
+// Custom plugin to handle .tsx extensions in imports
+const handleExtensions = () => {
+  return {
+    name: 'vite-plugin-extension-resolver',
+    resolveId(id: string, importer: string | undefined): Promise<string | null> | null {
+      // Skip if no importer (entry file) or if id is absolute/external
+      if (!importer || id.startsWith('\0') || id.startsWith('http') || path.isAbsolute(id)) {
+        return null;
+      }
+
+      // Handle explicit .tsx extensions in imports
+      if (id.endsWith('.tsx')) {
+        const basePath = id.slice(0, -4); // Remove the .tsx extension
+        // @ts-ignore - this.resolve is provided by Rollup/Vite in the plugin context
+        return this.resolve(basePath, importer, { skipSelf: true })
+          .then((resolved: any) => resolved || null);
+      }
+
+      return null;
+    }
+  };
+};
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
+    handleExtensions(),
     react(), 
     tempo(), 
     tsconfigPaths(),
@@ -61,6 +85,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    extensions: ['.js', '.ts', '.jsx', '.tsx', '.json']
   },
   // Use a different entry point for focused Bedrock builds
   build: isFocusedBedrockBuild ? {

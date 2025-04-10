@@ -7,7 +7,7 @@
 
 // Import type definitions we need
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '../types/supabase';
+import { Database } from "../types/supabase.tsx";
 
 // Extend window interface with our debug property
 declare global {

@@ -1,5 +1,5 @@
-import { emergencySessionReset, forceSessionCheck } from "./auth-lock-fix";
-import { toast } from "@/components/ui/use-toast";
+import { emergencySessionReset, forceSessionCheck } from "./auth-lock-fix.ts";
+import { toast } from "@/components/ui/use-toast.ts";
 
 /**
  * Set up network interceptors to detect authentication errors

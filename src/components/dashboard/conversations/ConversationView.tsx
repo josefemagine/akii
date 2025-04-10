@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   CardFooter,
-} from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+} from "@/components/ui/card.tsx";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import {
   ArrowLeft,
   Send,
@@ -18,11 +18,11 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { format } from "date-fns";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { Message } from "@/types/custom";
-import { invokeServerFunction } from "@/utils/supabase/functions";
-import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { Message } from "@/types/custom.ts";
+import { invokeServerFunction } from "@/utils/supabase/functions.ts";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { supabase } from "@/lib/supabase.tsx";
 
 type Agent = {
   id: string;

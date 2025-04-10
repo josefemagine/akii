@@ -1,61 +1,23 @@
 import React from "react";
-import { Button } from "@/components/ui/button";
-import {
-  PlusCircle,
-  Upload,
-  MessageSquare,
-  Settings,
-  BarChart,
-  Zap,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Plus, Upload, MessageSquare, Settings, BarChart, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button.tsx";
 
-interface QuickActionProps {
+interface QuickAction {
   title: string;
   description: string;
   icon: React.ReactNode;
   variant?: "default" | "outline" | "secondary";
-  onClick?: () => void;
+  onClick: () => void;
 }
 
-const QuickAction = ({
-  title = "Action Title",
-  description = "Action description goes here",
-  icon = <PlusCircle className="h-6 w-6" />,
-  variant = "outline",
-  onClick = () => {},
-}: QuickActionProps) => {
-  return (
-    <Button
-      variant={variant}
-      onClick={onClick}
-      className={cn(
-        "flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-left",
-        "bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700",
-      )}
-    >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-        {icon}
-      </div>
-      <div className="text-center">
-        <h3 className="font-medium text-base">{title}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-      </div>
-    </Button>
-  );
-};
-
-interface QuickActionsProps {
-  actions?: QuickActionProps[];
-}
-
-const QuickActions = ({ actions }: QuickActionsProps) => {
-  const defaultActions: QuickActionProps[] = [
+export function QuickActions() {
+  const actions: QuickAction[] = [
     {
-      title: "Create New Agent",
-      description: "Set up a new AI agent for your business",
-      icon: <PlusCircle className="h-6 w-6" />,
-      variant: "outline",
+      title: "Create AI Instance",
+      description: "Set up a new AI agent with custom settings",
+      icon: <Plus className="h-6 w-6" />,
+      variant: "default",
       onClick: () => console.log("Create New Agent clicked"),
     },
     {
@@ -95,18 +57,34 @@ const QuickActions = ({ actions }: QuickActionsProps) => {
     },
   ];
 
-  const displayActions = actions || defaultActions;
-
   return (
-    <div className="w-full bg-card p-6 rounded-lg border shadow-sm">
-      <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {displayActions.map((action, index) => (
-          <QuickAction key={index} {...action} />
-        ))}
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Quick Actions</CardTitle>
+        <CardDescription>Common tasks and shortcuts</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {actions.map((action, index) => (
+            <Button
+              key={index}
+              variant={action.variant}
+              className="h-auto flex-col items-start gap-2 p-4 text-left"
+              onClick={action.onClick}
+            >
+              <div className="flex w-full items-center gap-3">
+                {action.icon}
+                <div className="space-y-1">
+                  <h3 className="font-medium">{action.title}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {action.description}
+                  </p>
+                </div>
+              </div>
+            </Button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
-};
-
-export default QuickActions;
+}

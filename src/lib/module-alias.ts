@@ -5,10 +5,10 @@
  * throughout the application, preventing duplicate React instances.
  */
 
-import React from './react-singleton';
-import ReactDOM from './react-dom-singleton';
-import * as ReactRouter from './react-router-singleton';
-import * as ReactRouterDOM from './react-router-singleton';
+import React from "./react-singleton.ts";
+import ReactDOM from './react-dom-singleton.ts';
+import * as ReactRouter from "./react-router-singleton.ts";
+import * as ReactRouterDOM from "./react-router-singleton.ts";
 
 declare global {
   interface Window {

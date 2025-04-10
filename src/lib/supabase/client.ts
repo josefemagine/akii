@@ -5,8 +5,8 @@
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/supabase";
-import { supabase, supabaseAdmin } from "@/lib/supabase";
+import type { Database } from "@/types/supabase.tsx";
+import { supabase, supabaseAdmin } from "@/lib/supabase.tsx";
 
 /**
  * Get the Supabase client instance

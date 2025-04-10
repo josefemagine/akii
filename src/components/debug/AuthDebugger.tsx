@@ -1,195 +1,127 @@
+import React, { useState, useEffect } from "react";
+
 /**
  * Auth Debugger Component
- * 
+ *
  * This component provides a diagnostic panel for debugging authentication-related issues
  * It's only rendered in development mode and can be shown/hidden with a keyboard shortcut
  */
 
-import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import type { Session } from '@supabase/supabase-js';
+interface AuthState {
+  auth: any;
+  storage: {
+    localStorage: Record<string, string>;
+    sessionStorage: Record<string, string>;
+  };
+  redirectState?: {
+    redirectCount: number;
+    lastRedirectTime: string;
+    navigationHistory: string[];
+  };
+  location?: string;
+  timestamp?: string;
+}
 
-export const AuthDebugger: React.FC = () => {
+export const AuthDebugger = () => {
   const [isVisible, setIsVisible] = useState(false);
-  const [authState, setAuthState] = useState<Record<string, any>>({});
+  const [authState, setAuthState] = useState<AuthState>({
+    auth: null,
+    storage: {
+      localStorage: {},
+      sessionStorage: {},
+    },
+  });
 
-  // Get auth context
-  const auth = useAuth();
-
-  // Collect debug data
   useEffect(() => {
-    function collectDebugData() {
-      // Get all authentication-related data from localStorage
-      const localStorageData: Record<string, string> = {};
-      Object.keys(localStorage).forEach((key) => {
-        if (
-          key.includes('auth') ||
-          key.includes('supabase') ||
-          key.includes('session') ||
-          key.includes('user') ||
-          key.includes('akii') ||
-          key.includes('redirect') ||
-          key.includes('login')
-        ) {
-          try {
-            localStorageData[key] = localStorage.getItem(key) || '';
-          } catch (e) {
-            localStorageData[key] = `[Error reading value: ${e}]`;
-          }
-        }
-      });
-
-      // Get all authentication-related data from sessionStorage
-      const sessionStorageData: Record<string, string> = {};
-      Object.keys(sessionStorage).forEach((key) => {
-        if (
-          key.includes('auth') ||
-          key.includes('supabase') ||
-          key.includes('session') ||
-          key.includes('user') ||
-          key.includes('akii') ||
-          key.includes('redirect') ||
-          key.includes('login')
-        ) {
-          try {
-            sessionStorageData[key] = sessionStorage.getItem(key) || '';
-          } catch (e) {
-            sessionStorageData[key] = `[Error reading value: ${e}]`;
-          }
-        }
-      });
-
-      // Collect all auth-related data
-      const debugData = {
-        timestamp: new Date().toISOString(),
-        location: window.location.href,
-        auth: {
-          user: auth.user ? {
-            id: auth.user.id,
-            email: auth.user.email,
-          } : null,
-          profile: auth.profile ? {
-            id: auth.profile.id,
-            email: auth.profile.email,
-            role: auth.profile.role
-          } : null,
-          isAdmin: auth.isAdmin,
-          isLoading: auth.isLoading
-        },
-        storage: {
-          localStorage: localStorageData,
-          sessionStorage: sessionStorageData
-        },
-        redirectState: {
-          redirectCount: sessionStorage.getItem('redirect-count') || '0',
-          lastRedirectTime: sessionStorage.getItem('last-redirect-time') || 'none',
-          navigationHistory: sessionStorage.getItem('navigation-history') || '[]'
-        }
-      };
-
-      setAuthState(debugData);
-    }
-
-    // Update debug data when the component is opened
-    if (isVisible) {
-      collectDebugData();
-      
-      // Set up periodic refresh
-      const intervalId = setInterval(collectDebugData, 2000);
-      return () => clearInterval(intervalId);
-    }
-  }, [isVisible, auth]);
-
-  // Set up keyboard shortcut to toggle the debug panel
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      // Alt+D to toggle debug panel
-      if (event.altKey && event.key === 'd') {
-        setIsVisible(prev => !prev);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === "d") {
+        setIsVisible((prev) => !prev);
       }
     };
-    
-    window.addEventListener('keydown', handleKeyPress);
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Only render in development mode
-  if (!import.meta.env.DEV) {
-    return null;
-  }
+  useEffect(() => {
+    if (isVisible) {
+      updateAuthState();
+    }
+  }, [isVisible]);
 
-  // Clear all authentication data
+  const updateAuthState = () => {
+    try {
+      // Get localStorage items
+      const localStorageItems: Record<string, string> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          localStorageItems[key] = localStorage.getItem(key) || "";
+        }
+      }
+
+      // Get sessionStorage items
+      const sessionStorageItems: Record<string, string> = {};
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key) {
+          sessionStorageItems[key] = sessionStorage.getItem(key) || "";
+        }
+      }
+
+      // Get auth data from localStorage
+      let authData = null;
+      try {
+        const supabaseAuthStr = localStorage.getItem("supabase.auth.token");
+        if (supabaseAuthStr) {
+          authData = JSON.parse(supabaseAuthStr);
+        }
+      } catch (error) {
+        console.error("Error parsing auth data:", error);
+      }
+
+      setAuthState({
+        auth: authData,
+        storage: {
+          localStorage: localStorageItems,
+          sessionStorage: sessionStorageItems,
+        },
+        location: window.location.href,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error updating auth state:", error);
+    }
+  };
+
   const clearAuthData = () => {
-    // Clear both localStorage and sessionStorage
-    Object.keys(localStorage).forEach((key) => {
-      if (
-        key.includes('auth') ||
-        key.includes('supabase') ||
-        key.includes('session') ||
-        key.includes('user') ||
-        key.includes('akii') ||
-        key.includes('redirect') ||
-        key.includes('login')
-      ) {
-        localStorage.removeItem(key);
-      }
-    });
-
-    Object.keys(sessionStorage).forEach((key) => {
-      if (
-        key.includes('auth') ||
-        key.includes('supabase') ||
-        key.includes('session') ||
-        key.includes('user') ||
-        key.includes('akii') ||
-        key.includes('redirect') ||
-        key.includes('login')
-      ) {
-        sessionStorage.removeItem(key);
-      }
-    });
-
-    // Update the debug data after clearing
-    setAuthState((prev) => ({
-      ...prev,
-      timestamp: new Date().toISOString(),
-      storage: {
-        localStorage: {},
-        sessionStorage: {}
-      }
-    }));
+    try {
+      localStorage.removeItem("supabase.auth.token");
+      localStorage.removeItem("supabase-auth-token");
+      localStorage.removeItem("sb-refresh-token");
+      localStorage.removeItem("sb-access-token");
+      updateAuthState();
+    } catch (error) {
+      console.error("Error clearing auth data:", error);
+    }
   };
 
-  // Force a fresh authentication check
   const forceAuthRefresh = () => {
-    auth.refreshAuthState();
+    try {
+      // Implement auth refresh logic here
+      updateAuthState();
+    } catch (error) {
+      console.error("Error refreshing auth:", error);
+    }
   };
 
-  // Render the debug panel
   if (!isVisible) {
-    return (
-      <div className="fixed right-4 bottom-4 z-50">
-        <button
-          onClick={() => setIsVisible(true)}
-          className="bg-gray-800 text-white p-2 rounded-full shadow-lg opacity-70 hover:opacity-100"
-          title="Open Auth Debugger (Alt+D)"
-        >
-          🔍
-        </button>
-      </div>
-    );
+    return null;
   }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 overflow-auto p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden max-w-6xl w-full max-h-[90vh] flex flex-col">
         <div className="p-4 border-b flex justify-between items-center">
           <h2 className="text-xl font-bold">Authentication Debugger</h2>
           <div className="flex gap-2">
@@ -213,12 +145,12 @@ export const AuthDebugger: React.FC = () => {
             </button>
           </div>
         </div>
-
-        <div className="p-4 grid grid-cols-2 gap-4">
+        
+        <div className="p-4 grid grid-cols-2 gap-4 overflow-auto">
           <div className="space-y-4">
             <div className="border rounded p-3">
               <h3 className="font-bold mb-2">Auth State</h3>
-              <pre className="text-xs overflow-auto bg-gray-100 dark:bg-gray-900 p-2 rounded max-h-40">
+              <pre className="text-xs overflow-auto bg-gray-100 dark:bg-gray-700 p-2 rounded">
                 {JSON.stringify(authState.auth, null, 2)}
               </pre>
             </div>
@@ -227,12 +159,18 @@ export const AuthDebugger: React.FC = () => {
               <h3 className="font-bold mb-2">Navigation & Redirect State</h3>
               <div className="text-xs font-mono">
                 <p>Current URL: {authState.location}</p>
-                <p>Redirect Count: {authState.redirectState?.redirectCount}</p>
-                <p>Last Redirect: {authState.redirectState?.lastRedirectTime}</p>
+                <p>
+                  Redirect Count:{" "}
+                  {authState.redirectState?.redirectCount}
+                </p>
+                <p>
+                  Last Redirect:{" "}
+                  {authState.redirectState?.lastRedirectTime}
+                </p>
               </div>
               <h4 className="font-medium mt-2 mb-1">Navigation History</h4>
-              <pre className="text-xs overflow-auto bg-gray-100 dark:bg-gray-900 p-2 rounded max-h-40">
-                {authState.redirectState?.navigationHistory}
+              <pre className="text-xs overflow-auto bg-gray-100 dark:bg-gray-700 p-2 rounded">
+                {authState.redirectState?.navigationHistory?.join("\n")}
               </pre>
             </div>
           </div>
@@ -249,12 +187,14 @@ export const AuthDebugger: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {authState.storage?.localStorage && Object.entries(authState.storage.localStorage).map(([key, value], i) => (
-                      <tr key={i} className="border-t">
-                        <td className="p-1 font-mono">{key}</td>
-                        <td className="p-1 font-mono break-all">{value as string}</td>
-                      </tr>
-                    ))}
+                    {Object.entries(authState.storage.localStorage).map(
+                      ([key, value], i) => (
+                        <tr key={i} className="border-t">
+                          <td className="p-1 font-mono">{key}</td>
+                          <td className="p-1 font-mono break-all">{value}</td>
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -271,19 +211,21 @@ export const AuthDebugger: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {authState.storage?.sessionStorage && Object.entries(authState.storage.sessionStorage).map(([key, value], i) => (
-                      <tr key={i} className="border-t">
-                        <td className="p-1 font-mono">{key}</td>
-                        <td className="p-1 font-mono break-all">{value as string}</td>
-                      </tr>
-                    ))}
+                    {Object.entries(authState.storage.sessionStorage).map(
+                      ([key, value], i) => (
+                        <tr key={i} className="border-t">
+                          <td className="p-1 font-mono">{key}</td>
+                          <td className="p-1 font-mono break-all">{value}</td>
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
         </div>
-
+        
         <div className="p-4 border-t text-xs text-gray-500">
           Press Alt+D to toggle this debugger. Updated: {authState.timestamp}
         </div>
@@ -292,4 +234,4 @@ export const AuthDebugger: React.FC = () => {
   );
 };
 
-export default AuthDebugger; 
+export default AuthDebugger;

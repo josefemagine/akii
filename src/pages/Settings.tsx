@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import * as auth from '@/lib/auth-helpers';
+import * as auth from '@/lib/auth-helpers.ts';
 
 /**
  * Settings component with authentication check

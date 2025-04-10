@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
 import {
   Table,
   TableBody,
@@ -9,13 +9,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu.tsx";
 import {
   Search,
   MessageSquare,
@@ -25,8 +25,8 @@ import {
   Archive,
 } from "lucide-react";
 import { format } from "date-fns";
-import { supabase } from "@/lib/supabase";
-import { Database } from "@/types/supabase";
+import { supabase } from "@/lib/supabase.tsx";
+import { Database } from "@/types/supabase.tsx";
 
 type ConversationRow = Database["public"]["Tables"]["conversations"]["Row"] & {
   agent?: {

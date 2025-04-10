@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs.tsx";
 import {
   Card,
   CardContent,
@@ -7,8 +7,8 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+} from "@/components/ui/card.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Copy,
   Download,

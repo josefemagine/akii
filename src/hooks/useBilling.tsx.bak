@@ -1,0 +1,146 @@
+import React from "react";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/UnifiedAuthContext';
+import { billingProvider } from '@/lib/billing-providers';
+interface useBillingProps {}
+
+const defaultBillingData = {
+    status: 'none',
+    planId: null,
+    planName: null,
+    messageLimit: 0,
+    billingCycle: null,
+    currentPeriodStart: null,
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+    paymentStatus: null,
+    trialEndsAt: null,
+    nextBillingDate: null,
+};
+export default function useBilling() {
+    const { user } = useAuth();
+    const [loading, setLoading] = useState<any>(true);
+    const [error, setError] = useState<any>(null);
+    const [billingData, setBillingData] = useState<any>(defaultBillingData);
+    const fetchBillingData = () => __awaiter(this, void 0, void 0, function* () {
+        if (!user) {
+            setBillingData(defaultBillingData);
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            const { data, error } = yield supabase.functions.invoke('billing-summary', {
+                body: {},
+            });
+            if (error)
+                throw new Error(error.message);
+            setBillingData(data || defaultBillingData);
+        }
+        catch (e) {
+            console.error('Error fetching billing data:', e);
+            setError(e instanceof Error ? e : new Error('Failed to fetch billing data'));
+        }
+        finally {
+            setLoading(false);
+        }
+    });
+    // Fetch billing data on mount and when user changes
+    useEffect(() => {
+        fetchBillingData();
+    }, [user === null || user === void 0 ? void 0 : user.id]);
+    // Method to create a checkout session
+    const createCheckoutSession = (planId, billingCycle) => __awaiter(this, void 0, void 0, function* () {
+        if (!user)
+            throw new Error('User must be logged in');
+        try {
+            const result = yield billingProvider.createCheckoutSession({
+                userId: user.id,
+                planId,
+                billingCycle,
+            });
+            return result;
+        }
+        catch (e) {
+            console.error('Error creating checkout session:', e);
+            throw e;
+        }
+    });
+    // Method to open billing portal
+    const openBillingPortal = () => __awaiter(this, void 0, void 0, function* () {
+        if (!user)
+            throw new Error('User must be logged in');
+        try {
+            const result = yield billingProvider.createPortalSession({
+                userId: user.id,
+            });
+            return result;
+        }
+        catch (e) {
+            console.error('Error opening billing portal:', e);
+            throw e;
+        }
+    });
+    // Method to cancel subscription
+    const cancelSubscription = (...args_1) => __awaiter(this, [...args_1], void 0, function* (immediateCancel = false) {
+        if (!user)
+            throw new Error('User must be logged in');
+        try {
+            const result = yield billingProvider.cancelSubscription({
+                userId: user.id,
+                immediateCancel,
+            });
+            if (result) {
+                // Refresh billing data
+                yield fetchBillingData();
+            }
+            return result;
+        }
+        catch (e) {
+            console.error('Error canceling subscription:', e);
+            throw e;
+        }
+    });
+    // Method to update subscription
+    const updateSubscription = (planId, billingCycle) => __awaiter(this, void 0, void 0, function* () {
+        if (!user)
+            throw new Error('User must be logged in');
+        try {
+            const result = yield billingProvider.updateSubscription({
+                userId: user.id,
+                planId,
+                billingCycle,
+            });
+            if (result) {
+                // Refresh billing data
+                yield fetchBillingData();
+            }
+            return result;
+        }
+        catch (e) {
+            console.error('Error updating subscription:', e);
+            throw e;
+        }
+    });
+    return {
+        loading,
+        error,
+        billingData,
+        fetchBillingData,
+        createCheckoutSession,
+        openBillingPortal,
+        cancelSubscription,
+        updateSubscription,
+    };
+}

@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase } from "./supabase.tsx";
 
 /**
  * Database access utilities for Supabase integration

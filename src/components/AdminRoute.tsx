@@ -1,10 +1,10 @@
 import React, { ReactNode, useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { getClientSideAdminStatus, initializeAdminPage, checkAdminStatusInDatabase } from "@/lib/admin-utils";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import DashboardLayout from "@/components/dashboard/DashboardLayout.tsx";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { getClientSideAdminStatus, initializeAdminPage, checkAdminStatusInDatabase } from "@/lib/admin-utils.ts";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { RefreshCw, ShieldAlert } from "lucide-react";
 
 interface AdminRouteProps {

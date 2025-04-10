@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { cn } from "@/lib/utils.ts";
 import {
   Home,
   FileText,
@@ -61,8 +61,8 @@ import {
   Mail,
   Menu,
 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { Profile } from "@/types/auth";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { Profile } from "@/types/auth.ts";
 
 // Custom SVG icon for workflows
 const Workflow = (props: React.SVGProps<SVGSVGElement>) => (

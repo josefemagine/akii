@@ -1,5 +1,5 @@
-import supabase from './supabase-client';
-import type { UserProfile } from '../types/custom';
+import supabase from './supabase-client.ts';
+import type { UserProfile } from '../types/custom.ts';
 
 // Profile cache to avoid repeated fetches
 const profileCache = new Map<string, { profile: UserProfile; timestamp: number }>();

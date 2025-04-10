@@ -8,7 +8,7 @@ import {
   runAllDiagnosticTests,
   fetchFunctionLogs,
   fetchFunctionInvocations
-} from '@/services/supabaseDiagnostics';
+} from '@/services/supabaseDiagnostics.ts';
 
 export type LogMessage = {
   message: string;

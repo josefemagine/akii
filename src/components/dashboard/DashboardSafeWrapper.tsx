@@ -1,6 +1,6 @@
-import { isBrowser } from "@/lib/browser-check";
+import { isBrowser } from "@/lib/browser-check.ts";
 import { useEffect, useState } from "react";
-import { isProduction, ensureDashboardAccess } from "@/lib/production-recovery";
+import { isProduction, ensureDashboardAccess } from "@/lib/production-recovery.ts";
 
 interface DashboardSafeWrapperProps {
   children: React.ReactNode;

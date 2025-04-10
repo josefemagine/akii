@@ -1,10 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Github, Twitter, Linkedin, Facebook } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { EnvWarning } from "@/components/ui/env-warning";
-import Header from "./Header";
-import AkiiLogo from "@/components/shared/AkiiLogo";
+import { Button } from "@/components/ui/button.tsx";
+import { EnvWarning } from "@/components/ui/env-warning.tsx";
+import Header from "./Header.tsx";
+import AkiiLogo from "@/components/shared/AkiiLogo.tsx";
 
 interface MainLayoutProps {
   children: React.ReactNode;

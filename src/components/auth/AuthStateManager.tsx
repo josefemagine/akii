@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { AUTH_STATE_CHANGE_EVENT, AuthStateChangeEvent } from '@/types/auth';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { AUTH_STATE_CHANGE_EVENT, AuthStateChangeEvent } from '@/types/auth.ts';
 
 /**
  * This component monitors auth state and broadcasts changes via custom events

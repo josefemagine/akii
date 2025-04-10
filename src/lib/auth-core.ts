@@ -3,7 +3,7 @@
  * Simplified helpers for auth-related data extraction
  */
 import type { User as SupabaseUser, Session as SupabaseSession } from '@supabase/supabase-js';
-import { supabase, auth } from './supabase-singleton';
+import { supabase, auth } from "./supabase-singleton.tsx";
 import { 
   signIn, 
   signUp, 
@@ -18,8 +18,8 @@ import {
   setUserRole,
   setUserStatus,
   verifySupabaseConnection
-} from './auth-helpers';
-import { signInWithOAuth } from './supabase-auth';
+} from './auth-helpers.ts';
+import { signInWithOAuth } from './supabase-auth.ts';
 
 // Re-export types
 export type User = SupabaseUser;

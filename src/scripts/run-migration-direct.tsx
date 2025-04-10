@@ -1,0 +1,21 @@
+import React from "react";
+// Script to run migrations directly using the Supabase edge function
+import { execSync } from "child_process";
+interface RunMigrationDirectProps {}
+
+
+console.log("Running migration directly via edge function...");
+
+try {
+  // Use the environment variables to invoke the edge function
+  const result = execSync(
+    `curl -X POST ${process.env.VITE_SUPABASE_URL}/functions/v1/run_migration -H "Authorization: Bearer ${process.env.VITE_SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_KEY}" -H "Content-Type: application/json"`,
+    { encoding: "utf8" },
+  );
+
+  console.log("Migration result:", result);
+  console.log("Migration completed successfully!");
+} catch (error) {
+  console.error("Error running migration:", error.message);
+  process.exit(1);
+}

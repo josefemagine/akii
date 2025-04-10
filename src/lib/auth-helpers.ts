@@ -3,7 +3,7 @@
  * Provides simplified access to Supabase authentication methods
  */
 
-import { supabase } from './supabase-singleton';
+import { supabase } from "./supabase-singleton.tsx";
 import type { User, Session } from '@supabase/supabase-js';
 import { 
   withAuthLock, 
@@ -12,7 +12,7 @@ import {
   signOutSafely,
   signInWithEmailSafely,
   signUpSafely
-} from './auth-lock-fix';
+} from './auth-lock-fix.ts';
 
 // Define types needed for the response format
 export type AuthResponse<T> = {

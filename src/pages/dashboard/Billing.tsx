@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import useBilling from '@/hooks/useBilling';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import BillingSection from '@/components/billing/BillingSection';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import useBilling from '@/hooks/useBilling.ts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.tsx';
+import BillingSection from '@/components/billing/BillingSection.tsx';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { supabase } from "@/lib/supabase.ts";
 
 // Define the Plan interface
 interface Plan {

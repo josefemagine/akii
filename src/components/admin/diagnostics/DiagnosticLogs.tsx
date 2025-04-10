@@ -1,10 +1,10 @@
 import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Alert } from '@/components/ui/alert';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card.tsx';
+import { ScrollArea } from '@/components/ui/scroll-area.tsx';
+import { Alert } from '@/components/ui/alert.tsx';
 import { CheckCircle2, XCircle, AlertCircle, Info } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { LogMessage } from '@/hooks/useDiagnostics';
+import { cn } from '@/lib/utils.ts';
+import { LogMessage } from '@/hooks/useDiagnostics.ts';
 
 interface DiagnosticLogsProps {
   logs: LogMessage[];

@@ -1,16 +1,16 @@
-import React, { StrictMode } from "./lib/react-singleton";
+import React, { StrictMode } from "./lib/react-singleton.tsx";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "./lib/react-router-singleton";
-import App from "./App";
+import { BrowserRouter } from "./lib/react-router-singleton.tsx";
+import App from "./App.tsx";
 import "./index.css";
 import { TempoDevtools } from "tempo-devtools";
-import { supabase } from '@/lib/supabase-singleton';
+import { supabase } from "@/lib/supabase-singleton.tsx";
 import { Analytics } from "@vercel/analytics/react";
-import { verifyReactSingleton } from "./lib/react-singleton";
-import { patchTempoDevtools, verifyTempoPatch } from './lib/patches/tempo-devtools-react-patch';
-import { setupModuleAliases, verifyModuleAliases } from './lib/module-alias';
-import { patchViteModules, verifyVitePatch } from './lib/vite-module-patch';
-import { verifyRouterPatch } from "./lib/router-patch";
+import { verifyReactSingleton } from "./lib/react-singleton.tsx";
+import { patchTempoDevtools, verifyTempoPatch } from "./lib/patches/tempo-devtools-react-patch.tsx";
+import { setupModuleAliases, verifyModuleAliases } from "./lib/module-alias.tsx";
+import { patchViteModules, verifyVitePatch } from "./lib/vite-module-patch.tsx";
+import { verifyRouterPatch } from "./lib/router-patch.tsx";
 
 // Apply Vite module patch
 patchViteModules();

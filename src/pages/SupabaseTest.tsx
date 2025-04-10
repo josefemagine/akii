@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { supabase } from "@/lib/supabase.tsx";
+import { Button } from '@/components/ui/button.tsx';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card.tsx';
 
 // Implement verifySupabaseConnection directly in this file to avoid dependency issues
 async function verifySupabaseConnection() {

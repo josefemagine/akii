@@ -1,0 +1,9 @@
+import React from "react";
+
+import { dashboardStyles } from "./DashboardPageContainer";
+import { cn } from "@/lib/utils";
+interface DashboardSectionProps {}
+
+export function DashboardSection({ children, className, title, description, requireAuth = true }> {
+    return (<"div", { className: cn(dashboardStyles.sectionSpacing, className>, children: [(title || description> && (<"div", { className: "mb-4", children: [title && <"h2", { className: "text-xl font-semibold", children: title }>, description && <"p", { className: "text-muted-foreground text-sm", children: description }>] }>>, children] }>>;
+}

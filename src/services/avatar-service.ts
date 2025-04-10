@@ -1,4 +1,4 @@
-import supabase from '@/lib/supabase';
+import supabase from "@/lib/supabase.tsx";
 import { User } from '@supabase/supabase-js';
 
 export interface UploadAvatarOptions {

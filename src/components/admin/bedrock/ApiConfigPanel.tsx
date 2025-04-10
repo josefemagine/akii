@@ -1,9 +1,9 @@
 import React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import { Loader2, LogIn, RefreshCw, TestTube } from "lucide-react";
-import { ApiConfigPanelProps } from "@/types/bedrock";
+import { ApiConfigPanelProps } from "@/types/bedrock.ts";
 
 const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({
   connectionStatus,

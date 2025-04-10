@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
-import useDashboardLayoutAuth from "@/hooks/useDashboardLayoutAuth";
-import { useDarkMode } from "@/hooks/useDarkMode";
-import DashboardHeader from "./DashboardHeader";
-import DashboardErrorHandler from "./DashboardErrorHandler";
-import SimpleSidebar from "./Sidebar";
+import { cn } from "@/lib/utils.ts";
+import { DashboardPageContainer } from "@/components/layout/DashboardPageContainer.tsx";
+import useDashboardLayoutAuth from "@/hooks/useDashboardLayoutAuth.ts";
+import { useDarkMode } from "@/hooks/useDarkMode.ts";
+import DashboardHeader from "./DashboardHeader.tsx";
+import DashboardErrorHandler from "./DashboardErrorHandler.tsx";
+import SimpleSidebar from "./Sidebar.tsx";
 import "@/styles/dashboard.css";
 
 interface DashboardLayoutProps {

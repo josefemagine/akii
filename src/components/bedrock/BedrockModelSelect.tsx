@@ -5,9 +5,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { FoundationModel, BedrockModel } from '@/types/bedrock';
+} from '@/components/ui/select.tsx';
+import { Label } from '@/components/ui/label.tsx';
+import { FoundationModel, BedrockModel } from '@/types/bedrock.ts';
 
 interface BedrockModelSelectProps {
   models: FoundationModel[] | BedrockModel[];

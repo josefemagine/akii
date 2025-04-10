@@ -1,4 +1,5 @@
-import React from 'react';
+import React from "react";
+interface AdminSettingsProps {}
 
 export default function AdminSettings() {
   return (
@@ -9,4 +10,4 @@ export default function AdminSettings() {
       </div>
     </div>
   );
-} 
+}

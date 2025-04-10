@@ -1,4 +1,4 @@
-import { debugSupabaseInstances } from "@/lib/supabase";
+import { debugSupabaseInstances } from "@/lib/supabase.tsx";
 
 const SupabaseDebugButton = () => {
   const handleDebugClick = () => {

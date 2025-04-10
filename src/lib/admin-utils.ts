@@ -2,7 +2,7 @@
  * Admin utility functions to ensure reliable admin access and page loading
  */
 
-import { supabase } from './supabase';
+import { supabase } from "./supabase.tsx";
 
 /**
  * Checks all possible admin indicators to determine admin status

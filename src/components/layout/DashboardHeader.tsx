@@ -4,21 +4,21 @@ import {
   Bell, Menu, Search, Settings, User as UserIcon, 
   Moon, Sun, LogOut, ChevronDown 
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { useSearch } from "@/contexts/SearchContext";
-import { toast } from "@/components/ui/use-toast";
-import AkiiLogo from "@/components/shared/AkiiLogo";
-import { UserProfile } from "@/hooks/useDashboardLayoutAuth";
+} from "@/components/ui/dropdown-menu.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { cn } from "@/lib/utils.ts";
+import { useSearch } from "@/contexts/SearchContext.tsx";
+import { toast } from "@/components/ui/use-toast.ts";
+import AkiiLogo from "@/components/shared/AkiiLogo.tsx";
+import { UserProfile } from "@/hooks/useDashboardLayoutAuth.ts";
 
 interface UserDisplayData {
   email?: string;

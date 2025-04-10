@@ -5,7 +5,7 @@
  * dashboard. It checks local storage, authentication state, and network connectivity.
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from "@/lib/supabase.tsx";
 
 interface HealthCheckResult {
   status: 'healthy' | 'unhealthy';

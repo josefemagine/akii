@@ -5,29 +5,12 @@
  * This helps prevent "Invalid hook call" errors caused by multiple React Router instances.
  */
 
-import React from './react-singleton';
+import React from "./react-singleton.ts";
 import * as ReactRouterOriginal from 'react-router';
 import * as ReactRouterDOMOriginal from 'react-router-dom';
 
-// Destructure the components we need to wrap or proxy
-const {
-  BrowserRouter: OriginalBrowserRouter,
-  ...otherReactRouterDOM
-} = ReactRouterDOMOriginal;
-
-// Re-export React Router
-export const ReactRouter = ReactRouterOriginal;
-
-// Safe BrowserRouter implementation
-export function BrowserRouter(props: React.ComponentProps<typeof OriginalBrowserRouter>) {
-  return <OriginalBrowserRouter {...props} />;
-}
-
-// Create a fixed ReactRouterDOM object with our safe implementations
-export const ReactRouterDOM = {
-  ...otherReactRouterDOM,
-  BrowserRouter
-};
+// Simply re-export all exports from react-router and react-router-dom
+// This ensures that we're using a single instance throughout the application
 
 // Re-export all named exports from react-router
 export const {
@@ -39,16 +22,15 @@ export const {
   useParams,
   useLocation,
   useMatch,
-  ...otherReactRouter
 } = ReactRouterOriginal;
 
 // Re-export all named exports from react-router-dom
 export const {
+  BrowserRouter,
   Link,
   NavLink,
   useSearchParams,
-  ...otherReactRouterDOMExports
-} = ReactRouterDOM;
+} = ReactRouterDOMOriginal;
 
 // Re-export types
 export type {
@@ -66,16 +48,8 @@ export type {
   NavLinkProps
 } from 'react-router-dom';
 
-// Export a verification function
-export function verifyReactRouterSingleton() {
-  console.log('React Router singleton verification:');
-  console.log('- ReactRouter:', ReactRouter);
-  console.log('- ReactRouterDOM:', ReactRouterDOM);
-  console.log('- BrowserRouter implementation:', BrowserRouter);
-}
-
-// Default export
+// Default export combining both libraries
 export default {
-  ...ReactRouter,
-  ...ReactRouterDOM
+  ...ReactRouterOriginal,
+  ...ReactRouterDOMOriginal
 }; 

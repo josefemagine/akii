@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "@/components/ui/use-toast";
-import { supabase } from "@/lib/supabase";
-import { getUserProfile, ensureUserProfile } from "@/lib/supabase-auth";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button.tsx";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { toast } from "@/components/ui/use-toast.ts";
+import { supabase } from "@/lib/supabase.tsx";
+import { getUserProfile, ensureUserProfile } from "@/lib/supabase-auth.ts";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import { Alert, AlertDescription } from "@/components/ui/alert.tsx";
 import { AlertCircle, RefreshCw, UserPlus } from "lucide-react";
 
 interface AuthUser {

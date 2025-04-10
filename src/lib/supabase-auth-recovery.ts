@@ -5,8 +5,8 @@
  * that may occur due to token conflicts or multiple client instances.
  */
 
-import { supabase } from './supabase';
-import { detectDuplicateClients } from './detect-client-duplicates';
+import { supabase } from "./supabase.tsx";
+import { detectDuplicateClients } from './detect-client-duplicates.ts';
 
 interface AuthStatus {
   hasSession: boolean;

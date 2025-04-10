@@ -1,22 +1,22 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils.ts";
+import { Button } from "@/components/ui/button.tsx";
 import { Menu, X, Circle, ChevronDown, Monitor, Smartphone, MessageCircle, Send, ShoppingBag, Globe, Puzzle, Share, Workflow } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import MobileNavigation from "./MobileNavigation";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import LoginModal from "@/components/auth/LoginModal";
-import JoinModal from "@/components/auth/JoinModal";
-import PasswordReset from "@/components/auth/PasswordReset";
-import { supabase } from "@/lib/supabase";
-import AkiiLogo from "@/components/shared/AkiiLogo";
-import { toast } from "@/components/ui/use-toast";
+} from "@/components/ui/dropdown-menu.tsx";
+import MobileNavigation from "./MobileNavigation.tsx";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import LoginModal from "@/components/auth/LoginModal.tsx";
+import JoinModal from "@/components/auth/JoinModal.tsx";
+import PasswordReset from "@/components/auth/PasswordReset.tsx";
+import { supabase } from "@/lib/supabase.tsx";
+import AkiiLogo from "@/components/shared/AkiiLogo.tsx";
+import { toast } from "@/components/ui/use-toast.ts";
 
 interface NavLinkProps {
   href: string;

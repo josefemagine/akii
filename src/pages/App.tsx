@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import Dashboard from "./dashboard/Dashboard";
-import Documents from "./dashboard/Documents";
-import Agents from "./dashboard/Agents";
-import AgentSetup from "./dashboard/AgentSetup";
-import Settings from "./dashboard/Settings";
-import AuthCallback from "./auth/callback";
-import MainLayout from "@/components/layout/MainLayout";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { Toaster } from "@/components/ui/toaster";
-import LandingPage from "./LandingPage";
-import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/lib/supabase";
-import { authRecoveryMiddleware, tryRepairAuthIssues } from "@/lib/supabase-auth-recovery";
+import Dashboard from "./dashboard/Dashboard.tsx";
+import Documents from "./dashboard/Documents.tsx";
+import Agents from "./dashboard/Agents.tsx";
+import AgentSetup from "./dashboard/AgentSetup.tsx";
+import Settings from "./dashboard/Settings.tsx";
+import AuthCallback from "./auth/callback.tsx";
+import MainLayout from "@/components/layout/MainLayout.tsx";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { Toaster } from "@/components/ui/toaster.tsx";
+import LandingPage from "./LandingPage.tsx";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { supabase } from "@/lib/supabase.tsx";
+import { authRecoveryMiddleware, tryRepairAuthIssues } from "@/lib/supabase-auth-recovery.ts";
 
 function App() {
   const { user, isLoading } = useAuth();

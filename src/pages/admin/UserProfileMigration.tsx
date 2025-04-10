@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Card,
   CardContent,
@@ -7,9 +7,9 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { supabase } from "@/lib/supabase";
-import { toast } from "@/components/ui/use-toast";
+} from "@/components/ui/card.tsx";
+import { supabase } from "@/lib/supabase.tsx";
+import { toast } from "@/components/ui/use-toast.ts";
 import {
   AlertCircle,
   CheckCircle,
@@ -17,8 +17,8 @@ import {
   PlayCircle,
   RefreshCw,
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
+import { Progress } from "@/components/ui/progress.tsx";
 
 const MigrationSQL = `
 -- Add new columns to profiles table

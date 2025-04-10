@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Button } from "./ui/button";
+import { Button } from "./ui/button.tsx";
 
 interface LoadingScreenProps {
   message?: string;

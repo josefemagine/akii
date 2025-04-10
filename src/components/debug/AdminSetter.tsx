@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
 import { AlertTriangle, Check, User, Shield } from 'lucide-react';
 
 export function AdminSetter() {

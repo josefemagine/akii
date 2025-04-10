@@ -1,4 +1,4 @@
-import { StripeBillingProvider } from './stripe-provider';
+import { StripeBillingProvider } from './stripe-provider.ts';
 
 // Define the BillingProvider interface
 export interface BillingProvider {

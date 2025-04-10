@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ChevronDown, Home } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 
 export interface SidebarItemProps {
   icon: React.ReactNode;

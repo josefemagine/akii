@@ -1,25 +1,19 @@
 import React from "react";
+
 import { Navigate, Outlet } from "react-router-dom";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import { LoadingScreen } from "@/components/LoadingScreen";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import DashboardLayout from "@/components/dashboard/DashboardLayout.tsx";
+import { LoadingScreen } from "@/components/LoadingScreen.tsx";
+interface PrivateRouteProps {}
 
-interface PrivateRouteProps {
-  children?: React.ReactNode;
-}
-
-const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
-  const { user, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <LoadingScreen message="Loading..." />;
-  }
-
-  if (!user) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <DashboardLayout>{children || <Outlet />}</DashboardLayout>;
+const PrivateRoute = ({ children }>: void => {
+    const { user, isLoading } = useAuth(>;
+    if (isLoading> {
+        return <LoadingScreen, { message: "Loading..." }>;
+    }
+    if (!user> {
+        return <Navigate, { to: "/", replace: true }>;
+    }
+    return <DashboardLayout, { children: children || <Outlet, {}> }>;
 };
-
 export default PrivateRoute;

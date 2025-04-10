@@ -6,13 +6,13 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+} from "@/components/ui/dropdown-menu.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import { Bell, Circle, LogOut, Menu, Moon, Shield, Sun, User as UserIcon } from "lucide-react";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { Profile } from "@/types/auth";
-import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { Profile } from "@/types/auth.ts";
+import { useToast } from "@/components/ui/use-toast.ts";
 
 // Default avatar fallback URL
 const DEFAULT_AVATAR_URL = '/assets/default-avatar.png';

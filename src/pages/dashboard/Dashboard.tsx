@@ -5,14 +5,64 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { fetchAnalyticsData, defaultAnalyticsData } from "@/lib/api";
-import type { AnalyticsData } from "@/lib/api";
-import { dashboardStyles, DashboardPageContainer } from "@/components/layout/DashboardPageContainer";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { DashboardSection } from "@/components/layout/DashboardSection";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { supabase } from "@/lib/supabase";
+} from "@/components/ui/card.tsx";
+import { fetchAnalyticsData, defaultAnalyticsData } from "@/lib/api.ts";
+import type { AnalyticsData } from "@/lib/api.ts";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { supabase } from "@/lib/supabase.ts";
+
+// Simplified Section component to avoid imports
+const SectionHeader = ({ title, description }: { title?: React.ReactNode, description?: React.ReactNode }) => (
+  <div className="mb-4">
+    {title && <h2 className="text-xl font-semibold">{title}</h2>}
+    {description && <p className="text-muted-foreground text-sm">{description}</p>}
+  </div>
+);
+
+// Simplified PageHeader component to avoid imports
+const PageHeader = ({ 
+  title, 
+  description, 
+  children, 
+  className 
+}: { 
+  title: React.ReactNode, 
+  description?: React.ReactNode, 
+  children?: React.ReactNode, 
+  className?: string 
+}) => (
+  <div className={`flex items-center justify-between mb-8 ${className || ''}`}>
+    <div>
+      <h1 className="text-3xl font-bold">{title}</h1>
+      {description && (
+        <p className="text-muted-foreground mt-1">{description}</p>
+      )}
+    </div>
+    {children && (
+      <div className="flex items-center gap-2">
+        {children}
+      </div>
+    )}
+  </div>
+);
+
+// Simplified Section component to avoid imports
+const Section = ({ 
+  children, 
+  title, 
+  description, 
+  className 
+}: { 
+  children: React.ReactNode, 
+  title?: React.ReactNode, 
+  description?: React.ReactNode, 
+  className?: string 
+}) => (
+  <div className={`mb-8 ${className || ''}`}>
+    {(title || description) && <SectionHeader title={title} description={description} />}
+    {children}
+  </div>
+);
 
 // Helper function to get time-appropriate greeting
 const getTimeBasedGreeting = (): string => {
@@ -95,6 +145,7 @@ const DashboardContent = ({ analyticsData }: { analyticsData: AnalyticsData }) =
       <PageHeader
         title={personalizedGreeting}
         description="Overview of your private AI Instances and performance"
+        className="mb-6"
       >
         <select
           className="p-2 border rounded-md bg-background"
@@ -107,7 +158,11 @@ const DashboardContent = ({ analyticsData }: { analyticsData: AnalyticsData }) =
       </PageHeader>
 
       {/* Stats Overview Cards */}
-      <DashboardSection>
+      <Section
+        title="Performance Metrics"
+        description="Key metrics for your AI platform"
+        className="mb-6"
+      >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard 
             title="Total Messages" 
@@ -130,10 +185,14 @@ const DashboardContent = ({ analyticsData }: { analyticsData: AnalyticsData }) =
             subtitle="Based on user feedback" 
           />
         </div>
-      </DashboardSection>
+      </Section>
 
       {/* Additional content section */}
-      <DashboardSection>
+      <Section
+        title="Resources"
+        description="Your AI platform tools"
+        className="mb-6"
+      >
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Quick Access</CardTitle>
@@ -206,10 +265,14 @@ const DashboardContent = ({ analyticsData }: { analyticsData: AnalyticsData }) =
             </div>
           </CardContent>
         </Card>
-      </DashboardSection>
+      </Section>
 
       {/* Recent Activity Card */}
-      <DashboardSection>
+      <Section
+        title="Activity"
+        description="Recent interactions with your AI platform"
+        className="mb-6"
+      >
         <Card>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
@@ -251,7 +314,7 @@ const DashboardContent = ({ analyticsData }: { analyticsData: AnalyticsData }) =
             </div>
           </CardContent>
         </Card>
-      </DashboardSection>
+      </Section>
     </div>
   );
 };
@@ -284,23 +347,21 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
   render() {
     if (this.state.hasError) {
       return (
-        <DashboardPageContainer>
-          <div className="p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <h2 className="text-lg font-semibold text-red-800 dark:text-red-300">Dashboard Error</h2>
-            <p className="mt-2 text-sm text-red-700 dark:text-red-300">
-              Something went wrong loading the dashboard. Please try refreshing the page.
-            </p>
-            <pre className="mt-4 p-2 bg-red-100 dark:bg-red-900/40 rounded overflow-auto text-xs">
-              {this.state.error?.toString()}
-            </pre>
-            <button 
-              onClick={() => window.location.reload()}
-              className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-800 dark:hover:bg-red-700 rounded-md text-sm text-red-800 dark:text-red-200"
-            >
-              Refresh Page
-            </button>
-          </div>
-        </DashboardPageContainer>
+        <div className="p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <h2 className="text-lg font-semibold text-red-800 dark:text-red-300">Dashboard Error</h2>
+          <p className="mt-2 text-sm text-red-700 dark:text-red-300">
+            Something went wrong loading the dashboard. Please try refreshing the page.
+          </p>
+          <pre className="mt-4 p-2 bg-red-100 dark:bg-red-900/40 rounded overflow-auto text-xs">
+            {this.state.error?.toString()}
+          </pre>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-800 dark:hover:bg-red-700 rounded-md text-sm text-red-800 dark:text-red-200"
+          >
+            Refresh Page
+          </button>
+        </div>
       );
     }
 
@@ -374,7 +435,7 @@ const Dashboard = () => {
   // Show loading state or content
   return (
     <ErrorBoundary>
-      <DashboardPageContainer>
+      <div className="p-6 bg-background border border-border rounded-lg">
         {isLoading ? (
           <LoadingState />
         ) : (
@@ -395,7 +456,7 @@ const Dashboard = () => {
             <DashboardContent analyticsData={analyticsData || defaultAnalyticsData} />
           </>
         )}
-      </DashboardPageContainer>
+      </div>
     </ErrorBoundary>
   );
 };

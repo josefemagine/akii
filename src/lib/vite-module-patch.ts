@@ -5,7 +5,7 @@
  * to ensure consistent React usage throughout the application.
  */
 
-import React from './react-singleton';
+import React from "./react-singleton.tsx";
 import ReactDOM from 'react-dom';
 import * as ReactDOMClient from 'react-dom/client';
 import * as ReactRouter from 'react-router';

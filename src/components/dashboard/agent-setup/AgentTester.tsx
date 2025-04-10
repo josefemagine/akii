@@ -5,14 +5,14 @@ import {
   CardTitle,
   CardContent,
   CardFooter,
-} from "../../../components/ui/card";
-import { Button } from "../../../components/ui/button";
-import { Textarea } from "../../../components/ui/textarea";
+} from "../../../components/ui/card.tsx";
+import { Button } from "../../../components/ui/button.tsx";
+import { Textarea } from "../../../components/ui/textarea.tsx";
 import {
   Avatar,
   AvatarImage,
   AvatarFallback,
-} from "../../../components/ui/avatar";
+} from "../../../components/ui/avatar.tsx";
 import {
   Send,
   ThumbsUp,

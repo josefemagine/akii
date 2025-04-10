@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { Progress } from "@/components/ui/progress";
+import { Progress } from "@/components/ui/progress.tsx";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
+} from "@/components/ui/card.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
 import { AlertCircle, CheckCircle2, BarChart3, Loader2 } from "lucide-react";
-import { invokeServerFunction } from "@/utils/supabase/functions";
-import { useToast } from "@/components/ui/use-toast";
+import { invokeServerFunction } from "@/utils/supabase/functions.ts";
+import { useToast } from "@/components/ui/use-toast.ts";
 
 interface SubscriptionUsageProps {
   className?: string;

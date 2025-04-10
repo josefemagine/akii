@@ -1,9 +1,9 @@
 /**
  * Authentication recovery utilities
  */
-import { supabase } from '@/lib/supabase';
-import { safeLocalStorage } from '@/lib/browser-check';
-import { EnhancedUser } from '@/types/dashboard';
+import { supabase } from "@/lib/supabase.tsx";
+import { safeLocalStorage } from '@/lib/browser-check.ts';
+import { EnhancedUser } from '@/types/dashboard.ts';
 
 /**
  * Try to recover authentication from localStorage if session is missing

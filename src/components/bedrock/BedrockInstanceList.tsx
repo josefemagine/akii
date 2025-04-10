@@ -1,7 +1,7 @@
 import React from 'react';
-import { BedrockInstance } from '@/types/bedrock';
-import { BedrockInstanceCard } from './BedrockInstanceCard';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { BedrockInstance } from '@/types/bedrock.ts';
+import { BedrockInstanceCard } from './BedrockInstanceCard.tsx';
+import { Alert, AlertDescription } from '@/components/ui/alert.tsx';
 import { AlertCircle } from 'lucide-react';
 
 interface BedrockInstanceListProps {

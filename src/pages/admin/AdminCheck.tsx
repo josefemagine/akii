@@ -1,11 +1,11 @@
 import React from 'react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import AdminCheckComponent from '@/components/dashboard/AdminCheck';
-import withAdminInit from '@/components/admin/withAdminInit';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { diagnoseAdminIssues, enableDevAdminMode } from '@/utils/admin-utils';
-import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
+import AdminCheckComponent from '@/components/dashboard/AdminCheck.tsx';
+import withAdminInit from '@/components/admin/withAdminInit.tsx';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.tsx';
+import { diagnoseAdminIssues, enableDevAdminMode } from '@/utils/admin-utils.ts';
+import { Button } from '@/components/ui/button.tsx';
 
 const AdminCheck: React.FC = () => {
   const { user, isAdmin } = useAuth();

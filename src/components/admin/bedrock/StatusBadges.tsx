@@ -1,6 +1,6 @@
 import React from "react";
-import { Badge } from "@/components/ui/badge";
-import { ConnectionStatus, AuthStatus } from "@/types/bedrock";
+import { Badge } from "@/components/ui/badge.tsx";
+import { ConnectionStatus, AuthStatus } from "@/types/bedrock.ts";
 
 // Status badge component
 export const StatusBadge = ({ status }: { status: string }) => {

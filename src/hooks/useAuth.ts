@@ -1,8 +1,8 @@
 import { useContext, useMemo } from 'react';
-import { AuthContext } from '@/contexts/UnifiedAuthContext';
-import { Profile } from '@/types/auth';
-import { isCompleteProfile } from '@/types/auth';
-import { isAdmin, isTeamOwner } from '@/utils/auth';
+import { AuthContext } from '@/contexts/UnifiedAuthContext.tsx';
+import { Profile } from '@/types/auth.ts';
+import { isCompleteProfile } from '@/types/auth.ts';
+import { isAdmin, isTeamOwner } from '@/utils/auth.ts';
 
 /**
  * Enhanced hook for using auth context with extra computed properties

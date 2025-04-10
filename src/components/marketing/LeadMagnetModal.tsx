@@ -9,8 +9,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+} from "@/components/ui/dialog.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Form,
   FormControl,
@@ -18,8 +18,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+} from "@/components/ui/form.tsx";
+import { Input } from "@/components/ui/input.tsx";
 import { Loader2, Download, CheckCircle } from "lucide-react";
 
 const formSchema = z.object({

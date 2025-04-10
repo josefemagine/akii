@@ -1,8 +1,8 @@
-import { supabase } from '@/lib/supabase';
-import { Profile } from '@/types/auth';
+import { supabase } from "@/lib/supabase.tsx";
+import { Profile } from '@/types/auth.ts';
 import { User, AuthError } from '@supabase/supabase-js';
-import { cacheUserProfile } from './profile-cache';
-import { dispatchAuthError } from './auth-events';
+import { cacheUserProfile } from './profile-cache.ts';
+import { dispatchAuthError } from './auth-events.ts';
 
 // Debug logger
 const log = (...args: any[]) => console.log('[Auth API]', ...args);

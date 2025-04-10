@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CheckCircle, X, Upload, Loader2 } from 'lucide-react';
-import { supabase, getSupabaseClient } from "@/lib/supabase";
+import { supabase, getSupabaseClient } from "@/lib/supabase.tsx";
 
 export interface AvatarManagerProps {
   userId?: string;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
-import { Profile } from '@/types/auth';
+import { supabase } from "@/lib/supabase.tsx";
+import { Profile } from '@/types/auth.ts';
 import { 
   getStoredSession, 
   saveSession, 
@@ -11,7 +11,7 @@ import {
   onAuthStateChange,
   dispatchAuthStateChange,
   dispatchAuthError
-} from '@/utils/auth';
+} from '@/utils/auth.ts';
 
 // Debug logger
 const log = (...args: any[]) => console.log('[useAuthState]', ...args);

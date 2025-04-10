@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Card,
   CardContent,
@@ -7,7 +7,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/ui/card.tsx";
 import {
   Table,
   TableBody,
@@ -15,7 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table.tsx";
 import {
   Dialog,
   DialogContent,
@@ -24,13 +24,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui/dialog.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import { AlertCircle, Copy, Key, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/lib/supabase.tsx";
+import { useToast } from "@/components/ui/use-toast.ts";
 
 interface APIKey {
   id: string;

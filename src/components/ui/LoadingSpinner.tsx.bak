@@ -1,0 +1,11 @@
+import React from "react";
+interface LoadingSpinnerProps {}
+
+
+/**
+ * A simple loading spinner component for inline loading states
+ */
+const LoadingSpinner = (>: void => {
+    return (<"div", { className: "flex items-center justify-center", children: <"div", { className: "w-8 h-8 border-t-2 border-primary rounded-full animate-spin" }> }>>;
+};
+export default LoadingSpinner;

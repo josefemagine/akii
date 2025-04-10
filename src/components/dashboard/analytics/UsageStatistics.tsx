@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { LineChart, BarChart, Activity, TrendingUp } from "lucide-react";
 
 interface UsageStatisticsProps {

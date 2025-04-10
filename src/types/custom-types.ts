@@ -1,5 +1,5 @@
 import { User as SupabaseUser } from '@supabase/supabase-js';
-import { User, UserProfile as CustomUserProfile, Subscription } from './custom';
+import { User, UserProfile as CustomUserProfile, Subscription } from './custom.ts';
 
 // Re-export the User type from custom.ts
 export type { User };

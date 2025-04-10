@@ -1,79 +1,145 @@
-import React from "react";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import SubscriptionPlanCard from "./SubscriptionPlanCard";
-import { User } from "@/types/custom-types";
+import React, { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
+import { Check } from "lucide-react";
 
-type SubscriptionPlansProps = {
-  onSelectPlan: (planId: string) => void;
-};
+interface Plan {
+  id: string;
+  name: string;
+  price: number;
+  features: string[];
+  popular?: boolean;
+  description: string;
+}
 
-export default function SubscriptionPlans({
+interface SubscriptionPlansProps {
+  plans?: Plan[];
+  currentPlanId?: string;
+  onSelectPlan?: (planId: string) => void;
+}
+
+export function SubscriptionPlans({
+  plans = defaultPlans,
+  currentPlanId,
   onSelectPlan,
 }: SubscriptionPlansProps) {
-  const { user: authUser } = useAuth();
-  const user = authUser as User | null;
-  const currentPlan = user?.subscription?.plan || "free";
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(
+    currentPlanId || null
+  );
 
-  const plans = [
-    {
-      id: "pro",
-      name: "Pro",
-      price: "$99",
-      description: "Great for daily AI workflows",
-      messageLimit: 5000,
-      features: [
-        { name: "Full API Access", included: true },
-        { name: "All integrations", included: true },
-        { name: "Pooled GPU-hosted Mistral 7B", included: true },
-      ],
-      highlighted: false,
-    },
-    {
-      id: "scale",
-      name: "Scale",
-      price: "$499",
-      description: "Designed for high-traffic or multi-agent use",
-      messageLimit: 25000,
-      features: [
-        { name: "Full API Access", included: true },
-        { name: "All integrations + advanced tuning", included: true },
-        { name: "Pooled A100 GPU with LLaMA 2 13B", included: true },
-      ],
-      highlighted: true,
-    },
-    {
-      id: "enterprise",
-      name: "Enterprise",
-      price: "Custom",
-      description: "For organizations with advanced needs",
-      messageLimit: 50000,
-      features: [
-        { name: "Full API Access", included: true },
-        { name: "SDKs, custom support", included: true },
-        { name: "Dedicated GPU infrastructure", included: true },
-        { name: "VPC, SLAs, compliance options", included: true },
-      ],
-      highlighted: false,
-      buttonText: "Contact Sales",
-    },
-  ];
+  const handlePlanSelect = (planId: string) => {
+    setSelectedPlanId(planId);
+    if (onSelectPlan) {
+      onSelectPlan(planId);
+    }
+  };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-8">
+    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {plans.map((plan) => (
-        <SubscriptionPlanCard
+        <Card
           key={plan.id}
-          name={plan.name}
-          price={plan.price}
-          description={plan.description}
-          features={plan.features}
-          messageLimit={plan.messageLimit}
-          highlighted={plan.highlighted}
-          onSelect={() => onSelectPlan(plan.id)}
-          buttonText={plan.buttonText}
-          currentPlan={currentPlan === plan.id}
-        />
+          className={`flex flex-col border ${
+            plan.popular
+              ? "border-primary shadow-md dark:border-primary"
+              : "border-border"
+          } ${
+            selectedPlanId === plan.id
+              ? "ring-2 ring-primary ring-offset-2"
+              : ""
+          }`}
+        >
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xl font-bold">{plan.name}</CardTitle>
+              {plan.popular && (
+                <Badge className="bg-primary">Popular</Badge>
+              )}
+            </div>
+            <div className="mt-2 font-medium">
+              <span className="text-3xl">${plan.price}</span>
+              <span className="text-muted-foreground">/month</span>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              {plan.description}
+            </p>
+          </CardHeader>
+          <CardContent className="flex flex-col flex-1">
+            <ul className="space-y-2 flex-1">
+              {plan.features.map((feature, i) => (
+                <li key={i} className="flex items-center">
+                  <Check className="mr-2 h-4 w-4 text-primary" />
+                  <span className="text-sm">{feature}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6">
+              <Button
+                className="w-full"
+                variant={
+                  selectedPlanId === plan.id
+                    ? "default"
+                    : plan.popular
+                    ? "default"
+                    : "outline"
+                }
+                onClick={() => handlePlanSelect(plan.id)}
+                disabled={currentPlanId === plan.id}
+              >
+                {currentPlanId === plan.id
+                  ? "Current Plan"
+                  : selectedPlanId === plan.id
+                  ? "Selected"
+                  : "Select Plan"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       ))}
     </div>
   );
 }
+
+const defaultPlans: Plan[] = [
+  {
+    id: "free",
+    name: "Free",
+    price: 0,
+    description: "Basic features for personal projects",
+    features: [
+      "500 messages per month",
+      "Basic templates",
+      "Community support",
+      "1 project",
+    ],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: 29,
+    description: "Everything you need for a growing business",
+    popular: true,
+    features: [
+      "10,000 messages per month",
+      "Advanced templates",
+      "Priority support",
+      "Unlimited projects",
+      "Team collaboration",
+    ],
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    price: 99,
+    description: "Advanced features for large organizations",
+    features: [
+      "Unlimited messages",
+      "Custom templates",
+      "Dedicated support",
+      "Advanced analytics",
+      "Custom integrations",
+      "SLA guarantees",
+    ],
+  },
+];

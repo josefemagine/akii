@@ -1,5 +1,5 @@
 import { User } from '@supabase/supabase-js';
-import { Database } from './supabase';
+import { Database } from "./supabase.tsx";
 
 /**
  * Standard User Profile interface

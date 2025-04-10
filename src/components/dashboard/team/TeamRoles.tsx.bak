@@ -1,0 +1,73 @@
+import React from "react";
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
+import { Check, X } from "lucide-react";
+interface TeamRolesProps {}
+
+const TeamRoles = (>: void => {
+    const rolePermissions = [
+        {
+            action: "Create and manage AI agents",
+            admin: true,
+            member: true,
+            viewer: false,
+        },
+        {
+            action: "Upload and manage training data",
+            admin: true,
+            member: true,
+            viewer: false,
+        },
+        {
+            action: "View agent conversations",
+            admin: true,
+            member: true,
+            viewer: true,
+        },
+        {
+            action: "Modify agent settings",
+            admin: true,
+            member: true,
+            viewer: false,
+        },
+        {
+            action: "Invite team members",
+            admin: true,
+            member: false,
+            viewer: false,
+        },
+        {
+            action: "Manage team roles",
+            admin: true,
+            member: false,
+            viewer: false,
+        },
+        {
+            action: "View analytics",
+            admin: true,
+            member: true,
+            viewer: true,
+        },
+        {
+            action: "Manage subscription",
+            admin: true,
+            member: false,
+            viewer: false,
+        },
+        {
+            action: "Access API keys",
+            admin: true,
+            member: false,
+            viewer: false,
+        },
+        {
+            action: "Configure integrations",
+            admin: true,
+            member: true,
+            viewer: false,
+        },
+    ];
+    return (<Card, { className: "bg-white dark:bg-gray-950", children: [<CardHeader, { children: [<CardTitle, { children: "Team Roles & Permissions" }>, <CardDescription, { children: "Learn about the different roles and their permissions in your team." }>] }>, <CardContent, { children: <Table, { children: [<TableHeader, { children: <TableRow, { children: [<TableHead, { className: "w-[300px]", children: "Action" }>, <TableHead, { className: "text-center", children: "Admin" }>, <TableHead, { className: "text-center", children: "Member" }>, <TableHead, { className: "text-center", children: "Viewer" }>] }> }>, <TableBody, { children: rolePermissions.map((permission, index> => (<TableRow, { children: [<TableCell, { className: "font-medium", children: permission.action }>, <TableCell, { className: "text-center", children: permission.admin ? (<Check, { className: "h-5 w-5 text-green-500 mx-auto" }>> : (<X, { className: "h-5 w-5 text-red-500 mx-auto" }>> }>, <TableCell, { className: "text-center", children: permission.member ? (<Check, { className: "h-5 w-5 text-green-500 mx-auto" }>> : (<X, { className: "h-5 w-5 text-red-500 mx-auto" }>> }>, <TableCell, { className: "text-center", children: permission.viewer ? (<Check, { className: "h-5 w-5 text-green-500 mx-auto" }>> : (<X, { className: "h-5 w-5 text-red-500 mx-auto" }>> }>] }, index>>> }>] }> }>] }>>;
+};
+export default TeamRoles;

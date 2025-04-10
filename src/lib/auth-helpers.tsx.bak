@@ -1,0 +1,342 @@
+import React from "react";
+/**
+ * Authentication Helper Functions
+ * Provides simplified access to Supabase authentication methods
+ */
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+import { supabase } from './supabase-singleton';
+import { withAuthLock, getSessionSafely, getUserSafely, signOutSafely, signInWithEmailSafely, signUpSafely } from './auth-lock-fix';
+interface auth-helpersProps {}
+
+// Error handling for auth errors
+function handleAuthError(error) {
+    if (!error)
+        return new Error('Unknown error');
+    // Extract the error message from various formats
+    const errorMessage = typeof error === 'string'
+        ? error
+        : error.message || error.error_description || JSON.stringify(error);
+    console.error(`Auth error: ${errorMessage}`);
+    // Check for specific error types
+    if (typeof errorMessage === 'string') {
+        if (errorMessage.includes('Email not confirmed')) {
+            return new Error('Please check your email to confirm your account before signing in.');
+        }
+        if (errorMessage.includes('Invalid login credentials')) {
+            return new Error('Invalid email or password. Please try again.');
+        }
+        if (errorMessage.includes('User already registered')) {
+            return new Error('An account with this email already exists. Please sign in instead.');
+        }
+        if (errorMessage.includes('flow_state_not_found') || errorMessage.includes('PKCE flow')) {
+            return new Error('Authentication flow expired. Please try signing in again.');
+        }
+        if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+            return new Error('Too many attempts. Please wait a moment and try again.');
+        }
+    }
+    // Return the original error or a generic message
+    return error instanceof Error ? error : new Error(errorMessage || 'Authentication error');
+}
+/**
+ * Sign in with email and password
+ */
+export function signIn(email, password) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const result = yield signInWithEmailSafely(email, password);
+            if (result.error)
+                throw result.error;
+            return { data: result.data, error: null };
+        }
+        catch (error) {
+            console.error('Sign in error:', error);
+            return { data: null, error: handleAuthError(error) };
+        }
+    });
+}
+/**
+ * Sign up with email and password
+ */
+export function signUp(email, password, metadata) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const result = yield signUpSafely(email, password, metadata);
+            if (result.error)
+                throw result.error;
+            return { data: result.data, error: null };
+        }
+        catch (error) {
+            console.error('Sign up error:', error);
+            return { data: null, error: handleAuthError(error) };
+        }
+    });
+}
+/**
+ * Sign out the current user
+ * Supports different scopes:
+ * - global (default): terminates all sessions for the user
+ * - local: terminates only the current session
+ * - others: terminates all sessions except the current one
+ */
+export function signOut() {
+    return __awaiter(this, arguments, void 0, function* (scope = 'global') {
+        try {
+            // Clear local tokens first
+            try {
+                if (scope === 'global' || scope === 'local') {
+                    // Clear all supabase related localStorage items
+                    Object.keys(localStorage).forEach(key => {
+                        if (key.includes('supabase') ||
+                            key.includes('sb-') ||
+                            key.includes('akii-auth') ||
+                            key.includes('token') ||
+                            key.includes('auth')) {
+                            localStorage.removeItem(key);
+                        }
+                    });
+                }
+            }
+            catch (e) {
+                console.warn('Error clearing local tokens:', e);
+            }
+            // Call the official signOut method with the specified scope
+            // Cast the result to ensure TypeScript recognizes the error property
+            const result = yield signOutSafely({ scope });
+            if (result.error)
+                throw result.error;
+            return { error: null };
+        }
+        catch (error) {
+            console.error(`Sign out error (scope: ${scope}):`, error);
+            return { error: handleAuthError(error) };
+        }
+    });
+}
+/**
+ * Get the current user session
+ */
+export function getCurrentSession() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { data, error } = yield getSessionSafely();
+            if (error)
+                throw error;
+            return { data: data.session, error: null };
+        }
+        catch (error) {
+            console.error('Get session error:', error);
+            return { data: null, error: handleAuthError(error) };
+        }
+    });
+}
+/**
+ * Get the current user
+ */
+export function getCurrentUser() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { data, error } = yield getUserSafely();
+            if (error)
+                throw error;
+            return { data: data.user, error: null };
+        }
+        catch (error) {
+            console.error('Get user error:', error);
+            return { data: null, error: handleAuthError(error) };
+        }
+    });
+}
+/**
+ * Exchange auth code for session in PKCE flow
+ */
+export function exchangeCodeForSession(code) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const result = yield withAuthLock(() => supabase.auth.exchangeCodeForSession(code), 'exchangeCodeForSession');
+            if (result.error)
+                throw result.error;
+            return { data: result.data, error: null };
+        }
+        catch (error) {
+            console.error('Exchange code error:', error);
+            return { data: null, error: handleAuthError(error) };
+        }
+    });
+}
+/**
+ * Reset password for email
+ */
+export function resetPasswordForEmail(email) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const result = yield withAuthLock(() => supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/update-password`
+            }), 'resetPassword');
+            if (result.error)
+                throw result.error;
+            return { data: result.data, error: null };
+        }
+        catch (error) {
+            console.error('Reset password error:', error);
+            return { data: null, error: handleAuthError(error) };
+        }
+    });
+}
+/**
+ * Update the current user's password
+ */
+export function updatePassword(password) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const result = yield withAuthLock(() => supabase.auth.updateUser({ password }), 'updatePassword');
+            if (result.error)
+                throw result.error;
+            return { data: result.data, error: null };
+        }
+        catch (error) {
+            console.error('Update password error:', error);
+            return { data: null, error: handleAuthError(error) };
+        }
+    });
+}
+/**
+ * Get a user's profile
+ */
+export function getUserProfile(userId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (!userId) {
+                throw new Error("User ID is required");
+            }
+            const { data, error } = yield supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+            if (error)
+                throw error;
+            return { data: data, error: null };
+        }
+        catch (error) {
+            console.error('Get user profile error:', error);
+            return { data: null, error: error };
+        }
+    });
+}
+/**
+ * Ensure a user profile exists, creating it if needed
+ */
+export function ensureUserProfile(userId, email) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (!userId) {
+                throw new Error("User ID is required");
+            }
+            // First check if profile exists
+            const { data: existingProfile, error: checkError } = yield getUserProfile(userId);
+            if (checkError)
+                throw checkError;
+            // If profile exists, return it
+            if (existingProfile) {
+                return { data: existingProfile, error: null };
+            }
+            // Otherwise create a new profile
+            const newProfile = {
+                id: userId,
+                email: email || '',
+                role: 'user',
+                status: 'active',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            const { error: insertError } = yield supabase
+                .from('profiles')
+                .insert(newProfile);
+            if (insertError)
+                throw insertError;
+            return { data: newProfile, error: null };
+        }
+        catch (error) {
+            console.error('Ensure user profile error:', error);
+            return { data: null, error: error };
+        }
+    });
+}
+/**
+ * Update a user's profile
+ */
+export function updateUserProfile(userId, updates) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            if (!userId) {
+                throw new Error("User ID is required");
+            }
+            // Add updated_at timestamp
+            const updatedData = Object.assign(Object.assign({}, updates), { updated_at: new Date().toISOString() });
+            const { data, error } = yield supabase
+                .from('profiles')
+                .update(updatedData)
+                .eq('id', userId)
+                .select()
+                .single();
+            if (error)
+                throw error;
+            return { data: data, error: null };
+        }
+        catch (error) {
+            console.error('Update user profile error:', error);
+            return { data: null, error: error };
+        }
+    });
+}
+/**
+ * Set a user's role
+ */
+export function setUserRole(userId, role) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return updateUserProfile(userId, { role });
+    });
+}
+/**
+ * Set a user's status
+ */
+export function setUserStatus(userId, status) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return updateUserProfile(userId, { status });
+    });
+}
+/**
+ * Verify the connection to Supabase
+ */
+export function verifySupabaseConnection() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const start = Date.now();
+            const { data, error } = yield supabase.auth.getSession();
+            const latency = Date.now() - start;
+            return {
+                success: !error,
+                latency,
+                sessionExists: !!(data === null || data === void 0 ? void 0 : data.session),
+                error: error ? error.message : null
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                latency: 0,
+                sessionExists: false,
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    });
+}

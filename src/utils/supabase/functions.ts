@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/components/ui/use-toast.ts';
 
 // Ensure we have the environment variables we need
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

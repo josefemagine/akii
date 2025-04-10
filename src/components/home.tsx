@@ -1,6 +1,6 @@
 import React from "react";
 import { Outlet } from "react-router-dom";
-import DashboardOverview from "./dashboard/DashboardOverview";
+import DashboardOverview from "./dashboard/DashboardOverview.tsx";
 
 interface SidebarLinkProps {
   icon: React.ReactNode;

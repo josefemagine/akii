@@ -2,5 +2,5 @@
  * Dashboard utilities index file
  */
 
-export * from './profile-utils';
-export * from './auth-recovery'; 
+export * from './profile-utils.ts';
+export * from './auth-recovery.ts'; 

@@ -11,7 +11,7 @@ import {
   getSupabaseClient,
   getAdminClient,
   getAuth
-} from "./supabase-singleton";
+} from "./supabase-singleton.tsx";
 
 // Import from auth-helpers
 import {
@@ -29,7 +29,7 @@ import {
   type UserRole,
   type UserStatus,
   type AuthResponse
-} from "./auth-helpers";
+} from "./auth-helpers.ts";
 
 // Add the missing function that's causing the error
 export async function checkUserStatus(userId: string): Promise<AuthResponse<UserStatus>> {

@@ -1,31 +1,31 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button.tsx";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import { AlertCircle, RefreshCw, Trash2, Code, AlertTriangle, Settings, Loader2, LogIn, Database, TestTube, InfoIcon } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/components/ui/use-toast.ts";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert.tsx";
 import { useNavigate } from 'react-router-dom';
-import { EnvConfig } from "@/lib/env-config";
-import { BedrockClient } from "@/lib/supabase-bedrock-client";
-import { createBedrockClient } from "@/lib/aws-bedrock-client";
-import { BedrockConfig } from "@/lib/bedrock-config";
+import { EnvConfig } from "@/lib/env-config.ts";
+import { BedrockClient } from "@/lib/supabase-bedrock-client.tsx";
+import { createBedrockClient } from "@/lib/aws-bedrock-client.tsx";
+import { BedrockConfig } from "@/lib/bedrock-config.tsx";
 // Use the singleton client to avoid duplicate GoTrueClient instances
-import supabaseSingleton from "@/lib/supabase-singleton";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import AwsPermissionTester from '../../components/aws-permission-tester';
-import { useUser } from '@/contexts/UserContext';
-import { initBedrockClientWithSupabaseCredentials } from '@/lib/supabase-aws-credentials';
+import supabaseSingleton from "@/lib/supabase-singleton.tsx";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog.tsx";
+import AwsPermissionTester from '../../components/aws-permission-tester.tsx';
+import { useUser } from '@/contexts/UserContext.tsx';
+import { initBedrockClientWithSupabaseCredentials } from '@/lib/supabase-aws-credentials.tsx';
 import { CheckCircle2 } from 'lucide-react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import AWSTestConnectionModal from "@/components/aws/AWSTestConnectionModal";
-import { default as ErrorBoundaryComponent } from "@/components/admin/bedrock/ErrorBoundary";
-import { default as DashboardContent } from "@/components/admin/bedrock/BedrockDashboardContent";
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import AWSTestConnectionModal from "@/components/aws/AWSTestConnectionModal.tsx";
+import { default as ErrorBoundaryComponent } from "@/components/admin/bedrock/ErrorBoundary.tsx";
+import { default as DashboardContent } from "@/components/admin/bedrock/BedrockDashboardContent.tsx";
 
 // Plan configuration - maps to AWS Bedrock models and commitment options
 const planConfig = {

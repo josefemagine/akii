@@ -1,16 +1,16 @@
 import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
+} from "@/components/ui/card.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { Copy, ExternalLink } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast.ts";
 
 export default function APIDocumentation() {
   const [activeTab, setActiveTab] = useState("overview");

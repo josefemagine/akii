@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
 import {
   Dialog,
   DialogContent,
@@ -13,13 +13,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+} from "@/components/ui/dialog.tsx";
+import { Alert, AlertDescription } from "@/components/ui/alert.tsx";
 import { Loader2 } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "@/components/ui/use-toast";
-import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from '@/types/auth';
-import { supabase } from "@/lib/supabase";
+import { Separator } from "@/components/ui/separator.tsx";
+import { toast } from "@/components/ui/use-toast.ts";
+import { AUTH_STATE_CHANGE_EVENT, type AuthStateChangeEvent } from '@/types/auth.ts';
+import { supabase } from "@/lib/supabase.tsx";
 
 const joinSchema = z
   .object({

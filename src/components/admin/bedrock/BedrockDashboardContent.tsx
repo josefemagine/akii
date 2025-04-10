@@ -1,19 +1,19 @@
 import React from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
+import { Button } from "@/components/ui/button.tsx";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Label } from "@/components/ui/label.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import { AlertCircle, Loader2, RefreshCw, Trash2 } from "lucide-react";
-import { BedrockDashboardContentProps } from "@/types/bedrock";
-import { StatusBadge } from "./StatusBadges";
-import { AwsCredentialsNotice, MockDataNotice, ServerErrorNotice } from "./NoticeComponents";
-import ApiConfigPanel from "./ApiConfigPanel";
-import TestModal from "./TestModal";
-import ModelFilters from "./ModelFilters";
-import InstanceSkeleton from "./InstanceSkeleton";
+import { BedrockDashboardContentProps } from "@/types/bedrock.ts";
+import { StatusBadge } from "./StatusBadges.tsx";
+import { AwsCredentialsNotice, MockDataNotice, ServerErrorNotice } from "./NoticeComponents.tsx";
+import ApiConfigPanel from "./ApiConfigPanel.tsx";
+import TestModal from "./TestModal.tsx";
+import ModelFilters from "./ModelFilters.tsx";
+import InstanceSkeleton from "./InstanceSkeleton.tsx";
 
 const BedrockDashboardContent: React.FC<BedrockDashboardContentProps> = ({ 
   loading, 

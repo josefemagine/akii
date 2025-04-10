@@ -1,34 +1,37 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Badge } from '@/components/ui/badge.tsx';
+import { Switch } from '@/components/ui/switch.tsx';
+import { Label } from '@/components/ui/label.tsx';
 import { CreditCard, Calendar, BarChart, ExternalLink, ArrowRight } from 'lucide-react';
-import { billingProvider } from '@/lib/billing-providers';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { useToast } from '@/components/ui/use-toast';
+import { billingProvider } from '@/lib/billing-providers.ts';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
+import { useToast } from '@/components/ui/use-toast.ts';
 
-// Define props interface for BillingSection component
+interface Plan {
+  id: string;
+  name: string;
+  description: string;
+  messageLimit: number;
+  priceMonthly: number;
+  priceAnnual: number;
+}
+
+interface SubscriptionData {
+  status: string;
+  planId: string;
+  planName: string;
+  messageLimit: number;
+  billingCycle: 'monthly' | 'annual';
+  currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean;
+}
+
 interface BillingSectionProps {
-  subscriptionData: {
-    status: string;
-    planId: string;
-    planName: string;
-    messageLimit: number;
-    billingCycle: 'monthly' | 'annual';
-    currentPeriodEnd: Date | null;
-    cancelAtPeriodEnd: boolean;
-  };
-  plans: Array<{
-    id: string;
-    name: string;
-    description: string;
-    messageLimit: number;
-    priceMonthly: number;
-    priceAnnual: number;
-  }>;
+  subscriptionData: SubscriptionData;
+  plans: Plan[];
 }
 
 export default function BillingSection({ subscriptionData, plans }: BillingSectionProps) {
@@ -36,13 +39,11 @@ export default function BillingSection({ subscriptionData, plans }: BillingSecti
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(
-    subscriptionData?.billingCycle || 'monthly'
-  );
+  const [billingCycle, setBillingCycle] = useState(subscriptionData?.billingCycle || 'monthly');
 
   // Get current plan details
   const currentPlan = plans.find(plan => plan.id === subscriptionData?.planId);
-  
+
   // Format date
   const formatDate = (date: Date | null) => {
     if (!date) return 'N/A';
@@ -114,9 +115,7 @@ export default function BillingSection({ subscriptionData, plans }: BillingSecti
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>Subscription Details</CardTitle>
-            <CardDescription>
-              Manage your subscription and billing settings
-            </CardDescription>
+            <CardDescription>Manage your subscription and billing settings</CardDescription>
           </div>
           {subscriptionData?.status && (
             <Badge variant="outline" className={getStatusColor(subscriptionData.status)}>
@@ -126,7 +125,6 @@ export default function BillingSection({ subscriptionData, plans }: BillingSecti
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Current Plan */}
         {currentPlan ? (
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
@@ -136,14 +134,10 @@ export default function BillingSection({ subscriptionData, plans }: BillingSecti
                   {currentPlan.name} ({billingCycle === 'annual' ? 'Annual' : 'Monthly'})
                 </p>
               </div>
-              
               <div className="flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-muted-foreground" />
                 <span>
-                  {formatCurrency(
-                    billingCycle === 'annual' ? currentPlan.priceAnnual / 12 : currentPlan.priceMonthly
-                  )}{' '}
-                  / month{' '}
+                  {formatCurrency(billingCycle === 'annual' ? currentPlan.priceAnnual / 12 : currentPlan.priceMonthly)} / month{' '}
                   {billingCycle === 'annual' && (
                     <span className="text-muted-foreground text-sm">
                       (billed annually at {formatCurrency(currentPlan.priceAnnual)})
@@ -151,7 +145,6 @@ export default function BillingSection({ subscriptionData, plans }: BillingSecti
                   )}
                 </span>
               </div>
-              
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <span>
@@ -160,13 +153,11 @@ export default function BillingSection({ subscriptionData, plans }: BillingSecti
                     : `Renews on ${formatDate(subscriptionData.currentPeriodEnd)}`}
                 </span>
               </div>
-              
               <div className="flex items-center gap-2">
                 <BarChart className="h-4 w-4 text-muted-foreground" />
                 <span>{currentPlan.messageLimit.toLocaleString()} messages / month</span>
               </div>
             </div>
-            
             <div className="flex flex-col justify-center space-y-4">
               <div className="flex flex-col items-center justify-center space-y-2 p-4 border rounded-md border-dashed">
                 <div className="flex items-center space-x-2">
@@ -188,13 +179,11 @@ export default function BillingSection({ subscriptionData, plans }: BillingSecti
                     : 'Switch to annual billing and save 16%'}
                 </p>
               </div>
-              
               <div className="flex flex-col space-y-2">
                 <Button onClick={handleManageSubscription} disabled={loading} className="w-full">
                   {loading ? 'Loading...' : 'Manage Subscription'}
                   <ExternalLink className="ml-2 h-4 w-4" />
                 </Button>
-                
                 <Button onClick={handleChangePlan} variant="outline" className="w-full">
                   Change Plan
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -204,9 +193,7 @@ export default function BillingSection({ subscriptionData, plans }: BillingSecti
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className="text-muted-foreground mb-4">
-              You don't have an active subscription
-            </p>
+            <p className="text-muted-foreground mb-4">You don't have an active subscription</p>
             <Button onClick={handleChangePlan}>
               View Plans
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -216,4 +203,4 @@ export default function BillingSection({ subscriptionData, plans }: BillingSecti
       </CardContent>
     </Card>
   );
-} 
+}

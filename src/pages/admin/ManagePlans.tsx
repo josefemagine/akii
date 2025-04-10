@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/lib/supabase';
-import { stripeAdminClient } from '@/lib/stripe-admin-client';
+import { useToast } from '@/components/ui/use-toast.ts';
+import { supabase } from "@/lib/supabase.tsx";
+import { stripeAdminClient } from '@/lib/stripe-admin-client.ts';
 import {
   Card,
   CardContent,
@@ -12,7 +12,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from '@/components/ui/card.tsx';
 import {
   Dialog,
   DialogContent,
@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
+} from '@/components/ui/dialog.tsx';
 import {
   Form,
   FormControl,
@@ -30,7 +30,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
+} from '@/components/ui/form.tsx';
 import {
   Table,
   TableBody,
@@ -38,19 +38,19 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@/components/ui/table.tsx';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from '@/components/ui/select.tsx';
+import { Input } from '@/components/ui/input.tsx';
+import { Button } from '@/components/ui/button.tsx';
+import { Textarea } from '@/components/ui/textarea.tsx';
+import { Switch } from '@/components/ui/switch.tsx';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.tsx';
 import { AlertCircle, CheckCircle, PlusCircle, RefreshCw, Trash2 } from 'lucide-react';
 
 // Define the plan schema for form validation

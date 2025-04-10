@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { cn } from "@/lib/utils";
-import { safeLocalStorage } from "@/lib/browser-check";
+import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
+import { cn } from "@/lib/utils.ts";
+import { safeLocalStorage } from "@/lib/browser-check.ts";
 import {
   Home,
   FileText,

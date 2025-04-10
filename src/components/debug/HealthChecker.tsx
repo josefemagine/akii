@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { runDashboardHealthCheck, fixCommonDashboardIssues } from '@/lib/dashboard-health';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
+import { runDashboardHealthCheck, fixCommonDashboardIssues } from '@/lib/dashboard-health.ts';
+import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
 
 interface HealthCheckerProps {
   position?: 'top-right' | 'bottom-right' | 'top-left' | 'bottom-left';

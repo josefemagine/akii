@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { Shield, AlertCircle, CheckCircle, Filter } from "lucide-react";
 
 interface ContentModerationProps {
