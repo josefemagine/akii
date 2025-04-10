@@ -596,6 +596,24 @@ Deno.serve(async (req) => {
           return createErrorResponse("Admin role required for super actions", 403);
         }
 
+        //check the check parameter
+        const { check } = req.url.includes('?')
+        ? Object.fromEntries(new URL(req.url).searchParams.entries())
+        : {};
+
+        if(check === "true"){
+          return createSuccessResponse({
+            message: "Super-action is healthy",
+          });
+        }
+
+
+        if(!body.action){
+          return createErrorResponse({
+            error: "Action is required",
+            status: 400
+          },400)
+        }
         // Execute the requested action
         let result;
         switch (body.action) {

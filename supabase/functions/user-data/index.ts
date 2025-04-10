@@ -1,29 +1,47 @@
-import serve from "https://deno.land/std@0.168.0/http/server.ts";
-import { query, queryOne, execute } from "../_shared/postgres.ts";
-import createClient from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.js"; // Kept for auth
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { queryOne } from "../_shared/postgres.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Initialize Supabase client for auth only
-const supabaseUrl = "https://injxxchotrvgvvzelhvj.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imluanh4Y2hvdHJ2Z3Z2emVsaHZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMxODcxODMsImV4cCI6MjA1ODc2MzE4M30.i4oE_xcL6jo7MihdMiYXmxu2ytzopHR3Vrv19Wwob4w";
+// Fetch Supabase URL and anon key from environment variables
+const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+// Initialize Supabase client
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-serve(async (req) => {
+serve(async (req: Request) => {
+  console.log("[API] user-data edge function running");
+  // Log headers
+  const headers = {};
+  for (const [key, value] of req.headers.entries()) {
+    headers[key] = value;
+  }
+  console.log("[API] Request headers:", headers);
+  
+  // Log before getting the user
+  console.log("[API] Attempting to get user data");
   // Get the current user's ID
-  const { data: user, error: userError } = await supabase.auth.getUser();
-  if (userError || !user.data) {
+  const { data: user, error: userError } = await supabase.auth.getUser()
+  .catch((err) => {
+      console.error("[API] Error getting user:", err);
+      return {data: {user: null}, error: err};
+  });
+  if (userError || !user.user) {
+    console.log("[API] User not authenticated or error getting user:", userError);
     return new Response(JSON.stringify({
-      error: "User not authenticated"
+        error: "User not authenticated",
+        details: userError?.message,
+        headers: headers
     }), {
       status: 401,
       headers: { "Content-Type": "application/json" }
     });
   }
   
-  const userId = user.data.id;
+  const userId: string = user.user.id;  
+  console.log("[API] User ID retrieved:", userId);
   
   // Handle GET request - fetch user profile data
-  if (req.method === "GET") {
-    try {
+  if (req.method === "GET") {    
+     try {
       // Use direct database query to fetch user profile with is_super_admin status
       const sql = `
         SELECT 
@@ -46,28 +64,34 @@ serve(async (req) => {
           p.id = $1
       `;
       
+      console.log("[API] Executing database query for user profile");
       const userData = await queryOne(sql, [userId]);
+      console.log("[API] Database query completed");
       
       if (!userData) {
+        console.log("[API] User profile not found for user ID:", userId);
         return new Response(JSON.stringify({
           error: "User profile not found"
         }), {
           status: 404,
           headers: { "Content-Type": "application/json" }
         });
-      }
-      
+      }      
+      console.log("[API] Returning user profile:", userData);
       return new Response(JSON.stringify(userData), {
         status: 200,
         headers: { "Content-Type": "application/json" }
       });
     } catch (error) {
+      console.error("[API] Error during database operations:", error);
       console.error("Database query error:", error);
       return new Response(JSON.stringify({
-        error: "Database error occurred"
+        error: "Database error occurred",
+        details: error.message,
+        stack: error.stack
       }), {
         status: 500,
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json" },
       });
     }
   } 
@@ -96,7 +120,7 @@ serve(async (req) => {
         }
       }
       
-      // Add updated_at timestamp
+      // Add updated_at timestamp to the profile table
       const currentTimestamp = new Date().toISOString();
       if (setClause) setClause += ", ";
       setClause += `updated_at = $${paramIndex}`;
@@ -117,9 +141,11 @@ serve(async (req) => {
         RETURNING *
       `;
       
+      console.log("[API] Executing database update for user profile");
       const updatedProfile = await queryOne(updateSql, queryParams);
+      console.log("[API] Database update completed");
       
-      if (!updatedProfile) {
+      if (!updatedProfile) {        
         return new Response(JSON.stringify({
           error: "Failed to update profile"
         }), {
@@ -127,13 +153,16 @@ serve(async (req) => {
           headers: { "Content-Type": "application/json" }
         });
       }
-      
+      console.log("[API] Returning updated user profile:", updatedProfile);
       return new Response(JSON.stringify({
         message: "Profile updated successfully",
         profile: updatedProfile
       }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
+      }).catch((err)=>{
+        console.error("[API] Error returning response", err);
+        return null;
       });
     } catch (error) {
       console.error("Database update error:", error);
@@ -147,6 +176,7 @@ serve(async (req) => {
   }
   
   // Handle any other HTTP methods
+  console.log("[API] Method not allowed");
   return new Response(JSON.stringify({
     error: "Method not allowed"
   }), {
@@ -154,3 +184,4 @@ serve(async (req) => {
     headers: { "Content-Type": "application/json" }
   });
 });
+

@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase.tsx";
 import { useNavigate } from 'react-router-dom';
 import { useDebouncedCallback } from 'use-debounce';
 import { sleep } from '@/lib/utils/sleep.ts';
-import { withRequestLock } from '@/lib/request-lock.ts';
+
 import { 
   AuthContextType,
   Profile,
@@ -187,6 +187,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const lastProfileFetch = useRef<number>(0);
   const profileFetchRetries = useRef<number>(0);
   
+  const userRepository = new UserRepository();
+
   const navigate = useNavigate();
 
   // Debounced version of setIsLoading to avoid quick flashes
@@ -250,7 +252,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Determine admin status using REST API first (most reliable)
       try {
         log(`Checking admin status via REST API for user ${newProfile.id}`);
-        const isAdminViaREST = await UserRepository.checkAdminStatusREST(newProfile.id);
+        const isAdminViaREST = await userRepository.checkAdminStatusREST(newProfile.id);
         
         if (isAdminViaREST) {
           log(`REST API confirms user ${newProfile.id} is admin`);

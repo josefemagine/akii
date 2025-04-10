@@ -48,79 +48,138 @@ export class UserRepository {
    */
   static async getProfile(userId: string): Promise<UserProfile | null> {
     try {
-      console.log('[UserRepository] Getting profile for user:', userId);
+      // Check if supabase client is available
+      if(!supabase){
+        console.error('[UserRepository] getProfile - Supabase client not available');
+        return null;
+      }
+
       
       // Get current auth session first to obtain token
-      const { data: sessionData } = await supabase.auth.getSession();
-      
-      if (!sessionData?.session?.access_token) {
-        console.error('[UserRepository] No valid auth session, cannot query profiles');
+      let { data: sessionData, error: getSessionError } = await supabase.auth.getSession();
+      console.log('[UserRepository] getProfile - session data:', sessionData);
+
+      if (getSessionError) {
+        console.error('[UserRepository] Error getting session:', getSessionError);
         return null;
       }
       
-      console.log('[UserRepository] Making direct REST API request to profiles table');
-      
-      // Following Supabase REST API best practices
-      // Reference: https://supabase.com/docs/guides/api/creating-routes
-      const apiUrl = `${supabase.supabaseUrl}/rest/v1/profiles?id=eq.${userId}`;
-      
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'apikey': supabase.supabaseKey,
-          'Authorization': `Bearer ${sessionData.session.access_token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      });
-      
-      // Check response status
-      if (!response.ok) {
-        console.error('[UserRepository] REST API error:', response.status, response.statusText);
+      //Check if session is available
+      if (!sessionData?.session?.access_token) {
+        console.error('[UserRepository] getProfile - No valid auth session, attempting to refresh');
         
-        // If not found (404), handle profile creation
-        if (response.status === 404 || response.status === 406) {
-          return this.createNewProfile(userId);
+        const { data: refreshedSessionData, error: refreshError } = await supabase.auth.refreshSession()
+        if(refreshError) {
+          console.error('[UserRepository] getProfile - Failed to refresh session', refreshError)
+          return null;
         }
+        console.log('[UserRepository] getProfile - Session refreshed')
+        sessionData = refreshedSessionData
         
-        throw new Error(`REST API error: ${response.status} ${response.statusText}`);
+      }
+
+      //Check if session is now available
+      if (!sessionData?.session?.access_token) {
+        console.error('[UserRepository] getProfile - No valid auth session after refresh, cannot query profiles');
+        return null;
+      }
+
+      
+      let fetchResponse = null;
+      let apiUrl = `${supabase.supabaseUrl}/rest/v1/profiles?id=eq.${userId}`;
+      try {
+          // Reference: https://supabase.com/docs/guides/api/creating-routes
+          const apiUrl = `${supabase.supabaseUrl}/rest/v1/profiles?id=eq.${userId}`;
+          
+          const fetchParams = {
+            method: 'GET',
+            headers: {
+              'apikey': supabase.supabaseKey,
+              'Authorization': `Bearer ${sessionData.session.access_token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            }
+          };
+          
+          fetchResponse = await fetch(apiUrl, fetchParams);
+          
+          // Check response status
+          if (!fetchResponse.ok) {
+            if (fetchResponse.status === 401) {
+              console.error('[UserRepository] getProfile - 401 Unauthorized error. Attempting to refresh session.');
+              
+              const { data: refreshedSessionData, error: refreshError } = await supabase.auth.refreshSession()
+              if(refreshError) {
+                console.error('[UserRepository] getProfile - Failed to refresh session after 401:', refreshError)
+                throw refreshError;
+              }
+              console.log('[UserRepository] getProfile - Session refreshed after 401, retrying')
+              sessionData = refreshedSessionData
+              fetchParams.headers['Authorization'] = `Bearer ${sessionData.session?.access_token}`;
+              fetchResponse = await fetch(apiUrl, fetchParams);
+            } else {
+              const responseText = await fetchResponse.text();
+              console.error('[UserRepository] getProfile -  REST API error:', fetchResponse.status, fetchResponse.statusText, {response: fetchResponse, responseText: responseText});
+            }
+            
+
+            // If not found (404) or not acceptable (406), handle profile creation
+            if (fetchResponse.status === 404 || fetchResponse.status === 406) {
+              return this.createNewProfile(userId);
+            }
+            const responseText = await fetchResponse.text();
+            console.error('[UserRepository] response.text', responseText);
+            throw new Error(`REST API error: ${fetchResponse.status} ${fetchResponse.statusText}`);
+          }
+      } catch(error) {
+          console.error('[UserRepository] getProfile - Error while fetching', error);
+          if(fetchResponse){
+            console.error('[UserRepository] getProfile - fetch response', fetchResponse)
+          }
+          
+          if (error instanceof Error) {
+            console.error('[UserRepository] getProfile - Error object:', error);
+          }
+          throw error;
       }
       
+      const response = fetchResponse
       const data = await response.json();
-      console.log('[UserRepository] REST API response:', data);
+
       
       if (Array.isArray(data) && data.length > 0) {
-        const profile = this.mapProfileData(data[0]);
-        console.log('[UserRepository] Mapped profile:', profile);
-        return profile;
+        return this.mapProfileData(data[0]);
       } else {
-        console.log('[UserRepository] No profile found, creating new profile');
         return this.createNewProfile(userId);
       }
     } catch (err) {
-      console.error('[UserRepository] Exception getting profile:', err);
-      
+      console.error('[UserRepository] getProfile - Exception getting profile:', err);
+
+      if (err instanceof Error) {
+        console.error('[UserRepository] getProfile - Error object:', err);
+      }
       // Last attempt using standard supabase client
       try {
-        console.log('[UserRepository] Trying standard Supabase client as fallback');
+        console.error('[UserRepository] getProfile - Trying standard Supabase client as fallback');
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', userId)
           .single();
         
-        if (error) {
-          console.error('[UserRepository] Fallback error:', error);
+        if (error || !data) {
+          console.error('[UserRepository] getProfile - Fallback error:', error);
           return null;
         }
         
         if (data) {
           return this.mapProfileData(data);
         }
-      } catch (fallbackErr) {
+      } catch (fallbackErr: any) {
         console.error('[UserRepository] Fallback exception:', fallbackErr);
       }
-      
+
+
       return null;
     }
   }
@@ -129,18 +188,15 @@ export class UserRepository {
    * Helper method to create a new profile
    */
   private static async createNewProfile(userId: string): Promise<UserProfile | null> {
-    try {
-      console.log('[UserRepository] Creating new profile for user:', userId);
+      console.log('[UserRepository] createNewProfile - Creating new profile for user:', userId);
       
       // Get user data
       const { data: userData } = await supabase.auth.getUser();
-      
-      if (!userData?.user) {
+      if (!userData || !userData.user) {
         console.error('[UserRepository] No user data available for profile creation');
         return null;
       }
       
-      // Create profile matching the database schema based on actual table definition
       const newProfile = {
         id: userId,
         email: userData.user.email || '',
@@ -153,13 +209,10 @@ export class UserRepository {
         updated_at: new Date().toISOString()
       };
       
-      console.log('[UserRepository] Attempting to insert new profile:', newProfile);
-      
-      // Use REST API directly for creation to ensure consistency
-      const { data: sessionData } = await supabase.auth.getSession();
-      
-      if (!sessionData?.session?.access_token) {
-        throw new Error('No valid auth session for profile creation');
+       // Use REST API directly for creation to ensure consistency
+       const { data: sessionData, error: getSessionError } = await supabase.auth.getSession();
+       if(getSessionError || !sessionData.session || !sessionData.session.access_token){
+          throw new Error(`No valid auth session for profile creation: ${getSessionError}`)
       }
       
       const apiUrl = `${supabase.supabaseUrl}/rest/v1/profiles`;
@@ -182,11 +235,14 @@ export class UserRepository {
       
       const data = await response.json();
       console.log('[UserRepository] New profile created successfully:', data);
-      
+
       if (Array.isArray(data) && data.length > 0) {
         return this.mapProfileData(data[0]);
       }
-      
+        if(data){
+          return this.mapProfileData(data);
+        }
+
       // Fallback to the original created profile if no response data
       return this.mapProfileData(newProfile);
     } catch (err) {
@@ -202,6 +258,7 @@ export class UserRepository {
           return null;
         }
         
+        console.log('[UserRepository] Creating profile - new profile data fallback:', newProfile);
         const newProfile = {
           id: userId,
           email: userData.user.email || '',
