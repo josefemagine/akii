@@ -50,121 +50,143 @@ The authentication system has been refactored to consolidate and simplify the im
 
 ### Architecture Improvements
 
-The refactored authentication system follows these best practices:
+The new authentication system follows these best practices:
 
-1. **Separation of Concerns**:
-   - Types are defined separately from implementation
-   - UI components are decoupled from business logic
-   - Event handling is centralized in dedicated components
+1. **Modular Hook-Based Design**:
+   - Core authentication functionality split into specialized hooks
+   - Each hook has a single responsibility
+   - Hooks can be composed together as needed
 
-2. **Type Safety**:
-   - Consistent interfaces across the application
-   - Improved type checking and autocompletion
-   - Reduced use of `any` types
+2. **Improved State Management**:
+   - Centralized auth state tracking in `useAuthState`
+   - Dedicated action handling in `useAuthActions`
+   - Profile management in `useUserProfile`
+   - Combined functionality in the main `useAuth` hook
 
-3. **Code Reusability**:
-   - Shared utility functions prevent code duplication
-   - Standardized components ensure consistent UI/UX
-   - Common event handlers reduce redundant code
+3. **Enhanced Error Handling**:
+   - Consistent error pattern with typed return values
+   - Detailed logging for debugging
+   - Event-based error broadcasting
+
+### Key Files in the New System
+
+#### Hooks
+- **`src/hooks/useAuth.ts`** - Main hook that combines all auth functionality
+- **`src/hooks/useAuthState.ts`** - Manages auth state (user, session, profile)
+- **`src/hooks/useAuthActions.ts`** - Handles auth actions (sign in, sign out, etc.)
+- **`src/hooks/useUserProfile.ts`** - Manages user profile operations
+
+#### Utilities
+- **`src/utils/auth/auth-events.ts`** - Event handling for auth state changes
+- **`src/utils/auth/profile-cache.ts`** - Profile caching utilities
+- **`src/utils/auth/profile-utils.ts`** - Profile management helpers
+- **`src/utils/auth/session-manager.ts`** - Session management utilities
+- **`src/utils/auth/auth-api.ts`** - Authentication API functions
+- **`src/utils/auth/index.ts`** - Unified exports
+
+#### Documentation
+- **`src/docs/auth-hooks.md`** - Comprehensive documentation of the new system
 
 ### Usage
 
 ```tsx
 // Import the auth hook
-import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { AuthLogin } from '@/components/auth/AuthLogin';
+import { useAuth } from '@/hooks/useAuth';
 
 function MyComponent() {
   // Access auth state and methods
   const { 
-    user, 
-    profile, 
-    isAdmin, 
+    user,
+    profile,
     hasUser,
-    hasProfile, 
-    signIn, 
+    hasProfile,
+    isLoading,
+    
+    // Auth actions
+    signIn,
+    signUp,
     signOut,
-    updateProfile 
+    
+    // Profile operations
+    refreshProfile,
+    updateProfile,
+    
+    // Permission checks
+    isAdmin,
+    isSuperAdmin,
+    isTeamOwner
   } = useAuth();
 
-  // For custom sign-in handling
-  const handleLogin = async (email, password) => {
+  // Sign in example with the new hook API
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    
     try {
-      await signIn(email, password);
-      // Success handling
-    } catch (error) {
-      // Error handling
+      const { success, error } = await signIn({ 
+        email: 'user@example.com', 
+        password: 'password'
+      });
+      
+      if (success) {
+        // Redirect or update UI
+      } else {
+        // Handle error
+        console.error(error);
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
     }
   };
 
-  // Or use the unified component for a complete solution
   return (
-    <div>
-      {hasUser ? (
-        <div>
-          <h1>Welcome, {profile?.first_name || user?.email}</h1>
-          <button onClick={() => signOut()}>Sign Out</button>
-        </div>
-      ) : (
-        <AuthLogin 
-          redirectPath="/dashboard" 
-          showGoogleSignIn={true}
-        />
-      )}
-    </div>
+    // Your component JSX
   );
 }
 ```
 
-### Implementation Details
+### Backwards Compatibility
 
-#### Profile Type Standardization
+The old `UnifiedAuthContext` has been preserved with adapter functions to maintain backwards compatibility while components are gradually updated to use the new hooks. This ensures a smooth transition without breaking existing functionality.
 
-The `Profile` interface is now defined in a single location (`types/auth.ts`) and imported throughout the application:
+To migrate existing components:
 
-```typescript
-export interface Profile {
-  id: string;
-  email?: string;
-  first_name?: string;
-  last_name?: string;
-  role: string;
-  status: string;
-  created_at?: string;
-  updated_at?: string;
-  // Additional fields...
+1. Replace:
+   ```tsx
+   import { useAuth } from '@/contexts/UnifiedAuthContext';
+   ```
+   
+   With:
+   ```tsx
+   import { useAuth } from '@/hooks/useAuth';
+   ```
+
+2. Update function calls for the new API (primarily `signIn` which now takes an object parameter)
+
+### Server Function Integration
+
+The authentication system integrates seamlessly with our server functions using the new `invokeServerFunction` utility:
+
+```tsx
+import { useAuth } from '@/hooks/useAuth';
+import { invokeServerFunction } from '@/utils/supabase/functions';
+
+function MyComponent() {
+  const { profile } = useAuth();
+  
+  const handleAction = async () => {
+    if (!profile) return;
+    
+    const result = await invokeServerFunction('my_function', {
+      userId: profile.id,
+      // other parameters
+    });
+    
+    // Handle result
+  };
 }
 ```
 
-#### Event Broadcasting
-
-Auth state changes are broadcast using standardized custom events:
-
-```typescript
-// Event constants
-export const AUTH_STATE_CHANGE_EVENT = 'akii:auth:stateChange';
-export const AUTH_ERROR_EVENT = 'akii:auth:error';
-export const AUTH_RECOVERY_EVENT = 'akii:auth:recovery';
-```
-
-#### Unified Components
-
-The `AuthLogin` component provides a complete authentication solution that handles:
-- Login form display and validation
-- User authentication status
-- Google sign-in integration
-- Success/error messaging
-- Redirection after authentication
-
-### Migration Plan
-
-The authentication system is currently in a transition phase. The following roadmap is planned:
-
-1. **Phase 1** - Define centralized types and utilities (COMPLETED)
-2. **Phase 2** - Create standardized authentication components (COMPLETED)
-3. **Phase 3** - Update remaining components to use the new system (IN PROGRESS)
-
-Developers should use the new authentication system for new components and gradually update existing components during regular maintenance.
+For more detailed information, see the comprehensive documentation in `src/docs/auth-hooks.md`.
 
 ## Building for Production
 
@@ -516,3 +538,157 @@ To add a new dependency to all functions:
 1. Add the import mapping to `supabase/functions/deno.json`
 2. Update the TypeScript files to use the new import
 3. Test the functions to ensure the dependency works as expected
+
+# Akii Web Application
+
+## Overview
+
+Akii is a modern React application that provides a secure interface for managing AI agents, user authentication, and team collaboration. The application follows a modular architecture with a focus on maintainability, performance, and security.
+
+## Application Architecture
+
+### Core Architecture Principles
+
+- **Component-Based**: UI is broken down into reusable, focused components
+- **Custom Hooks**: Business logic is extracted into custom hooks
+- **Service Layers**: API calls and data manipulation happen in dedicated service files
+- **Type Safety**: TypeScript ensures type safety throughout the application
+- **Separation of Concerns**: Clear separation between UI rendering, data fetching, and state management
+
+### Directory Structure
+
+```
+src/
+├── components/         # UI components
+│   ├── admin/          # Admin-specific components
+│   ├── auth/           # Authentication components
+│   ├── dashboard/      # Dashboard components
+│   │   ├── bedrock/    # Bedrock dashboard components
+│   │   ├── sidebar/    # Sidebar components
+│   │   └── team/       # Team management components
+│   ├── layout/         # Layout components
+│   ├── shared/         # Shared components
+│   └── ui/             # UI primitives
+├── contexts/           # React contexts
+├── hooks/              # Custom React hooks
+├── lib/                # Utility libraries
+├── pages/              # Page components
+│   └── admin/          # Admin page components
+├── services/           # Service layer for API calls
+├── styles/             # CSS and style-related files
+├── types/              # TypeScript type definitions
+└── utils/              # Utility functions
+    ├── auth/           # Authentication utilities
+    ├── dashboard/      # Dashboard utilities
+    └── diagnostics/    # Diagnostic utilities
+```
+
+## Key Components
+
+### Layout Components
+
+- **DashboardLayout**: Main layout for authenticated users
+  - Composed of smaller components:
+    - `DashboardHeader`: Header with user profile and navigation
+    - `DashboardErrorHandler`: Error boundary for connection issues
+    - `Sidebar`: Navigation sidebar with collapsible sections
+
+### Authentication System
+
+- **Supabase Integration**: Authentication is powered by Supabase
+- **Custom Hooks**:
+  - `useAuth`: Main authentication hook combining all auth functionality
+  - `useAuthState`: Manages authentication state
+  - `useAuthActions`: Provides authentication actions (sign in, sign up, etc.)
+  - `useUserProfile`: Handles user profile operations
+  - `useDashboardLayoutAuth`: Custom hook for dashboard authentication needs
+
+### Team Management
+
+- **Team Members Management**: Components for managing team members
+  - Invitation system
+  - Role management
+  - Member removal
+- **Permissions System**: Role-based access control
+
+### Admin Functionality
+
+- **SupabaseCheck**: Diagnostic tools for checking Supabase connectivity
+- **SupabaseBedrock**: Management interface for AWS Bedrock instances
+- **Users Management**: Admin interface for managing application users
+
+## Best Practices
+
+### Component Size and Responsibility
+
+- Components are kept under 300 lines when possible
+- Components have a single responsibility
+- Large components are broken down into smaller, focused components
+
+### Custom Hooks
+
+- Logic is extracted into custom hooks
+- Hooks follow the single responsibility principle
+- Complex state management is handled via custom hooks
+
+### Type Safety
+
+- TypeScript interfaces for component props
+- Strong typing for API responses
+- Consistent type naming conventions
+
+## Recent Refactorings
+
+We've recently completed a major refactoring of the codebase to improve maintainability and performance:
+
+1. **Reduced Component Size**: Broke down large components (>1000 lines) into smaller, focused components
+2. **Extracted Logic**: Moved business logic from components to custom hooks
+3. **Improved Error Handling**: Created dedicated error handling components
+4. **Centralized Authentication**: Refactored authentication into a modular system with specialized hooks
+5. **Optimized State Management**: Reduced unnecessary re-renders and improved state isolation
+
+### Refactored Components
+
+| Component | Before | After | Improvements |
+|-----------|--------|-------|--------------|
+| DashboardLayout | 1626 lines, 25 hooks | 122 lines, 3 hooks | Extracted header, sidebar, and error handling into separate components |
+| SupabaseCheck | 1748 lines, 19 hooks | 300~ lines, 3 hooks | Extracted diagnostic panels into separate components |
+| SupabaseBedrock | 1556 lines, 22 hooks | 350~ lines, 5 hooks | Created specialized components for AWS Bedrock management |
+| UnifiedAuthContext | 998 lines, 21 hooks | 250~ lines, 4 hooks | Extracted authentication logic into custom hooks |
+| Users | 917 lines | 250~ lines | Extracted CRUD operations and UI into separate components |
+| Sidebar | 791 lines | 200~ lines | Created modular navigation system with specialized components |
+
+## Development
+
+### Prerequisites
+
+- Node.js 16+
+- npm or yarn
+- Supabase account for backend services
+
+### Setup
+
+1. Clone the repository
+2. Install dependencies: `npm install` or `yarn`
+3. Create a `.env` file based on `.env.example`
+4. Start the development server: `npm run dev` or `yarn dev`
+
+### Building for Production
+
+```bash
+npm run build
+# or
+yarn build
+```
+
+## Testing
+
+```bash
+npm run test
+# or
+yarn test
+```
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.

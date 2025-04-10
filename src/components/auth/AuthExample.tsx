@@ -1,5 +1,5 @@
 import React, { useState, ChangeEvent } from 'react';
-import { useAuth } from '@/contexts/UnifiedAuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -10,14 +10,14 @@ export default function AuthExample() {
   const [password, setPassword] = useState('');
   
   // Use our auth hooks
-  const { signIn, signOut, user, profile, isLoading } = useAuth();
+  const { signIn, signOut, user, profile, isLoading, updateProfile } = useAuth();
   const isAuthenticated = !!user;
 
   // Handle sign in
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await signIn(email, password);
+      await signIn({ email, password });
       
       // Clear form on success
       setEmail('');
@@ -36,9 +36,25 @@ export default function AuthExample() {
     await signOut();
   };
   
-  // We can't update profile directly with UnifiedAuthContext, so this has been modified
+  // Now we can update profile with the new hooks
   const handleUpdateName = async () => {
-    alert('Profile updates are not available in this example');
+    if (!user?.id) return;
+    
+    try {
+      const success = await updateProfile({ first_name: 'Updated Name' });
+      if (success) {
+        toast({
+          title: "Profile Updated",
+          description: "Your name has been updated successfully."
+        });
+      }
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      toast({
+        title: "Update Error",
+        description: "Failed to update your profile."
+      });
+    }
   };
 
   return (
@@ -46,7 +62,7 @@ export default function AuthExample() {
       <CardHeader>
         <CardTitle>Authentication Example</CardTitle>
         <CardDescription>
-          Using the Unified Auth Context
+          Using the new Auth Hooks
         </CardDescription>
       </CardHeader>
       
@@ -124,7 +140,7 @@ export default function AuthExample() {
       </CardContent>
       
       <CardFooter className="flex justify-center text-sm text-muted-foreground">
-        This component uses the new consolidated Auth Context
+        This component uses the new modular Auth Hooks
       </CardFooter>
     </Card>
   );

@@ -24,60 +24,8 @@ import { initBedrockClientWithSupabaseCredentials } from '@/lib/supabase-aws-cre
 import { CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/UnifiedAuthContext';
 import AWSTestConnectionModal from "@/components/aws/AWSTestConnectionModal";
-
-// Error boundary component to catch React errors
-class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
-  constructor(props: {children: React.ReactNode}) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    // Update state so the next render will show the fallback UI
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log error information
-    console.error("Error in Supabase Bedrock component:", error);
-    console.error("Error details:", errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      // Custom error UI
-      return (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Something went wrong</CardTitle>
-            <CardDescription>
-              There was an error loading the Bedrock dashboard
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>
-                {this.state.error?.message || "Unknown error"}
-              </AlertDescription>
-            </Alert>
-            <div className="mt-4">
-              <Button 
-                variant="outline" 
-                onClick={() => this.setState({ hasError: false, error: null })}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" /> Try Again
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    return this.props.children;
-  }
-}
+import { default as ErrorBoundaryComponent } from "@/components/admin/bedrock/ErrorBoundary";
+import { default as DashboardContent } from "@/components/admin/bedrock/BedrockDashboardContent";
 
 // Plan configuration - maps to AWS Bedrock models and commitment options
 const planConfig = {
@@ -511,8 +459,39 @@ const ModelFilters = ({ activeFilters, setActiveFilters, loadingModels, fetchAva
   );
 };
 
-// Replace the separate ApiConfiguration and AWS Connection section with this:
-const CombinedApiConfigPanel = ({
+// Client status information
+interface ClientStatus {
+  usingFallback?: boolean;
+  success?: boolean;
+  configured?: boolean;
+  message?: string;
+  error?: string;
+  [key: string]: any;
+}
+
+// AWS credentials information
+interface AwsCredentials {
+  region?: string;
+  hasCredentials?: boolean;
+  [key: string]: any;
+}
+
+// Props for the CombinedApiConfigPanel
+interface ApiConfigPanelProps {
+  connectionStatus: ConnectionStatus;
+  authStatus: AuthStatus;
+  handleLogin: () => void;
+  checkAuthStatus: () => Promise<any>;
+  refreshInstances: () => Promise<any>;
+  testingConnection: boolean;
+  refreshing: boolean;
+  credentials?: AwsCredentials;
+  clientStatus?: ClientStatus;
+  testConnection: () => Promise<any>;
+  openTestModal: () => void;
+}
+
+const CombinedApiConfigPanel: React.FC<ApiConfigPanelProps> = ({
   connectionStatus,
   authStatus,
   handleLogin,
@@ -520,8 +499,6 @@ const CombinedApiConfigPanel = ({
   refreshInstances,
   testingConnection,
   refreshing,
-  credentials,
-  clientStatus,
   testConnection,
   openTestModal
 }) => {
@@ -536,12 +513,6 @@ const CombinedApiConfigPanel = ({
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <Badge 
-              variant={clientStatus?.success ? "default" : "destructive"}
-              className={clientStatus?.success ? "bg-green-100 text-green-800 border-green-200" : ""}
-            >
-              {clientStatus?.success ? "Connected" : "Not Connected"}
-            </Badge>
             <Badge 
               variant={authStatus === 'authenticated' ? "outline" : "destructive"}
               className={authStatus === 'authenticated' ? "bg-blue-50 text-blue-800 border-blue-200" : ""}
@@ -583,26 +554,21 @@ const CombinedApiConfigPanel = ({
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Region:</p>
-                  <p className="font-medium">{credentials?.region || 'Not Configured'}</p>
+                  <p className="font-medium">Not Configured</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Access Key:</p>
                   <p className="font-medium">
-                    {credentials?.hasCredentials ? 
-                      '••••••••••••••••' : 
-                      <span className="text-amber-600">Not Configured</span>
-                    }
+                    <span className="text-amber-600">Not Configured</span>
                   </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Status:</p>
-                  <p className={`font-medium ${clientStatus.usingFallback ? 'text-amber-600' : 'text-green-600'}`}>
-                    {clientStatus.usingFallback ? 'Using Fallback Data' : 'Using AWS API'}
-                  </p>
+                  <p className="font-medium">Not Connected</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-muted-foreground">Message:</p>
-                  <p className="font-medium text-xs">{clientStatus.message}</p>
+                  <p className="font-medium text-xs">Not Connected</p>
                 </div>
               </div>
             </div>
@@ -838,16 +804,14 @@ const BedrockDashboardContent = ({
           refreshInstances={refreshInstances}
           testingConnection={testingConnection}
           refreshing={refreshing}
-          credentials={{}} // Provide empty object if needed
-          clientStatus={{}} // Provide empty object if needed
           testConnection={testConnection}
-          openTestModal={openTestModal} // Pass the AWS test modal opener
+          openTestModal={openTestModal}
         />
         
         <MockDataNotice />
         
-        {/* Add the AWS credentials notice */}
-        {client && client.clientStatus?.usingFallback && <AwsCredentialsNotice clientStatus={client.clientStatus} />}
+        {/* Add the AWS credentials notice with optional chaining */}
+        {client?.clientStatus?.usingFallback && <AwsCredentialsNotice clientStatus={client.clientStatus} />}
         
         {/* Display server error notice if environmental diagnostics show an Edge Function error */}
         {serverErrorDetails && <ServerErrorNotice errorDetails={serverErrorDetails} />}
@@ -897,7 +861,7 @@ const BedrockDashboardContent = ({
                       </thead>
                       <tbody>
                         {instances.map((instance) => (
-                          <tr key={instance.id} className="border-b hover:bg-muted/50">
+                          <tr key={instance.instance_id} className="border-b hover:bg-muted/50">
                             <td className="p-2">{instance.id}</td>
                             <td className="p-2">{instance.model_id.split('.').pop()}</td>
                             <td className="p-2"><StatusBadge status={instance.status} /></td>
@@ -1268,20 +1232,15 @@ const SupabaseBedrock = () => {
     console.log("[Bedrock] Checking auth status...");
     try {
       setAuthStatus('checking');
-      setConnectionStatus('checking');
       const result = await BedrockClient.checkAuth();
-      
       console.log("[Bedrock] Auth check result:", result);
       
       if (result && result.connected) {
         setAuthStatus('authenticated');
         setConnectionStatus('connected');
-      } else if (result && !result.connected) {
+      } else {
         setAuthStatus('unauthenticated');
         setConnectionStatus('error');
-        if (result.message) {
-          setError(result.message);
-        }
       }
       
       return result;
@@ -1499,57 +1458,63 @@ const SupabaseBedrock = () => {
   }, [user, isAdmin]);
   
   return (
-    <BedrockDashboardContent
-      loading={loading}
-      refreshing={refreshing}
-      authStatus={authStatus}
-      error={error}
-      connectionStatus={connectionStatus}
-      instances={instances}
-      testModalOpen={testModalOpen}
-      oldTestModalOpen={testModalOpen}
-      testData={testData}
-      setTestModalOpen={setTestModalOpen}
-      awsTestModalOpen={awsTestModalOpen}
-      setAwsTestModalOpen={setAwsTestModalOpen}
-      showDiagnostics={showDiagnostics}
-      envDiagnostics={envDiagnostics}
-      testingConnection={testingConnection}
-      submitting={submitting}
-      selectedPlan={selectedPlan}
-      selectedModelId={selectedModelId}
-      availableModels={availableModels}
-      loadingModels={loadingModels}
-      showFilters={showFilters}
-      activeFilters={activeFilters}
-      planConfig={planConfig}
-      client={BedrockClient}
-      // User data for auth debugging
-      user={user}
-      directUser={directUser}
-      isAdmin={isAdmin}
-      // Functions
-      checkAuthStatus={checkAuthStatus}
-      handleLogin={handleLogin}
-      refreshInstances={refreshInstances}
-      fetchEnvironmentDiagnostics={fetchEnvironmentDiagnostics}
-      fetchDetailedTestData={fetchDetailedTestData}
-      fetchAvailableModels={fetchAvailableModels}
-      handleProvisionInstance={handleProvisionInstance}
-      handleDeleteInstance={handleDeleteInstance}
-      setShowFilters={setShowFilters}
-      setActiveFilters={setActiveFilters}
-      setAvailableModels={setAvailableModels}
-      setSelectedModelId={setSelectedModelId}
-      setSelectedPlan={setSelectedPlan}
-      testConnection={testConnection}
-      openTestModal={openTestModal}
-      // Form state
-      customInstanceName={customInstanceName}
-      setCustomInstanceName={setCustomInstanceName}
-      // Toast
-      toast={toast}
-    />
+    <ErrorBoundaryComponent>
+      <DashboardContent
+        loading={loading}
+        refreshing={refreshing}
+        authStatus={authStatus}
+        error={error}
+        connectionStatus={connectionStatus}
+        instances={instances}
+        testModalOpen={testModalOpen}
+        oldTestModalOpen={testModalOpen}
+        testData={testData}
+        setTestModalOpen={setTestModalOpen}
+        awsTestModalOpen={awsTestModalOpen}
+        setAwsTestModalOpen={setAwsTestModalOpen}
+        showDiagnostics={showDiagnostics}
+        envDiagnostics={envDiagnostics}
+        testingConnection={testingConnection}
+        submitting={submitting}
+        selectedPlan={selectedPlan}
+        selectedModelId={selectedModelId}
+        availableModels={availableModels}
+        loadingModels={loadingModels}
+        showFilters={showFilters}
+        activeFilters={activeFilters}
+        planConfig={planConfig}
+        client={BedrockClient}
+        // User data for auth debugging
+        user={user}
+        directUser={directUser}
+        isAdmin={isAdmin}
+        // Functions
+        checkAuthStatus={checkAuthStatus}
+        handleLogin={handleLogin}
+        refreshInstances={refreshInstances}
+        fetchEnvironmentDiagnostics={fetchEnvironmentDiagnostics}
+        fetchDetailedTestData={fetchDetailedTestData}
+        fetchAvailableModels={fetchAvailableModels}
+        handleProvisionInstance={handleProvisionInstance}
+        handleDeleteInstance={handleDeleteInstance}
+        setShowFilters={setShowFilters}
+        setActiveFilters={setActiveFilters}
+        setAvailableModels={setAvailableModels}
+        setSelectedModelId={setSelectedModelId}
+        setSelectedPlan={setSelectedPlan}
+        testConnection={testConnection}
+        openTestModal={openTestModal}
+        // Form state
+        customInstanceName={customInstanceName}
+        setCustomInstanceName={setCustomInstanceName}
+        // Toast
+        toast={toast}
+      />
+      <AWSTestConnectionModal 
+        isOpen={awsTestModalOpen}
+        onClose={() => setAwsTestModalOpen(false)}
+      />
+    </ErrorBoundaryComponent>
   );
 };
 
