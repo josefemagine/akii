@@ -162,33 +162,10 @@ export const checkAdminStatus = async (userId: string): Promise<boolean> => {
 };
 
 /**
- * Check if a user has super admin privileges
+ * @deprecated Use checkAdminStatus instead. This function will be removed in a future update.
+ * Legacy function to check if a user has super admin privileges
  */
 export const checkSuperAdminStatus = async (userId: string): Promise<boolean> => {
-  if (!userId) return false;
-  
-  try {
-    log('Checking super admin status for user', userId);
-    
-    // Call the Supabase Edge Function that checks super admin status
-    const { data, error } = await supabase.functions.invoke('super_admin_check', {
-      body: { user_id: userId }
-    });
-    
-    if (error) {
-      log('Error checking super admin status:', error);
-      dispatchAuthError(error, 'checkSuperAdminStatus');
-      return false;
-    }
-    
-    const isSuperAdmin = data?.is_super_admin === true;
-    log('Super admin status check result:', isSuperAdmin ? 'Super Admin' : 'Not super admin');
-    
-    return isSuperAdmin;
-  } catch (e) {
-    const error = e as Error;
-    log('Exception checking super admin status:', error);
-    dispatchAuthError(error, 'checkSuperAdminStatus');
-    return false;
-  }
+  console.warn('DEPRECATED: checkSuperAdminStatus is deprecated. Use checkAdminStatus instead.');
+  return false;
 }; 

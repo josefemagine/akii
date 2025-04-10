@@ -62,11 +62,10 @@ function DashboardPageContainer({
   );
 }
 
-interface DashboardLayoutProps {
-  children?: React.ReactNode;
+export interface DashboardLayoutProps {
+  children: React.ReactNode;
   fullWidth?: boolean;
   isAdmin?: boolean;
-  isSuperAdmin?: boolean;
 }
 
 // Create a class component wrapper that provides stability through lifecycles
@@ -108,12 +107,11 @@ const StableOutlet = memo(() => <Outlet />);
 // Component instance ID to help with debugging remounts
 const DASHBOARD_LAYOUT_ID = Math.random().toString(36).substr(2, 9);
 
-const DashboardLayout: React.FC<DashboardLayoutProps> = memo(({ 
+export const DashboardLayout = memo(({
   children,
   fullWidth = false,
-  isAdmin,
-  isSuperAdmin
-}) => {
+  isAdmin
+}: DashboardLayoutProps) => {
   // Log component id in dev mode
   const instanceId = useRef(DASHBOARD_LAYOUT_ID);
   if (DEBUG_LAYOUT) {

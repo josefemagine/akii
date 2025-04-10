@@ -1,8 +1,5 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bell, Menu, User as UserIcon, Moon, Sun, LogOut, Circle, Shield } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,15 +7,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Bell, Circle, LogOut, Menu, Moon, Shield, Sun, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { useSuperAdmin } from "@/hooks/useSuperAdmin";
-import type { Profile } from "@/types/auth";
+import { Profile } from "@/types/auth";
 import { useToast } from "@/components/ui/use-toast";
 
-// Default avatar URL
-const DEFAULT_AVATAR_URL = "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/object/public/avatars/b574f273-e0e1-4cb8-8c98-f5a7569234c8/green-robot-icon.png";
+// Default avatar fallback URL
+const DEFAULT_AVATAR_URL = '/assets/default-avatar.png';
 
-// Extended profile interface to include additional properties
+// Extended profile type with optional display fields
 interface ExtendedProfile extends Profile {
   display_name?: string;
   avatar_url?: string;
@@ -35,9 +34,8 @@ const Header: React.FC<HeaderProps> = ({
   theme = "dark",
   onThemeChange,
 }) => {
-  // Use unified auth context
+  // Use unified auth context for all auth-related data
   const { user, profile, signOut, isAdmin } = useAuth();
-  const { isSuperAdmin } = useSuperAdmin();
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -105,15 +103,9 @@ const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="ml-auto flex items-center gap-3">
-          {isSuperAdmin && (
-            <div className="mr-2 px-2 py-1 text-xs font-medium bg-red-200 text-red-900 rounded flex items-center">
-              <Shield className="h-3 w-3 mr-1" /> Super Admin
-            </div>
-          )}
-
-          {isAdmin && !isSuperAdmin && (
-            <div className="mr-2 px-2 py-1 text-xs font-medium bg-amber-200 text-amber-900 rounded">
-              Admin
+          {isAdmin && (
+            <div className="mr-2 px-2 py-1 text-xs font-medium bg-amber-200 text-amber-900 rounded flex items-center">
+              <Shield className="h-3 w-3 mr-1" /> Admin
             </div>
           )}
           
@@ -164,7 +156,7 @@ const Header: React.FC<HeaderProps> = ({
               <DropdownMenuItem onClick={() => navigate('/dashboard/settings')}>
                 Settings
               </DropdownMenuItem>
-              {isSuperAdmin && (
+              {isAdmin && (
                 <DropdownMenuItem onClick={() => navigate('/dashboard/admin/admin-check')}>
                   <Shield className="h-4 w-4 mr-2" />
                   Admin Check

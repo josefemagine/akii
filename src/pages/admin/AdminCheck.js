@@ -1,53 +1,196 @@
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminCheckComponent from '@/components/dashboard/AdminCheck';
 import withAdminInit from '@/components/admin/withAdminInit';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { diagnoseSuperAdminIssues, enableDevAdminMode } from '@/utils/admin-utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { diagnoseAdminIssues, enableDevAdminMode } from '@/utils/admin-utils';
 import { Button } from '@/components/ui/button';
+import { createClient } from '@supabase/supabase-js';
+import { Loader } from '@/components/ui/loader';
+
+const testServiceRolePermissions = async () => {
+    console.log('Testing service role permissions...');
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+        console.error('Missing Supabase service role configuration');
+        return { error: 'Missing service role configuration' };
+    }
+    
+    try {
+        // Create a separate client with the service role key
+        const serviceRoleClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        
+        // Attempt a simple query using service role permissions
+        const { data, error } = await serviceRoleClient
+            .from('profiles')
+            .select('count(*)', { count: 'exact' });
+        
+        if (error) {
+            console.error('Service role test failed:', error);
+            return { success: false, error };
+        }
+        
+        console.log('Service role test succeeded:', data);
+        return { success: true, data };
+    } catch (err) {
+        console.error('Service role test exception:', err);
+        return { success: false, error: err.message };
+    }
+};
+
 const AdminCheck = () => {
     const { user, isAdmin } = useAuth();
-    const { isSuperAdmin, checkSuperAdminStatus } = useSuperAdmin();
-    const [diagnosticData, setDiagnosticData] = React.useState(null);
-    const [isRunningDiagnostic, setIsRunningDiagnostic] = React.useState(false);
-    const runDiagnostic = () => __awaiter(void 0, void 0, void 0, function* () {
+    const [diagnosticData, setDiagnosticData] = useState(null);
+    const [isRunningDiagnostic, setIsRunningDiagnostic] = useState(false);
+    const [diagnosticResult, setDiagnosticResult] = useState(null);
+
+    const runDiagnostic = async () => {
         setIsRunningDiagnostic(true);
         try {
-            const data = yield diagnoseSuperAdminIssues();
+            const data = await diagnoseAdminIssues();
             setDiagnosticData(data);
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Error running diagnostic:', error);
-        }
-        finally {
+        } finally {
             setIsRunningDiagnostic(false);
         }
-    });
+    };
+
+    const handleRunDiagnostic = async () => {
+        setIsRunningDiagnostic(true);
+        try {
+            await runDiagnostic();
+            
+            // Also test service role permissions
+            const serviceRoleTest = await testServiceRolePermissions();
+            setDiagnosticResult(prev => ({
+                ...prev,
+                serviceRoleTest
+            }));
+        } catch (err) {
+            console.error("Error running diagnostics:", err);
+            setDiagnosticResult({ error: err.message });
+        } finally {
+            setIsRunningDiagnostic(false);
+        }
+    };
+
     const toggleAdminStatus = () => {
         const currentStatus = localStorage.getItem('akii-is-admin') === 'true';
         enableDevAdminMode(!currentStatus);
         setTimeout(() => {
-            checkSuperAdminStatus();
             window.location.reload();
         }, 100);
     };
+
     // Format JSON data for display
     const formatJson = (data) => {
         return JSON.stringify(data, null, 2);
     };
-    return (_jsxs("div", { className: "container py-6", children: [_jsx("h1", { className: "text-2xl font-bold mb-4", children: "Admin Access Check" }), _jsx("p", { className: "text-gray-500 dark:text-gray-400 mb-6", children: "This page helps diagnose and fix admin access issues." }), _jsxs(Tabs, { defaultValue: "status", children: [_jsxs(TabsList, { className: "mb-4", children: [_jsx(TabsTrigger, { value: "status", children: "Current Status" }), _jsx(TabsTrigger, { value: "super-admin", children: "Super Admin" })] }), _jsx(TabsContent, { value: "status", children: _jsx(AdminCheckComponent, {}) }), _jsx(TabsContent, { value: "super-admin", children: _jsxs(Card, { children: [_jsxs(CardHeader, { children: [_jsx(CardTitle, { children: "Super Admin Status" }), _jsx(CardDescription, { children: "View and manage super admin privileges" })] }), _jsxs(CardContent, { className: "space-y-4", children: [_jsxs("div", { className: "grid grid-cols-2 gap-4", children: [_jsxs("div", { children: [_jsx("p", { className: "font-medium mb-1", children: "User ID:" }), _jsx("p", { className: "text-sm font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded", children: (user === null || user === void 0 ? void 0 : user.id) || 'Not logged in' })] }), _jsxs("div", { children: [_jsx("p", { className: "font-medium mb-1", children: "Super Admin Status:" }), _jsx("p", { className: `text-sm font-semibold ${isSuperAdmin ? 'text-green-600' : 'text-red-600'}`, children: isSuperAdmin ? 'Enabled' : 'Disabled' })] })] }), _jsxs("div", { className: "flex space-x-4 mt-4", children: [_jsx(Button, { onClick: toggleAdminStatus, variant: localStorage.getItem('akii-is-admin') === 'true' ? 'destructive' : 'default', children: localStorage.getItem('akii-is-admin') === 'true' ? 'Disable Admin Mode' : 'Enable Admin Mode' }), _jsx(Button, { onClick: runDiagnostic, variant: "outline", disabled: isRunningDiagnostic, children: isRunningDiagnostic ? 'Running...' : 'Run Diagnostic' })] }), diagnosticData && (_jsxs("div", { className: "mt-6", children: [_jsx("h3", { className: "text-lg font-medium mb-2", children: "Diagnostic Results" }), _jsx("div", { className: "bg-gray-100 dark:bg-gray-800 p-4 rounded-md", children: _jsx("pre", { className: "text-xs overflow-auto max-h-96", children: formatJson(diagnosticData) }) })] }))] })] }) })] })] }));
+
+    return (
+        <div className="container py-6">
+            <h1 className="text-2xl font-bold mb-4">Admin Access Check</h1>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
+                This page helps diagnose and fix admin access issues.
+            </p>
+
+            <div className="flex flex-col gap-6">
+                <Tabs defaultValue="status">
+                    <TabsList>
+                        <TabsTrigger value="status">Admin Status</TabsTrigger>
+                        <TabsTrigger value="diagnostic">Diagnostic</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="status">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Admin Status</CardTitle>
+                                <CardDescription>
+                                    View and manage your admin access
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex flex-col gap-4">
+                                <div>
+                                    <p className="text-sm font-medium">User ID</p>
+                                    <p className="text-xs text-gray-500">{user?.id}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium">Admin</p>
+                                    <p className="text-xs text-gray-500">
+                                        {isAdmin ? "Yes" : "No"}
+                                    </p>
+                                </div>
+                                <Button onClick={() => toggleAdminStatus()}>
+                                    {isAdmin
+                                        ? "Disable Dev Admin Mode"
+                                        : "Enable Dev Admin Mode"}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="diagnostic">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Diagnostic Results</CardTitle>
+                                <CardDescription>
+                                    Diagnostics for admin functionality
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex space-x-4 mb-4">
+                                    <Button
+                                        onClick={handleRunDiagnostic}
+                                        variant="outline"
+                                        disabled={isRunningDiagnostic}
+                                    >
+                                        {isRunningDiagnostic ? 'Running...' : 'Run Diagnostic'}
+                                    </Button>
+                                </div>
+                                
+                                {isRunningDiagnostic ? (
+                                    <div className="flex justify-center">
+                                        <Loader className="h-6 w-6 animate-spin" />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        {diagnosticData && (
+                                            <div className="bg-black rounded p-4 mt-2">
+                                                <pre className="text-white text-sm whitespace-pre-wrap">
+                                                    {formatJson(diagnosticData)}
+                                                </pre>
+                                            </div>
+                                        )}
+                                        {diagnosticResult?.serviceRoleTest && (
+                                            <div className="mt-4">
+                                                <h3 className="text-lg font-medium mb-2">Service Role Test</h3>
+                                                <div className={`p-3 rounded ${diagnosticResult.serviceRoleTest.success ? 'bg-green-100' : 'bg-red-100'}`}>
+                                                    <p><strong>Status:</strong> {diagnosticResult.serviceRoleTest.success ? 'Success' : 'Failed'}</p>
+                                                    {diagnosticResult.serviceRoleTest.error && (
+                                                        <p><strong>Error:</strong> {diagnosticResult.serviceRoleTest.error}</p>
+                                                    )}
+                                                    {diagnosticResult.serviceRoleTest.data && (
+                                                        <div className="bg-black rounded p-4 mt-2">
+                                                            <pre className="text-white text-sm whitespace-pre-wrap">
+                                                                {formatJson(diagnosticResult.serviceRoleTest.data)}
+                                                            </pre>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+            </div>
+        </div>
+    );
 };
+
 // Use the admin init HOC to handle loading and access control
 export default withAdminInit(AdminCheck);

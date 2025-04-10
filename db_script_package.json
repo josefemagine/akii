@@ -1,0 +1,14 @@
+{
+  "name": "supabase-sql-executor",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Execute SQL commands against Supabase",
+  "main": "execute_sql.js",
+  "scripts": {
+    "execute": "node execute_sql.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
+    "dotenv": "^16.3.1"
+  }
+} 

@@ -17,7 +17,7 @@ export default function AuthExample() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await signIn({ email, password });
+      await signIn(email, password);
       
       // Clear form on success
       setEmail('');

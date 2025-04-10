@@ -11,9 +11,11 @@ import "@/styles/dashboard.css";
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
+  fullWidth?: boolean;
+  isAdmin?: boolean;
 }
 
-const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
+const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, fullWidth, isAdmin }) => {
   // Authentication and user data
   const {
     user,
@@ -21,9 +23,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     loading,
     hasStorageAuth,
     connectionError,
-    isAdmin,
-    isSuperAdmin,
-    isTeamOwner,
     handleSignOut,
     getData,
     loadUserData,
@@ -93,8 +92,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           toggleDarkMode={toggleDarkMode}
           toggleSidebar={toggleSidebar}
           handleSignOut={handleSignOut}
-          isAdmin={isAdmin}
-          isSuperAdmin={isSuperAdmin}
+          isAdmin={isAdmin || false}
           loading={loading}
         />
         

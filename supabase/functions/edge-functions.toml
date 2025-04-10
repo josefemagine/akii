@@ -4,6 +4,7 @@
 [functions]
   [functions.ensure_profile_exists]
     verify_jwt = false
+    import_map = "./_shared/import_map.json"
 
 [shared_environment]
   SUPABASE_URL = "https://injxxchotrvgvvzelhvj.supabase.co"

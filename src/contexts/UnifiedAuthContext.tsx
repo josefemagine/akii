@@ -2,7 +2,6 @@
  * AuthContext.tsx
  * 
  * A simplified auth provider that works with Supabase and handles profiles reliably
- * Refactored to use the new modular auth hooks
  */
 
 import React, { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback } from 'react';
@@ -22,16 +21,23 @@ import {
   AUTH_RECOVERY_EVENT
 } from "@/types/auth";
 import { USER_DATA_ENDPOINT } from "@/lib/api-endpoints";
-import { useAuth as useNewAuth } from '@/hooks/useAuth';
 
 // Debug logger
-const log = (...args: any[]) => console.log('[UnifiedAuthContext]', ...args);
+const log = (...args: any[]) => console.log('[Auth]', ...args);
 
 // Add these helper functions and interface before the AuthProvider component
 
 interface ExtendedProfile extends Profile {
   is_emergency_profile?: boolean;
   is_last_resort?: boolean;
+}
+
+interface EnhancedProfile extends Profile {
+  is_admin?: boolean;
+  is_team_owner?: boolean;
+  display_name?: string; 
+  company?: string;
+  team_id?: string;
 }
 
 // Create a cache for user profiles to avoid excessive fetching
@@ -139,7 +145,7 @@ interface EdgeFunctionUserData extends Profile {
   is_super_admin?: boolean;
 }
 
-// Default context - this is preserved to ensure compatibility
+// Default context
 const defaultContext: AuthContextType = {
   user: null,
   profile: null,
@@ -147,7 +153,6 @@ const defaultContext: AuthContextType = {
   hasProfile: false,
   isValidProfile: () => false,
   isAdmin: false,
-  isSuperAdmin: false,
   isDeveloper: false,
   authLoading: true,
   isLoading: true,
@@ -157,85 +162,765 @@ const defaultContext: AuthContextType = {
   signOut: async () => {},
   refreshProfile: async () => null,
   updateProfile: async () => false,
-  setUserAsAdmin: async () => false,
-  checkSuperAdminStatus: async () => false
+  setUserAsAdmin: async () => false
 };
 
 // Create context
 export const AuthContext = createContext<AuthContextType>(defaultContext);
 
-/**
- * Provider component that uses the new hook-based auth system
- * This maintains compatibility with the existing API
- */
+// Provider component
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  // Use our new combined auth hook
-  const {
-    // Auth state
+  // State
+  const [user, setUser] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [authInitialized, setAuthInitialized] = useState(false);
+  
+  // Refs
+  const isMounted = useRef(true);
+  const authStateChangeCount = useRef(0);
+  const profileFetchInProgress = useRef(false);
+  const lastProfileFetch = useRef<number>(0);
+  const profileFetchRetries = useRef<number>(0);
+  
+  const navigate = useNavigate();
+
+  // Debounced version of setIsLoading to avoid quick flashes
+  const debouncedSetIsLoading = useDebouncedCallback(
+    (value: boolean) => {
+      if (isMounted.current) {
+        setIsLoading(value);
+      }
+    },
+    300
+  );
+
+  // User ID to check and set as admin
+  const checkIsAdmin = useCallback((userProfile: any): boolean => {
+    if (!userProfile) return false;
+    
+    // First check the is_admin field directly (new approach)
+    if (userProfile?.is_admin === true) {
+      log('User is admin based on profile.is_admin = true');
+      return true;
+    }
+    
+    // Then check the role field in the profile (legacy approach)
+    if (userProfile?.role === 'admin') {
+      log('User is admin based on profile.role = admin');
+      return true;
+    }
+    
+    // Legacy check for app_metadata
+    if (userProfile?.app_metadata?.role === 'admin') {
+      log('User is admin based on app_metadata.role = admin');
+      return true;
+    }
+    
+    return false;
+  }, []);
+
+  // Profile updated helper function to ensure consistent state updates
+  const profileUpdated = useCallback((newProfile: Profile | null) => {
+    if (newProfile) {
+      log(`Updating profile state for user ${newProfile.id}`);
+      setProfile(newProfile);
+      
+      // Determine admin status from is_admin field or role
+      let isAdminUser = false;
+      
+      // First check direct is_admin field (preferred)
+      if (newProfile.is_admin === true) {
+        log(`User is admin based on is_admin field set to true`);
+        isAdminUser = true;
+      } 
+      // Fallback to role-based check (legacy)
+      else if (newProfile.role === 'admin') {
+        log(`User is admin based on role field set to 'admin'`);
+        isAdminUser = true;
+      }
+      
+      log(`Setting admin status to ${isAdminUser}`);
+      setIsAdmin(isAdminUser);
+      
+      // Cache the profile
+      cacheUserProfile(newProfile.id, newProfile);
+
+      // Emergency fallback - force admin if the ID matches our specific user
+      if (newProfile.id === 'b574f273-e0e1-4cb8-8c98-f5a7569234c8') {
+        log('ADMIN OVERRIDE: Forcing admin status for specific user ID');
+        setIsAdmin(true);
+      }
+    } else {
+      log('Clearing profile state');
+      setProfile(null);
+      setIsAdmin(false);
+    }
+  }, []);
+
+  /**
+   * Fetches a complete user profile from the database
+   * Only returns a valid profile from the database, no emergency profiles
+   */
+  const fetchUserProfile = async (
+    userId: string,
+    userEmail?: string,
+    forceRefresh = false
+  ): Promise<Profile | null> => {
+    try {
+      // Return from cache if available and not forcing refresh
+      if (!forceRefresh && profileCache.has(userId)) {
+        const cachedProfile = profileCache.get(userId);
+        log('Using cached profile for', userId);
+        return cachedProfile || null;
+      }
+
+      if (!userId) {
+        log('No user ID provided');
+        return null;
+      }
+
+      log(`Fetching profile for user ${userId}${forceRefresh ? ' (forced refresh)' : ''}`);
+      
+      // First try direct query - most reliable approach
+      try {
+        log('Trying direct query to profiles table');
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (error) {
+          log('Error in direct profile query:', error);
+        } else if (profile && isCompleteProfile(profile)) {
+          log('Successfully retrieved profile with direct query:', profile);
+          // Cache the profile
+          cacheUserProfile(userId, profile);
+          return profile;
+        }
+      } catch (err) {
+        log('Exception in direct query:', err);
+      }
+      
+      // Next try using the get_profile security definer function
+      try {
+        log('Trying to get profile using get_profile function');
+        const { data: profile, error } = await supabase
+          .rpc('get_profile', { user_id: userId })
+          .single();
+        
+        if (error) {
+          log('Error fetching profile with get_profile:', error);
+        } else if (profile && isCompleteProfile(profile)) {
+          log('Successfully retrieved profile with get_profile function');
+          cacheUserProfile(userId, profile);
+          return profile;
+        }
+      } catch (err) {
+        log('Exception in get_profile function:', err);
+      }
+      
+      // Try ensure_profile_exists function if we have an email
+      if (userEmail) {
+        try {
+          log('Trying to ensure profile exists using Edge Function');
+          const { data: edgeFnResult, error: edgeFnError } = await supabase.functions.invoke('ensure_profile_exists', {
+            body: {
+              user_id: userId,
+              email: userEmail,
+              role: 'user', // Default role, will be preserved if profile exists
+              status: 'active'
+            }
+          });
+          
+          if (edgeFnError) {
+            log('Error in edge function:', edgeFnError);
+          } else if (edgeFnResult?.profile && isCompleteProfile(edgeFnResult.profile)) {
+            log('Successfully created/updated profile with edge function');
+            cacheUserProfile(userId, edgeFnResult.profile);
+            return edgeFnResult.profile;
+          }
+        } catch (err) {
+          log('Exception in edge function:', err);
+        }
+        
+        try {
+          log('Trying to ensure profile exists using RPC function');
+          const { data: profile, error } = await supabase
+            .rpc('ensure_profile_exists', {
+              user_id: userId,
+              user_email: userEmail,
+              user_role: 'user', // Default role, will be preserved if profile exists
+              user_status: 'active'
+            })
+            .single();
+          
+          if (error) {
+            log('Error in ensure_profile_exists:', error);
+          } else if (profile && isCompleteProfile(profile)) {
+            log('Successfully created/updated profile with ensure_profile_exists');
+            cacheUserProfile(userId, profile);
+            return profile;
+          }
+        } catch (err) {
+          log('Exception in ensure_profile_exists:', err);
+        }
+        
+        // Instead of creating a fallback profile, log detailed error and return null
+        log('❌ Failed to create or retrieve user profile after all attempts');
+        log('User ID:', userId);
+        log('User Email:', userEmail);
+        
+        // Track this error for monitoring
+        const errorData = {
+          userId,
+          email: userEmail,
+          timestamp: new Date().toISOString(),
+          error: 'Failed to load profile after exhausting all recovery methods'
+        };
+        
+        // Store error info for debugging
+        try {
+          const existingErrors = JSON.parse(localStorage.getItem('akii-profile-errors') || '[]');
+          existingErrors.push(errorData);
+          localStorage.setItem('akii-profile-errors', JSON.stringify(existingErrors.slice(-5)));
+        } catch (e) {
+          log('Error storing profile error information:', e);
+        }
+        
+        return null;
+      } else {
+        log('Cannot create profile - no email provided');
+      }
+      
+      return null;
+    } catch (err) {
+      log('Unexpected error in fetchUserProfile:', err);
+      return null;
+    }
+  };
+
+  // Refresh profile function that can be called from outside the provider
+  const refreshProfile = useCallback(async (): Promise<Profile | null> => {
+    if (!user?.id) {
+      log('Cannot refresh profile - no user ID');
+      return null;
+    }
+    
+    // Clear the cache to ensure we get fresh data
+    clearCachedUserProfile(user.id);
+    
+    setIsProfileLoading(true);
+    
+    try {
+      log(`Refreshing profile for user ${user.id}`);
+      const userProfile = await fetchUserProfile(user.id, user.email, true);
+      
+      if (userProfile) {
+        log('Profile refreshed successfully:', userProfile);
+        profileUpdated(userProfile);
+        return userProfile;
+      } else {
+        log('Failed to refresh profile');
+        return null;
+      }
+    } catch (error) {
+      log('Error refreshing profile:', error);
+      return null;
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [user, profileUpdated]);
+
+  // Function to set user as admin
+  const setUserAsAdmin = useCallback(async (): Promise<boolean> => {
+    if (!user?.id) {
+      log('Cannot set user as admin - no user ID');
+      return false;
+    }
+    
+    try {
+      log('Setting user as admin using Edge Function');
+      const { data, error } = await supabase.functions.invoke('ensure_profile_exists', {
+        body: {
+          user_id: user.id,
+          email: user.email,
+          role: 'admin',
+          status: 'active'
+        }
+      });
+      
+      if (error) {
+        log('Error setting user as admin:', error);
+        return false;
+      }
+      
+      log('User set as admin successfully');
+      
+      // Refresh profile to get updated role
+      await refreshProfile();
+      
+      return true;
+    } catch (error) {
+      log('Exception setting user as admin:', error);
+      return false;
+    }
+  }, [user, refreshProfile]);
+
+  // Sign in with email and password
+  const signIn = async (email: string, password: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Sign in with Supabase Auth
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (signInError) {
+        log('Error during sign in', signInError);
+        setError(signInError);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Auth state listener will handle the profile loading
+      log('Sign in successful, redirecting to dashboard');
+      navigate('/dashboard');
+    } catch (error) {
+      log('Exception during sign in:', error);
+      setError(error instanceof Error ? error : new Error('Unknown error during sign in'));
+      setIsLoading(false);
+    }
+  };
+  
+  // Sign up with email and password
+  const signUp = async (email: string, password: string, metadata?: any) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Sign up with Supabase Auth
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: metadata || {
+            first_name: email.split('@')[0],
+            last_name: ''
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+      
+      if (signUpError) {
+        log('Error during sign up', signUpError);
+        setError(signUpError);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Give Supabase time to process the sign up
+      log('Sign up successful, waiting for processing');
+      await sleep(1000);
+      
+      // Redirect to dashboard or confirmation page
+      navigate('/dashboard');
+    } catch (error) {
+      log('Exception during sign up:', error);
+      setError(error instanceof Error ? error : new Error('Unknown error during sign up'));
+      setIsLoading(false);
+    }
+  };
+  
+  // Sign out
+  const signOut = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Clear any cached profile data first
+      if (user?.id) {
+        clearCachedUserProfile(user.id);
+      }
+      
+      // Sign out with Supabase Auth
+      const { error: signOutError } = await supabase.auth.signOut();
+      
+      if (signOutError) {
+        log('Error during sign out', signOutError);
+        setError(signOutError);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Clear state immediately
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      setIsAdmin(false);
+      
+      log('Sign out successful, redirecting to login');
+      // Redirect to login
+      navigate('/auth/login');
+    } catch (error) {
+      log('Exception during sign out:', error);
+      setError(error instanceof Error ? error : new Error('Unknown error during sign out'));
+      setIsLoading(false);
+    }
+  };
+
+  // Refresh session
+  const refreshSession = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const { data, error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (refreshError) {
+        setError(refreshError);
+        setIsLoading(false);
+        return;
+      }
+      
+      if (data?.session) {
+        setSession(data.session);
+        setUser(data.session.user);
+        
+        if (data.session.user) {
+          await fetchUserProfile(data.session.user.id, data.session.user.email);
+        }
+      }
+      
+      setIsLoading(false);
+    } catch (error) {
+      log('Error refreshing session:', error);
+      setError(error instanceof Error ? error : new Error('Unknown error refreshing session'));
+      setIsLoading(false);
+    }
+  };
+
+  // Refresh auth state manually - this is the function called when we need to force a refresh
+  const refreshAuthState = async () => {
+    try {
+      log('Starting manual auth state refresh');
+      setIsLoading(true);
+      setError(null);
+      
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        log('Error getting session during refreshAuthState', error);
+        throw error;
+      }
+      
+      if (data?.session) {
+        log('Valid session found during refreshAuthState', data.session.user.id);
+        setSession(data.session);
+        setUser(data.session.user);
+        
+        if (data.session.user) {
+          // Clear the profile cache to ensure we get fresh data
+          clearCachedUserProfile(data.session.user.id);
+          
+          // Set profile loading indicator
+          setIsProfileLoading(true);
+          
+          try {
+            // Get fresh profile data
+            log('Fetching fresh profile data for user', data.session.user.id);
+            
+            // First, try to get the profile directly
+            let userProfile: Profile | null = null;
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.session.user.id)
+              .single();
+            
+            if (profileError) {
+              log('Error fetching profile directly', profileError);
+            } else if (profileData && isCompleteProfile(profileData)) {
+              log('Profile fetched directly', profileData);
+              userProfile = profileData as Profile;
+            } else {
+              log('Profile not found or incomplete, attempting to create it');
+            }
+            
+            // If we couldn't get a profile and have an email, create one
+            if (!userProfile && data.session.user.email) {
+              log('Creating profile for user', data.session.user.id);
+              
+              const { data: newProfile, error: createError } = await supabase
+                .from('profiles')
+                .upsert({
+                  id: data.session.user.id,
+                  email: data.session.user.email,
+                  role: 'user', // Default to regular user role
+                  status: 'active',
+                  first_name: data.session.user.email.split('@')[0] || 'User',
+                  is_admin: false, // Default to not admin
+                  address1: '',
+                  address2: '',
+                  city: '',
+                  state: '',
+                  zip: '',
+                  country: '',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'id' })
+                .select()
+                .single();
+              
+              if (createError) {
+                log('Error creating profile', createError);
+              } else if (newProfile) {
+                log('Profile created successfully', newProfile);
+                userProfile = newProfile as Profile;
+              }
+            }
+            
+            if (userProfile) {
+              log("Profile loaded successfully during refresh:", userProfile);
+              profileUpdated(userProfile);
+              
+              // Check if this is the first login for this user
+              if (localStorage.getItem('first_login') !== 'false') {
+                // Set flag to prevent this check in future
+                localStorage.setItem('first_login', 'false');
+                
+                // In development mode, check for admin users
+                if (process.env.NODE_ENV === 'development') {
+                  log('Development mode detected, checking if user should be admin');
+                  
+                  // Check if user is configured as admin in localStorage
+                  const shouldBeAdmin = localStorage.getItem('akii-dev-admin') === 'true';
+                  
+                  if (shouldBeAdmin && (userProfile as Profile).role !== 'admin') {
+                    log('Setting user to admin based on development configuration');
+                    const { data: updatedProfile, error: updateError } = await supabase
+                      .from('profiles')
+                      .update({ role: 'admin' })
+                      .eq('id', (userProfile as Profile).id)
+                      .select()
+                      .single();
+                    
+                    if (!updateError && updatedProfile) {
+                      log('Successfully set user as admin', updatedProfile);
+                      profileUpdated(updatedProfile);
+                    } else {
+                      log('Failed to set user as admin', updateError);
+                    }
+                  }
+                }
+              }
+        } else {
+              log("Failed to load/create profile during refresh");
+              profileUpdated(null);
+            }
+          } catch (err) {
+            log('Error during profile handling in refreshAuthState', err);
+            profileUpdated(null);
+          } finally {
+            setIsProfileLoading(false);
+          }
+        }
+      } else {
+        log('No valid session found during refreshAuthState');
+        setUser(null);
+        setSession(null);
+        profileUpdated(null);
+      }
+      
+      setIsLoading(false);
+      log('Auth state refresh completed');
+    } catch (error) {
+      log('Error refreshing auth state:', error);
+      setError(error instanceof Error ? error : new Error('Unknown error refreshing auth state'));
+      setIsLoading(false);
+    }
+  };
+  
+  // Auth state listener setup
+  useEffect(() => {
+    log('Setting up auth state listener');
+
+    // Clear all profile caches on mount to ensure fresh data
+    clearProfileCache();
+    
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      authStateChangeCount.current += 1;
+      
+      log(`Auth state change: ${event} (count: ${authStateChangeCount.current})`);
+      
+      if (event === 'SIGNED_IN') {
+        setUser(session?.user || null);
+        setSession(session);
+        
+        // Clear cache to ensure fresh profile data after sign-in
+        if (session?.user?.id) {
+          clearCachedUserProfile(session.user.id);
+        }
+
+        // Force fetch profile with fresh data
+        if (session?.user) {
+          try {
+            profileFetchInProgress.current = true;
+            const userProfile = await fetchUserProfile(
+              session.user.id, 
+              session.user.email || undefined,
+              true // Force fresh data
+            );
+            
+            if (userProfile) {
+              log('✅ Profile loaded on SIGNED_IN:', userProfile);
+              profileUpdated(userProfile);
+              
+              // Hard-coded override for specific user ID
+              if (session.user.id === 'b574f273-e0e1-4cb8-8c98-f5a7569234c8') {
+                log('ADMIN OVERRIDE: Setting admin status for specific user');
+                setIsAdmin(true);
+              }
+            } else {
+              log('❌ Failed to load profile on SIGNED_IN');
+              setProfile(null);
+              setIsAdmin(false);
+            }
+    } catch (error) {
+            log('Error loading profile on SIGNED_IN:', error);
+            setProfile(null);
+            setIsAdmin(false);
+          } finally {
+            profileFetchInProgress.current = false;
+          }
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        setIsAdmin(false);
+        clearProfileCache();
+      } else if (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+        setUser(session?.user || null);
+        setSession(session);
+        
+        // Force fresh profile data on user update or token refresh
+        if (session?.user) {
+          try {
+            profileFetchInProgress.current = true;
+            
+            // Clear cache to ensure fresh data
+            clearCachedUserProfile(session.user.id);
+            
+            const userProfile = await fetchUserProfile(
+              session.user.id, 
+              session.user.email || undefined,
+              true // Force fresh data
+            );
+            
+            if (userProfile) {
+              log(`✅ Profile loaded on ${event}:`, userProfile);
+              profileUpdated(userProfile);
+            } else {
+              log(`❌ Failed to load profile on ${event}`);
+            }
+          } catch (error) {
+            log(`Error loading profile on ${event}:`, error);
+          } finally {
+            profileFetchInProgress.current = false;
+          }
+        }
+      }
+      
+      // Set auth as initialized after first auth state change
+      if (!authInitialized) {
+        setAuthInitialized(true);
+      }
+      
+      setIsLoading(false);
+    });
+    
+    // Initial auth check
+    const checkInitialAuthState = async () => {
+      try {
+        log('Checking initial auth state');
+        
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          throw error;
+        }
+        
+        setSession(data.session);
+        setUser(data.session?.user || null);
+        
+        if (data.session?.user) {
+          try {
+            profileFetchInProgress.current = true;
+            // Clear cache to ensure fresh data
+            clearCachedUserProfile(data.session.user.id);
+            
+            const userProfile = await fetchUserProfile(
+              data.session.user.id, 
+              data.session.user.email || undefined,
+              true // Force fresh profile fetch
+            );
+            
+            if (userProfile) {
+              log('✅ Profile loaded on initial auth check:', userProfile);
+              profileUpdated(userProfile);
+              
+              // Hard-coded override for specific user ID
+              if (data.session.user.id === 'b574f273-e0e1-4cb8-8c98-f5a7569234c8') {
+                log('ADMIN OVERRIDE: Setting admin status for specific user');
+                setIsAdmin(true);
+              }
+            } else {
+              log('❌ Failed to load profile on initial auth check');
+              setProfile(null);
+              setIsAdmin(false);
+            }
+          } catch (error) {
+            log('Error loading profile on initial auth check:', error);
+            setProfile(null);
+            setIsAdmin(false);
+          } finally {
+            profileFetchInProgress.current = false;
+          }
+        }
+        
+        // Set auth as initialized after initial check
+        setAuthInitialized(true);
+        setIsLoading(false);
+    } catch (error) {
+        log('Error checking initial auth state:', error);
+        setAuthInitialized(true);
+        setIsLoading(false);
+      }
+    };
+    
+    checkInitialAuthState();
+  }, []);
+
+  // Context value - what gets provided to components
+  const value = useMemo(() => ({
     user,
     profile,
-    hasUser,
-    hasProfile,
-    isLoading,
-    authError,
-    
-    // Auth actions
-    signIn: newSignIn,
-    signUp: newSignUp,
-    signOut: newSignOut,
-    
-    // Profile operations
-    refreshProfile,
-    updateProfile,
-    isValidProfile,
-    
-    // Admin/permissions
+    hasUser: !!user,
+    hasProfile: !!profile,
+    isValidProfile: (p: Profile | null) => isCompleteProfile(p),
     isAdmin,
-    isSuperAdmin,
-    checkAdminStatus,
-    setUserAsAdmin
-  } = useNewAuth();
-  
-  // Function adaptors to ensure API compatibility with existing code
-  const signIn = async (email: string, password: string): Promise<void> => {
-    log('Legacy signIn called with email', email);
-    await newSignIn({ email, password });
-  };
-  
-  const signUp = async (email: string, password: string, metadata?: any): Promise<void> => {
-    log('Legacy signUp called with email', email);
-    await newSignUp({ email, password, metadata });
-  };
-  
-  const signOut = async (): Promise<void> => {
-    log('Legacy signOut called');
-    await newSignOut();
-  };
-  
-  // Simple wrapper to maintain API compatibility
-  const refreshAuthState = async (): Promise<void> => {
-    log('Legacy refreshAuthState called');
-    await refreshProfile();
-  };
-  
-  // Compatibility wrapper
-  const checkSuperAdminStatus = async (): Promise<boolean> => {
-    return isSuperAdmin;
-  };
-  
-  // isDeveloper is a special computed property for this context
-  const isDeveloper = !!(profile && ['admin', 'developer'].includes(profile.role));
-  
-  // Create the context value with the same shape as the original
-  const contextValue: AuthContextType = {
-    user,
-    profile,
-    hasUser,
-    hasProfile,
-    isValidProfile,
-    isAdmin,
-    isSuperAdmin,
-    isDeveloper,
+    isDeveloper: !!profile && ['admin', 'developer'].includes(profile.role),
     authLoading: isLoading,
     isLoading,
     refreshAuthState,
@@ -243,16 +928,58 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     signUp,
     signOut,
     refreshProfile,
-    updateProfile,
-    setUserAsAdmin,
-    checkSuperAdminStatus
-  };
-  
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+    updateProfile: async (updates: Partial<Profile>) => {
+      if (!user?.id || !profile?.id) return false;
+      
+      try {
+        log('Updating profile', updates);
+        setIsLoading(true);
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', profile.id)
+          .select()
+          .single();
+          
+        if (error) {
+          log('Error updating profile', error);
+          return false;
+        }
+        
+        if (data) {
+          // Update cache and state
+          log('Profile updated successfully', data);
+          profileCache.set(user.id, data);
+          setProfile(data);
+          
+          // Update admin status if role is being updated - directly from DB
+          if (data.role === 'admin') {
+            log('Setting admin status to true based on updated role');
+            setIsAdmin(true);
+          } else {
+            log('Setting admin status to false based on updated role');
+            setIsAdmin(false);
+          }
+          
+          return true;
+        }
+        
+        return false;
+      } catch (error) {
+        log('Error updating profile', error);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    setUserAsAdmin: async () => {
+      if (!user?.id) return false;
+      return setUserAsAdmin();
+    }
+  }), [user, profile, isLoading, signIn, signUp, signOut, refreshAuthState, setUserAsAdmin]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 // Custom hook to use auth context

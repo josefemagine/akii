@@ -40,6 +40,29 @@ The authentication system has been refactored to consolidate and simplify the im
 3. **Consolidated Auth Components** - A set of standardized, reusable authentication UI components.
 4. **Unified Auth Context** - A React context that provides authentication state and methods throughout the application.
 
+### Admin Permissions
+
+**IMPORTANT:** This application uses a single `isAdmin` property to determine administrative privileges. The previous `isSuperAdmin` functionality has been removed to simplify the permission model.
+
+- Always use `isAdmin` to check for admin permissions in components
+- The `role === 'superadmin'` check has been removed; only `role === 'admin'` is used
+- Use `useAuth().isAdmin` for checking admin status in components
+
+```tsx
+// Correct way to check admin status
+import { useAuth } from '@/hooks/useAuth';
+
+function AdminComponent() {
+  const { isAdmin } = useAuth();
+  
+  if (!isAdmin) {
+    return <p>Not authorized</p>;
+  }
+  
+  return <div>Admin content</div>;
+}
+```
+
 ### Key Files
 
 - **`src/types/auth.ts`** - Centralized type definitions for auth-related interfaces and constants.
@@ -113,7 +136,6 @@ function MyComponent() {
     
     // Permission checks
     isAdmin,
-    isSuperAdmin,
     isTeamOwner
   } = useAuth();
 

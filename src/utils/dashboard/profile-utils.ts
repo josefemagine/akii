@@ -110,7 +110,14 @@ export const createUserProfile = async (
     
     // Cache profile in localStorage for emergency auth
     try {
-      safeLocalStorage.setItem(`userProfile_${userId}`, JSON.stringify(data));
+      const cacheSuccess = safeLocalStorage.setItem(
+        `userProfile_${userId}`, 
+        JSON.stringify(data)
+      );
+      
+      if (!cacheSuccess) {
+        console.warn('Failed to cache profile data in localStorage');
+      }
     } catch (e) {
       console.warn('Error caching profile data:', e);
     }
@@ -143,7 +150,14 @@ export const fetchUserProfile = async (userId: string): Promise<any | null> => {
     if (data) {
       // Cache profile in localStorage for emergency auth
       try {
-        safeLocalStorage.setItem(`userProfile_${userId}`, JSON.stringify(data));
+        const cacheSuccess = safeLocalStorage.setItem(
+          `userProfile_${userId}`, 
+          JSON.stringify(data)
+        );
+        
+        if (!cacheSuccess) {
+          console.warn('Failed to cache profile data in localStorage');
+        }
       } catch (e) {
         console.warn('Error caching profile data:', e);
       }

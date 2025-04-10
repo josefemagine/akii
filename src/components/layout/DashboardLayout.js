@@ -346,15 +346,17 @@ const DashboardLayout = ({ children, isAdmin = false }) => {
                         }
                     };
                     setUser(fallbackUser);
-                    // Create profile from fallback data
-                    const fallbackProfile = {
-                        id: fallbackData.id || 'fallback-user',
-                        email: fallbackData.email,
-                        first_name: fallbackData.first_name || 'User',
-                        last_name: fallbackData.last_name || '',
-                        role: fallbackData.role || 'user'
-                    };
-                    setProfile(fallbackProfile);
+                    
+                    // Instead of creating a fallback profile, log the error and show proper debugging info
+                    console.error('Failed to load complete profile data for user', fallbackData.id);
+                    
+                    // Set null profile to trigger error state in components
+                    setProfile(null);
+                    
+                    // Setting a flag to indicate profile loading failed
+                    localStorage.setItem('akii-profile-load-failed', 'true');
+                    localStorage.setItem('akii-profile-load-error-time', Date.now().toString());
+                    
                     return true;
                 }
                 catch (e) {
@@ -377,15 +379,9 @@ const DashboardLayout = ({ children, isAdmin = false }) => {
                     }
                 };
                 setUser(placeholderUser);
-                // Create minimal profile
-                const placeholderProfile = {
-                    id: 'auth-token-user',
-                    email: 'authenticated_user@akii.ai',
-                    first_name: 'Authenticated',
-                    last_name: 'User',
-                    role: 'user'
-                };
-                setProfile(placeholderProfile);
+                console.error('Using token auth only - profile data unavailable');
+                setProfile(null);
+                localStorage.setItem('akii-profile-auth-method', 'token-only');
                 return true;
             }
             return false;
@@ -1081,7 +1077,7 @@ const DashboardLayout = ({ children, isAdmin = false }) => {
     if (shouldDisplayDashboard()) {
         return (_jsxs("div", { className: `flex min-h-screen flex-col bg-background ${isDarkMode ? 'dark' : ''}`, children: [_jsx("header", { className: "sticky top-0 z-40 h-16 border-b bg-background", children: _jsxs("div", { className: "flex h-16 items-center px-4", children: [_jsx("div", { className: "md:hidden mr-2", children: _jsx(Button, { variant: "ghost", size: "icon", onClick: () => setMobileMenuOpen(!mobileMenuOpen), children: mobileMenuOpen ? (_jsx(X, { className: "h-5 w-5" })) : (_jsx(Menu, { className: "h-5 w-5" })) }) }), _jsx("div", { className: "mr-4 hidden md:flex", children: _jsxs(Link, { to: "/", className: "flex items-center", children: [_jsx(Circle, { className: "h-6 w-6 fill-primary text-primary" }), _jsx("span", { className: "ml-2 text-xl font-bold", children: "Akii" })] }) }), _jsxs("div", { className: "ml-auto flex items-center gap-3", children: [_jsx(Button, { variant: "ghost", size: "icon", "aria-label": "Toggle Theme", className: "rounded-full", onClick: toggleDarkMode, children: isDarkMode ? (_jsx(Sun, { className: "h-5 w-5" })) : (_jsx(Moon, { className: "h-5 w-5" })) }), _jsx(Button, { variant: "ghost", size: "icon", "aria-label": "Notifications", className: "rounded-full", children: _jsx(Bell, { className: "h-5 w-5" }) }), _jsxs(DropdownMenu, { children: [_jsx(DropdownMenuTrigger, { asChild: true, children: _jsxs(Button, { variant: "ghost", className: "flex items-center gap-2 rounded-full overflow-hidden", children: [_jsx(Avatar, { className: "h-8 w-8", children: userDisplayData.avatarUrl ? (_jsx(AvatarImage, { src: userDisplayData.avatarUrl, alt: "User's profile picture" })) : (_jsx(AvatarFallback, { children: ((_a = userDisplayData.firstName) === null || _a === void 0 ? void 0 : _a.charAt(0)) ||
                                                                     ((_c = (_b = userDisplayData.email) === null || _b === void 0 ? void 0 : _b.charAt(0)) === null || _c === void 0 ? void 0 : _c.toUpperCase()) ||
-                                                                    _jsx(UserIcon, { className: "h-5 w-5" }) })) }), _jsx("span", { className: "font-medium ml-1 hidden md:inline-block", children: userDisplayData.firstName || ((_d = userDisplayData.email) === null || _d === void 0 ? void 0 : _d.split('@')[0]) || 'User' })] }) }), _jsxs(DropdownMenuContent, { align: "end", children: [_jsx(DropdownMenuItem, { onClick: () => navigate('/settings'), children: "Profile" }), _jsx(DropdownMenuItem, { onClick: () => navigate('/settings'), children: "Settings" }), _jsx(DropdownMenuSeparator, {}), _jsxs(DropdownMenuItem, { onClick: () => handleSignOut('local'), children: [_jsx(LogOut, { className: "h-4 w-4 mr-2" }), "Sign Out (This Device)"] }), _jsxs(DropdownMenuItem, { onClick: () => handleSignOut('others'), children: [_jsx(LogOut, { className: "h-4 w-4 mr-2" }), "Sign Out (Other Devices)"] }), _jsxs(DropdownMenuItem, { onClick: () => handleSignOut('global'), children: [_jsx(LogOut, { className: "h-4 w-4 mr-2" }), "Sign Out (All Devices)"] })] })] })] })] }) }), _jsxs("div", { className: "flex flex-1 flex-col sm:flex-row", children: [_jsx("div", { className: "hidden md:block", children: _jsx(SimpleSidebar, { collapsed: sidebarCollapsed, onToggle: toggleSidebar }) }), mobileMenuOpen && (_jsxs("div", { className: "md:hidden fixed inset-0 z-50 flex", children: [_jsx("div", { className: "fixed inset-0 bg-background/80 backdrop-blur-sm", onClick: () => setMobileMenuOpen(false) }), _jsx("div", { className: "relative bg-background w-full max-w-xs p-4", children: _jsx(SimpleSidebar, {}) })] })), _jsx("div", { className: cn("flex-1 md:ml-64 transition-all", sidebarCollapsed && "md:ml-16"), children: _jsx(DashboardPageContainer, { children: children }) })] })] }));
+                                                                    _jsx(UserIcon, { className: "h-5 w-5" }) })) }), _jsx("span", { className: "font-medium ml-1 hidden md:inline-block", children: userDisplayData.firstName || ((_d = userDisplayData.email) === null || _d === void 0 ? void 0 : _d.split('@')[0]) || 'User' })] }) }), _jsxs(DropdownMenuContent, { align: "end", children: [_jsx(DropdownMenuItem, { onClick: () => navigate('/settings'), children: "Profile" }), _jsx(DropdownMenuItem, { onClick: () => navigate('/settings'), children: "Settings" }), _jsx(DropdownMenuSeparator, {}), _jsxs(DropdownMenuItem, { onClick: () => handleSignOut('local'), children: [_jsx(LogOut, { className: "h-4 w-4 mr-2" }), "Sign Out (This Device)"] }), _jsxs(DropdownMenuItem, { onClick: () => handleSignOut('others'), children: [_jsx(LogOut, { className: "h-4 w-4 mr-2" }), "Sign Out (Other Devices)"] }), _jsxs(DropdownMenuItem, { onClick: () => handleSignOut('global'), children: [_jsx(LogOut, { className: "h-4 w-4 mr-2" }), "Sign Out (All Devices)"] })] })] })] })] })] }) }), _jsxs("div", { className: "flex flex-1 flex-col sm:flex-row", children: [_jsx("div", { className: "hidden md:block", children: _jsx(SimpleSidebar, { collapsed: sidebarCollapsed, onToggle: toggleSidebar }) }), mobileMenuOpen && (_jsxs("div", { className: "md:hidden fixed inset-0 z-50 flex", children: [_jsx("div", { className: "fixed inset-0 bg-background/80 backdrop-blur-sm", onClick: () => setMobileMenuOpen(false) }), _jsx("div", { className: "relative bg-background w-full max-w-xs p-4", children: _jsx(SimpleSidebar, {}) })] })), _jsx("div", { className: cn("flex-1 md:ml-64 transition-all", sidebarCollapsed && "md:ml-16"), children: _jsx(DashboardPageContainer, { children: children }) })] })] }));
     }
     return null; // This should never be reached
 };

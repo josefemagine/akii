@@ -17,37 +17,15 @@ type ExtendedProfile = ProfileType;
 
 export default function Settings() {
   const { user, profile: authProfile, refreshProfile, hasUser, authLoading } = useAuth();
-  const [localProfile, setLocalProfile] = useState<ExtendedProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Force create a fallback profile if database access fails
+  // Check profile loading state
   useEffect(() => {
-    if (user && !authProfile) {
-      console.log('[Settings] No profile found, creating fallback profile');
-      
-      // Create minimal fallback profile for UI to work
-      const fallbackProfile: ExtendedProfile = {
-        id: user.id,
-        email: user.email || '',
-        role: user.email?.includes('@holm.com') ? 'admin' : 'user',
-        status: 'active',
-        first_name: user.email?.split('@')[0] || 'User',
-        is_fallback_profile: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      setLocalProfile(fallbackProfile);
-      setIsLoading(false);
-    } else if (authProfile) {
-      console.log('[Settings] Using profile from context:', authProfile);
-      setLocalProfile(authProfile);
-      setIsLoading(false);
-    } else if (!user) {
-      console.log('[Settings] No user found');
+    if (authProfile || (!user && !authLoading)) {
+      // Either we have a profile or there's no user (not logged in)
       setIsLoading(false);
     }
-  }, [user, authProfile]);
+  }, [user, authProfile, authLoading]);
 
   // Handle loading state
   if (authLoading || isLoading) {
@@ -64,30 +42,46 @@ export default function Settings() {
     );
   }
 
-  // If we have a user but no profile (from context or local fallback)
-  if (hasUser && !authProfile && !localProfile) {
+  // If we have a user but no profile - show error with debugging information
+  if (hasUser && !authProfile) {
     return (
       <DashboardPageContainer className="pb-12">
         <h1 className="text-3xl font-bold mb-6">Settings</h1>
         <div className="p-6 bg-destructive/10 rounded-lg mb-6">
           <h3 className="text-lg font-medium mb-2">Profile Error</h3>
-          <p className="mb-4">We couldn't load your profile data. Please try refreshing the page.</p>
-          <button 
-            className="px-4 py-2 bg-primary text-white rounded-md"
-            onClick={() => {
-              refreshProfile?.();
-              window.location.reload();
-            }}
-          >
-            Refresh Now
-          </button>
+          <p className="mb-4">We couldn't load your profile data. This might be due to a database connection issue or missing profile record.</p>
+          
+          {/* Debug information */}
+          <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-800 rounded text-xs font-mono overflow-auto">
+            <p>User ID: {user?.id || "Not available"}</p>
+            <p>Email: {user?.email || "Not available"}</p>
+            <p>Auth State: {hasUser ? "Authenticated" : "Not authenticated"}</p>
+            <p>Timestamp: {new Date().toISOString()}</p>
+          </div>
+          
+          <div className="flex space-x-3">
+            <button 
+              className="px-4 py-2 bg-primary text-white rounded-md"
+              onClick={() => {
+                refreshProfile?.();
+              }}
+            >
+              Retry Loading Profile
+            </button>
+            
+            <button 
+              className="px-4 py-2 bg-secondary text-white rounded-md"
+              onClick={() => {
+                window.location.reload();
+              }}
+            >
+              Reload Page
+            </button>
+          </div>
         </div>
       </DashboardPageContainer>
     );
   }
-
-  // Use either the context profile or our local fallback
-  const displayProfile = authProfile || localProfile;
 
   return (
     <DashboardPageContainer className="pb-12">
@@ -139,10 +133,9 @@ export default function Settings() {
         <div className="text-xs text-muted-foreground">
           <p>User ID: {user?.id || "Not logged in"}</p>
           <p>Email: {user?.email || "Unknown"}</p>
-          <p>Profile Status: {authProfile ? "Loaded from DB" : (localProfile ? "Using fallback" : "Not loaded")}</p>
-          <p>Role: {displayProfile?.role || "Unknown"}</p>
-          <p>Is Admin: {displayProfile?.role === "admin" ? "Yes" : "No"}</p>
-          <p>Is Fallback: {displayProfile?.is_fallback_profile ? "Yes" : "No"}</p>
+          <p>Profile Status: {authProfile ? "Loaded from DB" : "Not loaded"}</p>
+          <p>Role: {authProfile?.role || "Unknown"}</p>
+          <p>Is Admin: {authProfile?.role === "admin" ? "Yes" : "No"}</p>
         </div>
       </div>
     </DashboardPageContainer>

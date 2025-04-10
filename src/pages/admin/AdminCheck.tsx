@@ -1,23 +1,21 @@
 import React from 'react';
 import { useAuth } from '@/contexts/UnifiedAuthContext';
-import { useSuperAdmin } from '@/hooks/useSuperAdmin';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AdminCheckComponent from '@/components/dashboard/AdminCheck';
 import withAdminInit from '@/components/admin/withAdminInit';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { diagnoseSuperAdminIssues, enableDevAdminMode } from '@/utils/admin-utils';
+import { diagnoseAdminIssues, enableDevAdminMode } from '@/utils/admin-utils';
 import { Button } from '@/components/ui/button';
 
 const AdminCheck: React.FC = () => {
   const { user, isAdmin } = useAuth();
-  const { isSuperAdmin, checkSuperAdminStatus } = useSuperAdmin();
   const [diagnosticData, setDiagnosticData] = React.useState<any>(null);
   const [isRunningDiagnostic, setIsRunningDiagnostic] = React.useState(false);
 
   const runDiagnostic = async () => {
     setIsRunningDiagnostic(true);
     try {
-      const data = await diagnoseSuperAdminIssues();
+      const data = await diagnoseAdminIssues();
       setDiagnosticData(data);
     } catch (error) {
       console.error('Error running diagnostic:', error);
@@ -30,7 +28,6 @@ const AdminCheck: React.FC = () => {
     const currentStatus = localStorage.getItem('akii-is-admin') === 'true';
     enableDevAdminMode(!currentStatus);
     setTimeout(() => {
-      checkSuperAdminStatus();
       window.location.reload();
     }, 100);
   };
@@ -50,19 +47,19 @@ const AdminCheck: React.FC = () => {
       <Tabs defaultValue="status">
         <TabsList className="mb-4">
           <TabsTrigger value="status">Current Status</TabsTrigger>
-          <TabsTrigger value="super-admin">Super Admin</TabsTrigger>
+          <TabsTrigger value="admin">Admin Access</TabsTrigger>
         </TabsList>
         
         <TabsContent value="status">
           <AdminCheckComponent />
         </TabsContent>
         
-        <TabsContent value="super-admin">
+        <TabsContent value="admin">
           <Card>
             <CardHeader>
-              <CardTitle>Super Admin Status</CardTitle>
+              <CardTitle>Admin Status</CardTitle>
               <CardDescription>
-                View and manage super admin privileges
+                View and manage admin privileges
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -72,9 +69,9 @@ const AdminCheck: React.FC = () => {
                   <p className="text-sm font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded">{user?.id || 'Not logged in'}</p>
                 </div>
                 <div>
-                  <p className="font-medium mb-1">Super Admin Status:</p>
-                  <p className={`text-sm font-semibold ${isSuperAdmin ? 'text-green-600' : 'text-red-600'}`}>
-                    {isSuperAdmin ? 'Enabled' : 'Disabled'}
+                  <p className="font-medium mb-1">Admin Status:</p>
+                  <p className={`text-sm font-semibold ${isAdmin ? 'text-green-600' : 'text-red-600'}`}>
+                    {isAdmin ? 'Enabled' : 'Disabled'}
                   </p>
                 </div>
               </div>

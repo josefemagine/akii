@@ -9,35 +9,9 @@ import { supabase } from './supabase';
  * This is a fast, synchronous check that uses localStorage and other client-side indicators
  */
 export const getClientSideAdminStatus = (): boolean => {
-  // Check localStorage indicators first (fastest path)
-  const localStorageAdmin = localStorage.getItem('akii-is-admin') === 'true';
-  
-  // Check admin override flag
-  const adminOverride = localStorage.getItem('akii_admin_override') === 'true';
-  
-  // Check override expiry
-  let overrideValid = false;
-  if (adminOverride) {
-    const expiryStr = localStorage.getItem('akii_admin_override_expiry');
-    if (expiryStr) {
-      try {
-        const expiry = new Date(expiryStr);
-        overrideValid = expiry > new Date();
-      } catch (e) {
-        console.error('Error parsing admin override expiry', e);
-      }
-    }
-  }
-  
-  // In development mode, make admin checks more permissive
-  const isDev = import.meta.env.DEV;
-  if (isDev) {
-    console.log('[Admin Utils] Running in development mode - enabling admin access');
-    localStorage.setItem('akii-is-admin', 'true');
-    return true;
-  }
-  
-  return localStorageAdmin || (adminOverride && overrideValid);
+  // Admin status is now determined solely from database records
+  console.log('[Admin Utils] Admin status is determined by database roles only');
+  return false;
 };
 
 /**
@@ -45,14 +19,10 @@ export const getClientSideAdminStatus = (): boolean => {
  * This prevents auth flicker during page navigation
  */
 export const forceAdminStatus = (email?: string): void => {
-  localStorage.setItem('akii-is-admin', 'true');
-  
-  if (email) {
-    localStorage.setItem('akii-auth-user-email', email);
-  }
-  
-  // Set a timestamp to track when this was last applied
-  localStorage.setItem('akii-admin-force-timestamp', Date.now().toString());
+  console.log('Admin status is now determined solely from database roles');
+  // Clear any localStorage admin overrides to ensure consistent behavior
+  localStorage.removeItem('akii-is-admin');
+  localStorage.removeItem('akii_admin_override');
 };
 
 /**

@@ -42,7 +42,15 @@ const allRoutes = [...staticRoutes, ...getBlogRoutes()];
 // https://vitejs.dev/config/
 export default defineConfig({
     plugins: [
-        react(),
+        react({
+            // Enable JSX in .js files
+            include: "**/*.{jsx,js,ts,tsx}",
+            babel: {
+                plugins: [
+                    ['@babel/plugin-transform-react-jsx', { runtime: 'automatic' }]
+                ]
+            }
+        }),
         tempo(),
         tsconfigPaths(),
         !isFocusedBedrockBuild && sitemap({

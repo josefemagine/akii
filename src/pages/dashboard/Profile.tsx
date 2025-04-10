@@ -25,13 +25,13 @@ const DEFAULT_AVATAR_URL = "https://injxxchotrvgvvzelhvj.supabase.co/storage/v1/
 // Edge Function endpoint
 const USER_DATA_ENDPOINT = "https://injxxchotrvgvvzelhvj.supabase.co/functions/v1/user-data";
 
-interface UserProfileData extends ProfileType {
-  is_super_admin?: boolean;
+interface ExtendedProfile extends ProfileType {
+  // Add any extended profile properties here
 }
 
 const Profile = () => {
-  const { user } = useAuth();
-  const [profileData, setProfileData] = useState<UserProfileData | null>(null);
+  const { user, isAdmin } = useAuth();
+  const [profileData, setProfileData] = useState<ExtendedProfile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -243,13 +243,25 @@ const Profile = () => {
     }
   };
 
-  // Show if super admin badge when applicable
-  const SuperAdminBadge = () => {
-    if (!profileData?.is_super_admin) return null;
+  // Show admin badge when applicable
+  const AdminBadge = () => {
+    if (!isAdmin) return null;
     
     return (
-      <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 ml-2">
-        Super Admin
+      <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 ml-2">
+        Admin
+      </div>
+    );
+  };
+
+  // Admin-only section
+  const AdminSection = ({ profileData, isAdmin }: { profileData: ExtendedProfile, isAdmin: boolean }) => {
+    if (!isAdmin) return null;
+    
+    // Admin-only content here
+    return (
+      <div>
+        {/* Admin-only content */}
       </div>
     );
   };
@@ -270,7 +282,7 @@ const Profile = () => {
       <CardHeader>
         <CardTitle>
           Profile
-          <SuperAdminBadge />
+          <AdminBadge />
         </CardTitle>
         <CardDescription>
           Manage your personal information

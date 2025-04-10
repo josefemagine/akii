@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { 
   ChevronLeft,
@@ -18,19 +18,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ className }) => {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-  const { user, profile, signOut, isAdmin, checkSuperAdminStatus } = useAuth();
+  const { user, profile, signOut, isAdmin } = useAuth();
   const [isSuper, setIsSuper] = useState(false);
 
-  // Check if user is a super admin
-  React.useEffect(() => {
-    if (isAdmin) {
-      const checkSuperAdmin = async () => {
-        const isSuperAdmin = await checkSuperAdminStatus();
-        setIsSuper(isSuperAdmin);
-      };
-      checkSuperAdmin();
+  useEffect(() => {
+    async function checkAdminStatus() {
+      if (isAdmin) {
+        setIsSuper(true);
+      } else {
+        setIsSuper(false);
+      }
     }
-  }, [isAdmin, checkSuperAdminStatus]);
+
+    checkAdminStatus();
+  }, [isAdmin]);
 
   const toggleExpanded = useCallback((section: string) => {
     setExpandedSections(prev => ({

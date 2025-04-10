@@ -16,7 +16,6 @@ export interface UserProfile {
   team_id?: string;
   is_team_owner?: boolean;
   is_admin?: boolean;
-  is_super_admin?: boolean;
 }
 
 // Simple type for the wrapper object that holds the user
@@ -31,7 +30,6 @@ interface AuthState {
   hasStorageAuth: boolean;
   connectionError: Error | null;
   isAdmin: boolean;
-  isSuperAdmin: boolean;
   isTeamOwner: boolean;
 }
 
@@ -542,13 +540,7 @@ export default function useDashboardLayoutAuth(): AuthState & AuthActions {
   // User role calculations
   const isAdmin = Boolean(
     profile?.is_admin || 
-    profile?.role === 'admin' || 
-    profile?.role === 'superadmin'
-  );
-  
-  const isSuperAdmin = Boolean(
-    profile?.is_super_admin || 
-    profile?.role === 'superadmin'
+    profile?.role === 'admin'
   );
   
   const isTeamOwner = Boolean(
@@ -562,7 +554,6 @@ export default function useDashboardLayoutAuth(): AuthState & AuthActions {
     hasStorageAuth,
     connectionError,
     isAdmin,
-    isSuperAdmin,
     isTeamOwner,
     handleSignOut,
     getData,

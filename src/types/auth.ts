@@ -18,9 +18,18 @@ export interface Profile {
   avatar_url?: string;
   display_name?: string;
   company?: string;
+  company_name?: string;
+  phone?: string;
+  address1?: string;
+  address2?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
   is_fallback_profile?: boolean;
   subscription_status?: string | null;
   subscription_tier?: string | null;
+  is_admin?: boolean;
 }
 
 /**
@@ -44,7 +53,6 @@ export interface AuthContextType {
   hasProfile: boolean;
   isValidProfile: (p: Profile | null) => boolean;
   isAdmin: boolean;
-  isSuperAdmin: boolean;
   isDeveloper: boolean;
   authLoading: boolean;
   isLoading: boolean;
@@ -55,7 +63,6 @@ export interface AuthContextType {
   refreshProfile: () => Promise<Profile | null>;
   updateProfile: (updates: Partial<Profile>) => Promise<boolean>;
   setUserAsAdmin: () => Promise<boolean>;
-  checkSuperAdminStatus: () => Promise<boolean>;
 }
 
 // Auth-related event names
@@ -80,9 +87,26 @@ export const AUTH_STATUS = {
 
 // Profile validation helpers
 export const isCompleteProfile = (profile: any): profile is Profile => {
-  return profile && 
-    typeof profile.id === 'string' && 
-    typeof profile.email === 'string' && 
-    typeof profile.role === 'string' && 
-    typeof profile.status === 'string';
+  if (!profile) {
+    console.log('[Profile Validation] Profile is null or undefined');
+    return false;
+  }
+  
+  // Detailed validation with logging for easier debugging
+  const validations = [
+    { field: 'id', valid: !!profile.id && typeof profile.id === 'string' },
+    { field: 'email', valid: profile.email === undefined || profile.email === null || typeof profile.email === 'string' },
+    { field: 'role', valid: !!profile.role && typeof profile.role === 'string' },
+    { field: 'status', valid: !!profile.status && typeof profile.status === 'string' }
+  ];
+  
+  const failedChecks = validations.filter(v => !v.valid);
+  
+  if (failedChecks.length > 0) {
+    console.log('[Profile Validation] Invalid profile:', 
+      failedChecks.map(f => `${f.field}: ${JSON.stringify(profile[f.field])}`).join(', '));
+    return false;
+  }
+  
+  return true;
 }; 

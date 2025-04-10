@@ -199,7 +199,6 @@ function fixLocalStorage() {
     // Ensure we're not clearing critical data unnecessarily
     const authToken = localStorage.getItem('supabase.auth.token');
     const refreshToken = localStorage.getItem('akii-refresh-token');
-    const isAdmin = localStorage.getItem('akii-is-admin');
     const userId = localStorage.getItem('akii-user-id');
     // Clear all localStorage items related to authentication and app state
     Object.keys(localStorage).forEach(key => {
@@ -212,16 +211,10 @@ function fixLocalStorage() {
         localStorage.setItem('supabase.auth.token', authToken);
     if (refreshToken)
         localStorage.setItem('akii-refresh-token', refreshToken);
-    if (isAdmin)
-        localStorage.setItem('akii-is-admin', isAdmin);
     if (userId)
         localStorage.setItem('akii-user-id', userId);
     // Set a timestamp for the last refresh
     localStorage.setItem('akii-auth-last-refresh', Date.now().toString());
-    // Force admin status for debugging (only in development)
-    if (process.env.NODE_ENV === 'development') {
-        localStorage.setItem('akii-is-admin', 'true');
-    }
 }
 /**
  * Fixes common sessionStorage issues
@@ -244,10 +237,6 @@ function fixSessionStorage() {
 function fixAuthState() {
     // Set auth refresh timestamp
     localStorage.setItem('akii-auth-last-refresh', Date.now().toString());
-    // In development, force admin status for debugging
-    if (process.env.NODE_ENV === 'development') {
-        localStorage.setItem('akii-is-admin', 'true');
-    }
     // Clear any auth error states
     sessionStorage.removeItem('akii-auth-error');
     sessionStorage.removeItem('akii-auth-retry-count');

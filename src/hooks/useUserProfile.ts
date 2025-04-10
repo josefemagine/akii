@@ -3,11 +3,9 @@ import { Profile } from '@/types/auth';
 import { 
   saveUserProfile, 
   fetchUserProfile, 
-  checkAdminStatus, 
-  checkSuperAdminStatus,
+  checkAdminStatus,
   isCompleteProfile,
   isAdmin as checkIsAdmin,
-  isSuperAdmin as checkIsSuperAdmin,
   dispatchProfileUpdated,
   dispatchAuthError
 } from '@/utils/auth';
@@ -25,7 +23,6 @@ interface AdminStatusResult {
   success: boolean;
   error: Error | null;
   isAdmin?: boolean;
-  isSuperAdmin?: boolean;
 }
 
 /**
@@ -116,7 +113,7 @@ export function useUserProfile() {
   }, []);
 
   /**
-   * Check if a user has admin or super admin status
+   * Check if a user has admin status
    */
   const checkUserAdminStatus = useCallback(async (userId: string): Promise<AdminStatusResult> => {
     try {
@@ -144,25 +141,17 @@ export function useUserProfile() {
         return { 
           success: true, 
           error: null, 
-          isAdmin: true,
-          isSuperAdmin: checkIsSuperAdmin(profile)
+          isAdmin: true
         };
       }
       
       // Check database for admin status
       const isAdminFromDb = await checkAdminStatus(userId);
       
-      // Only check super admin if they are an admin
-      let isSuperAdmin = false;
-      if (isAdminFromDb) {
-        isSuperAdmin = await checkSuperAdminStatus(userId);
-      }
-      
       return { 
         success: true, 
         error: null, 
-        isAdmin: isAdminFromDb,
-        isSuperAdmin
+        isAdmin: isAdminFromDb
       };
     } catch (err) {
       log('Error checking admin status:', err);

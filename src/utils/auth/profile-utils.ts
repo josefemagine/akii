@@ -10,9 +10,14 @@ const log = (...args: any[]) => console.log('[Profile Utils]', ...args);
  * that might be used in different parts of the app
  */
 interface ExtendedProfile extends Profile {
+  avatar_url?: string;
+  bio?: string;
+  company?: string;
+  company_name?: string;
+  display_name?: string;
   full_name?: string;
   is_admin?: boolean;
-  is_super_admin?: boolean;
+  is_team_owner?: boolean;
   team_id?: string;
   onboarding_completed?: boolean;
   // Add other potential properties here
@@ -40,7 +45,13 @@ export const isCompleteProfile = (profile: Profile | null): boolean => {
  */
 export const isTeamOwner = (profile: Profile | null): boolean => {
   if (!profile) return false;
-  return profile.role === 'owner';
+  
+  // Check is_team_owner property if it exists
+  if ('is_team_owner' in profile && (profile as any).is_team_owner === true) {
+    return true;
+  }
+  
+  return profile.role === 'team_owner';
 };
 
 /**
@@ -49,24 +60,17 @@ export const isTeamOwner = (profile: Profile | null): boolean => {
 export const isAdmin = (profile: Profile | null): boolean => {
   if (!profile) return false;
   
-  // First check the standard role
-  if (profile.role === 'admin' || profile.role === 'owner') {
+  // Check role field
+  if (profile.role === 'admin') {
     return true;
   }
   
-  // Then check the extended property
-  const extProfile = profile as ExtendedProfile;
-  return !!extProfile.is_admin;
-};
-
-/**
- * Check if a user is a super admin
- */
-export const isSuperAdmin = (profile: Profile | null): boolean => {
-  if (!profile) return false;
+  // Check is_admin property if it exists
+  if ('is_admin' in profile && (profile as any).is_admin === true) {
+    return true;
+  }
   
-  const extProfile = profile as ExtendedProfile;
-  return !!extProfile.is_super_admin;
+  return false;
 };
 
 /**

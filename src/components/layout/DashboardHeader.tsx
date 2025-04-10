@@ -33,9 +33,8 @@ interface DashboardHeaderProps {
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   toggleSidebar: () => void;
-  handleSignOut: (scope?: 'global' | 'local' | 'others') => Promise<void>;
+  handleSignOut: () => void;
   isAdmin: boolean;
-  isSuperAdmin: boolean;
   loading: boolean;
 }
 
@@ -46,7 +45,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   toggleSidebar,
   handleSignOut,
   isAdmin,
-  isSuperAdmin,
   loading
 }) => {
   const navigate = useNavigate();

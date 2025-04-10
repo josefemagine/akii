@@ -122,20 +122,39 @@ export const checkLocalStorageAuth = (): {
  */
 export const clearAuthStorage = (): boolean => {
   try {
+    let success = true;
+    
     // Clear local storage data
-    const localRemoved = safeLocalStorage.removeItem('supabase.auth.token');
-    
-    // Get sessionStorage if available and remove the item
-    const sessionStorage = window.sessionStorage;
-    const sessionRemoved = sessionStorage ? true : false;
-    
-    if (sessionStorage) {
-      sessionStorage.removeItem('supabase.auth.token');
+    try {
+      const localRemoved = safeLocalStorage.removeItem('supabase.auth.token');
+      if (!localRemoved) {
+        console.warn('Failed to remove auth token from localStorage');
+        success = false;
+      }
+    } catch (e) {
+      console.warn('Error clearing localStorage auth data:', e);
+      success = false;
     }
     
-    return localRemoved && sessionRemoved;
+    // Get sessionStorage if available and remove the item
+    try {
+      const sessionStorage = window.sessionStorage;
+      if (sessionStorage) {
+        try {
+          sessionStorage.removeItem('supabase.auth.token');
+        } catch (e) {
+          console.warn('Error clearing sessionStorage auth data:', e);
+          success = false;
+        }
+      }
+    } catch (e) {
+      console.warn('Error accessing sessionStorage:', e);
+      success = false;
+    }
+    
+    return success;
   } catch (e) {
-    console.warn('Error clearing local auth data:', e);
+    console.warn('Error in clearAuthStorage:', e);
     return false;
   }
 }; 

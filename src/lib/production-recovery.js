@@ -55,7 +55,6 @@ export function setupEmergencyAuth(email = 'admin@akii.com') {
             name: 'Production User',
             first_name: 'Production',
             last_name: 'User',
-            role: 'admin',
             timestamp: Date.now()
         };
         localStorage.setItem('akii-auth-fallback-user', JSON.stringify(fallbackUser));

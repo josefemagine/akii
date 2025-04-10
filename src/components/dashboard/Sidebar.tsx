@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/UnifiedAuthContext";
-import { useSuperAdmin } from "@/hooks/useSuperAdmin";
 import { cn } from "@/lib/utils";
 import {
   Home,
@@ -44,7 +43,7 @@ import {
   BookOpen,
   LifeBuoy,
   ListFilter,
-  Workflow,
+  Workflow as WorkflowIcon,
   Fingerprint,
   Zap,
   CheckCircle,
@@ -60,9 +59,31 @@ import {
   PenTool,
   Magnet,
   Mail,
+  Menu,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Profile } from "@/types/auth";
+
+// Custom SVG icon for workflows
+const Workflow = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+    <line x1="8" y1="12" x2="16" y2="12"></line>
+    <line x1="12" y1="16" x2="12" y2="16"></line>
+    <line x1="12" y1="8" x2="12" y2="8"></line>
+  </svg>
+);
 
 // Common sidebar link component
 interface SidebarLinkProps {
@@ -88,50 +109,74 @@ const SidebarLink: React.FC<SidebarLinkProps> = ({
   hasChildren,
   isExpanded,
 }) => {
-  if (onClick) {
-    return (
-      <button
-        onClick={onClick}
-        className={cn(
-          "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
-          isActive
-            ? "bg-accent text-accent-foreground"
-            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-          isCollapsed ? "justify-center" : ""
-        )}
-      >
-        <div className="w-5 h-5 flex items-center justify-center overflow-hidden shrink-0">
-          {icon}
-        </div>
-        {!isCollapsed && <span className="flex-1 text-left">{label}</span>}
-        {!isCollapsed && hasChildren && (
-          <div className="ml-auto">
-            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </div>
-        )}
-      </button>
-    );
-  }
+  const navigate = useNavigate();
+
+  // Handle click
+  const handleClick = (e: React.MouseEvent) => {
+    if (to && !onClick) {
+      e.preventDefault();
+      navigate(to);
+    } else if (onClick) {
+      e.preventDefault();
+      onClick();
+    }
+  };
 
   return (
     <Link
       to={to}
+      onClick={handleClick}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+        "flex items-center rounded-lg px-3 py-2 transition-all hover:text-primary",
         isActive
-          ? "bg-accent text-accent-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-        isCollapsed ? "justify-center" : ""
+          ? "bg-primary/10 text-primary font-medium"
+          : "text-gray-400 hover:bg-gray-900",
+        isCollapsed ? "justify-center" : "justify-start"
       )}
     >
-      <div className="w-5 h-5 flex items-center justify-center overflow-hidden shrink-0">
-        {icon}
+      <div className={cn("flex items-center", isCollapsed ? "justify-center" : "justify-start")}>
+        <span className={cn("mr-2", isCollapsed && "mr-0")}>{icon}</span>
+        {!isCollapsed && <span>{label}</span>}
       </div>
-      {!isCollapsed && <span>{label}</span>}
-      {!isCollapsed && badge && (
-        <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+
+      {/* Display children toggle indicator if this is a parent link */}
+      {hasChildren && !isCollapsed && (
+        <div className="ml-auto">
+          <div className="h-4 w-4">
+            {isExpanded ? (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            ) : (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Display badge if provided */}
+      {badge && !isCollapsed && (
+        <div className="ml-auto bg-primary/10 text-primary text-xs rounded-full px-2 py-0.5">
           {badge}
-        </span>
+        </div>
       )}
     </Link>
   );
@@ -145,51 +190,51 @@ const NestedLink: React.FC<{
   isActive: boolean;
   isCollapsed: boolean;
 }> = ({ to, icon, label, isActive, isCollapsed }) => {
-  if (isCollapsed) return null;
-  
+  const navigate = useNavigate();
+
+  // Handle click
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    navigate(to);
+  };
+
   return (
     <Link
       to={to}
+      onClick={handleClick}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ml-5",
+        "flex items-center rounded-lg px-3 py-1.5 transition-all hover:text-primary pl-8",
         isActive
-          ? "bg-accent text-accent-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          ? "bg-primary/10 text-primary font-medium"
+          : "text-gray-400 hover:bg-gray-900",
+        isCollapsed ? "justify-center" : "justify-start"
       )}
     >
-      <div className="w-5 h-5 flex items-center justify-center overflow-hidden shrink-0">
-        {icon}
-      </div>
-      <span>{label}</span>
+      <span className={cn("mr-2", isCollapsed && "mr-0")}>{icon}</span>
+      {!isCollapsed && <span className="text-sm">{label}</span>}
     </Link>
   );
 };
 
-interface SidebarProps {
+export interface SidebarProps {
   isCollapsed?: boolean;
   onToggle?: () => void;
   isAdmin?: boolean;
-  isSuperAdmin?: boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+export const Sidebar = ({
   isCollapsed = false,
   onToggle = () => {},
   isAdmin: propIsAdmin,
-  isSuperAdmin: propIsSuperAdmin,
-}) => {
+}: SidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, signOut, isAdmin: contextIsAdmin } = useAuth();
-  const { isSuperAdmin, isLoading: superAdminLoading } = useSuperAdmin();
   const { toast } = useToast();
   const currentPath = location.pathname;
   
-  // Determine admin status from either props or context
+  // Allow admin status to be passed as prop or from context
   const isAdmin = propIsAdmin || contextIsAdmin;
-  
-  // Use either the prop value (if provided) or the hook value
-  const isSuperAdminUser = propIsSuperAdmin || isSuperAdmin;
 
   // Track expanded states for collapsible sections
   const [expandedSections, setExpandedSections] = useState({
@@ -283,7 +328,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { to: "/dashboard/admin/run-migration", icon: <RefreshCcw className="h-5 w-5" />, label: "Run Migration" },
     
     // Technical
-    { to: "/dashboard/admin/workflows", icon: <Workflow className="h-5 w-5" />, label: "Workflows" },
+    { to: "/dashboard/admin/workflows", icon: <WorkflowIcon className="h-5 w-5" />, label: "Workflows" },
     { to: "/dashboard/admin/n8n-workflows", icon: <Zap className="h-5 w-5" />, label: "n8n Workflows" },
     { to: "/dashboard/admin/database-schema", icon: <Database className="h-5 w-5" />, label: "Database Schema" },
     { to: "/dashboard/admin/manage-instances", icon: <Cloud className="h-5 w-5" />, label: "AI Instances" },
@@ -303,8 +348,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Admin section rendering
   const renderAdminSection = () => {
-    // Only show admin section for regular admins or super admins
-    if (!isAdmin && !isSuperAdminUser) return null;
+    // Only show admin section for regular admins
+    if (!isAdmin) return null;
     
     return (
       <div className="px-3 py-2">
@@ -384,35 +429,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
             />
           ))}
 
-          {/* Apps section with nested links */}
-          <SidebarLink
-            to="#"
-            icon={<Layers className="h-5 w-5" />}
-            label="Apps"
-            isActive={isAppSectionActive}
-            isCollapsed={isCollapsed}
-            onClick={() => toggleSection('ai')}
-            hasChildren={true}
-            isExpanded={expandedSections.ai}
-          />
-          
-          {/* App sub-links */}
-          {expandedSections.ai && !isCollapsed && (
-            <div className="space-y-1 pl-0">
-              {appLinks.map((link) => (
-                <NestedLink
-                  key={link.to}
-                  to={link.to}
-                  icon={link.icon}
-                  label={link.label}
-                  isActive={currentPath === link.to || currentPath.startsWith(link.to + '/')}
-                  isCollapsed={isCollapsed}
-                />
-              ))}
-            </div>
-          )}
+          {/* Apps Section */}
+          <div className="py-2">
+            <SidebarLink
+              to="#"
+              icon={<Menu className="h-5 w-5" />}
+              label="Apps"
+              isActive={isAppSectionActive}
+              isCollapsed={isCollapsed}
+              hasChildren={true}
+              isExpanded={expandedSections.channels}
+              onClick={() => toggleSection('channels')}
+            />
 
-          {/* Additional main links that come after the Apps section */}
+            {expandedSections.channels && !isCollapsed && (
+              <div className="mt-1 pl-6">
+                {appLinks.map((link) => (
+                  <NestedLink
+                    key={link.to}
+                    to={link.to}
+                    icon={link.icon}
+                    label={link.label}
+                    isActive={currentPath === link.to || currentPath.startsWith(link.to + '/')}
+                    isCollapsed={isCollapsed}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Additional main links */}
           {additionalMainLinks.map((link) => (
             <SidebarLink
               key={link.to}
@@ -425,323 +471,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ))}
         </nav>
 
-        {/* Admin Navigation - visible only to admin users */}
-        {isAdmin && (
-          <div className={cn(
-            "mt-6 pt-6 border-t border-gray-200 dark:border-gray-800",
-            isCollapsed ? "px-1" : ""
-          )}>
-            {!isCollapsed && (
-              <div className="px-3 mb-2">
-                <p className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">
-                  ADMIN
-                </p>
-              </div>
-            )}
-            {isCollapsed && (
-              <div className="flex justify-center mb-2">
-                <div 
-                  className="flex items-center justify-center w-6 h-6 rounded-full bg-red-600/20 border border-red-600/50"
-                  title="Admin Navigation"
-                >
-                  <Shield className="w-3 h-3 text-red-600" />
-                </div>
-              </div>
-            )}
-            <nav className={cn("space-y-1", isCollapsed ? "px-1" : "pl-3")}>
-              {/* Top-level Admin Links (Dashboard, Supabase Bedrock, Users, Plans) */}
-              <SidebarLink
-                key={adminLinks[0].to}
-                to={adminLinks[0].to}
-                icon={
-                  <div className="text-red-600 dark:text-red-400">
-                    {adminLinks[0].icon}
-                  </div>
-                }
-                label={adminLinks[0].label}
-                isActive={currentPath.includes(adminLinks[0].to)}
-                isCollapsed={isCollapsed}
-              />
-              
-              <SidebarLink
-                key={adminLinks[1].to}
-                to={adminLinks[1].to}
-                icon={
-                  <div className="text-red-600 dark:text-red-400">
-                    {adminLinks[1].icon}
-                  </div>
-                }
-                label={adminLinks[1].label}
-                isActive={currentPath.includes(adminLinks[1].to)}
-                isCollapsed={isCollapsed}
-              />
-              
-              <SidebarLink
-                key={adminLinks[2].to}
-                to={adminLinks[2].to}
-                icon={
-                  <div className="text-red-600 dark:text-red-400">
-                    {adminLinks[2].icon}
-                  </div>
-                }
-                label={adminLinks[2].label}
-                isActive={currentPath.includes(adminLinks[2].to)}
-                isCollapsed={isCollapsed}
-              />
-              
-              <SidebarLink
-                key={adminLinks[3].to}
-                to={adminLinks[3].to}
-                icon={
-                  <div className="text-red-600 dark:text-red-400">
-                    {adminLinks[3].icon}
-                  </div>
-                }
-                label={adminLinks[3].label}
-                isActive={currentPath.includes(adminLinks[3].to)}
-                isCollapsed={isCollapsed}
-              />
-
-              {/* General Admin Links */}
-              {!isCollapsed && (
-                <SidebarLink
-                  to="#"
-                  icon={<div className="text-red-600 dark:text-red-400"><Gauge className="h-5 w-5" /></div>}
-                  label="General"
-                  isActive={currentPath.includes("/admin/settings")}
-                  isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('admin')}
-                  hasChildren={true}
-                  isExpanded={expandedSections.admin}
-                />
-              )}
-              
-              {(expandedSections.admin || isCollapsed) && (
-                <>
-                  {adminLinks.slice(4, 5).map((link) => (
-                    <SidebarLink
-                      key={link.to}
-                      to={link.to}
-                      icon={
-                        <div className="text-red-600 dark:text-red-400">
-                          {link.icon}
-                        </div>
-                      }
-                      label={link.label}
-                      isActive={currentPath.includes(link.to)}
-                      isCollapsed={isCollapsed}
-                    />
-                  ))}
-                </>
-              )}
-
-              {/* Content Management */}
-              {!isCollapsed && (
-                <SidebarLink
-                  to="#"
-                  icon={<div className="text-red-600 dark:text-red-400"><Layout className="h-5 w-5" /></div>}
-                  label="Content"
-                  isActive={currentPath.includes("/admin/blog") || 
-                            currentPath.includes("/admin/landing-pages") || 
-                            currentPath.includes("/admin/lead-magnets") ||
-                            currentPath.includes("/admin/email-templates")}
-                  isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('channels')}
-                  hasChildren={true}
-                  isExpanded={expandedSections.channels}
-                />
-              )}
-              
-              {expandedSections.channels && !isCollapsed && (
-                <>
-                  {adminLinks.slice(5, 8).map((link) => (
-                    <NestedLink
-                      key={link.to}
-                      to={link.to}
-                      icon={
-                        <div className="text-red-600 dark:text-red-400">
-                          {link.icon}
-                        </div>
-                      }
-                      label={link.label}
-                      isActive={currentPath.includes(link.to)}
-                      isCollapsed={isCollapsed}
-                    />
-                  ))}
-                </>
-              )}
-              
-              {/* Compliance & Security */}
-              {!isCollapsed && (
-                <SidebarLink
-                  to="#"
-                  icon={<div className="text-red-600 dark:text-red-400"><Shield className="h-5 w-5" /></div>}
-                  label="Compliance"
-                  isActive={currentPath.includes("/dashboard/admin/compliance") || 
-                            currentPath.includes("/dashboard/admin/moderation")}
-                  isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('admin')}
-                  hasChildren={true}
-                  isExpanded={expandedSections.admin}
-                />
-              )}
-              
-              {expandedSections.admin && !isCollapsed && (
-                <>
-                  {adminLinks.slice(8, 9).map((link) => (
-                    <NestedLink
-                      key={link.to}
-                      to={link.to}
-                      icon={
-                        <div className="text-red-600 dark:text-red-400">
-                          {link.icon}
-                        </div>
-                      }
-                      label={link.label}
-                      isActive={currentPath.includes(link.to)}
-                      isCollapsed={isCollapsed}
-                    />
-                  ))}
-                </>
-              )}
-              
-              {/* Partners */}
-              {!isCollapsed && (
-                <SidebarLink
-                  to="#"
-                  icon={<div className="text-red-600 dark:text-red-400"><Users className="h-5 w-5" /></div>}
-                  label="Partners"
-                  isActive={currentPath.includes("/dashboard/admin/affiliates") || 
-                            currentPath.includes("/dashboard/admin/packages") ||
-                            currentPath.includes("/dashboard/admin/billing")}
-                  isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('admin')}
-                  hasChildren={true}
-                  isExpanded={expandedSections.admin}
-                />
-              )}
-              
-              {expandedSections.admin && !isCollapsed && (
-                <>
-                  {[adminLinks[10], adminLinks[11], adminLinks[12]].map((link) => (
-                    <NestedLink
-                      key={link.to}
-                      to={link.to}
-                      icon={
-                        <div className="text-red-600 dark:text-red-400">
-                          {link.icon}
-                        </div>
-                      }
-                      label={link.label}
-                      isActive={currentPath.includes(link.to)}
-                      isCollapsed={isCollapsed}
-                    />
-                  ))}
-                </>
-              )}
-              
-              {/* Migrations */}
-              {!isCollapsed && (
-                <SidebarLink
-                  to="#"
-                  icon={<div className="text-red-600 dark:text-red-400"><RefreshCcw className="h-5 w-5" /></div>}
-                  label="Migrations"
-                  isActive={currentPath.includes("/dashboard/admin/user-sync") || 
-                            currentPath.includes("/dashboard/admin/user-status-migration") || 
-                            currentPath.includes("/dashboard/admin/user-profile-migration") ||
-                            currentPath.includes("/dashboard/admin/run-migration")}
-                  isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('admin')}
-                  hasChildren={true}
-                  isExpanded={expandedSections.admin}
-                />
-              )}
-              
-              {expandedSections.admin && !isCollapsed && (
-                <>
-                  {adminLinks.slice(13, 17).map((link) => (
-                    <NestedLink
-                      key={link.to}
-                      to={link.to}
-                      icon={
-                        <div className="text-red-600 dark:text-red-400">
-                          {link.icon}
-                        </div>
-                      }
-                      label={link.label}
-                      isActive={currentPath.includes(link.to)}
-                      isCollapsed={isCollapsed}
-                    />
-                  ))}
-                </>
-              )}
-              
-              {/* Technical */}
-              {!isCollapsed && (
-                <SidebarLink
-                  to="#"
-                  icon={<div className="text-red-600 dark:text-red-400"><Database className="h-5 w-5" /></div>}
-                  label="Technical"
-                  isActive={currentPath.includes("/dashboard/admin/workflows") || 
-                            currentPath.includes("/dashboard/admin/n8n-workflows") || 
-                            currentPath.includes("/dashboard/admin/database-schema") ||
-                            currentPath.includes("/dashboard/admin/manage-instances") || 
-                            currentPath.includes("/dashboard/admin/supabase-check") || 
-                            currentPath.includes("/dashboard/admin/admin-check")}
-                  isCollapsed={isCollapsed}
-                  onClick={() => toggleSection('admin')}
-                  hasChildren={true}
-                  isExpanded={expandedSections.admin}
-                />
-              )}
-              
-              {expandedSections.admin && !isCollapsed && (
-                <>
-                  {adminLinks.slice(17).map((link) => (
-                    <NestedLink
-                      key={link.to}
-                      to={link.to}
-                      icon={
-                        <div className="text-red-600 dark:text-red-400">
-                          {link.icon}
-                        </div>
-                      }
-                      label={link.label}
-                      isActive={currentPath.includes(link.to)}
-                      isCollapsed={isCollapsed}
-                    />
-                  ))}
-                </>
-              )}
-              
-              {/* Show all links in collapsed mode without categories */}
-              {isCollapsed && (
-                <>
-                  {adminLinks.slice(4).map((link) => (
-                    <SidebarLink
-                      key={link.to}
-                      to={link.to}
-                      icon={
-                        <div className="text-red-600 dark:text-red-400">
-                          {link.icon}
-                        </div>
-                      }
-                      label={link.label}
-                      isActive={currentPath.includes(link.to)}
-                      isCollapsed={isCollapsed}
-                    />
-                  ))}
-                </>
-              )}
-            </nav>
-          </div>
-        )}
-
-        {/* Admin Section */}
+        {/* Admin section - Conditional rendering based on role */}
         {renderAdminSection()}
 
-        {/* Bottom Section - Help, Logout */}
-        <div className="mt-auto pt-6 space-y-1 pl-3">
+        {/* Bottom links */}
+        <div className="mt-auto mb-6 pl-3 pt-6">
           {bottomLinks.map((link) => (
             <SidebarLink
               key={link.to}
@@ -752,37 +486,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
               isCollapsed={isCollapsed}
             />
           ))}
-          <button
+
+          {/* Sign out button */}
+          <SidebarLink
+            to="#"
+            icon={<LogOut className="h-5 w-5" />}
+            label="Sign Out"
+            isActive={false}
+            isCollapsed={isCollapsed}
             onClick={handleLogout}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive",
-              isCollapsed ? "justify-center" : "",
-            )}
-          >
-            <div className="w-5 h-5 flex items-center justify-center overflow-hidden shrink-0">
-              <LogOut className="w-[18px] h-[18px]" size={18} strokeWidth={2} />
-            </div>
-            {!isCollapsed && <span>Logout</span>}
-          </button>
-          
-          {/* Collapse toggle button */}
-          <button
-            onClick={onToggle}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground mt-4 border-t dark:border-gray-800 pt-4",
-              isCollapsed ? "justify-center" : "",
-            )}
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <div className="w-5 h-5 flex items-center justify-center overflow-hidden shrink-0">
-              {isCollapsed ? (
-                <PanelLeftOpen className="w-[18px] h-[18px]" size={18} strokeWidth={2} />
-              ) : (
-                <PanelLeftClose className="w-[18px] h-[18px]" size={18} strokeWidth={2} />
-              )}
-            </div>
-            {!isCollapsed && <span>Collapse Sidebar</span>}
-          </button>
+          />
         </div>
       </div>
     </aside>

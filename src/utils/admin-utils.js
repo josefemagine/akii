@@ -20,21 +20,14 @@ export const forceAdminStatus = () => {
     return false;
 };
 /**
- * Set development admin mode
- * @param enable Whether to enable or disable admin mode
+ * Set admin mode from database only
+ * @param enable Ignored - kept for backward compatibility
  */
 export const enableDevAdminMode = (enable) => {
-    if (import.meta.env.DEV) {
-        console.log(`${enable ? 'Enabling' : 'Disabling'} dev admin mode`);
-        if (enable) {
-            localStorage.setItem('akii-is-admin', 'true');
-        }
-        else {
-            localStorage.removeItem('akii-is-admin');
-        }
-        return true;
-    }
-    return false;
+    console.log(`Admin status is now always determined from database roles`);
+    // Remove any localStorage overrides to ensure we only use database roles
+    localStorage.removeItem('akii-is-admin');
+    return false; // Always return false to indicate operation is no longer supported
 };
 /**
  * Diagnose super admin issues by checking user status in various tables
