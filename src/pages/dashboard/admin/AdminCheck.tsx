@@ -1,4 +1,0 @@
-import React from "react";
-interface AdminCheckProps {}
-
-"use strict";

@@ -1,8 +1,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// SidebarLink component
 export interface SidebarLinkProps {
   to: string;
   icon?: React.ReactNode;
@@ -14,10 +15,6 @@ export interface SidebarLinkProps {
   toggleExpanded: () => void;
 }
 
-/**
- * A common sidebar link component that can be either a button or a Link based on whether onClick is provided.
- * Supports collapsed and expanded states, badges, and child indicators.
- */
 export const SidebarLink: React.FC<SidebarLinkProps> = ({
   to,
   icon,
@@ -68,5 +65,51 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
         </>
       )}
     </Link>
+  );
+};
+
+// NestedLink component
+export interface NestedLinkProps {
+  to: string;
+  label: string;
+  isActive: boolean;
+  isCollapsed: boolean;
+}
+
+export const NestedLink: React.FC<NestedLinkProps> = ({
+  to,
+  label,
+  isActive,
+  isCollapsed,
+}) => {
+  if (isCollapsed) return null;
+
+  return (
+    <Link
+      to={to}
+      className={cn(
+        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ml-8 hover:bg-accent hover:text-accent-foreground",
+        isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+      )}
+    >
+      <span>{label}</span>
+    </Link>
+  );
+};
+
+// AdminBadge component to show in the sidebar
+export const AdminBadge: React.FC<{ isCollapsed: boolean }> = ({ isCollapsed }) => {
+  if (isCollapsed) {
+    return (
+      <div className="flex justify-center items-center py-1">
+        <Shield className="h-5 w-5 text-amber-500" />
+      </div>
+    );
+  }
+  
+  return (
+    <div className="px-4 py-1 mb-2 bg-amber-100 text-amber-800 rounded flex items-center text-xs font-medium">
+      <Shield className="h-3 w-3 mr-1" /> Admin Access
+    </div>
   );
 }; 

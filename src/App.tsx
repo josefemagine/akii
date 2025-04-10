@@ -12,6 +12,9 @@ import { supabase, ensureSupabaseInitialized } from "./lib/supabase-singleton.ts
 import { initializeProductionRecovery } from "./lib/production-recovery.ts";
 import { forceAdminStatus, enableDevAdminMode } from "./lib/admin-utils.ts";
 
+// Import debug utilities
+import * as debugUtils from "./debug";
+
 // Import providers
 import { SearchProvider } from "./contexts/SearchContext.tsx";
 import { UnifiedAuthProvider, useAuth } from "./contexts/UnifiedAuthContext.tsx";
@@ -56,6 +59,7 @@ const TelegramChat = lazy(() => import("./pages/dashboard/TelegramChat"));
 const ShopifyChat = lazy(() => import("./pages/dashboard/ShopifyChat"));
 const WordPressChat = lazy(() => import("./pages/dashboard/WordPressChat"));
 const PrivateAI = lazy(() => import("./pages/dashboard/PrivateAI"));
+const Profile = lazy(() => import("./pages/dashboard/Profile"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminSettings = lazy(() => import("./pages/admin/Settings"));
@@ -248,6 +252,18 @@ export default function App() {
     setupNetworkInterceptors();
   }, []);
 
+  // Initialize debug utilities in development mode only
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('App: Initializing debug utilities in development mode');
+      // Make debug utils available globally
+      (window as any).akiiDebugUtils = debugUtils;
+      // Set the admin user ID for convenient access
+      (window as any).ADMIN_USER_ID = 'b574f273-e0e1-4cb8-8c98-f5a7569234c8';
+      console.log('Debug utilities available at window.akiiDebugUtils');
+    }
+  }, []);
+
   return (
     <Suspense fallback={<LoadingScreen />}>
       <UnifiedAuthProvider>
@@ -292,6 +308,7 @@ export default function App() {
             {/* Dashboard routes - protected */}
             <Route path="/dashboard" element={<MemoDashboardRoute />}>
               <Route index element={<Dashboard />} />
+              <Route path="profile" element={<Profile />} />
               <Route path="ai-instances" element={<AIInstancesPage />} />
               <Route path="create-ai-instance" element={<CreateAIInstancePage />} />
               <Route path="training-data" element={<TrainingDataPage />} />

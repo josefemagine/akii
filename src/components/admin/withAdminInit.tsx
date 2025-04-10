@@ -111,3 +111,6 @@ export function withAdminInit<P extends object>(Component: React.ComponentType<P
 
   return WithAdminInit;
 }
+
+// Add default export to support import statement in Dashboard.tsx
+export default withAdminInit;

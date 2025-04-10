@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge.tsx';
 import { Switch } from '@/components/ui/switch.tsx';
 import { Label } from '@/components/ui/label.tsx';
 import { CreditCard, Calendar, BarChart, ExternalLink, ArrowRight } from 'lucide-react';
-import { billingProvider } from '@/lib/billing-providers.ts';
+import { billingProvider } from '@/lib/billing-providers';
 import { useAuth } from '@/contexts/UnifiedAuthContext.tsx';
 import { useToast } from '@/components/ui/use-toast.ts';
 

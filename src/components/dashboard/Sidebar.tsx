@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
 import { cn } from "@/lib/utils.ts";
@@ -63,6 +63,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast.ts";
 import { Profile } from "@/types/auth.ts";
+import { UserRepository } from "@/lib/database/user-repository";
 
 // Custom SVG icon for workflows
 const Workflow = (props: React.SVGProps<SVGSVGElement>) => (
@@ -233,16 +234,53 @@ export const Sidebar = ({
   const { toast } = useToast();
   const currentPath = location.pathname;
   
-  // Allow admin status to be passed as prop or from context
-  const isAdmin = propIsAdmin || contextIsAdmin;
+  // State for REST API admin status
+  const [restApiAdminStatus, setRestApiAdminStatus] = useState<boolean | null>(null);
+  const [adminStatusLoading, setAdminStatusLoading] = useState(false);
+  
+  // Allow admin status to be passed as prop or from context or determined by REST API
+  const isAdmin = propIsAdmin || contextIsAdmin || restApiAdminStatus === true;
 
-  // Track expanded states for collapsible sections
+  // Track expanded sections for collapsible sections
   const [expandedSections, setExpandedSections] = useState({
     team: false,
     ai: false,
     admin: false,
     channels: false,
   });
+  
+  // Use REST API to check admin status
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user?.id) return;
+      
+      setAdminStatusLoading(true);
+      try {
+        console.log("[Sidebar] Checking admin status via REST API for:", user.id);
+        const isAdminViaRest = await UserRepository.checkAdminStatusREST(user.id);
+        console.log("[Sidebar] REST API admin check result:", isAdminViaRest);
+        setRestApiAdminStatus(isAdminViaRest);
+        
+        // Update localStorage for persistence
+        if (isAdminViaRest) {
+          localStorage.setItem('user_is_admin', 'true');
+          localStorage.setItem('admin_user_id', user.id);
+        } else {
+          // Only remove if we're certain the user is not an admin
+          if (localStorage.getItem('admin_user_id') === user.id) {
+            localStorage.removeItem('user_is_admin');
+            localStorage.removeItem('admin_user_id');
+          }
+        }
+      } catch (error) {
+        console.error("[Sidebar] Error checking admin status via REST:", error);
+      } finally {
+        setAdminStatusLoading(false);
+      }
+    };
+    
+    checkAdminStatus();
+  }, [user?.id]);
 
   // Toggle section expansion
   const toggleSection = (section: keyof typeof expandedSections) => {

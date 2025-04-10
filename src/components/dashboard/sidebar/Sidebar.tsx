@@ -3,12 +3,14 @@ import { useLocation } from "react-router-dom";
 import { 
   ChevronLeft,
   ChevronRight,
-  LogOut
+  LogOut,
+  AlertTriangle
 } from "lucide-react";
-import { cn } from "@/lib/utils.ts";
-import { Button } from "@/components/ui/button.tsx";
-import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
-import { LinkGroups } from "./LinkGroups.tsx";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/UnifiedAuthContext";
+import { LinkGroups } from "./LinkGroups";
+import { toast } from "@/components/ui/use-toast";
 
 interface SidebarProps {
   className?: string;
@@ -19,19 +21,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ className }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const { user, profile, signOut, isAdmin } = useAuth();
-  const [isSuper, setIsSuper] = useState(false);
+  const [adminWarningShown, setAdminWarningShown] = useState(false);
 
   useEffect(() => {
-    async function checkAdminStatus() {
-      if (isAdmin) {
-        setIsSuper(true);
-      } else {
-        setIsSuper(false);
+    // Show debugging toast in dev mode if admin status doesn't match expected
+    const isDev = process.env.NODE_ENV === 'development';
+    if (isDev && isAdmin === false && !adminWarningShown) {
+      const userId = user?.id;
+      const expectedAdmin = userId === 'b574f273-e0e1-4cb8-8c98-f5a7569234c8';
+      
+      if (expectedAdmin) {
+        toast({
+          title: "Admin Status Warning",
+          description: "Expected admin user, but isAdmin is false. Admin navigation may not show correctly.",
+          variant: "destructive",
+          action: <Button size="sm" onClick={() => localStorage.setItem('user_is_admin', 'true')}>Fix</Button>
+        });
+        setAdminWarningShown(true);
       }
     }
-
-    checkAdminStatus();
-  }, [isAdmin]);
+  }, [isAdmin, user, adminWarningShown]);
 
   const toggleExpanded = useCallback((section: string) => {
     setExpandedSections(prev => ({
@@ -60,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className }) => {
       {/* Logo/header section */}
       <div className="flex h-14 items-center border-b px-3">
         {!isCollapsed && (
-          <span className="text-lg font-semibold">App</span>
+          <span className="text-lg font-semibold">Akii</span>
         )}
         <Button
           variant="ghost"
@@ -80,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className }) => {
           toggleExpanded={toggleExpanded}
           isCollapsed={isCollapsed}
           isAdmin={isAdmin}
-          isSuper={isSuper}
+          isSuper={isAdmin}
           subscribedProducts={subscribedProducts}
         />
       </div>

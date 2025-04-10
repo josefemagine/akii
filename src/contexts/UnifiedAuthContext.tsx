@@ -20,6 +20,7 @@ import {
   AUTH_RECOVERY_EVENT
 } from "@/types/auth.ts";
 import { USER_DATA_ENDPOINT } from "@/lib/api-endpoints.ts";
+import { UserRepository } from "@/lib/database/user-repository";
 
 // Debug logger
 const log = (...args: any[]) => console.log('[Auth]', ...args);
@@ -202,6 +203,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const checkIsAdmin = useCallback((userProfile: any): boolean => {
     if (!userProfile) return false;
     
+    // Check for specific admin user ID first
+    if (userProfile?.id === 'b574f273-e0e1-4cb8-8c98-f5a7569234c8') {
+      log('User is admin based on specific user ID match');
+      return true;
+    }
+    
     // First check the is_admin field directly (new approach)
     if (userProfile?.is_admin === true) {
       log('User is admin based on profile.is_admin = true');
@@ -220,14 +227,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return true;
     }
     
+    // Check localStorage as a last resort
+    if (typeof localStorage !== 'undefined') {
+      const isAdminInLocalStorage = localStorage.getItem('user_is_admin') === 'true' && 
+                                  localStorage.getItem('admin_user_id') === userProfile?.id;
+      
+      if (isAdminInLocalStorage) {
+        log('User is admin based on localStorage flags');
+        return true;
+      }
+    }
+    
     return false;
   }, []);
 
   // Profile updated helper function to ensure consistent state updates
-  const profileUpdated = useCallback((newProfile: Profile | null) => {
+  const profileUpdated = useCallback(async (newProfile: Profile | null) => {
     if (newProfile) {
       log(`Updating profile state for user ${newProfile.id}`);
       setProfile(newProfile);
+      
+      // Determine admin status using REST API first (most reliable)
+      try {
+        log(`Checking admin status via REST API for user ${newProfile.id}`);
+        const isAdminViaREST = await UserRepository.checkAdminStatusREST(newProfile.id);
+        
+        if (isAdminViaREST) {
+          log(`REST API confirms user ${newProfile.id} is admin`);
+          setIsAdmin(true);
+          return;
+        }
+      } catch (err) {
+        log(`Error checking admin status via REST: ${err}`);
+        // Continue with local checks if REST fails
+      }
       
       // Determine admin status from is_admin field or role
       let isAdminUser = false;

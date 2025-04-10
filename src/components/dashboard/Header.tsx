@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   DropdownMenu,
@@ -13,6 +13,8 @@ import { Bell, Circle, LogOut, Menu, Moon, Shield, Sun, User as UserIcon } from 
 import { useAuth } from "@/contexts/UnifiedAuthContext.tsx";
 import { Profile } from "@/types/auth.ts";
 import { useToast } from "@/components/ui/use-toast.ts";
+import { AuthRepository } from "@/lib/database/auth-repository.ts";
+import { UserRepository } from "@/lib/database/user-repository";
 
 // Default avatar fallback URL
 const DEFAULT_AVATAR_URL = '/assets/default-avatar.png';
@@ -35,14 +37,50 @@ const Header: React.FC<HeaderProps> = ({
   onThemeChange,
 }) => {
   // Use unified auth context for all auth-related data
-  const { user, profile, signOut, isAdmin } = useAuth();
+  const { user, profile, signOut, isAdmin: contextIsAdmin } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // Add state for REST API admin status
+  const [isAdminViaREST, setIsAdminViaREST] = useState<boolean | null>(null);
+  const [adminCheckLoading, setAdminCheckLoading] = useState(false);
+  
+  // Combined admin status - true if any check returns true
+  const isAdmin = contextIsAdmin || isAdminViaREST === true;
+  
+  // Check admin status using REST API
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user?.id) return;
+      
+      setAdminCheckLoading(true);
+      try {
+        console.log("[Header] Checking admin status via REST API for:", user.id);
+        const adminStatus = await UserRepository.checkAdminStatusREST(user.id);
+        console.log("[Header] REST API admin check result:", adminStatus);
+        setIsAdminViaREST(adminStatus);
+      } catch (error) {
+        console.error("[Header] Error checking admin status via REST:", error);
+      } finally {
+        setAdminCheckLoading(false);
+      }
+    };
+    
+    checkAdminStatus();
+  }, [user?.id]);
   
   // Handle sign out with proper error handling
   const handleSignOut = async () => {
     try {
-      await signOut();
+      // Use AuthRepository for sign out
+      const { error } = await AuthRepository.signOut();
+      
+      if (error) {
+        throw error;
+      }
+      
+      await signOut(); // Call context's signOut to update state
+      
       toast({
         title: "Signed out",
         description: "You have been signed out successfully.",
@@ -109,6 +147,10 @@ const Header: React.FC<HeaderProps> = ({
             </div>
           )}
           
+          {adminCheckLoading && (
+            <div className="mr-2 w-4 h-4 border-2 border-t-amber-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+          )}
+          
           <Button
             variant="ghost"
             size="icon"
@@ -157,10 +199,16 @@ const Header: React.FC<HeaderProps> = ({
                 Settings
               </DropdownMenuItem>
               {isAdmin && (
-                <DropdownMenuItem onClick={() => navigate('/dashboard/admin/admin-check')}>
-                  <Shield className="h-4 w-4 mr-2" />
-                  Admin Check
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem onClick={() => navigate('/dashboard/admin/admin-check')}>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Admin Check
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/dashboard/admin')}>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Admin Dashboard
+                  </DropdownMenuItem>
+                </>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut}>
